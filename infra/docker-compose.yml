@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: f3_postgres
+    restart: unless-stopped # A slight improvement over 'always'
+    environment:
+      # Use ${VAR:-default_value} syntax for flexibility and security
+      POSTGRES_USER: ${POSTGRES_USER:-f3admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-f3password}
+      POSTGRES_DB: ${POSTGRES_DB:-f3next}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Map internal path to the named volume 'postgres_data'
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Ensures the DB software is ready *before* other services try to connect
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-f3admin}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - f3_net
+
+# --- Auxiliary Services (Optional, but recommended) ---
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8080" # Access via http://localhost:8080
+    # Make sure adminer can see the 'db' service on the network
+    networks:
+      - f3_net
+
+volumes:
+  postgres_data: # Declare the volume for persistence
+
+networks:
+  f3_net:
+    driver: bridge

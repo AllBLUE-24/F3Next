@@ -1,0 +1,69 @@
+#############################
+# PYTHON
+#############################
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+
+# venvs
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# local env files
+.env
+.env.*
+
+
+#############################
+# NODE / NEXT.JS
+#############################
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+#############################
+# DOCKER
+#############################
+**/docker-data/
+**/.docker/
+**/Dockerfile.*.tmp
+
+
+#############################
+# TERRAFORM
+#############################
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+
+
+#############################
+# KUBERNETES (optional)
+#############################
+*.kubeconfig
+kubeconfig.yml
+
+
+#############################
+# SYSTEM / EDITORS
+#############################
+.DS_Store
+.idea/
+.vscode/
+*.swp
