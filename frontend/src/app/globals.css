@@ -19,6 +19,8 @@
   --header-height: 56px;
   --sidebar-width: 80px;
   --sidebar-collapsed: 48px;
+  --grid-color: rgb(255 255 255 / 0.04);
+  --grid-size: 40px;
 }
 
 @theme inline {
@@ -39,6 +41,14 @@ body {
   color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   font-size: 16px;
+}
+
+.void-grid {
+  background-color: var(--bg-void);
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
 }
 
 .surface-shell {
@@ -110,4 +120,35 @@ body {
   background: var(--bg-card);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04),
     inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
+
+.tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tooltip::after {
+  content: attr(data-tip);
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.5rem);
+  transform: translateX(-50%);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
 }
