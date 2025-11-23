@@ -29,7 +29,7 @@ export default function FloatingAIBubble() {
         aria-label="Activate AI"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-[11px] font-semibold text-white/80 shadow-sm transition hover:shadow-md ${
+        className={`ai-orb flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-[11px] font-semibold text-white/80 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
           hovered ? "scale-105 text-white" : ""
         }`}
       >
