@@ -23,7 +23,6 @@ services:
       retries: 5
     networks:
       - f3_net
-
 # --- Auxiliary Services (Optional, but recommended) ---
   adminer:
     image: adminer:latest
