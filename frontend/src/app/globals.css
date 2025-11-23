@@ -5,7 +5,7 @@
   color-scheme: dark;
   --bg-void: #0a0a0a;
   --bg-shell: #0b0b0b;
-  --bg-float: #0c0c0c;
+  --bg-float: #0b0b0b;
   --bg-card: #111827;
   --border-subtle: #ffffff0f;
   --border-strong: #ffffff1f;
@@ -13,7 +13,12 @@
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
   --shadow-depth: 0 4px 24px -12px rgb(0 0 0 / 0.7);
+  --shadow-lift: 0 12px 32px -20px rgb(255 255 255 / 0.08),
+    0 12px 32px -18px rgb(0 0 0 / 0.8);
   --radius-card: 28px;
+  --header-height: 56px;
+  --sidebar-width: 80px;
+  --sidebar-collapsed: 48px;
 }
 
 @theme inline {
@@ -50,6 +55,14 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
+  box-shadow: var(--shadow-depth);
+}
+
+.shadow-lift {
+  box-shadow: var(--shadow-lift);
+}
+
+.shadow-depth {
   box-shadow: var(--shadow-depth);
 }
 
@@ -91,4 +104,10 @@ body {
     linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
   background-size: 80px 80px;
   opacity: 0.15;
+}
+
+.inner-card {
+  background: var(--bg-card);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4);
 }
