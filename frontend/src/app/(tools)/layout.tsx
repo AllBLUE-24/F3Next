@@ -13,8 +13,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
-const interactiveClass =
-  "transition-all duration-200 hover:shadow-2xl hover:-translate-y-1 hover:brightness-110 active:scale-95";
+const interactiveClass = "lift-hover transition-colors duration-200";
 
 const primaryNav = [
   { id: "help", label: "Guide", icon: CircleHelp },
@@ -71,7 +70,7 @@ export default function ToolsLayout({
         </div>
 
         <div className="flex min-h-dvh flex-1 flex-col">
-          <header className="flex h-[var(--header-height)] items-center justify-between border-b border-white/10 px-6 lg:px-10">
+          <header className="flex h-[var(--header-height)] items-center justify-between border-b border-white/5 bg-[radial-gradient(circle_at_top,var(--bg-card)_0%,#050505_65%)] px-6 shadow-[0_25px_60px_rgb(0_0_0/0.6)] lg:px-10">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-3">
                 <span className="text-lg font-semibold tracking-[0.2em]">
