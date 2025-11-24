@@ -146,13 +146,9 @@ export default function QuestionnairePage() {
   };
 
   return (
-    <div className="relative rounded-[36px] border border-white/10 bg-[#0b0b0b]/95 shadow-[0_50px_140px_rgba(0,0,0,0.7)]">
-      <span
-        className="pointer-events-none absolute -left-2 top-4 hidden h-[calc(100%-2rem)] w-px rounded-full bg-white/10 lg:block"
-        aria-hidden="true"
-      />
-      <div className="flex flex-col gap-10 px-4 py-8 lg:flex-row lg:px-8">
-        <aside className="w-full max-w-full border-l border-white/5 bg-[#0b0b0b] px-4 py-4 lg:w-[320px] lg:rounded-l-[28px]">
+    <section className="overflow-hidden rounded-[36px] border border-white/10 bg-[#0b0b0b]/95 shadow-[0_50px_140px_rgba(0,0,0,0.7)]">
+      <div className="flex flex-col lg:flex-row">
+        <aside className="w-full max-w-full border-r border-white/10 bg-[#0b0b0b] px-5 py-6 lg:w-[320px]">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.4em] text-muted">Stack</p>
@@ -187,7 +183,7 @@ export default function QuestionnairePage() {
           </div>
         </aside>
 
-        <div className="flex-1 px-2 py-2 sm:px-4 sm:py-4 lg:px-6">
+        <div className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
           <motion.div
             variants={cardVariants}
             initial="hidden"
@@ -257,7 +253,7 @@ export default function QuestionnairePage() {
           </motion.div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 

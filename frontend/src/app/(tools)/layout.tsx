@@ -36,75 +36,102 @@ export default function ToolsLayout({
 
   return (
     <main className="void-grid min-h-dvh text-foreground">
-      <header className="fixed left-0 top-0 z-40 flex h-[var(--header-height)] w-full items-center justify-between border-b border-white/10 bg-[#0a0a0a]/95 px-6 backdrop-blur-md lg:px-12">
-        <span className="text-lg font-semibold tracking-[0.3em] text-white">
-          F3Next
-        </span>
-        <div className="flex items-center gap-2">
-          {progressDots.map((_, index) => (
-            <span
-              key={index}
-              className={`h-2 w-2 rounded-full transition ${
-                index < 3 ? "bg-white" : "bg-white/30"
-              }`}
-            />
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right text-xs uppercase text-muted">
-            <p>Operator</p>
-            <p className="text-sm font-medium tracking-wide text-white">JD</p>
+      <div className="flex min-h-dvh bg-[#0a0a0a]">
+        <div className="flex w-[var(--sidebar-width)] flex-col border-r border-white/10 bg-[#0a0a0a] shadow-[inset_-1px_0_0_rgb(255_255_255/0.05)]">
+          <div className="flex h-[var(--header-height)] items-center justify-center border-b border-white/10">
+            <div className="rounded-full border border-white/20 px-4 py-1 text-xs uppercase tracking-[0.4em] text-secondary">
+              F3
+            </div>
           </div>
-          <div
-            className={`flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-xs font-semibold tracking-wide text-white shadow-lg ${interactiveClass}`}
-          >
-            JD
-          </div>
-        </div>
-      </header>
-
-      <aside className="fixed left-0 top-[var(--header-height)] z-40 flex h-[calc(100vh-var(--header-height))] w-[var(--sidebar-width)] flex-col items-center border-r border-white/10 bg-[#0a0a0a]">
-        <div className="mt-8 flex flex-col items-center gap-4">
-          {primaryNav.map(({ id, label, icon: Icon }) => {
-            const isActive = id === activePrimary;
-            return (
-              <button
-                key={id}
-                aria-label={label}
-                title={label}
-                onClick={() => setActivePrimary(id)}
-                className={`relative flex h-12 w-12 items-center justify-center rounded-2xl ${interactiveClass} ${
-                  isActive ? "bg-white/10 shadow-lg" : "border border-transparent"
-                }`}
-              >
-                <Icon
-                  className={`h-5 w-5 ${
-                    isActive ? "text-white" : "text-secondary"
+          <div className="flex flex-1 flex-col items-center gap-3 py-6">
+            {primaryNav.map(({ id, label, icon: Icon }) => {
+              const isActive = id === activePrimary;
+              return (
+                <button
+                  key={id}
+                  aria-label={label}
+                  title={label}
+                  onClick={() => setActivePrimary(id)}
+                  className={`relative flex h-12 w-12 items-center justify-center rounded-2xl ${interactiveClass} ${
+                    isActive ? "bg-white/10 shadow-lg" : "border border-transparent"
                   }`}
-                />
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 h-10 w-1 -translate-x-3 -translate-y-1/2 rounded-full bg-white" />
-                )}
-              </button>
-            );
-          })}
+                >
+                  <Icon
+                    className={`h-5 w-5 ${
+                      isActive ? "text-white" : "text-secondary"
+                    }`}
+                  />
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 h-10 w-1 -translate-x-3 -translate-y-1/2 rounded-full bg-white" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </aside>
 
-      <div className="relative z-10 min-h-dvh pt-[var(--header-height)]">
-        <div className="ml-[var(--sidebar-width)] px-4 pb-16 pt-10 lg:px-14">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${activePrimary}-${pathname}`}
-              layoutId="workspace"
-              initial={{ x: "100%", opacity: 0 }}
-              animate={{ x: "0%", opacity: 1 }}
-              exit={{ x: "-10%", opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+        <div className="flex min-h-dvh flex-1 flex-col">
+          <header className="flex h-[var(--header-height)] items-center justify-between border-b border-white/10 px-6 lg:px-10">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-semibold tracking-[0.2em]">
+                  F3Next
+                </span>
+                <span className="rounded-full border border-white/15 px-3 py-1 text-xs uppercase tracking-[0.3em] text-secondary">
+                  Live
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-secondary">
+                <span>Workspace health</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                  Synced 4m ago
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                className={`hidden items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-secondary lg:flex ${interactiveClass}`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
+                Search workspace
+              </button>
+              <div className="flex items-center gap-2">
+                {progressDots.map((_, index) => (
+                  <span
+                    key={index}
+                    className={`h-2 w-2 rounded-full transition ${
+                      index < 3 ? "bg-white" : "bg-white/30"
+                    }`}
+                  />
+                ))}
+              </div>
+              <div className="text-right text-xs uppercase text-muted">
+                <p>Operator</p>
+                <p className="text-sm font-medium tracking-wide text-white">JD</p>
+              </div>
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-xs font-semibold tracking-wide text-white shadow-lg ${interactiveClass}`}
+              >
+                JD
+              </div>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto px-4 pb-12 pt-8 lg:px-12">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={`${activePrimary}-${pathname}`}
+                layoutId="workspace"
+                initial={{ x: "100%", opacity: 0 }}
+                animate={{ x: "0%", opacity: 1 }}
+                exit={{ x: "-10%", opacity: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
