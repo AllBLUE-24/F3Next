@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
-const interactiveClass = "lift-hover transition-colors duration-200";
+const interactiveClass = "hover-layer transition-colors duration-200";
 
 const primaryNav = [
   { id: "help", label: "Guide", icon: CircleHelp },
@@ -34,15 +34,18 @@ export default function ToolsLayout({
   const progressDots = useMemo(() => Array.from({ length: 6 }), []);
 
   return (
-    <main className="void-grid min-h-dvh text-foreground">
-      <div className="flex min-h-dvh bg-[#0a0a0a]">
-        <div className="flex w-[var(--sidebar-width)] flex-col border-r border-white/10 bg-[#0a0a0a] shadow-[inset_-1px_0_0_rgb(255_255_255/0.05)]">
-          <div className="flex h-[var(--header-height)] items-center justify-center border-b border-white/10">
+    <main className="relative min-h-dvh overflow-hidden bg-[#030303] text-foreground">
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div className="h-full w-full bg-[radial-gradient(circle_at_top,#10121d,transparent_55%)]" />
+      </div>
+      <div className="relative z-10 flex min-h-dvh">
+        <div className="flex w-[var(--sidebar-width)] flex-col border-r border-white/5 bg-transparent backdrop-blur">
+          <div className="flex h-[var(--header-height)] items-center justify-center border-b border-white/5">
             <div className="rounded-full border border-white/20 px-4 py-1 text-xs uppercase tracking-[0.4em] text-secondary">
               F3
             </div>
           </div>
-          <div className="flex flex-1 flex-col items-center gap-3 py-6">
+          <div className="flex flex-1 flex-col items-center gap-4 py-6">
             {primaryNav.map(({ id, label, icon: Icon }) => {
               const isActive = id === activePrimary;
               return (
@@ -51,17 +54,18 @@ export default function ToolsLayout({
                   aria-label={label}
                   title={label}
                   onClick={() => setActivePrimary(id)}
-                  className={`relative flex h-12 w-12 items-center justify-center rounded-2xl ${interactiveClass} ${
-                    isActive ? "bg-white/10 shadow-lg" : "border border-transparent"
+                  className={`group relative flex h-12 w-12 items-center justify-center rounded-2xl border border-transparent ${interactiveClass} ${
+                    isActive ? "bg-white/10 border-white/20" : "hover:border-white/10"
                   }`}
                 >
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl bg-white/10 opacity-0 blur-lg transition group-hover:opacity-60" />
                   <Icon
-                    className={`h-5 w-5 ${
+                    className={`relative h-5 w-5 ${
                       isActive ? "text-white" : "text-secondary"
                     }`}
                   />
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 h-10 w-1 -translate-x-3 -translate-y-1/2 rounded-full bg-white" />
+                    <span className="absolute -right-3 top-1/2 h-10 w-1.5 -translate-y-1/2 rounded-full bg-white" />
                   )}
                 </button>
               );
@@ -70,12 +74,10 @@ export default function ToolsLayout({
         </div>
 
         <div className="flex min-h-dvh flex-1 flex-col">
-          <header className="flex h-[var(--header-height)] items-center justify-between border-b border-white/5 bg-[radial-gradient(circle_at_top,var(--bg-card)_0%,#050505_65%)] px-6 shadow-[0_25px_60px_rgb(0_0_0/0.6)] lg:px-10">
+          <header className="flex h-[var(--header-height)] items-center justify-between border-b border-white/5 bg-[radial-gradient(circle_at_top,#121624,transparent_80%)] px-6 shadow-[0_25px_60px_rgb(0_0_0/0.6)] lg:px-10">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-3">
-                <span className="text-lg font-semibold tracking-[0.2em]">
-                  F3Next
-                </span>
+                <span className="nav-label text-sm text-white">F3Next</span>
                 <span className="rounded-full border border-white/15 px-3 py-1 text-xs uppercase tracking-[0.3em] text-secondary">
                   Live
                 </span>

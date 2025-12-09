@@ -83,7 +83,7 @@ export default function QuestionnairePage() {
       return fileItems.map((file) => (
         <div
           key={file.name}
-          className={`flex items-center gap-4 rounded-2xl border border-white/12 bg-[#0c0c0c] px-4 py-4 ${interactiveClass}`}
+          className={`glass-panel flex items-center gap-4 rounded-2xl px-4 py-4 ${interactiveClass}`}
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-[#111827] text-[10px] uppercase tracking-[0.3em] text-secondary">
             CSV
@@ -103,7 +103,7 @@ export default function QuestionnairePage() {
       return chatHistory.map((chat) => (
         <div
           key={chat.title}
-          className={`rounded-2xl border border-white/12 bg-[#0c0c0c] px-4 py-4 ${interactiveClass}`}
+          className={`glass-panel rounded-2xl px-4 py-4 ${interactiveClass}`}
         >
           <p className="text-sm font-medium text-white">{chat.title}</p>
           <p className="text-xs text-secondary">{chat.excerpt}</p>
@@ -121,7 +121,7 @@ export default function QuestionnairePage() {
       return (
         <div
           key={milestone.title}
-          className={`rounded-2xl border border-white/12 bg-[#0c0c0c] px-4 py-4 ${interactiveClass}`}
+          className={`glass-panel rounded-2xl px-4 py-4 ${interactiveClass}`}
         >
           <div className="flex items-center justify-between text-sm text-white">
             <span>{milestone.title}</span>
@@ -169,7 +169,7 @@ export default function QuestionnairePage() {
             </div>
           </div>
 
-          <div className="mt-6 flex w-full gap-4 border-b border-white/10 pb-3 text-sm uppercase tracking-[0.2em] text-secondary">
+          <div className="mt-6 flex w-full gap-3 rounded-full bg-white/5 p-1 text-[11px] uppercase tracking-[0.3em] text-secondary">
             {secondaryTabs.map(({ id, label, icon: Icon }) => {
               const active = id === activeTab;
               return (
@@ -177,15 +177,12 @@ export default function QuestionnairePage() {
                   key={id}
                   title={label}
                   onClick={() => setActiveTab(id)}
-                  className={`relative flex flex-1 items-center justify-center gap-2 pb-1 text-xs ${interactiveClass}`}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 transition ${
+                    active ? "bg-white/15 text-white shadow-inner" : "text-secondary"
+                  }`}
                 >
                   <Icon className="h-4 w-4" />
                   <span>{label}</span>
-                  <span
-                    className={`absolute bottom-0 left-0 h-[2px] w-full transition ${
-                      active ? "bg-white" : "bg-white/20"
-                    }`}
-                  />
                 </button>
               );
             })}
