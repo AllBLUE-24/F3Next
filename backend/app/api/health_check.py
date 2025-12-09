@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.db import get_db
+from app.models.core import ProjectStatus
 
 from app.models.core import Client, Project 
 from app.models.hooks import Hook

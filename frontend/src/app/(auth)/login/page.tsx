@@ -1,16 +1,33 @@
-'use client'; // <--- REQUIRED
+'use client'; 
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation'; // <--- UPDATED
+// 1. Import useSearchParams to read the URL
+import { useRouter, useSearchParams } from 'next/navigation'; 
 import Link from 'next/link';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 
 const LoginPage = () => {
   const router = useRouter();
+  // 2. Get the params
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect'); // e.g. "/health-check"
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Helper to handle redirect
+  const handleSuccessRedirect = () => {
+    if (redirectPath) {
+      // If we have a stored redirect (like from Health Check), go there
+      // We append ?return=true so the Health Check page knows we just logged in
+      router.push(`${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`);
+    } else {
+      // Default fallback (e.g. Dashboard)
+      router.push('/dashboard'); 
+    }
+  };
 
   // 1. Email/Password Login
   const handleLogin = async (e: React.FormEvent) => {
@@ -18,7 +35,7 @@ const LoginPage = () => {
     setError('');
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/health_check');
+      handleSuccessRedirect(); // <--- USE DYNAMIC REDIRECT
     } catch (err) {
       setError('Invalid email or password.');
     }
@@ -28,7 +45,7 @@ const LoginPage = () => {
   const handleGoogleSignIn = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-      router.push('/health_check');
+      handleSuccessRedirect(); // <--- USE DYNAMIC REDIRECT
     } catch (err) {
       setError('Google sign-in failed.');
     }
@@ -50,12 +67,12 @@ const LoginPage = () => {
           </div>
         )}
         
+        {/* Google Button */}
         <button
           onClick={handleGoogleSignIn}
           type="button"
           className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-all"
         >
-          {/* Google SVG */}
            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -111,7 +128,11 @@ const LoginPage = () => {
 
         <p className="text-center text-sm text-gray-600">
           Don't have an account?{' '}
-          <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+          {/* Ensure the Signup link also passes the redirect param */}
+          <Link 
+            href={redirectPath ? `/signup?redirect=${redirectPath}` : '/signup'} 
+            className="font-medium text-indigo-600 hover:text-indigo-500"
+          >
             Sign up
           </Link>
         </p>

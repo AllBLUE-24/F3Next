@@ -169,7 +169,7 @@ export default function HealthCheckPage() {
 
     try {
       // ⚠️ Make sure this matches your Backend URL
-      const response = await fetch('http://localhost:8000/health_check/submit', {
+      const response = await fetch('http://127.0.0.1:8000/health_check/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

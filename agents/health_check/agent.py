@@ -49,18 +49,48 @@ def analyze_node(state: AgentState):
     elif "10 Lakhs - 50 Lakhs" in i_str: inventory = 3000000
     elif "No live record" in i_str: inventory = turnover * 0.10 # Guess 10%
 
-    # Calculations
+    # 3. Operational Waste Calculation
+    # Try to get invoice count, default to 100 if not provided
+    inv_count_str = inputs.get("invoice_volume", "100") 
+    try:
+        invoice_count = int(inv_count_str)
+    except:
+        invoice_count = 100 # Default fallback
+        
+    manual_cost = kb["industry_benchmarks"]["manual_invoice_processing_cost_inr"]
+    annual_operational_waste = invoice_count * manual_cost * 12
+
+    # 4. Dead Capital Calculation
     ideal_inventory = turnover * kb["roi_formulas"]["excess_inventory_threshold"]
     dead_capital = max(0, inventory - ideal_inventory)
-    monthly_loss = dead_capital * (kb["roi_formulas"]["dead_capital_interest_rate"] / 12)
+    monthly_interest_loss = dead_capital * (kb["roi_formulas"]["dead_capital_interest_rate"] / 12)
+    annual_interest_loss = monthly_interest_loss * 12
+
+    # 5. Total Annual Bleed & Tangible Comparison
+    total_annual_bleed = annual_operational_waste + annual_interest_loss
+    
+    tangible_item = "Growth Capital" # Default
+    for asset in kb["tangible_assets"]:
+        if total_annual_bleed > asset["threshold"]:
+            tangible_item = asset["item"]
+
+    # Efficiency Zone Calculation
+    inventory_percent = (inventory / turnover) * 100 if turnover > 0 else 0
+    efficiency_zone = "Green"
+    if inventory_percent > 25: efficiency_zone = "Red (Critical)"
+    elif inventory_percent > 15: efficiency_zone = "Yellow (Warning)"
 
     return {"analysis_results": {
         "risks": risks_found,
         "estimated_turnover": turnover,
         "dead_capital_detected": dead_capital,
-        "monthly_interest_loss": int(monthly_loss)
+        "monthly_interest_loss": int(monthly_interest_loss),
+        "annual_operational_waste": int(annual_operational_waste), # NEW
+        "total_annual_bleed": int(total_annual_bleed), # NEW
+        "tangible_comparison": tangible_item, # NEW
+        "efficiency_zone": efficiency_zone # NEW
     }}
-
+    
 # --- Node 2: AI Writer ---
 async def writer_node(state: AgentState):
     # <--- 2. UPDATED KEY LOGIC HERE

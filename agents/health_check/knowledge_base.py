@@ -7,6 +7,13 @@ KNOWLEDGE_BASE = {
     "average_data_entry_error_rate": 0.04,
     "healthy_inventory_turnover_ratio": 6
   },
+  "tangible_assets": [
+    {"threshold": 100000, "item": "Three High-End Laptops"},
+    {"threshold": 500000, "item": "One Senior Engineer's Salary"},
+    {"threshold": 1500000, "item": "A Brand New Hyundai Creta"},
+    {"threshold": 3000000, "item": "A New CNC Machine"},
+    {"threshold": 10000000, "item": "A New Factory Shed"}
+  ],
   "risk_matrix": [
     {
       "id": "R1",
