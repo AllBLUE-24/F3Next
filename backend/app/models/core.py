@@ -1,17 +1,19 @@
 import enum
-from sqlalchemy import Column, String, ForeignKey, DateTime, Enum
-from sqlalchemy.dialects.postgresql import UUID, ENUM as PG_ENUM # <--- USE THIS SPECIFIC IMPORT
+from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from app.core.db import Base
 import uuid
 
-# 1. Define Enum with Lowercase values
+# Enums
 class ProjectStatus(str, enum.Enum):
     CREATED = "created"
     DISCOVERY_COMPLETE = "discovery_complete"
     TEMPLATES_READY = "templates_ready"
     UPLOADED = "uploaded"
     VALIDATED = "validated"
+    INTERESTED = "interested" 
+    LISTED = "listed"         
 
 class Client(Base):
     __tablename__ = "clients"
@@ -22,6 +24,13 @@ class Client(Base):
     role = Column(String, nullable=True)               
     company_name = Column(String, nullable=True)       
     status = Column(String, server_default="active")   
+    
+    # 🔴 MOVED HERE (Matches your DB columns exactly)
+    phone_no = Column(String, nullable=True)
+    whatsapp_no = Column(String, nullable=True)
+    silver_bullet = Column(String, nullable=True)
+    comment = Column(Text, nullable=True)
+
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -33,18 +42,20 @@ class Project(Base):
     client_id = Column(String, ForeignKey("clients.id"), nullable=False)
     company_name = Column(String, nullable=True)
     
-    # 2. Use PG_ENUM specifically
     status = Column(
         Enum(
             ProjectStatus, 
             name="project_status", 
             create_type=False,
-            values_callable=lambda obj: [e.value for e in obj] # <--- MAGIC LINE
+            values_callable=lambda obj: [e.value for e in obj]
         ), 
         nullable=False, 
         default=ProjectStatus.CREATED,
         server_default="created"
     )
+    
+    # 🔴 KEPT HERE (Matches your DB)
+    annual_bleed = Column(String, nullable=True)
     
     plan = Column(String, nullable=True)
     transaction_id = Column(String, nullable=True)

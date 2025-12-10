@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useRouter } from 'next/navigation';
+import EarlyAccess from './early-access'; 
 
 export default function ReportPage() {
   const router = useRouter();
   const [report, setReport] = useState<string>('');
   
-  // Default state prevents "hydration mismatch" errors
   const [meta, setMeta] = useState({ 
     name: 'Valued Client', 
     company: 'Your Organization', 
@@ -16,203 +16,172 @@ export default function ReportPage() {
     date: new Date().toLocaleDateString() 
   });
   
+  const [annualBleed, setAnnualBleed] = useState('Calculating...');
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Retrieve Report & Metadata from LocalStorage
     const storedReport = localStorage.getItem('f3_last_report');
     const storedMeta = localStorage.getItem('f3_user_metadata');
+    const storedBleed = localStorage.getItem('f3_annual_bleed'); 
+    const storedProjId = localStorage.getItem('f3_project_id');
 
     if (storedReport) {
       setReport(storedReport);
+      setProjectId(storedProjId);
+      if (storedBleed) setAnnualBleed(storedBleed);
       
       if (storedMeta) {
         try {
-          const parsed = JSON.parse(storedMeta);
-          setMeta(parsed);
-        } catch (e) {
-          console.error("Failed to parse user metadata", e);
-        }
+          setMeta(JSON.parse(storedMeta));
+        } catch (e) { console.error(e); }
       }
       setLoading(false);
     } else {
-      setReport("## No Report Found\n\nPlease go back and complete the assessment.");
+      setReport("## Analysis Pending\n\nPlease return to the dashboard to complete your assessment.");
       setLoading(false);
     }
   }, []);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   if (loading) return (
-    <div className="flex items-center justify-center h-screen bg-slate-50">
-      <div className="flex flex-col items-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-4"></div>
-        <p className="text-gray-500 font-medium">Retrieving Analysis...</p>
+    <div className="flex items-center justify-center h-screen bg-slate-50 text-indigo-600">
+      <div className="animate-pulse flex flex-col items-center">
+        <div className="h-12 w-12 border-4 border-current border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="font-medium tracking-wide text-sm uppercase">Generating Forensic Analysis...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans print:bg-white">
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 pb-24 print:bg-white">
       
-      {/* --- TOP NAVIGATION --- */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold tracking-tight text-indigo-600">F3Next</span>
-              <span className="h-6 w-px bg-slate-200 mx-1"></span>
-              <span className="text-sm font-medium text-slate-500 uppercase tracking-wider">Confidential Diagnosis</span>
+      {/* --- 1. STICKY GLASS NAVBAR --- */}
+      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/80 transition-all duration-300 print:hidden">
+         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md shadow-indigo-200">F3</div>
+                <span className="font-bold text-slate-800 text-lg tracking-tight">Intelligence</span>
             </div>
+            
             <div className="flex items-center gap-4">
-               <button 
-                 onClick={handlePrint}
-                 className="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors flex items-center"
-               >
-                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                 Print / PDF
-               </button>
-               <button 
-                 onClick={() => router.push('/health-check')}
-                 className="text-sm font-medium text-slate-400 hover:text-slate-600"
-               >
-                 Close
-               </button>
+                <div className="hidden sm:block text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                    ID: <span className="font-mono text-slate-700">{projectId?.slice(0,8)}</span>
+                </div>
+                <button 
+                  onClick={() => window.print()} 
+                  className="text-sm font-bold text-slate-600 hover:text-indigo-600 flex items-center gap-2 transition-colors bg-white border border-slate-200 px-4 py-2 rounded-lg hover:border-indigo-200 hover:shadow-sm"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Print Report
+                </button>
             </div>
-          </div>
-        </div>
+         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 print:py-0 print:px-0">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* --- LEFT COLUMN: The Report Document (8 cols) --- */}
-          <div className="lg:col-span-8">
-            
-            {/* Document Header */}
-            <div className="bg-white rounded-t-xl shadow-sm border border-slate-200 p-8 border-b-0 print:shadow-none print:border-none">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-2">Prepared For</p>
-                  {/* DYNAMIC COMPANY NAME */}
-                  <h1 className="text-3xl font-extrabold text-slate-900">{meta.company}</h1>
-                  <div className="flex items-center mt-2 text-slate-500 text-sm">
-                    {/* DYNAMIC USER NAME & ROLE */}
-                    <span className="font-medium text-slate-700 mr-2">{meta.name}</span>
-                    <span>•</span>
-                    <span className="ml-2">{meta.role}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Date</p>
-                  <p className="text-sm font-medium text-slate-700">{meta.date}</p>
-                  <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-red-50 border border-red-100 text-red-700 text-xs font-bold uppercase tracking-wide">
-                    <span className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
-                    Critical Attention
-                  </div>
-                </div>
-              </div>
-            </div>
+      {/* Spacer for fixed nav */}
+      <div className="h-16"></div>
 
-            {/* Markdown Content Area */}
-            <div className="bg-white rounded-b-xl shadow-lg border border-slate-200 p-10 min-h-[600px] print:shadow-none print:border-none print:p-0">
-              <article className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-p:leading-relaxed prose-strong:text-indigo-700 prose-strong:font-bold prose-li:text-slate-600">
+      {/* --- 2. REPORT HEADER (Dark Gradient) --- */}
+      <div className="bg-gradient-to-b from-[#0B1120] to-[#1e293b] text-white pt-12 pb-32 relative overflow-hidden print:hidden">
+         {/* Background Effects */}
+         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-500/20 rounded-full blur-[120px] -mr-40 -mt-40 pointer-events-none animate-pulse-slow"></div>
+         
+         <div className="max-w-5xl mx-auto px-6 relative z-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+                <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-[11px] font-bold uppercase tracking-wider mb-4 shadow-lg shadow-green-900/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                        Forensic Audit Complete
+                    </div>
+                    <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-2 text-white drop-shadow-sm">
+                        {meta.company}
+                    </h1>
+                    <div className="flex flex-wrap items-center gap-4 text-slate-400 text-sm mt-4">
+                        <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+                            <span className="text-slate-500 text-xs uppercase font-bold">Prepared For</span>
+                            <span className="text-white font-medium">{meta.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+                            <span className="text-slate-500 text-xs uppercase font-bold">Role</span>
+                            <span className="text-white font-medium">{meta.role}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* The "Bleed" Stat - Floating Card */}
+                <div className="bg-white/10 backdrop-blur-md border border-white/10 p-6 rounded-2xl min-w-[260px] shadow-2xl transform transition hover:scale-105 duration-300">
+                    <p className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-2">Total Annual Leakage</p>
+                    <p className="text-4xl font-black text-white tracking-tight drop-shadow-md">₹{annualBleed}</p>
+                    <div className="mt-3 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-red-500 w-3/4 animate-pulse"></div>
+                    </div>
+                    <p className="text-[10px] text-red-300 mt-2 font-medium text-right uppercase tracking-wide">Critical Level</p>
+                </div>
+            </div>
+         </div>
+      </div>
+
+      <main className="max-w-5xl mx-auto px-6 -mt-20 relative z-20">
+        
+        {/* --- 3. THE REPORT CONTENT --- */}
+        <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 p-10 md:p-14 min-h-[600px] print:shadow-none print:border-none">
+            <article className="prose prose-lg prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-p:leading-relaxed prose-li:leading-relaxed">
                 <ReactMarkdown
-                  components={{
-                    h1: ({node, ...props}) => <h1 className="text-2xl border-b pb-4 mb-6" {...props} />,
-                    h2: ({node, ...props}) => (
-                      <div className="mt-10 mb-4 flex items-center">
-                        <span className="bg-indigo-100 text-indigo-600 w-8 h-8 rounded-lg flex items-center justify-center mr-3 text-lg font-bold">#</span>
-                        <h2 className="text-xl m-0" {...props} />
-                      </div>
-                    ),
-                    ul: ({node, ...props}) => <ul className="bg-slate-50 p-6 rounded-lg border border-slate-100 list-none space-y-4 my-6" {...props} />,
-                    li: ({node, ...props}) => (
-                      <li className="flex items-start pl-0" {...props}>
-                        <svg className="w-5 h-5 text-indigo-500 mr-3 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span className="flex-1">{props.children}</span>
-                      </li>
-                    ),
-                    p: ({node, ...props}) => <p className="mb-4 text-base" {...props} />,
-                    strong: ({node, ...props}) => <strong className="bg-yellow-50 text-yellow-800 px-1 py-0.5 rounded border border-yellow-100 font-semibold" {...props} />
-                  }}
+                    components={{
+                        h1: ({node, ...props}) => (
+                            <div className="flex items-baseline gap-4 mt-12 mb-6 border-b border-slate-100 pb-4">
+                                <h1 className="text-3xl font-bold text-slate-900 m-0" {...props} />
+                            </div>
+                        ),
+                        h2: ({node, ...props}) => (
+                            <h2 className="text-xl font-bold text-indigo-900 mt-10 mb-4 flex items-center gap-3" {...props}>
+                                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-lg">#</span>
+                                {props.children}
+                            </h2>
+                        ),
+                        ul: ({node, ...props}) => <ul className="space-y-3 my-6 pl-0 list-none" {...props} />,
+                        li: ({node, ...props}) => (
+                            <li className="flex items-start gap-3 pl-2 group transition-all hover:translate-x-1 duration-200" {...props}>
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:bg-indigo-600 transition-colors"></div>
+                                <span className="text-slate-600 group-hover:text-slate-900 transition-colors">{props.children}</span>
+                            </li>
+                        ),
+                        p: ({node, ...props}) => <p className="mb-6 text-slate-600 text-[17px] leading-8" {...props} />,
+                        strong: ({node, ...props}) => <strong className="font-semibold text-slate-900 bg-yellow-50 px-1 rounded border-b-2 border-yellow-200" {...props} />,
+                        blockquote: ({node, ...props}) => (
+                            <div className="bg-indigo-50/50 border-l-4 border-indigo-500 p-6 my-8 rounded-r-lg italic text-slate-700 relative">
+                                <span className="absolute top-2 left-2 text-4xl text-indigo-200 font-serif opacity-50">"</span>
+                                {props.children}
+                            </div>
+                        )
+                    }}
                 >
-                  {report}
+                    {report}
                 </ReactMarkdown>
-              </article>
+            </article>
 
-              {/* Signature Footer */}
-              <div className="mt-16 pt-8 border-t border-slate-100 flex items-center justify-between opacity-60">
-                <div className="flex items-center">
-                   <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-500">AI</div>
-                   <span className="ml-3 text-sm text-slate-400">Generated by F3Next Intelligence Engine v1.0</span>
+            {/* Footer */}
+            <div className="mt-24 pt-8 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 uppercase tracking-widest print:hidden">
+                <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                    Generated by F3Next Intelligence Engine v1.0.0
                 </div>
-                <div className="h-8 w-24 bg-slate-100 rounded"></div> 
-              </div>
+                <span>Ref: {projectId?.slice(0,8)}</span>
             </div>
-          </div>
-
-          {/* --- RIGHT COLUMN: Sticky Sidebar Actions (4 cols) --- */}
-          <div className="lg:col-span-4 space-y-6 print:hidden">
-            
-            {/* The "Fix It" Card */}
-            <div className="bg-indigo-600 rounded-xl shadow-xl p-6 text-white transform transition hover:scale-[1.02] duration-200 cursor-pointer">
-              <h3 className="text-lg font-bold mb-2">Ready to fix this?</h3>
-              <p className="text-indigo-100 text-sm mb-6">
-                Based on this audit, your factory is losing money daily. Deploy your F3 instance now.
-              </p>
-              <button 
-                onClick={() => router.push('/pricing')}
-                className="w-full bg-white text-indigo-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-indigo-50 transition-colors flex justify-center items-center"
-              >
-                Deploy Solution
-                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
-              </button>
-            </div>
-
-            {/* UPDATED: Executive Summary Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4 border-b border-slate-100 pb-2">Audit Summary</h3>
-              
-              <div className="space-y-4">
-                {/* 1. User Name */}
-                <div>
-                  <p className="text-xs text-slate-500">Prepared For</p>
-                  <p className="font-semibold text-slate-900">{meta.name}</p>
-                </div>
-
-                {/* 2. Role */}
-                <div>
-                  <p className="text-xs text-slate-500">Role</p>
-                  <p className="font-semibold text-slate-900">{meta.role}</p>
-                </div>
-
-                {/* 3. Company Name */}
-                <div>
-                  <p className="text-xs text-slate-500">Organization</p>
-                  <p className="font-semibold text-slate-900">{meta.company}</p>
-                </div>
-
-                {/* 4. Risk (Static for now, dynamic later) */}
-                <div>
-                  <p className="text-xs text-slate-500">Primary Risk</p>
-                  <p className="text-sm font-bold text-red-600">Financial Leakage</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Trust Signal */}
-            <div className="text-center">
-              <p className="text-xs text-slate-400">
-                <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-1"></span>
-                Securely encrypted & private.
-              </p>
-            </div>
-
-          </div>
         </div>
+
+        {/* --- 4. THE EARLY ACCESS (Bottom Section) --- */}
+        <div className="print:hidden pb-10">
+            <EarlyAccess 
+                annualBleed={annualBleed} 
+                projectId={projectId} 
+                onSuccess={() => {
+                    alert("Welcome to the Private Cohort! We will be in touch shortly.");
+                    router.push('/dashboard');
+                }}
+            />
+        </div>
+
       </main>
     </div>
   );

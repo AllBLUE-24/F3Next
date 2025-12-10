@@ -1,7 +1,6 @@
 'use client'; 
 
 import React, { useState } from 'react';
-// 1. Import useSearchParams to read the URL
 import { useRouter, useSearchParams } from 'next/navigation'; 
 import Link from 'next/link';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
@@ -9,43 +8,36 @@ import { auth, googleProvider } from '@/lib/firebase';
 
 const LoginPage = () => {
   const router = useRouter();
-  // 2. Get the params
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect'); // e.g. "/health-check"
+  const redirectPath = searchParams.get('redirect'); 
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // Helper to handle redirect
   const handleSuccessRedirect = () => {
     if (redirectPath) {
-      // If we have a stored redirect (like from Health Check), go there
-      // We append ?return=true so the Health Check page knows we just logged in
       router.push(`${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`);
     } else {
-      // Default fallback (e.g. Dashboard)
       router.push('/dashboard'); 
     }
   };
 
-  // 1. Email/Password Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      handleSuccessRedirect(); // <--- USE DYNAMIC REDIRECT
+      handleSuccessRedirect(); 
     } catch (err) {
       setError('Invalid email or password.');
     }
   };
 
-  // 2. Google Login
   const handleGoogleSignIn = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-      handleSuccessRedirect(); // <--- USE DYNAMIC REDIRECT
+      handleSuccessRedirect(); 
     } catch (err) {
       setError('Google sign-in failed.');
     }
@@ -67,7 +59,6 @@ const LoginPage = () => {
           </div>
         )}
         
-        {/* Google Button */}
         <button
           onClick={handleGoogleSignIn}
           type="button"
@@ -97,7 +88,8 @@ const LoginPage = () => {
             <input
               type="email"
               required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              /* 🔴 FIX: Added text-gray-900 bg-white */
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 bg-white"
               placeholder="user@f3next.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -108,7 +100,8 @@ const LoginPage = () => {
             <input
               type="password"
               required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              /* 🔴 FIX: Added text-gray-900 bg-white */
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 bg-white"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -128,7 +121,6 @@ const LoginPage = () => {
 
         <p className="text-center text-sm text-gray-600">
           Don't have an account?{' '}
-          {/* Ensure the Signup link also passes the redirect param */}
           <Link 
             href={redirectPath ? `/signup?redirect=${redirectPath}` : '/signup'} 
             className="font-medium text-indigo-600 hover:text-indigo-500"
