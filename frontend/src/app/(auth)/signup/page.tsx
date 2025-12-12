@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase'; 
 
+export const dynamic = "force-dynamic";
+
 // 1. Inner Component (Contains the Logic)
 function SignupForm() {
   const router = useRouter();

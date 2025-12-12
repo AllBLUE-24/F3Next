@@ -6,6 +6,8 @@ import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import QuestionsList, { QUESTIONS_DATA } from './questions';
 
+export const dynamic = "force-dynamic";
+
 function HealthCheckContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
