@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/firebase'; 
 import { onAuthStateChanged, User } from 'firebase/auth';
-
 import QuestionsList, { QUESTIONS_DATA } from './questions';
 
-export default function HealthCheckPage() {
+function HealthCheckContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -50,7 +49,7 @@ export default function HealthCheckPage() {
 
     if (!user) {
       localStorage.setItem('f3_temp_answers', JSON.stringify(answers));
-      router.push('/login?redirect=/health_check'); // <--- Updated to underscore
+      router.push('/login?redirect=/health_check'); 
     } else {
       setShowModal(true);
     }
@@ -93,8 +92,7 @@ export default function HealthCheckPage() {
 
             if (data.annual_bleed) {
               localStorage.setItem('f3_annual_bleed', data.annual_bleed);
-              
-          }
+            }
         } else {
              const fallbackMeta = {
                 name: formData.fullName,
@@ -106,7 +104,7 @@ export default function HealthCheckPage() {
         }
         
         localStorage.removeItem('f3_temp_answers');
-        router.push('/health_check/report'); // <--- Updated to underscore
+        router.push('/health_check/report');
       } else {
         const err = await response.json();
         alert(`Submission Failed: ${err.detail || "Unknown Error"}`);
@@ -167,7 +165,6 @@ export default function HealthCheckPage() {
                 <input 
                   type="text"
                   placeholder="e.g. Parth Patel"
-                  /* 🔴 FIX: Added text-gray-900 bg-white */
                   className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
@@ -179,7 +176,6 @@ export default function HealthCheckPage() {
                 <input 
                   type="text"
                   placeholder="e.g. Cleaneasy engineers"
-                  /* 🔴 FIX: Added text-gray-900 bg-white */
                   className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
                   value={formData.companyName}
                   onChange={(e) => setFormData({...formData, companyName: e.target.value})}
@@ -189,7 +185,6 @@ export default function HealthCheckPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Your Role</label>
                 <select 
-                  /* 🔴 FIX: Added text-gray-900 bg-white */
                   className="w-full border border-gray-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 text-gray-900"
                   value={formData.role}
                   onChange={(e) => setFormData({...formData, role: e.target.value})}
@@ -225,5 +220,13 @@ export default function HealthCheckPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function HealthCheckPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 text-indigo-600 font-medium">Loading Assessment...</div>}>
+      <HealthCheckContent />
+    </Suspense>
   );
 }

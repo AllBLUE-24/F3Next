@@ -1,6 +1,41 @@
-# version: '3.8'
+#version: '3.8'  --> docker said to remove it in cl but i kept it commented out 
 
 services:
+  # --- Backend Service ---
+  backend:
+    build:
+      # 1. Context: Go up one level to Root (C:\dev\F3Next)
+      context: ../
+      # 2. Dockerfile: Relative to Context (C:\dev\F3Next\backend\Dockerfile)
+      dockerfile: backend/Dockerfile
+    container_name: f3next-backend
+    ports:
+      - "8000:8000"
+    # 3. Load Environment Variables from Root
+    env_file:
+      - ../.env
+    environment:
+      # Explicit overrides if needed, otherwise it pulls from .env
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@host.docker.internal:5432/f3next_db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # --- Frontend Service ---
+  frontend:
+    build:
+      # 1. Context: Go up one level to Root (C:\dev\F3Next)
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: f3next-frontend
+    ports:
+      - "3000:3000"
+    # 3. Load Environment Variables from Root
+    env_file:
+      - ../frontend/.env.local
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
   db:
     image: postgres:15-alpine
     container_name: f3_postgres
