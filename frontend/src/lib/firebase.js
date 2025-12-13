@@ -3,14 +3,15 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSy_MOCK_KEY_FOR_BUILD_PROCESS",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  // 🔴 HARDCODE THESE VALUES DIRECTLY (No process.env)
+  apiKey: "AIzaSyDPpx0TS0bFYGG_T63LDYOlokAXvT524Eg",
+  authDomain: "f3next-24.firebaseapp.com", // 👈 This fixes your specific error
+  projectId: "f3next-24",
+  storageBucket: "f3next-24.firebasestorage.app",
+  messagingSenderId: "389878630116",
+  appId: "1:389878630116:web:850f506eb895b732680ef1",
+  measurementId: "G-2GQ86H9NJQ",
 };
-
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
