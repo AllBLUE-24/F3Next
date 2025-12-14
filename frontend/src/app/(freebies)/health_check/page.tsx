@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/firebase'; 
 import { onAuthStateChanged, User } from 'firebase/auth';
 import QuestionsList, { QUESTIONS_DATA } from './questions';
+import { ChevronRight, FileBarChart, Loader2, ArrowRight } from 'lucide-react';
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ function HealthCheckContent() {
     };
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/health_check/submit', {
+      const response = await fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -122,72 +123,106 @@ function HealthCheckContent() {
   const progress = Math.round((Object.keys(answers).length / QUESTIONS_DATA.length) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-extrabold text-gray-900">Factory Health Check</h1>
-          <p className="mt-2 text-gray-600">
-            {Object.keys(answers).length}/{QUESTIONS_DATA.length} Questions Answered
-          </p>
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      
+      {/* --- HEADER --- */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+           <div className="flex items-center gap-3">
+             <div className="bg-indigo-600 p-1.5 rounded text-white">
+                <FileBarChart className="w-4 h-4" />
+             </div>
+             <span className="font-bold text-slate-800 tracking-tight">Diagnostic Mode</span>
+           </div>
+           <div className="text-sm font-medium text-slate-500">
+             {Object.keys(answers).length} / {QUESTIONS_DATA.length} Answered
+           </div>
         </div>
-
-        <div className="sticky top-0 z-10 bg-gray-50 pt-2 pb-6">
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
+        {/* Progress Bar */}
+        <div className="h-1 w-full bg-slate-100">
             <div 
-              className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+              className="h-full bg-indigo-600 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(79,70,229,0.5)]" 
               style={{ width: `${progress}%` }}
             ></div>
-          </div>
+        </div>
+      </header>
+
+      {/* --- MAIN CONTENT --- */}
+      <main className="max-w-3xl mx-auto px-4 py-12 pb-32">
+        
+        <div className="text-center mb-12">
+            <h1 className="text-3xl font-bold text-slate-900 mb-3">Factory Operations Audit</h1>
+            <p className="text-slate-500 max-w-lg mx-auto">
+                Select the option that best describes your current process. 
+                Be honest—accuracy is key for a valid forensic report.
+            </p>
         </div>
 
-        <QuestionsList answers={answers} handleSelect={handleSelect} />
-
-        <div className="mt-10 flex justify-end pb-20">
-          <button
-            onClick={handleAnalyzeClick}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-lg shadow-lg text-lg transition-transform transform hover:scale-105"
-          >
-            Generate Forensic Report &rarr;
-          </button>
+        {/* Questions List Component (Ensure this component is also styled well, usually passed as props or styled internally) */}
+        <div className="space-y-6">
+            <QuestionsList answers={answers} handleSelect={handleSelect} />
         </div>
-      </div>
+
+        {/* --- BOTTOM ACTION BAR --- */}
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
+            <div className="max-w-3xl mx-auto flex justify-between items-center">
+                <div className="text-xs text-slate-400 hidden sm:block">
+                    {progress === 100 ? "Ready to analyze" : "Complete all questions"}
+                </div>
+                <button
+                    onClick={handleAnalyzeClick}
+                    disabled={Object.keys(answers).length < QUESTIONS_DATA.length}
+                    className={`flex items-center gap-2 px-8 py-3 rounded-lg font-bold transition-all transform active:scale-95
+                    ${Object.keys(answers).length < QUESTIONS_DATA.length 
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200'}`}
+                >
+                    Generate Report <ArrowRight className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+
+      </main>
 
       {/* --- MODAL --- */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-fadeIn">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Almost Done!</h2>
-            <p className="text-gray-500 mb-6">
-              To generate a personalized report for your factory, we need a few details.
-            </p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            <div className="bg-indigo-600 p-6 text-white text-center">
+                <FileBarChart className="w-10 h-10 mx-auto mb-3 text-indigo-200" />
+                <h2 className="text-xl font-bold">Analysis Complete</h2>
+                <p className="text-indigo-100 text-sm opacity-90">We've identified key bottlenecks. Who should we address this report to?</p>
+            </div>
 
-            <div className="space-y-4">
+            <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label>
                 <input 
                   type="text"
                   placeholder="e.g. Parth Patel"
-                  className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
+                  autoFocus
+                  className="w-full border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 bg-slate-50"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Company / Factory Name</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Name</label>
                 <input 
                   type="text"
-                  placeholder="e.g. Cleaneasy engineers"
-                  className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
+                  placeholder="e.g. Cleaneasy Engineers"
+                  className="w-full border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 bg-slate-50"
                   value={formData.companyName}
                   onChange={(e) => setFormData({...formData, companyName: e.target.value})}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Your Role</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Your Role</label>
                 <select 
-                  className="w-full border border-gray-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  className="w-full border border-slate-200 rounded-lg p-3 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900"
                   value={formData.role}
                   onChange={(e) => setFormData({...formData, role: e.target.value})}
                 >
@@ -199,25 +234,23 @@ function HealthCheckContent() {
                   <option value="IT/Tech">IT / Tech Lead</option>
                 </select>
               </div>
-            </div>
 
-            <div className="mt-8">
-              <button 
-                onClick={handleFinalSubmit}
-                disabled={loading || !formData.fullName || !formData.companyName || !formData.role}
-                className={`w-full py-3 rounded-lg font-bold text-white text-lg shadow-md transition-colors 
-                  ${(loading || !formData.fullName) ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-              >
-                {loading ? "Analyzing..." : "Get My Analysis"}
-              </button>
+              <div className="pt-4">
+                <button 
+                    onClick={handleFinalSubmit}
+                    disabled={loading || !formData.fullName || !formData.companyName || !formData.role}
+                    className="w-full py-3.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {loading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin"/> Processing...</> : "View Forensic Report"}
+                </button>
+                <button 
+                   onClick={() => setShowModal(false)}
+                   className="mt-3 w-full text-center text-sm text-slate-400 hover:text-slate-600"
+                >
+                  Go Back
+                </button>
+              </div>
             </div>
-            
-            <button 
-               onClick={() => setShowModal(false)}
-               className="mt-4 w-full text-center text-sm text-gray-500 hover:text-gray-700"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
@@ -227,7 +260,12 @@ function HealthCheckContent() {
 
 export default function HealthCheckPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 text-indigo-600 font-medium">Loading Assessment...</div>}>
+    <Suspense fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center bg-white text-indigo-600">
+            <Loader2 className="w-8 h-8 animate-spin mb-4" />
+            <span className="font-medium text-slate-500">Initializing Audit Engine...</span>
+        </div>
+    }>
       <HealthCheckContent />
     </Suspense>
   );

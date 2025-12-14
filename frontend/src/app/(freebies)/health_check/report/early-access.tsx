@@ -21,7 +21,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
   const handleSecureSpot = async () => {
     if (!projectId) return;
     try {
-      fetch('http://127.0.0.1:8000/health_check/capture-interest', {
+      fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/capture-interest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: projectId, status: 'interested' })
@@ -34,7 +34,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
     if (!projectId) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/health_check/capture-interest', {
+      const response = await fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/capture-interest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -112,7 +112,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
                             <span className="text-green-400 text-xl font-bold">✓</span> <span className="text-green-300">Zero</span> Upfront Cost
                         </li>
                         <li className="flex items-center gap-3">
-                            <span className="text-green-400 text-xl font-bold">✓</span> <span className="text-white border-b border-indigo-400/50">48-Hour</span> Deployment
+                            <span className="text-green-400 text-xl font-bold">✓</span> <span className="text-white border-b border-indigo-400/50"> {"<"} 48-Hour</span> Deployment
                         </li>
                         <li className="flex items-center gap-3">
                             <span className="text-green-400 text-xl font-bold">✓</span> Just <strong>₹4,999/mo</strong> (Locked for Life)
@@ -176,11 +176,11 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">WhatsApp</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">WhatsApp <span className="text-red-500">*</span></label>
                         <input 
                             type="tel" 
                             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900"
-                            placeholder="Optional"
+                            placeholder="+91..."
                             value={formData.whatsapp}
                             onChange={e => setFormData({...formData, whatsapp: e.target.value})}
                         />

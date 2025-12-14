@@ -16,11 +16,16 @@ from app.models import core, hooks
 from app.core.db import engine, Base
 
 app = FastAPI()
-
+origins = [
+    "http://localhost:3000",
+    "https://f3next.vercel.app",        # Your Vercel Project URL
+    "https://www.f3next.in",           # Your Custom Domain (if you added one)
+    "*"                                 # ⚠️ Debug Mode: Allows EVERYONE. Good for testing, remove later for security.
+]
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
