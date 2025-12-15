@@ -1,6 +1,8 @@
+# app/agents/agent.py
+
 import os
 import re
-from typing import TypedDict, List
+from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
@@ -8,74 +10,66 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from agents.health_check.knowledge_base import KNOWLEDGE_BASE
-from agents.health_check.prompts import REPORT_GENERATION_PROMPT
+# Ensure these match your actual file paths
+from app.agents.health_check.knowledge_base import KNOWLEDGE_BASE
+from app.agents.health_check.prompts import REPORT_GENERATION_PROMPT
 
-# --- 1. THE EXACT MAP (Calibrated to your Question Options) ---
-# This ensures we convert the exact string the user clicks into a real number.
+# --- 1. THE EXACT MAP (Calibrated to your Questions) ---
 OPTION_MAP = {
-    # Turnover Options (Using Mid-point averages)
-    "₹50L - ₹2 Cr": 12500000,   # 1.25 Cr
-    "₹2 Cr - ₹10 Cr": 60000000, # 6 Cr
-    "₹10 Cr - ₹50 Cr": 300000000, # 30 Cr
-    "₹50 Cr+": 600000000,       # 60 Cr (Conservative base)
+    # Turnover Options
+    "₹50l-₹2cr": 12500000,   # 1.25 Cr
+    "₹2cr-₹10cr": 60000000,  # 6 Cr
+    "₹10cr-₹50cr": 300000000, # 30 Cr
+    "₹50cr+": 600000000,     # 60 Cr
 
-    # Inventory Options (Using Mid-point averages)
-    "< ₹10 Lakhs": 500000,      # 5 Lakhs
-    "₹10 Lakhs - ₹50 Lakhs": 3000000, # 30 Lakhs
-    "₹50 Lakhs - ₹2 Crores": 12500000, # 1.25 Cr
-    "I honestly don't know (No live record)": -1, # Trigger for logic calculation
+    # Inventory Options
+    "<₹10lakhs": 500000,      # 5 Lakhs
+    "₹10lakhs-₹50lakhs": 3000000, # 30 Lakhs
+    "₹50lakhs-₹2crores": 12500000, # 1.25 Cr
+    "ihonestlydon'tknow(noliverecord)": -1, 
 }
 
 def get_mapped_value(user_input, category):
     """
-    Looks up the exact string in the map. 
-    If not found (e.g. frontend sends 'q2_option1'), tries to parse, else defaults.
+    Robust Fuzzy Matcher: Strips ALL spaces and symbols to match the map key.
     """
-    clean_key = str(user_input).strip()
+    if not user_input:
+        return 10000000 if category == "turnover" else 1000000
+
+    # Normalize: lowercase, remove spaces, remove symbols
+    clean_input = str(user_input).lower().replace(" ", "").strip()
     
-    # 1. Direct Lookup
-    if clean_key in OPTION_MAP:
-        return OPTION_MAP[clean_key]
-    
-    # 2. Fallback Parsing (In case of slight text mismatch)
-    print(f"⚠️ Warning: Exact match not found for '{clean_key}'. Attempting fallback parse.")
-    clean_val = clean_key.lower().replace(",", "").replace("₹", "").replace("lakhs", "").replace("cr", "")
+    # Direct Map Lookup
+    if clean_input in OPTION_MAP:
+        return OPTION_MAP[clean_input]
+        
+    # Regex Fallback
+    clean_val = clean_input.replace(",", "").replace("₹", "").replace("lakhs", "").replace("cr", "")
     numbers = re.findall(r"[\d\.]+", clean_val)
     if numbers:
-        # Heuristic: If number is small (<100), it might be Crores, multiply appropriately
         val = float(numbers[0])
-        if "cr" in clean_key.lower(): return val * 10000000
-        if "lakh" in clean_key.lower(): return val * 100000
+        if "cr" in clean_input: return val * 10000000
+        if "lakh" in clean_input or "lac" in clean_input: return val * 100000
         return val
         
-    # 3. Absolute Fail Safe (Defaults to prevent crash)
-    if category == "turnover": return 10000000 # 1 Cr
-    if category == "inventory": return 1000000 # 10 Lakhs
-    return 0
+    return 10000000 if category == "turnover" else 1000000
 
 class AgentState(TypedDict):
     user_inputs: dict
     analysis_results: dict
     final_report: str
 
-# --- Node 1: Python Calculator & Analyst ---
+# --- Node 1: Analyst ---
 def analyze_node(state: AgentState):
-    inputs = state["user_inputs"]
+    raw_inputs = state["user_inputs"]
     kb = KNOWLEDGE_BASE
     risks_found = []
     
-    print("\n" + "="*30)
-    print("🚨 ANALYZING INPUTS (DEBUG):")
-    for k, v in inputs.items():
-        print(f"   - {k}: {v}")
+    # 🚨 CRITICAL: Unwrap 'answers' if nested (Frontends often send {answers: {...}})
+    inputs = raw_inputs.get("answers", raw_inputs)
     
-    # --- 1. RISK DIAGNOSIS (Text Matching) ---
-    # We match the EXACT text from your questions to the Risk Matrix
+    # --- 1. RISK DIAGNOSIS ---
     for rule in kb["risk_matrix"]:
-        # We search all input values to find the matching answer text
-        # (Since we don't know if frontend sends 'q5' or 'bom_handling')
-        found_risk = False
         for answer in inputs.values():
             if str(answer) in rule["condition_values"]:
                 risks_found.append({
@@ -83,51 +77,50 @@ def analyze_node(state: AgentState):
                     "consequence": rule["consequence"],
                     "solution": rule["solution_module"]
                 })
-                found_risk = True
-                break
     
-    # --- 2. FINANCIAL MATH (The Fix) ---
+    # --- 2. FINANCIAL MATH ---
     
-    # A. TURNOVER
-    # Look for the answer to Question 2
-    turnover_input = inputs.get("annual_turnover") or inputs.get("q2") or "₹50L - ₹2 Cr"
-    turnover = get_mapped_value(turnover_input, "turnover")
+    # A. TURNOVER (Hunting for keys containing 'turnover' or 'q2')
+    turnover_val = "₹50L - ₹2 Cr" # Default
+    for key, val in inputs.items():
+        if ("turnover" in key.lower() or "q2" in key.lower()) and val:
+            turnover_val = val
+            break
+    turnover = get_mapped_value(turnover_val, "turnover")
     
-    # B. INVENTORY
-    # Look for the answer to Question 4
-    inventory_input = inputs.get("inventory_value") or inputs.get("q4") or "< ₹10 Lakhs"
-    inventory = get_mapped_value(inventory_input, "inventory")
+    # B. INVENTORY (Hunting for keys containing 'inventory' or 'q4')
+    inventory_val = "< ₹10 Lakhs" # Default
+    for key, val in inputs.items():
+        if ("inventory" in key.lower() or "q4" in key.lower()) and val:
+            inventory_val = val
+            break
+    inventory = get_mapped_value(inventory_val, "inventory")
     
-    # Special Logic: If they said "I honestly don't know" (-1), assume 20% of turnover (High Bleed)
+    # Special Logic: Unknown Inventory
     is_unknown_inventory = False
     if inventory == -1:
         inventory = turnover * 0.20
         is_unknown_inventory = True
 
-    # C. INVOICE VOLUME ESTIMATION (The 72k Fix)
-    # Since we don't ask for volume, we estimate based on turnover.
-    # Assumption: Avg Invoice Value = ₹50,000
+    # C. INVOICE VOLUME ESTIMATION
     avg_invoice_val = 50000
-    estimated_invoice_count = max(10, turnover / avg_invoice_val) # Min 10 invoices
-    
-    manual_cost = kb["industry_benchmarks"]["manual_invoice_processing_cost_inr"] # 60
+    estimated_invoice_count = max(10, turnover / avg_invoice_val)
+    manual_cost = kb["industry_benchmarks"]["manual_invoice_processing_cost_inr"]
     annual_operational_waste = estimated_invoice_count * manual_cost * 12
 
     # D. DEAD CAPITAL
-    ideal_inventory = turnover * kb["roi_formulas"]["excess_inventory_threshold"] # 15%
+    ideal_inventory = turnover * kb["roi_formulas"]["excess_inventory_threshold"]
     dead_capital = max(0, inventory - ideal_inventory)
     
     annual_interest_loss = dead_capital * kb["roi_formulas"]["dead_capital_interest_rate"]
     monthly_interest_loss = annual_interest_loss / 12
 
-    # E. OPPORTUNITY COST (For lean/unknown inventory)
+    # E. OPPORTUNITY LOSS
     opportunity_loss = 0
     if dead_capital == 0 and not is_unknown_inventory:
-        # If inventory is extremely low (<5%), they are missing sales
-        if (inventory / turnover) < 0.05:
+        if (inventory / turnover) < 0.10: # <10% Inventory
             opportunity_loss = turnover * 0.05
     elif is_unknown_inventory:
-        # If they don't know, we add a "Risk Penalty"
         opportunity_loss = turnover * 0.02
 
     # F. TOTAL BLEED
@@ -141,7 +134,6 @@ def analyze_node(state: AgentState):
 
     # H. EFFICIENCY ZONE
     inventory_percent = (inventory / turnover) * 100 if turnover > 0 else 0
-    
     efficiency_zone = "Green"
     if is_unknown_inventory:
         efficiency_zone = "Red (Blindness)"
@@ -149,11 +141,8 @@ def analyze_node(state: AgentState):
         efficiency_zone = "Red (Critical Hoarding)"
     elif inventory_percent > 18: 
         efficiency_zone = "Yellow (Warning)"
-    elif inventory_percent < 5:
+    elif inventory_percent < 10:
         efficiency_zone = "Yellow (Stockout Risk)"
-
-    print(f"✅ CALCULATED: Turnover: {turnover}, Inv: {inventory}, Bleed: {total_annual_bleed}")
-    print("="*30 + "\n")
 
     return {"analysis_results": {
         "risks": risks_found,
@@ -167,27 +156,32 @@ def analyze_node(state: AgentState):
         "is_unknown_inventory": is_unknown_inventory
     }}
 
-# --- Node 2: AI Writer (With Context Awareness) ---
+# --- Node 2: Writer ---
 async def writer_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash", 
         google_api_key=os.environ.get("GEMINI_API_KEY") 
     )
     
-    # We pass the user's specific "Dream Fix" to the prompt
-    dream_fix = state["user_inputs"].get("dream_fix") or state["user_inputs"].get("q10") or "General Improvement"
+    # Handle Nested Inputs for Dream Fix retrieval
+    raw_inputs = state["user_inputs"]
+    inputs = raw_inputs.get("answers", raw_inputs)
     
+    dream_fix = "General Improvement"
+    for key, val in inputs.items():
+        if "dream" in key.lower() or "fix" in key.lower():
+            dream_fix = val
+            break
+            
     prompt = REPORT_GENERATION_PROMPT.format(
-        user_inputs=str(state["user_inputs"]),
+        user_inputs=str(inputs),
         analysis_results=str(state["analysis_results"]),
         dream_fix=dream_fix
     )
     
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     
-    # Clean Markdown
     clean_content = response.content.replace("```markdown", "").replace("```", "").strip()
-    
     return {"final_report": clean_content}
 
 # --- Workflow ---
