@@ -202,7 +202,7 @@ export default function ReportPage() {
                 projectId={projectId} 
                 onSuccess={() => {
                     alert("Welcome to the Private Cohort! We will be in touch shortly.");
-                    router.push('/private_cohort/success'); // Make sure this redirects to your success page
+                    router.push('/private_cohort'); // Make sure this redirects to your success page
                 }}
             />
         </div>

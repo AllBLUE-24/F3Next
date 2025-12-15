@@ -19,9 +19,12 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",
     "https://f3next.vercel.app",        # Your Vercel Project URL
-    "https://www.f3next.in",           # Your Custom Domain (if you added one)
-    "*"                                 # ⚠️ Debug Mode: Allows EVERYONE. Good for testing, remove later for security.
-]
+    "https://www.f3next.in",  
+    "https://f3next.in",
+    "https://f3-next-tool1-checked-git-main-parths-projects-1f4d4d4a.vercel.app",
+    "https://f3-next-tool1-checked-jv1yf8emx-parths-projects-1f4d4d4a.vercel.app"
+    
+    ]
 # CORS
 app.add_middleware(
     CORSMiddleware,
