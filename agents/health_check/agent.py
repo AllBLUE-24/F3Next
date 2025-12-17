@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ensure these match your actual file paths
-from app.agents.health_check.knowledge_base import KNOWLEDGE_BASE
-from app.agents.health_check.prompts import REPORT_GENERATION_PROMPT
+from agents.health_check.knowledge_base import KNOWLEDGE_BASE
+from agents.health_check.prompts import REPORT_GENERATION_PROMPT
 
 # --- 1. THE EXACT MAP (Calibrated to your Questions) ---
 OPTION_MAP = {
