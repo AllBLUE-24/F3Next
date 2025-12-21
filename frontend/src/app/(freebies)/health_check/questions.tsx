@@ -86,6 +86,33 @@ export const QUESTIONS_DATA = [
       'I want to reduce manual data entry',
     ],
   },
+  {
+    key: 'q11_owner_firefighting',
+    question: '11. How much time does the Owner/MD spend on daily production "firefighting"?',
+    options: [
+      '< 1 hour (Systems run themselves)',
+      '2-4 hours (Coordination & follow-ups)',
+      'Full Day (Nothing moves without my approval)',
+    ],
+  },
+  {
+    key: 'q12_delivery_reliability',
+    question: '12. How often do you delay customer deliveries due to "Internal Chaos"?',
+    options: [
+      'Rarely (We are on time)',
+      'Sometimes (10-20% of orders)',
+      'Frequently (Customers are constantly calling)',
+    ],
+  },
+  {
+    key: 'q13_scrap_tracking',
+    question: '13. How do you track "Scrap" or "Wastage" during production?',
+    options: [
+      'Strictly weighed and recorded',
+      'Mental estimate by supervisor',
+      'No formal tracking (Part of the process)',
+    ],
+  },
 ];
 
 // --- COMPONENT: Renders the list of questions ---

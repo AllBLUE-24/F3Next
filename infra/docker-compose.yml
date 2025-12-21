@@ -16,7 +16,7 @@ services:
       - ../.env
     environment:
       # Explicit overrides if needed, otherwise it pulls from .env
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@host.docker.internal:5432/f3next_db
+      - DATABASE_URL=${DATABASE_URL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -33,7 +33,7 @@ services:
     env_file:
       - ../frontend/.env.local
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000    # NEXT_PUBLIC_API_URL=https://7shirz4ba8.ap-south-1.awsapprunner.com 
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000} 
 
     depends_on:
       - backend

@@ -1,39 +1,24 @@
-# app/agents/prompts.py
-# app/agents/prompts.py
-
 REPORT_GENERATION_PROMPT = """
-**ROLE:**
-You are a Veteran Manufacturing Consultant (20+ years in India). You analyze factory operations to find "money leaks." 
+**ROLE:** Veteran Manufacturing Forensic Auditor.
+**TONE:** Brutally honest, high-urgency, financial focus.
 
-**USER FACTORY DATA:**
-{user_inputs}
+**EXECUTIVE SUMMARY:**
+You are looking at a factory that is "leaking" capital. Your goal is to show the owner that their "Self-Managed" system is actually a **Loss-Making Engine**.
 
-**CALCULATED RISKS & FINANCIALS:**
-{analysis_results}
+**SECTION 1: THE REVENUE LEAK (Focus on ₹)**
+- Start with: "Based on our audit, your factory is operating at **{efficiency_zone}** efficiency."
+- Focus on the **Total Annual Bleed: ₹{total_annual_bleed}**.
+- Use the Tangible Comparison: "This leakage is equivalent to losing **{tangible_comparison}** every single year."
+- Break down the **Management Tax**: "The owner is spending hours firefighting. This 'Owner-Debt' is costing the company ₹{management_waste} in lost growth opportunities."
 
-**YOUR TASK:**
-Generate a **"Factory Forensic Health Report"** in Markdown.
+**SECTION 2: DIAGNOSTIC RED FLAGS**
+- If 'q9_store_manager_dependency' is 'Disaster': Highlight the **Hostage Situation**. "Your production is held hostage by a single individual's memory."
+- If 'q13_scrap_tracking' is 'No formal tracking': Mention **Invisible Theft**. "Unchecked scrap is where 3-5% of your margins disappear into thin air."
 
-**SECTION 1: THE FINANCIAL BLEED (Use ₹ symbol)**
-* **The Verdict:** Start by declaring their Efficiency Zone (Green/Yellow/Red) based on the analysis.
-* **Dead Capital Analysis:**
-    * State the `dead_capital_detected`. 
-    * "You are currently burning ₹[monthly_interest_loss]/month in pure interest. This is not a business expense; it is a penalty."
-* **Operational Waste:**
-    * Combine the interest loss and the manual entry waste (`annual_operational_waste`).
-    * **Crucial:** Compare their `total_annual_bleed` to the `tangible_comparison` from the analysis.
-    * *Output Example:* "Your total annual leakage is ₹[Total]. **That is the cost of [Tangible Item] that you are throwing away every year.**"
+**SECTION 3: THE F3NEXT RECOVERY PLAN**
+- Explicitly link their 'Dream Fix' to the **F3Next Automated Instance Deployment**.
+- "By deploying your dedicated F3Next cloud instance, you move from 'Person-Dependent' to 'System-Driven' in 48 hours."
 
-**SECTION 2: CRITICAL RISK DIAGNOSIS**
-* Iterate through the risks.
-* **The "Bus Factor":** If `dependency_level` is high, be harsh: "You don't own a business; you own a chaos engine dependent on one person."
-* **The "Excel Trap":** If they use Excel for BOMs, warn: "Excel cannot handle live inventory. You are likely ordering materials you already have."
-
-**SECTION 3: THE F3 BLUEPRINT**
-* "To stop the bleeding of ₹[Total Annual Bleed], here is your immediate action plan:"
-* Recommend the specific F3Next module to fix their `dream_fix`.
-* **Call to Action:** End with "Deploy your instance to stop this loss today."
-
-**TONE:**
-Professional, Urgent, High-Stakes. Use bolding for money figures.
+**FINISH:**
+"Every day you delay is another ₹{monthly_interest_loss} lost to inefficiency. Stop the bleed today."
 """

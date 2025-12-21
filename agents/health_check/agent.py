@@ -123,8 +123,30 @@ def analyze_node(state: AgentState):
     elif is_unknown_inventory:
         opportunity_loss = turnover * 0.02
 
+        # NEW: Management Waste Calculation
+    owner_time_waste = inputs.get("q11_owner_firefighting", "")
+    management_cost_annual = 0
+    if "Full Day" in owner_time_waste:
+        management_cost_annual = (turnover * 0.05) # 5% of turnover lost in owner's lost strategic time
+    elif "2-4 hours" in owner_time_waste:
+        management_cost_annual = (turnover * 0.02)
+
+    # NEW: Opportunity Loss from Late Deliveries
+    delivery_chaos = inputs.get("q12_delivery_reliability", "")
+    revenue_at_risk = 0
+    if "Frequently" in delivery_chaos:
+        revenue_at_risk = turnover * 0.15 # 15% potential churn/late penalty
+    elif "Sometimes" in delivery_chaos:
+        revenue_at_risk = turnover * 0.05
+
+
     # F. TOTAL BLEED
-    total_annual_bleed = annual_operational_waste + annual_interest_loss + opportunity_loss
+    total_annual_bleed = (
+        annual_operational_waste + 
+        annual_interest_loss + 
+        management_cost_annual + 
+        revenue_at_risk
+    )
 
     # G. TANGIBLE ASSET
     tangible_item = "Growth Capital"
@@ -153,7 +175,12 @@ def analyze_node(state: AgentState):
         "total_annual_bleed": int(total_annual_bleed),
         "tangible_comparison": tangible_item,
         "efficiency_zone": efficiency_zone,
-        "is_unknown_inventory": is_unknown_inventory
+        "is_unknown_inventory": is_unknown_inventory,
+        "management_waste": int(management_cost_annual),
+        "revenue_at_risk": int(revenue_at_risk),
+        "total_annual_bleed": int(total_annual_bleed),
+        "tangible_comparison": tangible_item,
+        "efficiency_zone": efficiency_zone
     }}
 
 # --- Node 2: Writer ---

@@ -21,7 +21,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
   const handleSecureSpot = async () => {
     if (!projectId) return;
     try {
-      fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/capture-interest', {
+fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: projectId, status: 'interested' })
@@ -34,7 +34,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
     if (!projectId) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/capture-interest', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

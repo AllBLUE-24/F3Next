@@ -72,7 +72,7 @@ function HealthCheckContent() {
     };
 
     try {
-      const response = await fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/submit', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -22,7 +22,7 @@ export default function PrivateCohort() {
     setIsSubmitting(true);
     try {
       // API call to the specific AWS App Runner endpoint
-      const response = await fetch('https://7shirz4ba8.ap-south-1.awsapprunner.com/health_check/capture-interest', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
