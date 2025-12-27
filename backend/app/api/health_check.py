@@ -63,6 +63,8 @@ async def submit_health_check(
         db.add(project)
         await db.flush()
 
+        project_id_str = str(project.id) #
+
     # 3. HOOKS
     hook_res = await db.execute(select(Hook).where(Hook.project_id == project.id))
     existing_hook = hook_res.scalar_one_or_none()
@@ -87,7 +89,8 @@ async def submit_health_check(
         # If your launcher needs project_id, pass project_id_str
         workflow_id = await start_health_check_flow(
             uid=payload.firebase_uid, 
-            answers=payload.answers
+            answers=payload.answers,
+            project_id=project_id_str
         )
 
         return {
@@ -145,3 +148,18 @@ async def capture_interest(
 
     await db.commit()
     return {"status": "updated", "current_status": project.status.value}
+    
+
+@router.get("/status/{project_id}")
+async def get_report_status(project_id: str, db: AsyncSession = Depends(get_db)):
+    # Fetch the hook to check if report_content is populated
+    res = await db.execute(select(Hook).where(Hook.project_id == project_id))
+    hook = res.scalar_one_or_none()
+    
+    if not hook:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    return {
+        "is_ready": hook.report_content is not None,
+        "report_content": hook.report_content
+    }

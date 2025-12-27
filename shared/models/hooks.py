@@ -1,7 +1,7 @@
-from sqlalchemy import Column, ForeignKey, DateTime, Integer
+from sqlalchemy import Column, ForeignKey, DateTime, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
-from app.core.db import Base
+from shared.database.db import Base
 import uuid
 
 class Hook(Base):
@@ -17,3 +17,6 @@ class Hook(Base):
     answers_health_check = Column(JSONB, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    report_content = Column(Text, nullable=True) #
+

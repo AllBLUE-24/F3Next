@@ -22,26 +22,60 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedReport = localStorage.getItem('f3_last_report');
-    const storedMeta = localStorage.getItem('f3_user_metadata');
-    const storedBleed = localStorage.getItem('f3_annual_bleed'); 
     const storedProjId = localStorage.getItem('f3_project_id');
+    const storedBleed = localStorage.getItem('f3_annual_bleed');
+    const storedMeta = localStorage.getItem('f3_user_metadata');
+    const storedReport = localStorage.getItem('f3_last_report');
 
-    if (storedReport) {
-      setReport(storedReport);
-      setProjectId(storedProjId);
-      if (storedBleed) setAnnualBleed(storedBleed);
-      
-      if (storedMeta) {
-        try {
-          setMeta(JSON.parse(storedMeta));
-        } catch (e) { console.error(e); }
-      }
-      setLoading(false);
-    } else {
-      setReport("# Report Pending\n\nWe could not find your assessment data. Please return to the dashboard.");
-      setLoading(false);
+    setProjectId(storedProjId);
+    if (storedBleed) setAnnualBleed(storedBleed);
+    
+    if (storedMeta) {
+      try {
+        setMeta(JSON.parse(storedMeta));
+      } catch (e) { console.error(e); }
     }
+
+    // Polling function to check if the Agent is done
+    const checkReportStatus = async () => {
+      if (!storedProjId) {
+        // Fallback if no project ID is found
+        if (storedReport) {
+            setReport(storedReport);
+            setLoading(false);
+        } else {
+            setReport("# Report Pending\n\nWe could not find your assessment data. Please return to the dashboard.");
+            setLoading(false);
+        }
+        return true; 
+      }
+      
+      try {
+        const res = await fetch(`http://localhost:8000/health_check/status/${storedProjId}`);
+        const data = await res.json();
+
+        if (data.is_ready) {
+          setReport(data.report_content);
+          setLoading(false);
+          localStorage.setItem('f3_last_report', data.report_content);
+          return true; // Stop the interval
+        }
+      } catch (err) {
+        console.error("Audit Fetch Error:", err);
+      }
+      return false;
+    };
+
+    // Check every 3 seconds
+    const pollInterval = setInterval(async () => {
+      const isDone = await checkReportStatus();
+      if (isDone) clearInterval(pollInterval);
+    }, 3000);
+
+    // Immediate first check
+    checkReportStatus();
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   if (loading) return (
@@ -128,7 +162,6 @@ export default function ReportPage() {
                 <div className="prose prose-slate max-w-none prose-lg">
                     <ReactMarkdown
                         components={{
-                            // 1. Elegant Serif Headings
                             h1: ({node, ...props}) => (
                                 <div className="break-inside-avoid-page mt-8 mb-6">
                                     <h1 className="text-2xl font-serif font-bold text-slate-900 border-b-2 border-slate-900 pb-2 inline-block" {...props} />
@@ -142,10 +175,7 @@ export default function ReportPage() {
                                     </h2>
                                 </div>
                             ),
-                            // 2. Clean Paragraphs
                             p: ({node, ...props}) => <p className="text-slate-700 text-[16px] leading-relaxed mb-6 text-justify" {...props} />,
-                            
-                            // 3. Professional Lists
                             ul: ({node, ...props}) => <ul className="space-y-2 my-6 bg-slate-50/50 p-6 rounded-lg border border-slate-100" {...props} />,
                             li: ({node, ...props}) => (
                                 <li className="flex items-start gap-3 text-slate-700 text-[16px]">
@@ -153,11 +183,7 @@ export default function ReportPage() {
                                     <span>{props.children}</span>
                                 </li>
                             ),
-
-                            // 4. Highlighted Stats/Bold
                             strong: ({node, ...props}) => <strong className="font-bold text-slate-900 bg-yellow-100/50 px-1 rounded" {...props} />,
-                            
-                            // 5. Executive Insights (Blockquote)
                             blockquote: ({node, ...props}) => (
                                 <div className="break-inside-avoid-page my-8 pl-6 border-l-4 border-indigo-900 italic text-slate-600 bg-slate-50 py-4 pr-4 rounded-r-lg">
                                     {props.children}
@@ -202,7 +228,7 @@ export default function ReportPage() {
                 projectId={projectId} 
                 onSuccess={() => {
                     alert("Welcome to the Private Cohort! We will be in touch shortly.");
-                    router.push('/private_cohort'); // Make sure this redirects to your success page
+                    router.push('/private_cohort');
                 }}
             />
         </div>

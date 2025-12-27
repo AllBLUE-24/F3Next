@@ -6,6 +6,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from shared.utils.health_check_financial import get_mapped_value
 from agents.health_check.knowledge_base import KNOWLEDGE_BASE
 from agents.health_check.prompts import REPORT_GENERATION_PROMPT
+from sqlalchemy import text
+from backend.app.core.db import engine
 
 # Setup absolute path for .env to ensure GEMINI_API_KEY is found
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -72,3 +74,24 @@ async def generate_health_report(analysis_results: dict) -> str:
     
     response = await llm.ainvoke(formatted_prompt)
     return str(response.content)
+
+
+@activity.defn
+async def save_report_to_db(data: dict):
+    """Saves the final forensic audit to the database."""
+
+    print(f"DEBUG: save_report_to_db received keys: {list(data.keys())}")
+    # Extract variables from the dictionary passed by the workflow
+    project_id = data.get("project_id")
+    report = data.get("report")
+
+    if not project_id or not report:
+        raise ValueError(f"❌ Missing data: project_id={project_id}, report exists={bool(report)}")
+
+    async with engine.begin() as conn:
+        # We update the hooks table using the project_id
+        await conn.execute(
+            text("UPDATE hooks SET report_content = :report WHERE project_id = :pid"),
+            {"report": report, "pid": project_id}
+        )
+    return True
