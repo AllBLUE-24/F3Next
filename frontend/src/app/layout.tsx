@@ -1,13 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "F3Next",
@@ -21,7 +13,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      {/* 
+        We removed inter.className. 
+        'antialiased' is a standard Tailwind class for better font smoothing.
+      */}
+      <body className="antialiased">
+        {children}
+      </body>
     </html>
   );
 }

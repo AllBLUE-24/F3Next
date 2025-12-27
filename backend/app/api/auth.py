@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.db import get_db
-from app.models.core import Client, Project
+from shared.models.core import Client, Project
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

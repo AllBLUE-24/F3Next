@@ -2,6 +2,7 @@
 import sys
 import os
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
@@ -12,12 +13,31 @@ from app.api.health_check import router as health_router
 from app.api.auth import router as auth_router
 
 # Import models to ensure tables are registered for creating
-from app.models import core, hooks 
+from shared.models.core import Client, Project, ProjectStatus
+from shared.models.hooks import Hook
 from app.core.db import engine, Base
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup Logic ---
+    print("🚀 App starting: Verifying database tables...")
+    async with engine.begin() as conn:
+        # Create tables if they don't exist
+        await conn.run_sync(Base.metadata.create_all)
+    print("✅ Database tables verified/created.")
+    yield  
+
+app = FastAPI(lifespan=lifespan)
+
+_all_models = [Base, Client, Project, ProjectStatus, Hook]
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 origins = [
     "http://localhost:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:3000",
     "https://f3next.vercel.app",        # Your Vercel Project URL
     "https://www.f3next.in",  
     "https://f3next.in",
@@ -32,6 +52,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Routes
@@ -39,7 +60,3 @@ app.include_router(health_router)
 app.include_router(auth_router)
 
 # Startup DB Init (Dev only)
-@app.on_event("startup")
-async def init_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)

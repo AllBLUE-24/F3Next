@@ -21,7 +21,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
   const handleSecureSpot = async () => {
     if (!projectId) return;
     try {
-fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/capture-interest`, {
+fetch(`${process.env.NEXT_PUBLIC_API_URL}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: projectId, status: 'interested' })
@@ -34,7 +34,7 @@ fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/capture-intere
     if (!projectId) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_AWS_APP_RUNNER_URL}/health_check/capture-interest`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
