@@ -1,13 +1,13 @@
 import asyncio
 from temporalio.client import Client
 from temporalio.worker import Worker
-from agents.health_check.workflows import HealthCheckWorkflow
-from agents.health_check.activities import (
+from containers.health_check.workflows import HealthCheckWorkflow
+from containers.health_check.activities import (
     analyze_health_logic, 
     generate_health_report,
     save_report_to_db  # <--- Ensure this is imported!
 )
-from agents.health_check.workflows import HealthCheckWorkflow
+from containers.health_check.workflows import HealthCheckWorkflow
 
 async def main():
     # connect to temporal

@@ -153,13 +153,15 @@ async def capture_interest(
 @router.get("/status/{project_id}")
 async def get_report_status(project_id: str, db: AsyncSession = Depends(get_db)):
     # Fetch the hook to check if report_content is populated
-    res = await db.execute(select(Hook).where(Hook.project_id == project_id))
-    hook = res.scalar_one_or_none()
-    
+    query = select(Hook, Project).join(Project).where(Hook.project_id == project_id)
+    result = await db.execute(query)
+    hook, project = result.first() or (None, None)   
+
     if not hook:
         raise HTTPException(status_code=404, detail="Project not found")
         
     return {
         "is_ready": hook.report_content is not None,
-        "report_content": hook.report_content
+        "report_content": hook.report_content,
+        "annual_bleed": project.annual_bleed # Pass the real number here
     }

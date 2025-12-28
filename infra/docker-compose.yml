@@ -96,7 +96,7 @@ services:
   health-check-worker:
     build:
       context: ../
-      dockerfile: agents/health_check/Dockerfile
+      dockerfile: containers/health_check/Dockerfile
     container_name: f3_health_check_worker
     env_file:
       - ../.env
@@ -108,7 +108,7 @@ services:
     networks:
       - f3_net
     volumes:
-    - ../agents/health_check:/app/agents/health_check
+    - ../containers/health_check:/app/containers/health_check
     - ../shared:/app/shared    
 
   db:

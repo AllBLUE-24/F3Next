@@ -1,6 +1,6 @@
 import os
 from temporalio.client import Client
-from agents.health_check.workflows import HealthCheckWorkflow
+from containers.health_check.workflows import HealthCheckWorkflow
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
 async def start_health_check_flow(uid: str, answers: dict, project_id: str):

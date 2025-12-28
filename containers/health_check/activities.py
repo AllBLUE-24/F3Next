@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 from temporalio import activity
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from shared.utils.health_check_financial import get_mapped_value
-from agents.health_check.knowledge_base import KNOWLEDGE_BASE
-from agents.health_check.prompts import REPORT_GENERATION_PROMPT
+from containers.health_check.knowledge_base import KNOWLEDGE_BASE
+from containers.health_check.prompts import REPORT_GENERATION_PROMPT
 from sqlalchemy import text
 from backend.app.core.db import engine
 

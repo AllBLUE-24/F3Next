@@ -56,6 +56,11 @@ export default function ReportPage() {
 
         if (data.is_ready) {
           setReport(data.report_content);
+          
+          if (data.annual_bleed) {
+            setAnnualBleed(data.annual_bleed); 
+            localStorage.setItem('f3_annual_bleed', data.annual_bleed);
+        }
           setLoading(false);
           localStorage.setItem('f3_last_report', data.report_content);
           return true; // Stop the interval

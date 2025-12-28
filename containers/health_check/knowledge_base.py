@@ -1,4 +1,3 @@
-# app/agents/knowledge_base.py
 
 KNOWLEDGE_BASE = {
   "industry_benchmarks": {

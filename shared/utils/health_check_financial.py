@@ -1,4 +1,4 @@
-from agents.health_check.knowledge_base import KNOWLEDGE_BASE
+from containers.health_check.knowledge_base import KNOWLEDGE_BASE
 from shared.constants.health_check_constants import OPTION_MAP 
 
 def get_mapped_value(user_input, category):

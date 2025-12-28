@@ -11,7 +11,7 @@ llm_retry_policy = RetryPolicy(
 )
 
 with workflow.unsafe.imports_passed_through():
-    from agents.health_check.activities import (
+    from containers.health_check.activities import (
         analyze_health_logic,
         generate_health_report,
         save_report_to_db
