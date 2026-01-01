@@ -34,6 +34,7 @@ class Client(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    user_slug = Column(String, unique=True, nullable=True)
 
 class Project(Base):
     __tablename__ = "projects"
@@ -62,4 +63,5 @@ class Project(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    company_slug = Column(String, unique=True, nullable=True)
     

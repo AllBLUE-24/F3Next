@@ -16,6 +16,8 @@ from app.api.auth import router as auth_router
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
 from app.core.db import engine, Base
+from app.api.discovery import router as discovery_router
+from app.api.onboarding import router as onboarding_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -58,5 +60,6 @@ app.add_middleware(
 # Routes
 app.include_router(health_router)
 app.include_router(auth_router)
-
+app.include_router(discovery_router, prefix="/api")
+app.include_router(onboarding_router, prefix="/api")
 # Startup DB Init (Dev only)

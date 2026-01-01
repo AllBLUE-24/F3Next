@@ -19,10 +19,12 @@ function SignupForm() {
   const [error, setError] = useState('');
 
   const handleSuccessRedirect = () => {
+    // If there is a specific redirect (e.g. from an invite link), use it.
     if (redirectPath) {
       router.push(`${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`);
     } else {
-      router.push('/dashboard');
+      // Otherwise, standard flow: Go to Onboarding
+      router.push('/onboarding');
     }
   };
 

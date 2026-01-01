@@ -165,3 +165,6 @@ async def get_report_status(project_id: str, db: AsyncSession = Depends(get_db))
         "report_content": hook.report_content,
         "annual_bleed": project.annual_bleed # Pass the real number here
     }
+
+
+    

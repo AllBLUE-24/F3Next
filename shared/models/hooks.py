@@ -20,3 +20,15 @@ class Hook(Base):
 
     report_content = Column(Text, nullable=True) #
 
+    last_bot_response = Column(Text, nullable=True)
+
+    discovery_step = Column(Integer, default=1)
+
+    discovery_status = Column(Text, default="START")
+
+    extracted_tags = Column(JSONB, default=[])
+
+    chat_history = Column(JSONB, default=[])
+
+    
+
