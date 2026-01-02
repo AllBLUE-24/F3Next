@@ -13,6 +13,7 @@ router = APIRouter(prefix="/discovery", tags=["Discovery"])
 class DiscoveryRequest(BaseModel):
     project_id: UUID
     message: str
+    step: int = 1
 
 @router.post("/chat")
 async def chat_discovery(request: DiscoveryRequest, db: AsyncSession = Depends(get_db)):

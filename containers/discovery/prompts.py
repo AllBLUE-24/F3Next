@@ -13,7 +13,7 @@ YOUR TASKS:
 1. VALIDATION: 
    - Check if the input is intelligible (not gibberish).
    - Check if it actually answers the question asked.
-   - Cross-check for logical consistency (e.g., "1 million employees" for a "bakery" is suspicious).
+   - Cross-check for logical consistency.
    - If INVALID or SUSPICIOUS: Set status to "RETRY". Generate a polite clarification question.
 
 2. EXTRACTION (Only if Valid):
@@ -23,16 +23,15 @@ YOUR TASKS:
 3. NEXT STEP GENERATION (Only if Valid):
    - If the answer is good, formulate the Next Question to move to Step {next_step}.
    - Make the next question "Context-Aware". 
-   - Example: If they just said they are a "Small Pharma Company", don't ask "How big are you?". Instead ask: "For a team your size, do you use Excel or software to track batches?"
 
 OUTPUT FORMAT (JSON ONLY):
-{
+{{
   "status": "SUCCESS" | "RETRY",
   "reason": "String (Internal logic log)",
   "extracted_tags": ["#Tag1", "#Tag2"],
-  "bot_response": "String (The message to show the user. Either the Clarification or the Next Question)",
+  "bot_response": "String (The message to show the user)",
   "next_step_id": Integer (Current step if RETRY, Current + 1 if SUCCESS)
-}
+}}
 
 ---
 APPROVED TAXONOMY (Use only these):

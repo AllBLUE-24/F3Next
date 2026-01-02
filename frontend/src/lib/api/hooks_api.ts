@@ -1,43 +1,51 @@
-// Define the Base URL (Use env variable in production, fallback to localhost for dev)
+// src/lib/api/hooks_api.ts
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// 1. Define the Input Interface (What frontend sends)
+interface ChatPayload {
+  project_id: string;
+  message: string;
+  step?: number; // Optional for now, but good to have
+}
+
 interface DiscoveryResponse {
-  response: string;
-  status: string;
+  step: number;
+  message: string;
 }
 
 /**
  * Sends a user message to the Discovery Agent backend.
  * @param message - The user's input string
- * @param projectId - (Optional) To maintain conversation context
+ * @param projectId - MUST be a valid UUID string from your database
  */
 export const sendMessageToDiscoveryAgent = async (
-  message: string, 
-  projectId: string = "session-user-123"
-): Promise<string> => {
+  payload: ChatPayload
+): Promise<DiscoveryResponse> => {
   try {
     const res = await fetch(`${API_BASE_URL}/api/discovery/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        message: message,
-        project_id: projectId,
-      }),
+      // 2. Body is now clean because payload matches backend expectations
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.detail || `API Error: ${res.status}`);
+      const errorDetail = typeof errorData.detail === 'object' 
+        ? JSON.stringify(errorData.detail) 
+        : errorData.detail;
+        
+      console.error("Backend Validation Error:", errorDetail);
+      throw new Error(errorDetail || `API Error: ${res.status}`);
     }
 
-    const data: DiscoveryResponse = await res.json();
-    return data.response;
+    return await res.json();
 
   } catch (error) {
     console.error("Discovery Agent API Error:", error);
-    // Return a fallback message so the UI doesn't crash
-    return "I'm having trouble connecting to the F3Next server right now. Please check your connection.";
+    // Return a fallback so the UI doesn't crash
+    return { step: 0, message: "Connection error. Please try again." };
   }
 };

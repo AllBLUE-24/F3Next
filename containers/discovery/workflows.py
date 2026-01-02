@@ -23,26 +23,26 @@ class DiscoveryChatWorkflow:
     async def run(self, data: dict) -> dict:
         project_id = data.get("project_id")
         
-        # Initial greeting if no message exists
+        # Initial greeting
         bot_message = "Welcome to F3Next Discovery. Let's start with your industry: What does your company manufacture or trade?"
         
         while not self._is_complete:
-            # 1. Update the DB so the Frontend can see the latest question
+            # 1. Update DB
             await workflow.execute_activity(
                 save_discovery_state,
                 {
                     "project_id": project_id,
-                    "bot_response": bot_message,
+                    "message": bot_message, # Changed key to 'message' to match activity
                     "step": self._current_step,
                     "tags": self._extracted_tags
                 },
                 start_to_close_timeout=timedelta(seconds=10)
             )
-
-            # 2. Wait for the user to reply via the Signal
+    
+            # 2. Wait for user
             await workflow.wait_condition(lambda: self._user_reply is not None)
             
-            # 3. Process the answer with the LLM Activity
+            # 3. Analyze
             analysis = await workflow.execute_activity(
                 analyze_discovery_turn,
                 {
@@ -52,20 +52,19 @@ class DiscoveryChatWorkflow:
                 },
                 start_to_close_timeout=timedelta(minutes=2)
             )
-
-            # 4. Handle LLM Result
+    
+            # 4. Update State
             if analysis["status"] == "SUCCESS":
                 self._current_step = analysis["next_step_id"]
-                self._extracted_tags.extend(analysis["extracted_tags"])
-                # Log history for context-awareness in the next turn
+                self._extracted_tags.extend(analysis.get("extracted_tags", []))
                 self._conversation_history.append(f"User: {self._user_reply}")
-                self._conversation_history.append(f"AI: {analysis['bot_response']}")
+                self._conversation_history.append(f"AI: {analysis['message']}")
                 
-                # Check if we have hit the final step (Step 5)
                 if self._current_step > 5:
                     self._is_complete = True
             
-            bot_message = analysis["bot_response"]
-            self._user_reply = None # Reset and wait for next signal
-
+            # Use the 'message' field we ensured exists in activity
+            bot_message = analysis.get("message", "One moment, please...")
+            self._user_reply = None 
+    
         return {"status": "complete", "tags": list(set(self._extracted_tags))}
