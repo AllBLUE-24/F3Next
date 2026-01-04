@@ -210,7 +210,7 @@ export default function OnboardingPage() {
                 Workspace URL
               </label>
               <div className="flex items-center rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-400">
-                <span className="hidden sm:inline">f3next.com/</span>
+                <span className="hidden sm:inline">f3next.in/</span>
                 <input
                   name="companySlug"
                   type="text"

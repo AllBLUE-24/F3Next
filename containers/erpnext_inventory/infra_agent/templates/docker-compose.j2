@@ -1,0 +1,64 @@
+version: '3'
+
+services:
+  db:
+    image: mariadb:10.6
+    container_name: {{ stack_name }}-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD={{ db_root_password }}
+      - MYSQL_DATABASE=erpnext
+      - MYSQL_USER=erpnext
+      - MYSQL_PASSWORD={{ db_password }}
+    volumes:
+      - ./mysql-data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: {{ db_memory_limit }} # e.g., 1G
+    networks:
+      - internal-net
+
+  redis:
+    image: redis:6.2-alpine
+    container_name: {{ stack_name }}-redis
+    restart: always
+    networks:
+      - internal-net
+
+  backend:
+    image: frappe/erpnext:v15
+    container_name: {{ stack_name }}-app
+    restart: always
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_PASSWORD={{ db_password }}
+      - SITE_NAME={{ site_url }}
+      - ADMIN_PASSWORD={{ admin_password }} # Sets the initial login password
+    volumes:
+      - ./sites:/home/frappe/frappe-bench/sites
+    deploy:
+      resources:
+        limits:
+          cpus: '{{ app_cpu_limit }}' # e.g., 0.5
+          memory: {{ app_memory_limit }} # e.g., 1G
+    networks:
+      - internal-net
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.{{ stack_name }}.rule=Host(`{{ site_url }}`)"
+      - "traefik.http.routers.{{ stack_name }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ stack_name }}.tls.certresolver=myresolver"
+      - "traefik.http.services.{{ stack_name }}.loadbalancer.server.port=8000"
+    depends_on:
+      - db
+      - redis
+
+networks:
+  internal-net:
+    internal: true
+  traefik-public:
+    external: true
+    name: traefik_default

@@ -54,7 +54,7 @@ export default function Contact() {
           </div>
           
           <div className="bg-gray-800/50 p-8 rounded-xl shadow-lg border border-gray-700">
-            <form className="space-y-4" action="mailto:support@f3next.com" method="post" encType="text/plain">
+            <form className="space-y-4" action="mailto:support@f3next.in" method="post" encType="text/plain">
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input 
                     type="text" 
