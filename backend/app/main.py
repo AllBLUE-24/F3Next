@@ -19,6 +19,7 @@ from app.core.db import engine, Base
 from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resolver import router as resolver_router
+from app.api.config import router as config_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,4 +65,4 @@ app.include_router(auth_router)
 app.include_router(discovery_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(resolver_router, prefix="/api")
-# Startup DB Init (Dev only)
+app.include_router(config_router, prefix="/api")

@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from shared.database.db import Base
 import uuid
@@ -64,4 +64,5 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     company_slug = Column(String, unique=True, nullable=True)
+    processed_config = Column(JSONB, nullable=True)
     

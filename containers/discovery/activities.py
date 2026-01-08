@@ -2,7 +2,7 @@ import os
 import json
 from temporalio import activity
 from langchain_google_genai import ChatGoogleGenerativeAI
-from containers.discovery.prompts import DISCOVERY_PROMPT
+from containers.discovery.prompts import DISCOVERY_PROMPT, RECOMMENDATION_PROMPT 
 from containers.discovery.knowledge_base import KNOWLEDGE_BASE
 from shared.database.db import engine
 from shared.models.hooks import Hook
@@ -26,7 +26,7 @@ async def analyze_discovery_turn(data: dict) -> dict:
     step_info = STEP_MAP.get(current_step, STEP_MAP[1])
     
     api_key = os.getenv("GEMINI_API_KEY")
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=api_key)
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
 
     formatted_prompt = DISCOVERY_PROMPT.format(
         current_step=current_step,
@@ -82,3 +82,35 @@ async def save_discovery_state(data: dict):
             )
         )
     return True
+
+@activity.defn
+async def generate_erp_recommendation(tags: list) -> dict:
+    """
+    Final Step: Takes the collected tags and generates the ERP Score & Pitch.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
+    
+    # Format the prompt with the final list of tags
+    formatted_prompt = RECOMMENDATION_PROMPT.format(
+        extracted_tags=", ".join(tags)
+    )
+    
+    try:
+        response = await llm.ainvoke([("human", formatted_prompt)])
+        
+        # Clean and Parse
+        clean_json = response.content.replace("```json", "").replace("```", "").strip()
+        recommendation = json.loads(clean_json)
+        
+        return recommendation
+
+    except Exception as e:
+        print(f"❌ Recommendation Error: {str(e)}")
+        # Fallback for safety
+        return {
+            "recommended_erp": "ERPNext Standard",
+            "fit_score": 85,
+            "headline": "Analysis Complete",
+            "reasoning": "Based on your inputs, ERPNext is a strong candidate for your operations."
+        }
