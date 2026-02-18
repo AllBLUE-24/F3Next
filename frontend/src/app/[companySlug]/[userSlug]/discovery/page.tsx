@@ -1,4 +1,3 @@
-// app/dashboard/[slug]/page.tsx
 // Note: NO "use client" here. This is a Server Component.
 
 import DiscoveryClient from "@/components/shared/DiscoveryClient";

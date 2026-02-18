@@ -147,9 +147,29 @@ services:
     networks:
       - f3_net
 
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"     # API Port (Your agent connects here)
+      - "9001:9001"     # Web Console Port (You log in here)
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - ./minio_data:/data   # Persists your files on your laptop
+    command: server --console-address ":9001" /data
+
+
 volumes:
   postgres_data: # Declare the volume for persistence
 
 networks:
   f3_net:
     driver: bridge
+
+
+
+
+
+

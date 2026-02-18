@@ -12,7 +12,7 @@ async def main():
     # OR by the Container ID if you map that in your DB.
     
     TARGET_FIREBASE_UID = "4J3e1KHrOCeZt7Be2mL8OfNZsf42" # <--- The user ID from your logs/auth
-    CONTAINER_ID = "cnt_stock_109"
+    CONTAINER_ID = "cnt_stock_110"
     WORKFLOW_ID = f"config-workflow-{CONTAINER_ID}"
 
     print(f"🔍 Looking up Project for User: {TARGET_FIREBASE_UID}...")

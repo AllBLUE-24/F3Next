@@ -11,6 +11,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.health_check import router as health_router
 from app.api.auth import router as auth_router
+from dotenv import load_dotenv
+load_dotenv()
 
 # Import models to ensure tables are registered for creating
 from shared.models.core import Client, Project, ProjectStatus
@@ -20,6 +22,13 @@ from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resolver import router as resolver_router
 from app.api.config import router as config_router
+from app.api.deploy_routes import router as deploy_routes_router
+from app.api.deploy import router as deploy_router
+from app.api.agents import router as agents_router
+from app.api.config_apply import router as config_apply_router
+from app.api.migration import router as migration_router
+from app.api.ingest import router as ingest_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -66,3 +75,9 @@ app.include_router(discovery_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(resolver_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
+app.include_router(deploy_router, prefix="/api")
+app.include_router(deploy_routes_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
+app.include_router(config_apply_router, prefix="/api")
+app.include_router(migration_router, prefix="/api")
+app.include_router(ingest_router, prefix="/api")

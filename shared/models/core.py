@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, JSON
 from sqlalchemy.sql import func
 from shared.database.db import Base
 import uuid
@@ -9,6 +9,9 @@ import uuid
 class ProjectStatus(str, enum.Enum):
     CREATED = "created"
     DISCOVERY_COMPLETE = "discovery_complete"
+    CONFIG_COMPLETED = "config_completed"       # Config Agent Finished
+    DEPLOYMENT_IN_PROGRESS = "deployment_in_progress" # Apply/Template Agents Running
+    DEPLOYMENT_COMPLETED = "deployment_completed"     # ERPNext is Live
     TEMPLATES_READY = "templates_ready"
     UPLOADED = "uploaded"
     VALIDATED = "validated"
@@ -65,4 +68,7 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     company_slug = Column(String, unique=True, nullable=True)
     processed_config = Column(JSONB, nullable=True)
+    deployment_details = Column(JSONB, nullable=True)
+    context_tags = Column(JSON, nullable=True, default=[])
+
     
