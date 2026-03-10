@@ -1,0 +1,18 @@
+{
+  "patterns": [
+    {
+      "pattern_id": "create_sales_order",
+      "trigger_keywords": ["create SO", "sales order", "place order", "new order", "make SO"],
+      "steps": [
+        {
+          "action": "create",
+          "doctype": "Sales Order",
+          "depends_on": null,
+          "rollback_if_failed": true
+        }
+      ],
+      "risk_level": "low",
+      "requires_confirmation": false
+    }
+  ]
+}

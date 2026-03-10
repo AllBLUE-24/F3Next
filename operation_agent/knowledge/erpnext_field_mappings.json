@@ -1,0 +1,22 @@
+{
+  "Sales Order": {
+    "user_to_erp": {
+      "customer": "customer",
+      "items": "items",
+      "delivery_date": "delivery_date",
+      "transaction_date": "transaction_date",
+      "po_no": "po_no",
+      "po_date": "po_date"
+    },
+    "items_child_table": {
+      "item_code": "item_code",
+      "qty": "qty",
+      "rate": "rate",
+      "warehouse": "warehouse"
+    },
+    "defaults": {
+      "transaction_date": "today",
+      "doctype": "Sales Order"
+    }
+  }
+}
