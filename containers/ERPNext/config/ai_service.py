@@ -5,9 +5,9 @@ import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 
-from containers.erpnext_inventory.config.knowledge_base import ERPNEXT_STOCK_KB_TEXT
-from containers.erpnext_inventory.config.prompts import CONFIG_GENERATOR_PROMPT
-from containers.erpnext_inventory.config.schema import TARGET_STRUCTURE_JSON
+from containers.ERPNext.config.knowledge_base import ERPNEXT_STOCK_KB_TEXT
+from containers.ERPNext.config.prompts import CONFIG_GENERATOR_PROMPT
+from containers.ERPNext.config.schema import TARGET_STRUCTURE_JSON
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(dotenv_path=ROOT_DIR / ".env")

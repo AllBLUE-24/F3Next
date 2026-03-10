@@ -1,4 +1,4 @@
-# containers/erpnext_inventory/migration/activities.py
+# containers/ERPNext/migration/activities.py
 import os
 import json
 import boto3

@@ -3,8 +3,8 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 # Import the actual implementations
-from containers.erpnext_inventory.infra_agent.activities import deploy_inventory_container, generate_erpnext_keys, save_deployment_details
-from containers.erpnext_inventory.infra_agent.workflows import ERPNextProvisioningWorkflow
+from containers.ERPNext.infra_agent.activities import deploy_inventory_container, generate_erpnext_keys, save_deployment_details
+from containers.ERPNext.infra_agent.workflows import ERPNextProvisioningWorkflow
 
 async def main():
     # 1. Connect to Temporal Server (Localhost for now)

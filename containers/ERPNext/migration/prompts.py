@@ -1,4 +1,4 @@
-# containers/erpnext_inventory/migration/prompts.py
+# containers/ERPNext/migration/prompts.py
 
 SYSTEM_PROMPT_ANALYZER = """
 You are a Senior Data Architect specializing in ERP migrations.

@@ -17,7 +17,7 @@ from shared.database.db import AsyncSessionLocal as async_session
 EC2_HOST = "65.2.125.86"
 EC2_USER = "ubuntu"
 # Using raw string (r"...") to handle Windows backslashes correctly
-SSH_KEY_PATH = r"C:\Users\Mayur Laxman Aldar\Downloads\f3.pem"
+SSH_KEY_PATH = r"C:\dev\secrets\F3Next\f3.pem"
 
 TIERS = {
     "standard": {"db_mem": "1G", "app_mem": "1G", "cpu": "1.0"},
@@ -69,7 +69,7 @@ services:
       - "traefik.http.routers.{{ stack_name }}-app.priority=10"
       - "traefik.http.routers.{{ stack_name }}-app.entrypoints=websecure"
       - "traefik.http.routers.{{ stack_name }}-app.tls=true"
-      - "traefik.http.routers.{{ stack_name }}-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{ stack_name }}-app.tls.certresolver=myresolver"
       - "traefik.http.services.{{ stack_name }}-app.loadbalancer.server.port=8000"
       - "traefik.docker.network=traefik_default"
 
@@ -88,7 +88,7 @@ services:
       - "traefik.http.routers.{{ stack_name }}-assets.priority=100"
       - "traefik.http.routers.{{ stack_name }}-assets.entrypoints=websecure"
       - "traefik.http.routers.{{ stack_name }}-assets.tls=true"
-      - "traefik.http.routers.{{ stack_name }}-assets.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{ stack_name }}-assets.tls.certresolver=myresolver"
       - "traefik.http.services.{{ stack_name }}-assets.loadbalancer.server.port=80"
       - "traefik.http.middlewares.{{ stack_name }}-strip.stripprefix.prefixes=/assets"
       - "traefik.http.routers.{{ stack_name }}-assets.middlewares={{ stack_name }}-strip"

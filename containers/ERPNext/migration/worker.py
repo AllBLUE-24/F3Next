@@ -1,4 +1,4 @@
-# containers/erpnext_inventory/migration/worker.py
+# containers/ERPNext/migration/worker.py
 import asyncio
 import os
 import logging

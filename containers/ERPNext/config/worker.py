@@ -3,8 +3,8 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 # REMOVED: from backend.config import TEMPORAL_HOST 
 
-from containers.erpnext_inventory.config.activities import fetch_context_tags, fetch_layer_questions, save_config_progress, generate_processed_config, save_final_config_db
-from containers.erpnext_inventory.config.workflows import ConfigWorkflow
+from containers.ERPNext.config.activities import fetch_context_tags, fetch_layer_questions, save_config_progress, generate_processed_config, save_final_config_db
+from containers.ERPNext.config.workflows import ConfigWorkflow
 
 async def main():
     # HARDCODED CONFIGURATION

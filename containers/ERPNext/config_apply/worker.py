@@ -3,8 +3,8 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 # Adjust imports to match your folder structure
-from containers.erpnext_inventory.config_apply.workflows import ConfigApplyWorkflow
-from containers.erpnext_inventory.config_apply.activities import ConfigApplyActivities
+from containers.ERPNext.config_apply.workflows import ConfigApplyWorkflow
+from containers.ERPNext.config_apply.activities import ConfigApplyActivities
 
 async def main():
     # Connect to Temporal

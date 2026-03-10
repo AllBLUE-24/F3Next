@@ -1,4 +1,4 @@
-# containers/erpnext_inventory/migration/knowledge_base.py
+# containers/ERPNext/migration/knowledge_base.py
 from typing import Dict, List, Optional
 
 class MigrationKnowledgeBase:
