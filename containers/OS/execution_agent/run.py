@@ -1,7 +1,7 @@
 import asyncio
 import json
 from temporalio.client import Client
-from containers.ERPNext.execution.workflows import ERPNextExecutionWorkflow
+from containers.OS.execution.workflows import ERPNextExecutionWorkflow
 
 # ── THIS IS WHAT YOU MANUALLY WRITE FOR NOW ──────────────
 payload = {

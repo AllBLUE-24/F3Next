@@ -1,0 +1,584 @@
+{
+    "knowledge_base_id": "erpnext_module_docs",
+    "version": "1.0",
+    "erp_system": "erpnext",
+    "last_updated": "2025-02-17",
+    "description": "Comprehensive ERPNext module documentation. Describes each module's purpose, key doctypes, workflows, and use cases. Used by Context Retrieval and Result Formatter agents.",
+    
+    "modules": {
+      "Sales": {
+        "module_id": "selling",
+        "display_name": "Sales / Selling",
+        "description": "Manage customer orders, quotations, invoices, and sales analytics. Core module for revenue generation.",
+        "icon": "sales",
+        "color": "blue",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Customer",
+            "purpose": "Master data for customers/clients",
+            "key_fields": ["customer_name", "customer_group", "territory", "customer_type"],
+            "common_use": "Store customer information, credit limits, payment terms"
+          },
+          {
+            "doctype": "Sales Order",
+            "purpose": "Customer orders before delivery",
+            "key_fields": ["customer", "transaction_date", "delivery_date", "items", "grand_total"],
+            "workflow": "Draft → Submitted → Delivered → Completed",
+            "common_use": "Record confirmed customer orders, track delivery status"
+          },
+          {
+            "doctype": "Quotation",
+            "purpose": "Price quotes to customers",
+            "key_fields": ["quotation_to", "party_name", "valid_till", "items"],
+            "workflow": "Draft → Submitted → Ordered/Lost",
+            "common_use": "Send price quotes, track conversion to orders"
+          },
+          {
+            "doctype": "Sales Invoice",
+            "purpose": "Bill customers for goods/services sold",
+            "key_fields": ["customer", "posting_date", "due_date", "items", "grand_total"],
+            "workflow": "Draft → Submitted → Paid/Unpaid",
+            "common_use": "Invoice customers, track receivables, GST compliance"
+          },
+          {
+            "doctype": "Delivery Note",
+            "purpose": "Ship goods to customers",
+            "key_fields": ["customer", "posting_date", "items", "lr_no", "transporter"],
+            "workflow": "Draft → Submitted → Invoiced",
+            "common_use": "Record goods dispatched, track shipments"
+          }
+        ],
+        
+        "common_workflows": [
+          {
+            "workflow_name": "Standard Sales Cycle",
+            "steps": [
+              "Create Quotation",
+              "Convert to Sales Order (on customer acceptance)",
+              "Create Delivery Note (when goods shipped)",
+              "Create Sales Invoice (after delivery OR before based on payment terms)"
+            ],
+            "variations": [
+              "Direct Sales Invoice (for immediate cash sales)",
+              "Sales Order → Invoice → Delivery (advance payment cases)"
+            ]
+          },
+          {
+            "workflow_name": "Credit Sales",
+            "steps": [
+              "Sales Order → Delivery Note → Sales Invoice",
+              "Payment Entry (when customer pays)"
+            ]
+          }
+        ],
+        
+        "settings": {
+          "doctype": "Selling Settings",
+          "key_settings": [
+            {
+              "field": "customer_naming_by",
+              "options": ["Customer Name", "Naming Series"],
+              "description": "How customer IDs are generated"
+            },
+            {
+              "field": "maintain_same_sales_rate",
+              "type": "Check",
+              "description": "Enforce same rate throughout sales cycle (QTN → SO → DN → SI)"
+            },
+            {
+              "field": "so_required",
+              "options": ["No", "Yes"],
+              "description": "Make Sales Order mandatory before Delivery Note/Invoice"
+            },
+            {
+              "field": "dn_required",
+              "options": ["No", "Yes"],
+              "description": "Make Delivery Note mandatory before Sales Invoice"
+            }
+          ]
+        },
+        
+        "common_reports": [
+          "Sales Analytics",
+          "Sales Order Analysis",
+          "Accounts Receivable",
+          "Customer-wise Sales",
+          "Item-wise Sales Register"
+        ],
+        
+        "pain_points_addressed": [
+          "Track order status in real-time",
+          "Automate invoice generation from orders",
+          "Monitor customer outstanding balances",
+          "GST compliance in invoicing"
+        ]
+      },
+  
+      "Buying": {
+        "module_id": "buying",
+        "display_name": "Buying / Purchasing",
+        "description": "Manage supplier orders, purchases, and procurement workflows.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Supplier",
+            "purpose": "Master data for suppliers/vendors",
+            "key_fields": ["supplier_name", "supplier_group", "supplier_type"],
+            "common_use": "Store supplier information, payment terms, tax details"
+          },
+          {
+            "doctype": "Purchase Order",
+            "purpose": "Orders placed to suppliers",
+            "key_fields": ["supplier", "transaction_date", "schedule_date", "items", "grand_total"],
+            "workflow": "Draft → Submitted → Received → Completed",
+            "common_use": "Place orders with suppliers, track delivery"
+          },
+          {
+            "doctype": "Purchase Receipt",
+            "purpose": "Goods received from suppliers (GRN)",
+            "key_fields": ["supplier", "posting_date", "items", "lr_no"],
+            "workflow": "Draft → Submitted → Invoiced",
+            "common_use": "Record goods received, update stock, quality inspection"
+          },
+          {
+            "doctype": "Purchase Invoice",
+            "purpose": "Supplier bills",
+            "key_fields": ["supplier", "posting_date", "bill_no", "bill_date", "items", "grand_total"],
+            "workflow": "Draft → Submitted → Paid/Unpaid",
+            "common_use": "Record supplier invoices, track payables"
+          },
+          {
+            "doctype": "Material Request",
+            "purpose": "Internal request for materials",
+            "key_fields": ["material_request_type", "schedule_date", "items"],
+            "workflow": "Draft → Submitted → Ordered/Issued",
+            "common_use": "Request materials from warehouse or for purchase"
+          }
+        ],
+        
+        "common_workflows": [
+          {
+            "workflow_name": "Standard Purchase Cycle",
+            "steps": [
+              "Material Request (optional)",
+              "Purchase Order",
+              "Purchase Receipt (GRN)",
+              "Purchase Invoice",
+              "Payment Entry"
+            ]
+          },
+          {
+            "workflow_name": "Direct Purchase",
+            "steps": [
+              "Purchase Invoice (receipt and invoice together)",
+              "Payment Entry"
+            ]
+          }
+        ],
+        
+        "settings": {
+          "doctype": "Buying Settings",
+          "key_settings": [
+            {
+              "field": "po_required",
+              "options": ["No", "Yes"],
+              "description": "Make PO mandatory before Purchase Receipt/Invoice"
+            },
+            {
+              "field": "pr_required",
+              "options": ["No", "Yes"],
+              "description": "Make Purchase Receipt mandatory before Purchase Invoice"
+            },
+            {
+              "field": "maintain_same_rate",
+              "type": "Check",
+              "description": "Enforce same rate throughout purchase cycle"
+            }
+          ]
+        }
+      },
+  
+      "Stock": {
+        "module_id": "stock",
+        "display_name": "Stock / Inventory",
+        "description": "Manage inventory, warehouses, stock movements, and valuations.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Item",
+            "purpose": "Master data for products/materials",
+            "key_fields": ["item_code", "item_name", "item_group", "stock_uom", "valuation_rate"],
+            "common_use": "Define products, set UOM, maintain stock, pricing"
+          },
+          {
+            "doctype": "Warehouse",
+            "purpose": "Storage locations",
+            "key_fields": ["warehouse_name", "warehouse_type", "parent_warehouse"],
+            "common_use": "Define storage locations, organize inventory"
+          },
+          {
+            "doctype": "Stock Entry",
+            "purpose": "Stock movements (transfer, issue, receipt)",
+            "key_fields": ["stock_entry_type", "items", "from_warehouse", "to_warehouse"],
+            "types": ["Material Transfer", "Material Issue", "Material Receipt", "Manufacture"],
+            "common_use": "Move stock between warehouses, issue to production, receive manufactured goods"
+          },
+          {
+            "doctype": "Batch",
+            "purpose": "Track production batches (for batch items)",
+            "key_fields": ["batch_id", "item", "manufacturing_date", "expiry_date"],
+            "common_use": "Track food, pharma, chemical batches with expiry"
+          },
+          {
+            "doctype": "Serial No",
+            "purpose": "Track individual units (for serialized items)",
+            "key_fields": ["serial_no", "item_code", "warehouse", "status"],
+            "common_use": "Track electronics, equipment with unique serial numbers"
+          }
+        ],
+        
+        "common_workflows": [
+          {
+            "workflow_name": "Stock Transfer",
+            "steps": [
+              "Stock Entry (Material Transfer)",
+              "From Warehouse → To Warehouse"
+            ]
+          },
+          {
+            "workflow_name": "Material Issue to Production",
+            "steps": [
+              "Stock Entry (Material Issue)",
+              "From Raw Material Warehouse → To Production/Project"
+            ]
+          }
+        ],
+        
+        "settings": {
+          "doctype": "Stock Settings",
+          "key_settings": [
+            {
+              "field": "valuation_method",
+              "options": ["FIFO", "Moving Average", "LIFO"],
+              "description": "Default inventory valuation method"
+            },
+            {
+              "field": "allow_negative_stock",
+              "type": "Check",
+              "description": "Allow stock to go negative"
+            },
+            {
+              "field": "auto_insert_price_list_rate_if_missing",
+              "type": "Check",
+              "description": "Auto-create Item Price if missing"
+            }
+          ]
+        },
+        
+        "common_reports": [
+          "Stock Balance",
+          "Stock Ledger",
+          "Stock Ageing",
+          "Item-wise Stock Summary",
+          "Batch-wise Balance History"
+        ]
+      },
+  
+      "Accounts": {
+        "module_id": "accounts",
+        "display_name": "Accounts / Finance",
+        "description": "Manage accounting, GST, payments, financial reports.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Account",
+            "purpose": "Chart of Accounts",
+            "key_fields": ["account_name", "account_type", "parent_account", "account_currency"],
+            "common_use": "Define GL accounts for financial transactions"
+          },
+          {
+            "doctype": "Payment Entry",
+            "purpose": "Record payments received/made",
+            "key_fields": ["payment_type", "party_type", "party", "paid_amount", "mode_of_payment"],
+            "workflow": "Draft → Submitted",
+            "common_use": "Record customer payments, supplier payments, bank transactions"
+          },
+          {
+            "doctype": "Journal Entry",
+            "purpose": "Manual accounting entries",
+            "key_fields": ["posting_date", "accounts"],
+            "common_use": "Record adjustments, opening balances, accruals"
+          },
+          {
+            "doctype": "Bank Reconciliation",
+            "purpose": "Match bank statement with ERP",
+            "common_use": "Reconcile bank account transactions"
+          }
+        ],
+        
+        "settings": {
+          "doctype": "Accounts Settings",
+          "key_settings": [
+            {
+              "field": "unlink_payment_on_cancellation_of_invoice",
+              "type": "Check",
+              "description": "Auto-unlink payment when invoice cancelled"
+            },
+            {
+              "field": "check_supplier_invoice_uniqueness",
+              "type": "Check",
+              "description": "Ensure unique supplier invoice numbers"
+            }
+          ]
+        },
+        
+        "common_reports": [
+          "General Ledger",
+          "Trial Balance",
+          "Profit and Loss Statement",
+          "Balance Sheet",
+          "Accounts Receivable",
+          "Accounts Payable",
+          "GST Sales Register",
+          "GST Purchase Register"
+        ]
+      },
+  
+      "Manufacturing": {
+        "module_id": "manufacturing",
+        "display_name": "Manufacturing / Production",
+        "description": "Manage production planning, BOMs, work orders, job cards.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "BOM",
+            "purpose": "Bill of Materials (recipe)",
+            "key_fields": ["item", "quantity", "items", "operations"],
+            "common_use": "Define product recipe, raw material requirements, operations"
+          },
+          {
+            "doctype": "Work Order",
+            "purpose": "Production orders",
+            "key_fields": ["production_item", "qty", "bom_no", "wip_warehouse", "fg_warehouse"],
+            "workflow": "Draft → Not Started → In Process → Completed",
+            "common_use": "Plan production, track progress, consume materials, produce finished goods"
+          },
+          {
+            "doctype": "Job Card",
+            "purpose": "Track operation execution",
+            "key_fields": ["work_order", "operation", "workstation", "time_logs"],
+            "common_use": "Track operator time, operation completion, labor costing"
+          },
+          {
+            "doctype": "Operation",
+            "purpose": "Production operations (cutting, welding, etc.)",
+            "common_use": "Define production steps"
+          },
+          {
+            "doctype": "Workstation",
+            "purpose": "Production machines/stations",
+            "common_use": "Define production capacity, working hours"
+          }
+        ],
+        
+        "common_workflows": [
+          {
+            "workflow_name": "Standard Manufacturing",
+            "steps": [
+              "Create BOM",
+              "Create Work Order",
+              "Material Transfer to WIP (Stock Entry)",
+              "Start Work Order",
+              "Create Job Cards (for each operation)",
+              "Complete operations (log time)",
+              "Complete Work Order (produce finished goods)"
+            ]
+          }
+        ],
+        
+        "settings": {
+          "doctype": "Manufacturing Settings",
+          "key_settings": [
+            {
+              "field": "backflush_raw_materials_based_on",
+              "options": ["BOM", "Material Transferred for Manufacture"],
+              "description": "How to consume raw materials"
+            },
+            {
+              "field": "update_bom_costs_automatically",
+              "type": "Check",
+              "description": "Auto-update BOM costs based on valuation rates"
+            }
+          ]
+        }
+      },
+  
+      "Projects": {
+        "module_id": "projects",
+        "display_name": "Projects / Job Costing",
+        "description": "Manage projects, tasks, time tracking, project-based costing. Critical for job shops, fabrication, services.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Project",
+            "purpose": "Job/project container",
+            "key_fields": ["project_name", "customer", "expected_start_date", "expected_end_date", "estimated_costing"],
+            "common_use": "Track custom jobs, allocate costs, project profitability"
+          },
+          {
+            "doctype": "Task",
+            "purpose": "Project sub-tasks",
+            "key_fields": ["subject", "project", "status", "expected_start_date", "expected_end_date"],
+            "common_use": "Break project into tasks, track completion"
+          },
+          {
+            "doctype": "Timesheet",
+            "purpose": "Log time spent",
+            "key_fields": ["employee", "time_logs", "total_hours"],
+            "common_use": "Track labor hours, calculate labor cost, billing"
+          }
+        ],
+        
+        "integration": "Stock Entry, Job Card, Sales Order, Sales Invoice can all link to Project for cost tracking",
+        
+        "common_use_cases": [
+          "Custom fabrication job shops (each job = 1 project)",
+          "Service companies (consulting, IT, agency work)",
+          "Construction projects",
+          "Research & development projects"
+        ]
+      },
+  
+      "CRM": {
+        "module_id": "crm",
+        "display_name": "CRM / Customer Relationship",
+        "description": "Manage leads, opportunities, sales pipeline.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Lead",
+            "purpose": "Potential customers",
+            "key_fields": ["lead_name", "email_id", "mobile_no", "status"],
+            "workflow": "Lead → Opportunity → Quotation → Sales Order",
+            "common_use": "Capture inquiries, qualify leads"
+          },
+          {
+            "doctype": "Opportunity",
+            "purpose": "Sales opportunities",
+            "key_fields": ["opportunity_from", "party_name", "opportunity_type", "status"],
+            "common_use": "Track sales pipeline, conversion funnel"
+          }
+        ]
+      },
+  
+      "HR": {
+        "module_id": "hr",
+        "display_name": "HR / Payroll",
+        "description": "Manage employees, attendance, leave, payroll.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Employee",
+            "purpose": "Employee master data",
+            "common_use": "Store employee information, department, designation"
+          },
+          {
+            "doctype": "Attendance",
+            "purpose": "Daily attendance",
+            "common_use": "Mark present/absent, track working days"
+          },
+          {
+            "doctype": "Salary Slip",
+            "purpose": "Monthly payroll",
+            "common_use": "Generate salary, deductions, ESI, PF"
+          }
+        ]
+      },
+  
+      "Quality": {
+        "module_id": "quality_management",
+        "display_name": "Quality Management",
+        "description": "Manage quality inspections, templates.",
+        
+        "key_doctypes": [
+          {
+            "doctype": "Quality Inspection",
+            "purpose": "Inspection records",
+            "key_fields": ["reference_type", "reference_name", "item_code", "sample_size", "status"],
+            "common_use": "Inspect incoming materials, finished goods, log test results"
+          },
+          {
+            "doctype": "Quality Inspection Template",
+            "purpose": "Inspection checklist",
+            "common_use": "Define inspection parameters per item"
+          }
+        ]
+      }
+    },
+  
+    "cross_module_workflows": {
+      "sales_to_accounts": {
+        "description": "How sales transactions flow to accounting",
+        "flow": "Sales Invoice (submitted) → GL Entry (auto-created) → Affects Debtors, Income, Tax accounts"
+      },
+      "purchase_to_accounts": {
+        "description": "How purchase transactions flow to accounting",
+        "flow": "Purchase Invoice (submitted) → GL Entry (auto-created) → Affects Creditors, Expense, Tax accounts"
+      },
+      "stock_to_accounts": {
+        "description": "How stock movements affect accounting",
+        "flow": "Stock Entry/Purchase Receipt/Delivery Note → Stock Ledger Entry + GL Entry → Affects Stock account valuation"
+      },
+      "manufacturing_to_stock": {
+        "description": "How production affects stock",
+        "flow": "Work Order Completion → Stock Entry (Manufacture) → Consume raw materials, Produce finished goods"
+      },
+      "project_costing": {
+        "description": "How costs accumulate to projects",
+        "flow": "Stock Entry/Timesheet/Expense Claim linked to Project → Project Cost aggregated → Project Profitability Report"
+      }
+    },
+  
+    "india_compliance": {
+      "gst": {
+        "description": "GST (Goods and Services Tax) compliance built into ERPNext",
+        "features": [
+          "CGST, SGST, IGST calculation based on customer/supplier state",
+          "GST Sales Register report",
+          "GST Purchase Register report",
+          "GSTR-1, GSTR-3B data export",
+          "HSN/SAC code tracking",
+          "Tax Invoice format with GST details"
+        ],
+        "doctypes": ["GST Settings", "GST HSN Code", "GST Account"]
+      },
+      "e_invoicing": {
+        "description": "e-Invoicing (IRN generation) for turnover >₹5 crore",
+        "features": [
+          "IRN generation via NIC/GSP API",
+          "QR code on invoice",
+          "e-Invoice cancellation",
+          "Automatic e-Way Bill generation from e-Invoice"
+        ]
+      },
+      "e_way_bill": {
+        "description": "e-Way Bill for goods movement",
+        "features": [
+          "e-Way Bill generation from Delivery Note/Sales Invoice",
+          "Vehicle number, transporter details",
+          "Valid for inter-state >₹50,000"
+        ]
+      },
+      "tds": {
+        "description": "TDS (Tax Deducted at Source)",
+        "features": [
+          "TDS calculation on payments",
+          "TDS category master",
+          "Form 16A generation",
+          "26AS reconciliation"
+        ]
+      }
+    }
+  }
+  

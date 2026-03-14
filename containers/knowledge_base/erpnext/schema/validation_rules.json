@@ -1,0 +1,369 @@
+{
+    "knowledge_base_id": "validation_rules",
+    "version": "1.0",
+    "erp_system": "erpnext",
+    "last_updated": "2025-02-17",
+    "description": "Validation rules and business logic checks. Used by Validation Agent before executing ERP operations.",
+    
+    "validation_categories": [
+      "schema_validation",
+      "business_rule_validation",
+      "referential_integrity",
+      "permission_validation",
+      "data_quality"
+    ],
+  
+    "schema_validations": {
+      "description": "Field-level validations based on doctype schema",
+      "rules": [
+        {
+          "rule_id": "mandatory_fields",
+          "description": "All mandatory fields must be present",
+          "check": "For each mandatory field in doctype, verify value is not null/empty",
+          "error_message": "Field '{fieldname}' is mandatory"
+        },
+        {
+          "rule_id": "field_type_validation",
+          "description": "Field value must match field type",
+          "checks": {
+            "Int": "Value must be integer",
+            "Float": "Value must be numeric",
+            "Currency": "Value must be numeric",
+            "Date": "Value must be valid date in yyyy-mm-dd format",
+            "Link": "Value must exist in linked doctype",
+            "Select": "Value must be one of allowed options",
+            "Check": "Value must be 0 or 1"
+          },
+          "error_message": "Invalid value for {fieldname}. Expected {fieldtype}."
+        },
+        {
+          "rule_id": "link_validation",
+          "description": "Link field value must exist in target doctype",
+          "check": "Query target doctype to verify record exists",
+          "example": "If customer='ABC Industries', verify Customer 'ABC Industries' exists",
+          "error_message": "{fieldname} '{value}' does not exist"
+        },
+        {
+          "rule_id": "child_table_validation",
+          "description": "Child table must have minimum required rows",
+          "check": "items table must have at least 1 row for Sales Order",
+          "error_message": "At least one item is required"
+        }
+      ]
+    },
+  
+    "business_rule_validations": {
+      "sales_order": [
+        {
+          "rule_id": "credit_limit_check",
+          "description": "Customer credit limit must not be exceeded",
+          "check_when": "On submit of Sales Order or Sales Invoice",
+          "logic": "customer.outstanding + sales_order.grand_total <= customer.credit_limit",
+          "bypass_role": "Credit Controller (from Accounts Settings)",
+          "action_if_failed": "Stop (configurable in Accounts Settings)",
+          "error_message": "Credit limit exceeded for {customer}. Outstanding: ₹{outstanding}, Credit Limit: ₹{credit_limit}",
+          "user_suggested_actions": [
+            "Reduce order amount",
+            "Collect advance payment",
+            "Request credit limit increase from Credit Controller"
+          ]
+        },
+        {
+          "rule_id": "delivery_date_validation",
+          "description": "Delivery date must be after transaction date",
+          "logic": "delivery_date >= transaction_date",
+          "action_if_failed": "Warn",
+          "error_message": "Delivery date cannot be before order date"
+        },
+        {
+          "rule_id": "rate_consistency_check",
+          "description": "Item rate should not deviate significantly from standard rate (if setting enabled)",
+          "check_when": "maintain_same_sales_rate enabled in Selling Settings",
+          "logic": "For each item, check rate matches rate in previous doc (QTN → SO → DN → SI)",
+          "action_if_failed": "Stop or Warn (configurable)",
+          "bypass_role": "Role to Override Stop Action (from Selling Settings)"
+        }
+      ],
+  
+      "sales_invoice": [
+        {
+          "rule_id": "outstanding_amount_validation",
+          "description": "Invoice amount should not cause excessive outstanding",
+          "logic": "If customer has payment_terms, validate against terms",
+          "related_setting": "over_billing_allowance in Accounts Settings"
+        },
+        {
+          "rule_id": "negative_stock_check",
+          "description": "Stock should not go negative (if update_stock=1)",
+          "check_when": "Sales Invoice with update_stock enabled",
+          "logic": "For each item, current_stock >= qty",
+          "bypass_setting": "allow_negative_stock in Stock Settings",
+          "action_if_failed": "Stop",
+          "error_message": "Insufficient stock for {item}. Available: {available}, Required: {required}"
+        }
+      ],
+  
+      "purchase_order": [
+        {
+          "rule_id": "supplier_validation",
+          "description": "Supplier must be active",
+          "logic": "supplier.disabled != 1",
+          "error_message": "Supplier {supplier} is disabled"
+        }
+      ],
+  
+      "payment_entry": [
+        {
+          "rule_id": "payment_amount_validation",
+          "description": "Payment amount must not exceed outstanding amount",
+          "logic": "If references provided, sum(allocated_amount) <= sum(outstanding_amount)",
+          "action_if_failed": "Warn",
+          "error_message": "Payment amount (₹{amount}) exceeds outstanding (₹{outstanding})"
+        },
+        {
+          "rule_id": "paid_received_match",
+          "description": "Paid amount and received amount must match (for same currency)",
+          "logic": "If payment_currency == received_currency, paid_amount == received_amount",
+          "error_message": "Paid and received amounts don't match"
+        }
+      ],
+  
+      "stock_entry": [
+        {
+          "rule_id": "warehouse_validation",
+          "description": "Source and target warehouses must be different (for Material Transfer)",
+          "check_when": "stock_entry_type == 'Material Transfer'",
+          "logic": "from_warehouse != to_warehouse",
+          "bypass_setting": "validate_material_transfer_warehouses in Stock Settings",
+          "error_message": "Source and target warehouses cannot be same"
+        },
+        {
+          "rule_id": "stock_availability",
+          "description": "Stock must be available in source warehouse",
+          "check_when": "Material Transfer or Material Issue",
+          "logic": "For each item, stock in from_warehouse >= qty",
+          "bypass_setting": "allow_negative_stock in Stock Settings",
+          "error_message": "Insufficient stock in {warehouse}"
+        }
+      ],
+  
+      "item": [
+        {
+          "rule_id": "duplicate_item_code",
+          "description": "Item code must be unique",
+          "logic": "No other item with same item_code exists",
+          "error_message": "Item {item_code} already exists"
+        },
+        {
+          "rule_id": "stock_uom_required",
+          "description": "Stock UOM mandatory for stock items",
+          "logic": "If is_stock_item=1, stock_uom must be set",
+          "error_message": "Stock UOM is mandatory for stock items"
+        }
+      ]
+    },
+  
+    "referential_integrity_checks": {
+      "description": "Ensure linked records exist before creating relationships",
+      "checks": [
+        {
+          "check_id": "customer_exists",
+          "target_doctype": "Customer",
+          "query": "SELECT name FROM `tabCustomer` WHERE name = '{customer}'",
+          "error_if_not_found": "Customer '{customer}' does not exist",
+          "suggested_action": "Create customer first or search for correct name"
+        },
+        {
+          "check_id": "supplier_exists",
+          "target_doctype": "Supplier",
+          "error_message": "Supplier '{supplier}' does not exist"
+        },
+        {
+          "check_id": "item_exists",
+          "target_doctype": "Item",
+          "error_message": "Item '{item_code}' does not exist"
+        },
+        {
+          "check_id": "warehouse_exists",
+          "target_doctype": "Warehouse",
+          "error_message": "Warehouse '{warehouse}' does not exist"
+        },
+        {
+          "check_id": "project_exists",
+          "target_doctype": "Project",
+          "error_message": "Project '{project}' does not exist"
+        }
+      ]
+    },
+  
+    "permission_validations": {
+      "description": "Check if user has permission to perform action",
+      "permission_levels": {
+        "create": "User must have 'Create' permission on doctype",
+        "read": "User must have 'Read' permission",
+        "update": "User must have 'Write' permission",
+        "delete": "User must have 'Delete' permission",
+        "submit": "User must have 'Submit' permission",
+        "cancel": "User must have 'Cancel' permission"
+      },
+      "role_based_overrides": {
+        "credit_controller": "Can bypass credit limit checks",
+        "stock_auth_role": "Can edit frozen stock",
+        "role_allowed_to_over_deliver_receive": "Can exceed delivery/receipt allowance",
+        "frozen_accounts_modifier": "Can create/edit frozen accounting entries"
+      },
+      "user_permissions": {
+        "description": "User Permissions restrict which records a user can access",
+        "example": "User may only see customers in 'Delhi' territory if User Permission set",
+        "check": "If User Permission exists for doctype, verify record matches permitted values"
+      }
+    },
+  
+    "data_quality_validations": {
+      "description": "Warn about potential data quality issues",
+      "warnings": [
+        {
+          "warning_id": "duplicate_po_no",
+          "description": "Customer PO number already used",
+          "check": "SELECT name FROM `tabSales Order` WHERE po_no = '{po_no}' AND customer = '{customer}'",
+          "action": "Warn",
+          "message": "PO number {po_no} already used for customer {customer} in {existing_so}"
+        },
+        {
+          "warning_id": "stale_price",
+          "description": "Item rate significantly different from last transaction",
+          "check": "Compare rate with last 5 transactions for same item-customer",
+          "threshold": "20% deviation",
+          "action": "Warn",
+          "message": "Item rate (₹{rate}) is {deviation}% different from recent average (₹{avg_rate})"
+        },
+        {
+          "warning_id": "low_stock",
+          "description": "Stock below reorder level",
+          "check": "current_stock < reorder_level",
+          "action": "Warn",
+          "message": "Item {item} stock ({stock}) is below reorder level ({reorder_level})"
+        },
+        {
+          "warning_id": "near_expiry",
+          "description": "Batch nearing expiry (for batch items)",
+          "check": "expiry_date - current_date < 90 days",
+          "action": "Warn",
+          "message": "Batch {batch} expires on {expiry_date} (in {days} days)"
+        }
+      ]
+    },
+  
+    "validation_order": {
+      "description": "Order in which validations should be performed",
+      "sequence": [
+        "1. Schema validation (mandatory fields, field types)",
+        "2. Referential integrity (linked records exist)",
+        "3. Permission validation (user has rights)",
+        "4. Business rule validation (credit limit, stock, etc.)",
+        "5. Data quality warnings (non-blocking)"
+      ]
+    },
+  
+    "validation_result_format": {
+      "valid_document": {
+        "valid": true,
+        "errors": [],
+        "warnings": [],
+        "auto_corrections": []
+      },
+      "invalid_document": {
+        "valid": false,
+        "errors": [
+          {
+            "rule_id": "mandatory_fields",
+            "field": "customer",
+            "message": "Field 'customer' is mandatory",
+            "severity": "error"
+          }
+        ],
+        "warnings": [
+          {
+            "rule_id": "low_stock",
+            "field": "items[0].item_code",
+            "message": "Item ITEM-00001 stock (50) is below reorder level (100)",
+            "severity": "warning"
+          }
+        ],
+        "auto_corrections": [
+          {
+            "field": "transaction_date",
+            "original_value": null,
+            "corrected_value": "2025-02-17",
+            "reason": "Auto-filled with today's date"
+          }
+        ]
+      }
+    },
+  
+    "bypass_mechanisms": {
+      "description": "How to bypass certain validations when needed",
+      "methods": [
+        {
+          "method": "role_based_bypass",
+          "description": "User with specific role can bypass validation",
+          "example": "Credit Controller role bypasses credit limit check"
+        },
+        {
+          "method": "setting_based_bypass",
+          "description": "System setting disables validation",
+          "example": "allow_negative_stock=1 bypasses stock availability check"
+        },
+        {
+          "method": "explicit_override",
+          "description": "User confirms they want to proceed despite warning",
+          "example": "User sees 'Stock below reorder level' warning but chooses to proceed"
+        }
+      ]
+    },
+  
+    "india_compliance_validations": {
+      "gst_validations": [
+        {
+          "rule_id": "gstin_format",
+          "description": "GSTIN must be 15 characters alphanumeric",
+          "pattern": "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$",
+          "error_message": "Invalid GSTIN format"
+        },
+        {
+          "rule_id": "hsn_sac_code",
+          "description": "HSN/SAC code required for GST",
+          "check": "If gst_applicable, item.gst_hsn_code must be set",
+          "error_message": "HSN/SAC code missing for item {item}"
+        },
+        {
+          "rule_id": "place_of_supply",
+          "description": "Place of Supply required for GST calculation",
+          "logic": "Determined from shipping address (if goods) or billing address (if services)",
+          "error_message": "Cannot determine Place of Supply"
+        }
+      ],
+      "e_invoicing_validations": [
+        {
+          "rule_id": "e_invoice_applicability",
+          "description": "e-Invoicing mandatory for companies with turnover >₹5 crore",
+          "check": "If company.annual_revenue > 50000000, enable_e_invoicing must be 1",
+          "note": "Applicable from specific dates, check current regulations"
+        },
+        {
+          "rule_id": "irn_generation_fields",
+          "description": "All fields required for IRN generation must be present",
+          "required_fields": [
+            "customer_gstin",
+            "company_gstin",
+            "place_of_supply",
+            "items with HSN codes",
+            "invoice_date",
+            "invoice_number"
+          ],
+          "error_message": "Missing fields for e-Invoice: {missing_fields}"
+        }
+      ]
+    }
+  }
+  

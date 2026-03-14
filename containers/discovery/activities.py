@@ -26,7 +26,7 @@ async def analyze_discovery_turn(data: dict) -> dict:
     step_info = STEP_MAP.get(current_step, STEP_MAP[1])
     
     api_key = os.getenv("GEMINI_API_KEY")
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
+    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
 
     formatted_prompt = DISCOVERY_PROMPT.format(
         current_step=current_step,
@@ -89,7 +89,7 @@ async def generate_erp_recommendation(tags: list) -> dict:
     Final Step: Takes the collected tags and generates the ERP Score & Pitch.
     """
     api_key = os.getenv("GEMINI_API_KEY")
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
+    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
     
     # Format the prompt with the final list of tags
     formatted_prompt = RECOMMENDATION_PROMPT.format(

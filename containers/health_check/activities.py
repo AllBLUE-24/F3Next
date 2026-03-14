@@ -61,7 +61,7 @@ async def generate_health_report(analysis_results: dict) -> str:
     if not api_key:
         raise ValueError("GEMINI_API_KEY is missing!")
 
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
+    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
     
     # Fix the KeyError by mapping every placeholder in prompts.py
     formatted_prompt = REPORT_GENERATION_PROMPT.format(

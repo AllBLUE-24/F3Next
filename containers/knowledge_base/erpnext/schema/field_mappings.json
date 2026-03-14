@@ -1,0 +1,584 @@
+{
+    "knowledge_base_id": "field_mapping_rules",
+    "version": "1.0",
+    "erp_system": "erpnext",
+    "last_updated": "2025-02-17",
+    "description": "Field mapping rules for translating natural language entities to ERPNext field names and values. Used by Payload Generation Agent.",
+    
+    "doctypes": {
+      "Sales Order": {
+        "doctype_name": "Sales Order",
+        "naming_series": "SO-",
+        "mandatory_fields": ["customer", "transaction_date", "items"],
+        
+        "field_mappings": {
+          "customer": {
+            "fieldname": "customer",
+            "fieldtype": "Link",
+            "options": "Customer",
+            "mandatory": true,
+            "user_input_synonyms": ["client", "buyer", "party"],
+            "default_value": null,
+            "validation": "must_exist_in_customer_master"
+          },
+          "transaction_date": {
+            "fieldname": "transaction_date",
+            "fieldtype": "Date",
+            "mandatory": true,
+            "user_input_synonyms": ["date", "order_date"],
+            "default_value": "today",
+            "validation": "valid_date_format",
+            "format": "yyyy-mm-dd"
+          },
+          "delivery_date": {
+            "fieldname": "delivery_date",
+            "fieldtype": "Date",
+            "mandatory": false,
+            "user_input_synonyms": ["deliver_by", "delivery_deadline", "ship_by"],
+            "default_value": "transaction_date + 10 days",
+            "validation": "must_be_after_transaction_date"
+          },
+          "po_no": {
+            "fieldname": "po_no",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["customer_po", "po_number", "reference_number"],
+            "default_value": null
+          },
+          "items": {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "child_doctype": "Sales Order Item",
+            "mandatory": true,
+            "minimum_rows": 1,
+            "child_fields": {
+              "item_code": {
+                "fieldname": "item_code",
+                "fieldtype": "Link",
+                "options": "Item",
+                "mandatory": true,
+                "user_input_synonyms": ["product", "item", "sku"],
+                "validation": "must_exist_in_item_master"
+              },
+              "qty": {
+                "fieldname": "qty",
+                "fieldtype": "Float",
+                "mandatory": true,
+                "user_input_synonyms": ["quantity", "units", "pieces"],
+                "default_value": 1,
+                "validation": "must_be_positive"
+              },
+              "rate": {
+                "fieldname": "rate",
+                "fieldtype": "Currency",
+                "mandatory": false,
+                "user_input_synonyms": ["price", "unit_price", "per_unit"],
+                "default_value": "fetch_from_price_list_or_item_master",
+                "validation": "must_be_positive"
+              },
+              "warehouse": {
+                "fieldname": "warehouse",
+                "fieldtype": "Link",
+                "options": "Warehouse",
+                "mandatory": false,
+                "user_input_synonyms": ["store", "godown"],
+                "default_value": "fetch_from_item_master_or_company_default"
+              },
+              "uom": {
+                "fieldname": "uom",
+                "fieldtype": "Link",
+                "options": "UOM",
+                "mandatory": false,
+                "default_value": "fetch_from_item_master_stock_uom"
+              }
+            }
+          },
+          "currency": {
+            "fieldname": "currency",
+            "fieldtype": "Link",
+            "options": "Currency",
+            "mandatory": false,
+            "default_value": "fetch_from_customer_or_company_default",
+            "common_values": ["INR", "USD", "EUR"]
+          },
+          "company": {
+            "fieldname": "company",
+            "fieldtype": "Link",
+            "options": "Company",
+            "mandatory": true,
+            "default_value": "user_default_company_or_first_company"
+          }
+        },
+        
+        "auto_calculated_fields": [
+          {
+            "fieldname": "grand_total",
+            "calculation": "sum(items.amount) + total_taxes_and_charges",
+            "note": "Calculated automatically by ERPNext on save"
+          },
+          {
+            "fieldname": "status",
+            "initial_value": "Draft",
+            "note": "Status changes based on workflow"
+          }
+        ]
+      },
+  
+      "Sales Invoice": {
+        "doctype_name": "Sales Invoice",
+        "naming_series": "SI-",
+        "mandatory_fields": ["customer", "posting_date", "items"],
+        
+        "field_mappings": {
+          "customer": {
+            "fieldname": "customer",
+            "fieldtype": "Link",
+            "options": "Customer",
+            "mandatory": true,
+            "validation": "must_exist"
+          },
+          "posting_date": {
+            "fieldname": "posting_date",
+            "fieldtype": "Date",
+            "mandatory": true,
+            "default_value": "today",
+            "user_input_synonyms": ["date", "invoice_date"]
+          },
+          "due_date": {
+            "fieldname": "due_date",
+            "fieldtype": "Date",
+            "mandatory": false,
+            "default_value": "posting_date + payment_terms_days",
+            "calculation": "If payment_terms_template set, calculate from template. Else posting_date + 30 days."
+          },
+          "items": {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "child_doctype": "Sales Invoice Item",
+            "mandatory": true,
+            "minimum_rows": 1
+          },
+          "sales_order": {
+            "fieldname": "items[].sales_order",
+            "fieldtype": "Link",
+            "options": "Sales Order",
+            "mandatory": false,
+            "note": "If invoice created from SO, this field auto-populated"
+          },
+          "delivery_note": {
+            "fieldname": "items[].delivery_note",
+            "fieldtype": "Link",
+            "options": "Delivery Note",
+            "mandatory": false,
+            "note": "If invoice created from DN, this field auto-populated"
+          },
+          "update_stock": {
+            "fieldname": "update_stock",
+            "fieldtype": "Check",
+            "default_value": 0,
+            "note": "If checked, invoice submission will also create Delivery (stock reduction)"
+          }
+        }
+      },
+  
+      "Payment Entry": {
+        "doctype_name": "Payment Entry",
+        "naming_series": "PE-",
+        "mandatory_fields": ["payment_type", "party_type", "party", "paid_amount", "received_amount"],
+        
+        "field_mappings": {
+          "payment_type": {
+            "fieldname": "payment_type",
+            "fieldtype": "Select",
+            "options": ["Receive", "Pay", "Internal Transfer"],
+            "mandatory": true,
+            "inference_rules": {
+              "from_customer": "Receive",
+              "to_supplier": "Pay",
+              "customer_payment": "Receive",
+              "supplier_payment": "Pay"
+            }
+          },
+          "party_type": {
+            "fieldname": "party_type",
+            "fieldtype": "Select",
+            "options": ["Customer", "Supplier", "Employee"],
+            "mandatory": true,
+            "inference_rules": {
+              "if_payment_type_receive": "Customer",
+              "if_payment_type_pay": "Supplier"
+            }
+          },
+          "party": {
+            "fieldname": "party",
+            "fieldtype": "Dynamic Link",
+            "depends_on": "party_type",
+            "mandatory": true,
+            "validation": "must_exist_in_party_type_master"
+          },
+          "paid_amount": {
+            "fieldname": "paid_amount",
+            "fieldtype": "Currency",
+            "mandatory": true,
+            "user_input_synonyms": ["amount", "payment_amount"],
+            "validation": "must_be_positive"
+          },
+          "received_amount": {
+            "fieldname": "received_amount",
+            "fieldtype": "Currency",
+            "mandatory": true,
+            "default_value": "same_as_paid_amount_if_same_currency",
+            "note": "For multi-currency, received_amount = paid_amount * exchange_rate"
+          },
+          "mode_of_payment": {
+            "fieldname": "mode_of_payment",
+            "fieldtype": "Link",
+            "options": "Mode of Payment",
+            "mandatory": false,
+            "user_input_synonyms": ["payment_mode", "method"],
+            "common_values": ["Cash", "Cheque", "Bank Transfer", "NEFT", "RTGS", "UPI"],
+            "keyword_detection": {
+              "cash": "Cash",
+              "cheque": "Cheque",
+              "neft": "NEFT",
+              "rtgs": "RTGS",
+              "upi": "UPI",
+              "bank": "Bank Transfer"
+            }
+          },
+          "reference_no": {
+            "fieldname": "reference_no",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["transaction_id", "utr", "cheque_no"],
+            "note": "NEFT/RTGS reference, cheque number, UPI transaction ID"
+          },
+          "reference_date": {
+            "fieldname": "reference_date",
+            "fieldtype": "Date",
+            "mandatory": false,
+            "default_value": "posting_date"
+          },
+          "references": {
+            "fieldname": "references",
+            "fieldtype": "Table",
+            "child_doctype": "Payment Entry Reference",
+            "mandatory": false,
+            "note": "Link to outstanding invoices being paid",
+            "child_fields": {
+              "reference_doctype": {
+                "fieldname": "reference_doctype",
+                "options": ["Sales Invoice", "Purchase Invoice"],
+                "mandatory": true
+              },
+              "reference_name": {
+                "fieldname": "reference_name",
+                "mandatory": true,
+                "note": "Invoice ID (e.g., SI-00123)"
+              },
+              "allocated_amount": {
+                "fieldname": "allocated_amount",
+                "fieldtype": "Currency",
+                "mandatory": true,
+                "note": "Amount allocated to this invoice"
+              }
+            }
+          }
+        }
+      },
+  
+      "Stock Entry": {
+        "doctype_name": "Stock Entry",
+        "naming_series": "SE-",
+        "mandatory_fields": ["stock_entry_type", "items"],
+        
+        "field_mappings": {
+          "stock_entry_type": {
+            "fieldname": "stock_entry_type",
+            "fieldtype": "Select",
+            "options": [
+              "Material Transfer",
+              "Material Issue",
+              "Material Receipt",
+              "Manufacture",
+              "Repack",
+              "Send to Subcontractor",
+              "Material Transfer for Manufacture"
+            ],
+            "mandatory": true,
+            "inference_rules": {
+              "transfer": "Material Transfer",
+              "issue": "Material Issue",
+              "receipt": "Material Receipt",
+              "manufacture": "Manufacture"
+            }
+          },
+          "from_warehouse": {
+            "fieldname": "from_warehouse",
+            "fieldtype": "Link",
+            "options": "Warehouse",
+            "mandatory_if": "stock_entry_type in ['Material Transfer', 'Material Issue']",
+            "user_input_synonyms": ["source_warehouse", "from_store"]
+          },
+          "to_warehouse": {
+            "fieldname": "to_warehouse",
+            "fieldtype": "Link",
+            "options": "Warehouse",
+            "mandatory_if": "stock_entry_type in ['Material Transfer', 'Material Receipt']",
+            "user_input_synonyms": ["destination_warehouse", "to_store"]
+          },
+          "project": {
+            "fieldname": "project",
+            "fieldtype": "Link",
+            "options": "Project",
+            "mandatory": false,
+            "note": "Link to project for cost tracking (job shops)"
+          },
+          "items": {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "child_doctype": "Stock Entry Detail",
+            "mandatory": true,
+            "minimum_rows": 1,
+            "child_fields": {
+              "item_code": {
+                "fieldname": "item_code",
+                "fieldtype": "Link",
+                "options": "Item",
+                "mandatory": true
+              },
+              "qty": {
+                "fieldname": "qty",
+                "fieldtype": "Float",
+                "mandatory": true,
+                "validation": "must_be_positive"
+              },
+              "s_warehouse": {
+                "fieldname": "s_warehouse",
+                "fieldtype": "Link",
+                "options": "Warehouse",
+                "note": "Source warehouse (from_warehouse)"
+              },
+              "t_warehouse": {
+                "fieldname": "t_warehouse",
+                "fieldtype": "Link",
+                "options": "Warehouse",
+                "note": "Target warehouse (to_warehouse)"
+              }
+            }
+          }
+        }
+      },
+  
+      "Purchase Order": {
+        "doctype_name": "Purchase Order",
+        "naming_series": "PO-",
+        "mandatory_fields": ["supplier", "transaction_date", "items"],
+        
+        "field_mappings": {
+          "supplier": {
+            "fieldname": "supplier",
+            "fieldtype": "Link",
+            "options": "Supplier",
+            "mandatory": true,
+            "user_input_synonyms": ["vendor", "seller"],
+            "validation": "must_exist"
+          },
+          "transaction_date": {
+            "fieldname": "transaction_date",
+            "fieldtype": "Date",
+            "mandatory": true,
+            "default_value": "today"
+          },
+          "schedule_date": {
+            "fieldname": "schedule_date",
+            "fieldtype": "Date",
+            "mandatory": false,
+            "default_value": "transaction_date + 7 days",
+            "user_input_synonyms": ["delivery_date", "expected_date"]
+          },
+          "items": {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "child_doctype": "Purchase Order Item",
+            "mandatory": true
+          }
+        }
+      },
+  
+      "Item": {
+        "doctype_name": "Item",
+        "naming_series": "ITEM-",
+        "mandatory_fields": ["item_code", "item_name", "item_group", "stock_uom"],
+        
+        "field_mappings": {
+          "item_code": {
+            "fieldname": "item_code",
+            "fieldtype": "Data",
+            "mandatory": true,
+            "unique": true,
+            "note": "Auto-generated if item_naming_by = Naming Series in Stock Settings"
+          },
+          "item_name": {
+            "fieldname": "item_name",
+            "fieldtype": "Data",
+            "mandatory": true
+          },
+          "item_group": {
+            "fieldname": "item_group",
+            "fieldtype": "Link",
+            "options": "Item Group",
+            "mandatory": true,
+            "common_values": ["Raw Material", "Finished Goods", "Sub Assemblies", "Consumable", "Services"]
+          },
+          "stock_uom": {
+            "fieldname": "stock_uom",
+            "fieldtype": "Link",
+            "options": "UOM",
+            "mandatory": true,
+            "common_values": ["Nos", "Kg", "Liter", "Meter", "Box", "Piece"],
+            "default_value": "Nos"
+          },
+          "is_stock_item": {
+            "fieldname": "is_stock_item",
+            "fieldtype": "Check",
+            "default_value": 1,
+            "note": "Uncheck for services"
+          },
+          "has_batch_no": {
+            "fieldname": "has_batch_no",
+            "fieldtype": "Check",
+            "default_value": 0,
+            "note": "Enable for food, pharma, chemicals"
+          },
+          "has_serial_no": {
+            "fieldname": "has_serial_no",
+            "fieldtype": "Check",
+            "default_value": 0,
+            "note": "Enable for electronics, equipment"
+          }
+        }
+      },
+  
+      "Customer": {
+        "doctype_name": "Customer",
+        "naming_series": "CUST-",
+        "mandatory_fields": ["customer_name", "customer_type", "customer_group", "territory"],
+        
+        "field_mappings": {
+          "customer_name": {
+            "fieldname": "customer_name",
+            "fieldtype": "Data",
+            "mandatory": true
+          },
+          "customer_type": {
+            "fieldname": "customer_type",
+            "fieldtype": "Select",
+            "options": ["Company", "Individual"],
+            "mandatory": true,
+            "default_value": "Company"
+          },
+          "customer_group": {
+            "fieldname": "customer_group",
+            "fieldtype": "Link",
+            "options": "Customer Group",
+            "mandatory": true,
+            "default_value": "Commercial"
+          },
+          "territory": {
+            "fieldname": "territory",
+            "fieldtype": "Link",
+            "options": "Territory",
+            "mandatory": true,
+            "default_value": "All Territories"
+          },
+          "gst_category": {
+            "fieldname": "gst_category",
+            "fieldtype": "Select",
+            "options": ["Registered Regular", "Registered Composition", "Unregistered", "SEZ", "Overseas", "UIN Holders"],
+            "mandatory": false,
+            "default_value": "Unregistered",
+            "note": "India GST compliance"
+          },
+          "gstin": {
+            "fieldname": "gstin",
+            "fieldtype": "Data",
+            "mandatory_if": "gst_category in ['Registered Regular', 'Registered Composition', 'SEZ', 'UIN Holders']",
+            "validation": "15_character_alphanumeric"
+          }
+        }
+      }
+    },
+  
+    "date_parsing_rules": {
+      "formats": [
+        "dd-mm-yyyy",
+        "dd/mm/yyyy",
+        "yyyy-mm-dd",
+        "dd-MMM-yyyy"
+      ],
+      "natural_language": {
+        "today": "current_date",
+        "tomorrow": "current_date + 1 day",
+        "yesterday": "current_date - 1 day",
+        "next week": "current_date + 7 days",
+        "end of month": "last_day_of_current_month",
+        "end of this month": "last_day_of_current_month",
+        "next month": "first_day_of_next_month",
+        "march 15": "15-03-current_year",
+        "15th march": "15-03-current_year"
+      }
+    },
+  
+    "currency_parsing_rules": {
+      "symbols": {
+        "₹": "INR",
+        "$": "USD",
+        "€": "EUR",
+        "£": "GBP"
+      },
+      "words": {
+        "rupees": "INR",
+        "dollars": "USD",
+        "lakh": "*100000",
+        "lac": "*100000",
+        "crore": "*10000000",
+        "thousand": "*1000",
+        "k": "*1000"
+      },
+      "examples": {
+        "₹50,000": 50000,
+        "50K": 50000,
+        "5 lakh": 500000,
+        "1.5 crore": 15000000
+      }
+    },
+  
+    "quantity_parsing_rules": {
+      "units": {
+        "kg": "Kg",
+        "kilogram": "Kg",
+        "litre": "Liter",
+        "liter": "Liter",
+        "meter": "Meter",
+        "metre": "Meter",
+        "piece": "Nos",
+        "pieces": "Nos",
+        "nos": "Nos",
+        "unit": "Nos",
+        "units": "Nos"
+      }
+    },
+  
+    "default_value_rules": {
+      "company": "Fetch user's default company from User Defaults OR first company in Company list",
+      "currency": "Fetch from company default_currency",
+      "transaction_date": "Today's date",
+      "posting_date": "Today's date",
+      "fiscal_year": "Derive from posting_date and company's fiscal_year_start",
+      "cost_center": "Fetch from company default_cost_center",
+      "warehouse": "Fetch from user defaults OR item default_warehouse OR company default_warehouse",
+      "price_list": "Fetch from customer default_price_list OR selling_price_list in Selling Settings"
+    }
+  }
+  

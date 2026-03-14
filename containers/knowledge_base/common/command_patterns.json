@@ -1,0 +1,558 @@
+{
+    "knowledge_base_id": "command_patterns",
+    "version": "1.0",
+    "erp_system": "erpnext",
+    "last_updated": "2025-02-17",
+    "description": "Pre-defined execution patterns for common multi-step workflows. Used by Command Planning Agent to decompose complex intents into atomic steps.",
+    
+    "patterns": [
+      {
+        "pattern_id": "sales_cycle_so_dn_si",
+        "pattern_name": "Full Sales Cycle (Order → Delivery → Invoice)",
+        "trigger_keywords": [
+          "create order and invoice",
+          "full sales cycle",
+          "order deliver and invoice",
+          "SO DN SI",
+          "complete sales process"
+        ],
+        "description": "Create Sales Order, Delivery Note, and Sales Invoice in sequence",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Sales Order",
+            "required_fields": ["customer", "items"],
+            "optional_fields": ["delivery_date", "po_no"],
+            "depends_on": null,
+            "rollback_if_failed": true
+          },
+          {
+            "step_number": 2,
+            "action": "submit",
+            "doctype": "Sales Order",
+            "target": "result_from_step_1",
+            "depends_on": "step_1",
+            "rollback_if_failed": true
+          },
+          {
+            "step_number": 3,
+            "action": "create_from",
+            "doctype": "Delivery Note",
+            "source_doctype": "Sales Order",
+            "source": "result_from_step_2",
+            "fetch_fields": ["customer", "items", "taxes_and_charges"],
+            "depends_on": "step_2",
+            "rollback_if_failed": true
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Delivery Note",
+            "target": "result_from_step_3",
+            "depends_on": "step_3",
+            "rollback_if_failed": false,
+            "rollback_note": "If DN submission fails, SO and DN draft remain. Manual cleanup needed."
+          },
+          {
+            "step_number": 5,
+            "action": "create_from",
+            "doctype": "Sales Invoice",
+            "source_doctype": "Delivery Note",
+            "source": "result_from_step_4",
+            "fetch_fields": ["customer", "items", "taxes_and_charges"],
+            "depends_on": "step_4",
+            "rollback_if_failed": false
+          },
+          {
+            "step_number": 6,
+            "action": "submit",
+            "doctype": "Sales Invoice",
+            "target": "result_from_step_5",
+            "depends_on": "step_5",
+            "rollback_if_failed": false
+          }
+        ],
+        "estimated_duration_seconds": 15,
+        "risk_level": "high",
+        "confirmation_required": true,
+        "confirmation_message": "This will create Sales Order, Delivery Note, and Sales Invoice. Proceed?",
+        "success_message": "✅ Full sales cycle completed!\n- Sales Order: {step_2_result}\n- Delivery Note: {step_4_result}\n- Sales Invoice: {step_6_result}",
+        "partial_failure_handling": "If any step fails mid-way, earlier steps cannot be auto-rolled back (submitted docs can't be deleted). User will be informed of which step failed."
+      },
+  
+      {
+        "pattern_id": "sales_cycle_so_si",
+        "pattern_name": "Sales Order → Invoice (No Delivery Note)",
+        "trigger_keywords": [
+          "order and invoice",
+          "SO and invoice",
+          "skip delivery note"
+        ],
+        "description": "Create Sales Order and Invoice directly (for services or advance invoicing)",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Sales Order",
+            "required_fields": ["customer", "items"],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "submit",
+            "doctype": "Sales Order",
+            "target": "result_from_step_1",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "create_from",
+            "doctype": "Sales Invoice",
+            "source_doctype": "Sales Order",
+            "source": "result_from_step_2",
+            "fetch_fields": ["customer", "items", "taxes_and_charges"],
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Sales Invoice",
+            "target": "result_from_step_3",
+            "depends_on": "step_3"
+          }
+        ],
+        "estimated_duration_seconds": 10,
+        "risk_level": "medium",
+        "confirmation_required": false
+      },
+  
+      {
+        "pattern_id": "purchase_cycle_po_pr_pi",
+        "pattern_name": "Full Purchase Cycle (Order → Receipt → Invoice)",
+        "trigger_keywords": [
+          "purchase order and receipt",
+          "full purchase cycle",
+          "PO PR PI",
+          "complete purchase process"
+        ],
+        "description": "Create Purchase Order, Purchase Receipt (GRN), and Purchase Invoice in sequence",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Purchase Order",
+            "required_fields": ["supplier", "items"],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "submit",
+            "doctype": "Purchase Order",
+            "target": "result_from_step_1",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "create_from",
+            "doctype": "Purchase Receipt",
+            "source_doctype": "Purchase Order",
+            "source": "result_from_step_2",
+            "fetch_fields": ["supplier", "items", "taxes_and_charges"],
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Purchase Receipt",
+            "target": "result_from_step_3",
+            "depends_on": "step_3"
+          },
+          {
+            "step_number": 5,
+            "action": "create_from",
+            "doctype": "Purchase Invoice",
+            "source_doctype": "Purchase Receipt",
+            "source": "result_from_step_4",
+            "fetch_fields": ["supplier", "items", "taxes_and_charges"],
+            "depends_on": "step_4"
+          },
+          {
+            "step_number": 6,
+            "action": "submit",
+            "doctype": "Purchase Invoice",
+            "target": "result_from_step_5",
+            "depends_on": "step_5"
+          }
+        ],
+        "estimated_duration_seconds": 15,
+        "risk_level": "high",
+        "confirmation_required": true
+      },
+  
+      {
+        "pattern_id": "invoice_and_payment",
+        "pattern_name": "Invoice Customer and Record Payment",
+        "trigger_keywords": [
+          "invoice and payment",
+          "invoice and receive payment",
+          "bill and collect"
+        ],
+        "description": "Create Sales Invoice and immediately record payment (for cash sales)",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Sales Invoice",
+            "required_fields": ["customer", "items"],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "submit",
+            "doctype": "Sales Invoice",
+            "target": "result_from_step_1",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "create_payment_entry_from_invoice",
+            "doctype": "Payment Entry",
+            "source_invoice": "result_from_step_2",
+            "payment_type": "Receive",
+            "paid_amount": "grand_total_from_step_2",
+            "mode_of_payment": "user_input_or_default",
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Payment Entry",
+            "target": "result_from_step_3",
+            "depends_on": "step_3"
+          }
+        ],
+        "estimated_duration_seconds": 10,
+        "risk_level": "medium",
+        "confirmation_required": false
+      },
+  
+      {
+        "pattern_id": "stock_transfer_and_issue",
+        "pattern_name": "Transfer Stock to WIP and Issue to Job",
+        "trigger_keywords": [
+          "transfer and issue stock",
+          "move to WIP and issue",
+          "transfer then issue"
+        ],
+        "description": "Transfer stock from main warehouse to WIP, then issue to a job/project",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Stock Entry",
+            "stock_entry_type": "Material Transfer",
+            "required_fields": ["items", "from_warehouse", "to_warehouse"],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "submit",
+            "doctype": "Stock Entry",
+            "target": "result_from_step_1",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "create",
+            "doctype": "Stock Entry",
+            "stock_entry_type": "Material Issue",
+            "required_fields": ["items", "from_warehouse", "project"],
+            "from_warehouse": "to_warehouse_from_step_1",
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Stock Entry",
+            "target": "result_from_step_3",
+            "depends_on": "step_3"
+          }
+        ],
+        "estimated_duration_seconds": 12,
+        "risk_level": "medium"
+      },
+  
+      {
+        "pattern_id": "manufacturing_simple",
+        "pattern_name": "Simple Manufacturing (Create Work Order and Manufacture)",
+        "trigger_keywords": [
+          "manufacture",
+          "produce goods",
+          "create and complete work order"
+        ],
+        "description": "Create Work Order and complete manufacturing (auto material transfer)",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Work Order",
+            "required_fields": ["production_item", "qty", "bom_no"],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "submit",
+            "doctype": "Work Order",
+            "target": "result_from_step_1",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "start_work_order",
+            "target": "result_from_step_2",
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "create",
+            "doctype": "Stock Entry",
+            "stock_entry_type": "Manufacture",
+            "purpose": "Manufacture",
+            "work_order": "result_from_step_2",
+            "auto_fetch_items_from_bom": true,
+            "depends_on": "step_3"
+          },
+          {
+            "step_number": 5,
+            "action": "submit",
+            "doctype": "Stock Entry",
+            "target": "result_from_step_4",
+            "depends_on": "step_4"
+          }
+        ],
+        "estimated_duration_seconds": 15,
+        "risk_level": "high",
+        "confirmation_required": true
+      },
+  
+      {
+        "pattern_id": "bulk_sales_orders",
+        "pattern_name": "Bulk Create Sales Orders from Data",
+        "trigger_keywords": [
+          "import sales orders",
+          "bulk create orders",
+          "create multiple orders"
+        ],
+        "description": "Create multiple Sales Orders from CSV/Excel data",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "validate_data",
+            "input_data": "user_uploaded_file",
+            "validation_rules": [
+              "customer_exists",
+              "items_exist",
+              "qty_positive",
+              "all_mandatory_fields_present"
+            ],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "bulk_create",
+            "doctype": "Sales Order",
+            "source_data": "validated_data_from_step_1",
+            "async": true,
+            "batch_size": 10,
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "notify_completion",
+            "message": "Created {count} Sales Orders. {success} succeeded, {failed} failed.",
+            "depends_on": "step_2"
+          }
+        ],
+        "estimated_duration_seconds": "async",
+        "risk_level": "high",
+        "confirmation_required": true,
+        "confirmation_message": "You are about to create {count} Sales Orders. This will run in background. Proceed?"
+      },
+  
+      {
+        "pattern_id": "payment_allocation",
+        "pattern_name": "Record Payment and Allocate to Multiple Invoices",
+        "trigger_keywords": [
+          "payment against multiple invoices",
+          "allocate payment",
+          "payment for several invoices"
+        ],
+        "description": "Record a single payment and allocate to multiple outstanding invoices",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "fetch_outstanding_invoices",
+            "party_type": "Customer",
+            "party": "user_input",
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "create",
+            "doctype": "Payment Entry",
+            "payment_type": "Receive",
+            "party_type": "Customer",
+            "party": "user_input",
+            "paid_amount": "user_input",
+            "references": "selected_invoices_from_step_1",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "submit",
+            "doctype": "Payment Entry",
+            "target": "result_from_step_2",
+            "depends_on": "step_2"
+          }
+        ],
+        "estimated_duration_seconds": 8,
+        "risk_level": "medium"
+      },
+  
+      {
+        "pattern_id": "material_request_to_po",
+        "pattern_name": "Convert Material Request to Purchase Order",
+        "trigger_keywords": [
+          "MR to PO",
+          "material request to purchase order",
+          "create PO from material request"
+        ],
+        "description": "Convert approved Material Request to Purchase Order",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "get_document",
+            "doctype": "Material Request",
+            "identifier": "user_input",
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "validate_mr_status",
+            "target": "result_from_step_1",
+            "expected_status": "Submitted",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "create_from",
+            "doctype": "Purchase Order",
+            "source_doctype": "Material Request",
+            "source": "result_from_step_1",
+            "fetch_fields": ["items", "schedule_date"],
+            "supplier": "user_input_or_default_from_items",
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Purchase Order",
+            "target": "result_from_step_3",
+            "depends_on": "step_3",
+            "optional": true,
+            "ask_user": "Submit Purchase Order now?"
+          }
+        ],
+        "estimated_duration_seconds": 10,
+        "risk_level": "low"
+      },
+  
+      {
+        "pattern_id": "quality_inspection_flow",
+        "pattern_name": "Create Purchase Receipt with Quality Inspection",
+        "trigger_keywords": [
+          "receive with QI",
+          "purchase receipt with quality check",
+          "GRN with inspection"
+        ],
+        "description": "Create Purchase Receipt and Quality Inspection",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "create",
+            "doctype": "Purchase Receipt",
+            "required_fields": ["supplier", "items"],
+            "depends_on": null
+          },
+          {
+            "step_number": 2,
+            "action": "create",
+            "doctype": "Quality Inspection",
+            "reference_type": "Purchase Receipt",
+            "reference_name": "result_from_step_1",
+            "item_code": "from_purchase_receipt_items",
+            "depends_on": "step_1"
+          },
+          {
+            "step_number": 3,
+            "action": "await_quality_result",
+            "target": "result_from_step_2",
+            "timeout": "manual",
+            "depends_on": "step_2"
+          },
+          {
+            "step_number": 4,
+            "action": "submit",
+            "doctype": "Purchase Receipt",
+            "target": "result_from_step_1",
+            "condition": "quality_inspection_status == Accepted",
+            "depends_on": "step_3"
+          }
+        ],
+        "estimated_duration_seconds": "manual",
+        "risk_level": "medium",
+        "note": "Step 3 requires manual quality inspection before PR can be submitted"
+      }
+    ],
+  
+    "pattern_matching_rules": {
+      "keyword_match": {
+        "description": "If user prompt contains pattern trigger keywords, suggest that pattern",
+        "threshold": 0.7,
+        "case_insensitive": true
+      },
+      "intent_match": {
+        "description": "If multiple intents detected in single prompt, check if they match a pattern",
+        "example": "create_sales_order + create_sales_invoice detected → suggest sales_cycle_so_si pattern"
+      },
+      "context_match": {
+        "description": "If user says 'complete' or 'full' or 'entire', assume multi-step pattern",
+        "keywords": ["complete", "full", "entire", "whole", "end-to-end"]
+      }
+    },
+  
+    "rollback_strategies": {
+      "draft_documents": {
+        "strategy": "Can be deleted if step fails",
+        "applies_to": ["Draft Sales Order", "Draft Purchase Order", "Draft Stock Entry"]
+      },
+      "submitted_documents": {
+        "strategy": "Cannot be deleted, only cancelled. Cancellation creates reverse GL entries.",
+        "applies_to": ["Submitted Sales Invoice", "Submitted Purchase Receipt", "Submitted Payment Entry"],
+        "note": "If mid-pattern submission fails, earlier submitted docs remain. User informed to manually cancel if needed."
+      },
+      "partial_success": {
+        "strategy": "Return list of succeeded steps and failed step. User decides next action.",
+        "message_template": "✅ Steps 1-{n} succeeded. ❌ Step {n+1} failed: {error}. Earlier documents: {doc_list}. Action: Continue manually or cancel earlier docs?"
+      }
+    },
+  
+    "async_patterns": {
+      "description": "Patterns that run in background queue",
+      "patterns": ["bulk_sales_orders", "bulk_invoices", "bulk_payments"],
+      "notification": "User gets notification when async job completes",
+      "status_check": "User can check status via 'Check status of job {job_id}'"
+    }
+  }
+  

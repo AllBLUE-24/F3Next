@@ -28,7 +28,7 @@ from app.api.agents import router as agents_router
 from app.api.config_apply import router as config_apply_router
 from app.api.migration import router as migration_router
 from app.api.ingest import router as ingest_router
-
+from app.api.os_command import router as os_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -81,3 +81,4 @@ app.include_router(agents_router, prefix="/api")
 app.include_router(config_apply_router, prefix="/api")
 app.include_router(migration_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
+app.include_router(os_router, prefix="/api")

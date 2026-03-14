@@ -1,0 +1,886 @@
+{
+    "knowledge_base_id": "intent_definitions",
+    "version": "1.0",
+    "erp_system": "erpnext",
+    "last_updated": "2025-02-17",
+    "description": "Comprehensive intent taxonomy mapping natural language commands to ERPNext doctypes and actions. Used by Clarity Agent for intent classification and entity extraction.",
+    
+    "intent_categories": {
+      "create": "Create new documents/records",
+      "read": "View/retrieve existing documents",
+      "update": "Modify existing documents",
+      "delete": "Remove draft documents",
+      "search": "Find documents based on criteria",
+      "submit": "Submit draft documents (workflow transition)",
+      "cancel": "Cancel submitted documents",
+      "report": "Generate reports and analytics",
+      "bulk": "Batch operations on multiple records"
+    },
+  
+    "intents": [
+      {
+        "intent_id": "create_sales_order",
+        "category": "create",
+        "target_doctype": "Sales Order",
+        "action": "create",
+        "confidence_threshold": 0.85,
+        "synonyms": [
+          "make sales order",
+          "create SO",
+          "new sales order",
+          "place order",
+          "create order for customer",
+          "book order",
+          "sales order for",
+          "SO for customer"
+        ],
+        "required_entities": ["customer", "items"],
+        "optional_entities": [
+          "delivery_date",
+          "po_no",
+          "po_date",
+          "taxes_and_charges",
+          "payment_terms_template",
+          "currency",
+          "price_list",
+          "project"
+        ],
+        "examples": [
+          "Create SO for ABC Industries for 100 Product-001 at ₹500",
+          "Make sales order for customer XYZ: 50 units Item-A, 20 units Item-B",
+          "Place order for Sharma Trading - 200 pieces of Widget-123 deliver by March 15",
+          "Book order against PO #12345 from Kumar & Co for 1000 units",
+          "Create sales order for ABC Ltd: Product-A 100 qty @ 500, Product-B 50 qty @ 300"
+        ],
+        "negative_examples": [
+          "Show me sales order SO-001",
+          "Cancel sales order",
+          "How many sales orders do we have?"
+        ],
+        "context_hints": {
+          "customer_extraction": "If 'for customer X' or 'for X' mentioned, extract as customer",
+          "items_extraction": "Pattern: [quantity] [unit] [item_name] [at/@ rate]",
+          "delivery_date": "Phrases: 'by [date]', 'deliver by', 'delivery on', 'ship by'",
+          "po_reference": "Phrases: 'against PO', 'PO number', 'PO #', 'customer PO'"
+        },
+        "validation_rules": {
+          "customer_must_exist": true,
+          "items_must_exist": true,
+          "qty_must_be_positive": true,
+          "rate_validation": "optional_but_if_present_must_be_positive"
+        },
+        "risk_level": "low"
+      },
+  
+      {
+        "intent_id": "create_purchase_order",
+        "category": "create",
+        "target_doctype": "Purchase Order",
+        "action": "create",
+        "synonyms": [
+          "make purchase order",
+          "create PO",
+          "new purchase order",
+          "order from supplier",
+          "buy from supplier",
+          "purchase from"
+        ],
+        "required_entities": ["supplier", "items"],
+        "optional_entities": ["schedule_date", "supplier_quotation", "payment_terms_template"],
+        "examples": [
+          "Create PO to Steel Suppliers Ltd for 500 kg MS Sheet 10mm",
+          "Order 1000 units of Item-X from Vendor ABC",
+          "Buy 200 meters of pipe from supplier XYZ deliver by Feb 28",
+          "Purchase order to Kumar Traders: Item-A 100 kg, Item-B 50 kg"
+        ],
+        "risk_level": "low"
+      },
+  
+      {
+        "intent_id": "create_sales_invoice",
+        "category": "create",
+        "target_doctype": "Sales Invoice",
+        "action": "create",
+        "synonyms": [
+          "invoice customer",
+          "create invoice",
+          "bill customer",
+          "raise invoice",
+          "make sales invoice",
+          "SI for customer"
+        ],
+        "required_entities": ["customer"],
+        "optional_entities": ["items", "sales_order", "delivery_note", "due_date", "payment_terms_template"],
+        "examples": [
+          "Invoice ABC Company for ₹50,000 against SO-00123",
+          "Create invoice for customer XYZ: 100 Product-A @ ₹500",
+          "Bill Sharma Industries for delivery DN-00456",
+          "Make sales invoice from SO-00234",
+          "Invoice customer ABC for 50K"
+        ],
+        "context_hints": {
+          "sales_order_link": "Phrases: 'against SO', 'from SO', 'for SO', 'based on SO-XXX'",
+          "delivery_note_link": "Phrases: 'for delivery', 'against DN', 'from DN-XXX'"
+        },
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "create_payment_entry",
+        "category": "create",
+        "target_doctype": "Payment Entry",
+        "action": "create",
+        "synonyms": [
+          "record payment",
+          "make payment",
+          "pay invoice",
+          "receive payment",
+          "customer payment",
+          "supplier payment",
+          "payment from customer",
+          "payment to supplier"
+        ],
+        "required_entities": ["party_type", "party", "paid_amount"],
+        "optional_entities": [
+          "payment_type",
+          "mode_of_payment",
+          "reference_no",
+          "reference_date",
+          "reference_doctype",
+          "reference_name"
+        ],
+        "examples": [
+          "Record payment of ₹50,000 from ABC Industries",
+          "Customer paid ₹1 lakh via NEFT reference 12345",
+          "Pay ₹25,000 to supplier XYZ by cheque",
+          "Receive ₹75,000 from customer against invoice INV-00234",
+          "Payment received from ABC Ltd 50000 cash"
+        ],
+        "context_hints": {
+          "party_type_detection": {
+            "customer": "Phrases: 'from customer', 'customer paid', 'receive from', 'received from'",
+            "supplier": "Phrases: 'to supplier', 'pay supplier', 'payment to', 'paid to'"
+          },
+          "payment_type_detection": {
+            "receive": "If party_type=Customer OR 'receive/received' mentioned",
+            "pay": "If party_type=Supplier OR 'pay/paid to' mentioned"
+          },
+          "mode_of_payment": "Keywords: cash, cheque, NEFT, RTGS, UPI, bank transfer, credit card"
+        },
+        "validation_rules": {
+          "party_must_exist": true,
+          "amount_must_be_positive": true
+        },
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "create_item",
+        "category": "create",
+        "target_doctype": "Item",
+        "action": "create",
+        "synonyms": [
+          "add new item",
+          "create item",
+          "new product",
+          "add product",
+          "create product"
+        ],
+        "required_entities": ["item_name", "item_group"],
+        "optional_entities": ["stock_uom", "default_warehouse", "item_code", "standard_rate", "is_stock_item"],
+        "examples": [
+          "Create item Product-X in Raw Material group",
+          "Add new product Widget-123, UOM: Nos, rate ₹500",
+          "Create item MS Sheet 10mm in category Steel"
+        ],
+        "risk_level": "low"
+      },
+  
+      {
+        "intent_id": "create_customer",
+        "category": "create",
+        "target_doctype": "Customer",
+        "action": "create",
+        "synonyms": [
+          "add customer",
+          "new customer",
+          "create customer",
+          "add new client"
+        ],
+        "required_entities": ["customer_name"],
+        "optional_entities": ["customer_group", "territory", "customer_type", "gst_category"],
+        "examples": [
+          "Create customer ABC Industries",
+          "Add new customer Sharma Trading in Delhi territory",
+          "Create customer XYZ Corp, group: Corporate, type: Company"
+        ],
+        "risk_level": "low"
+      },
+  
+      {
+        "intent_id": "create_supplier",
+        "category": "create",
+        "target_doctype": "Supplier",
+        "action": "create",
+        "synonyms": [
+          "add supplier",
+          "new supplier",
+          "create supplier",
+          "add vendor"
+        ],
+        "required_entities": ["supplier_name"],
+        "optional_entities": ["supplier_group", "supplier_type", "gst_category"],
+        "examples": [
+          "Create supplier Steel Mills Ltd",
+          "Add vendor ABC Traders in Raw Material Suppliers group"
+        ],
+        "risk_level": "low"
+      },
+  
+      {
+        "intent_id": "create_stock_entry_transfer",
+        "category": "create",
+        "target_doctype": "Stock Entry",
+        "action": "create",
+        "synonyms": [
+          "transfer stock",
+          "material transfer",
+          "move stock",
+          "transfer material"
+        ],
+        "required_entities": ["items", "from_warehouse", "to_warehouse"],
+        "optional_entities": ["project"],
+        "examples": [
+          "Transfer 100 units of Item-A from Main Warehouse to WIP",
+          "Move 50 kg MS Sheet from Store to Production",
+          "Material transfer from Main to Branch: Item-X 100 units"
+        ],
+        "stock_entry_type": "Material Transfer",
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "create_stock_entry_issue",
+        "category": "create",
+        "target_doctype": "Stock Entry",
+        "action": "create",
+        "synonyms": [
+          "issue material",
+          "issue stock",
+          "material issue"
+        ],
+        "required_entities": ["items", "from_warehouse"],
+        "optional_entities": ["project", "cost_center"],
+        "examples": [
+          "Issue 50 kg MS Sheet to Job-001",
+          "Material issue from Store: Item-A 100 units for Project-X"
+        ],
+        "stock_entry_type": "Material Issue",
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "create_stock_entry_receipt",
+        "category": "create",
+        "target_doctype": "Stock Entry",
+        "action": "create",
+        "synonyms": [
+          "material receipt",
+          "receive material",
+          "stock receipt"
+        ],
+        "required_entities": ["items", "to_warehouse"],
+        "optional_entities": [],
+        "examples": [
+          "Material receipt: 200 units Product-X to Finished Goods warehouse",
+          "Receive 100 units Item-A to Main Warehouse"
+        ],
+        "stock_entry_type": "Material Receipt",
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "create_delivery_note",
+        "category": "create",
+        "target_doctype": "Delivery Note",
+        "action": "create",
+        "synonyms": [
+          "create delivery note",
+          "deliver goods",
+          "dispatch goods",
+          "ship order",
+          "DN for customer"
+        ],
+        "required_entities": ["customer"],
+        "optional_entities": ["items", "sales_order", "shipping_address"],
+        "examples": [
+          "Create delivery note for ABC Industries for 100 Product-A",
+          "Deliver 50 units Item-X to customer XYZ against SO-00123",
+          "Ship order SO-00456 to customer",
+          "DN from SO-00234"
+        ],
+        "context_hints": {
+          "sales_order_link": "If SO-XXX mentioned, fetch items from that SO"
+        },
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "create_purchase_receipt",
+        "category": "create",
+        "target_doctype": "Purchase Receipt",
+        "action": "create",
+        "synonyms": [
+          "receive goods",
+          "GRN",
+          "goods received",
+          "material received",
+          "PR for supplier"
+        ],
+        "required_entities": ["supplier"],
+        "optional_entities": ["items", "purchase_order", "warehouse"],
+        "examples": [
+          "Receive 500 kg MS Sheet from Steel Suppliers",
+          "GRN for PO-00123: 1000 units Item-A",
+          "Goods received from Vendor XYZ: 200 meters pipe",
+          "Create PR from PO-00456"
+        ],
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "get_document",
+        "category": "read",
+        "target_doctype": "Any",
+        "action": "get",
+        "synonyms": [
+          "show",
+          "view",
+          "get",
+          "check",
+          "display",
+          "open"
+        ],
+        "required_entities": ["doctype_or_identifier"],
+        "optional_entities": [],
+        "examples": [
+          "Show me SO-00123",
+          "Get sales order SO-00456",
+          "View invoice INV-00789",
+          "Check payment PE-00234"
+        ],
+        "context_hints": {
+          "doctype_inference": "If format matches XX-XXXXX pattern, infer doctype from prefix (SO=Sales Order, PO=Purchase Order, etc.)"
+        },
+        "risk_level": "none"
+      },
+  
+      {
+        "intent_id": "search_documents",
+        "category": "search",
+        "target_doctype": "Any",
+        "action": "search",
+        "synonyms": [
+          "find",
+          "search",
+          "lookup",
+          "show all",
+          "list",
+          "get all"
+        ],
+        "required_entities": ["doctype"],
+        "optional_entities": ["filters"],
+        "examples": [
+          "Find customer ABC",
+          "Search for sales orders from last week",
+          "Show all pending invoices",
+          "List customers in Delhi",
+          "Get all items in Raw Material group"
+        ],
+        "risk_level": "none"
+      },
+  
+      {
+        "intent_id": "update_document",
+        "category": "update",
+        "target_doctype": "Any",
+        "action": "update",
+        "synonyms": [
+          "modify",
+          "change",
+          "update",
+          "edit",
+          "set"
+        ],
+        "required_entities": ["identifier", "field", "new_value"],
+        "optional_entities": [],
+        "examples": [
+          "Change delivery date of SO-00123 to March 15",
+          "Update rate of Item-A in SO-00456 to ₹550",
+          "Modify SO-00789: increase quantity to 150",
+          "Set customer XYZ credit limit to 5 lakh"
+        ],
+        "context_hints": {
+          "field_detection": "Common fields: delivery_date, rate, qty, quantity, customer, supplier, amount, due_date"
+        },
+        "validation_rules": {
+          "document_must_be_draft": true
+        },
+        "risk_level": "medium"
+      },
+  
+      {
+        "intent_id": "submit_document",
+        "category": "submit",
+        "target_doctype": "Any",
+        "action": "submit",
+        "synonyms": [
+          "submit",
+          "confirm",
+          "lock",
+          "finalize",
+          "approve"
+        ],
+        "required_entities": ["identifier"],
+        "optional_entities": [],
+        "examples": [
+          "Submit SO-00123",
+          "Confirm sales order SO-00456",
+          "Lock invoice INV-00789",
+          "Approve payment PE-00234"
+        ],
+        "validation_rules": {
+          "document_must_be_draft": true,
+          "mandatory_fields_must_be_filled": true
+        },
+        "risk_level": "high"
+      },
+  
+      {
+        "intent_id": "cancel_document",
+        "category": "cancel",
+        "target_doctype": "Any",
+        "action": "cancel",
+        "synonyms": [
+          "cancel",
+          "void",
+          "reverse"
+        ],
+        "required_entities": ["identifier"],
+        "optional_entities": ["reason"],
+        "examples": [
+          "Cancel SO-00123",
+          "Cancel order SO-00456 - customer requested",
+          "Void sales invoice INV-00789"
+        ],
+        "validation_rules": {
+          "document_must_be_submitted": true,
+          "cancellation_must_be_allowed": true,
+          "confirmation_required": true
+        },
+        "risk_level": "critical"
+      },
+  
+      {
+        "intent_id": "delete_document",
+        "category": "delete",
+        "target_doctype": "Any",
+        "action": "delete",
+        "synonyms": [
+          "delete",
+          "remove"
+        ],
+        "required_entities": ["identifier"],
+        "optional_entities": [],
+        "examples": [
+          "Delete SO-00123",
+          "Remove draft order SO-00456"
+        ],
+        "validation_rules": {
+          "document_must_be_draft": true,
+          "confirmation_required": true
+        },
+        "risk_level": "critical"
+      },
+  
+      {
+        "intent_id": "report_stock_balance",
+        "category": "report",
+        "target_doctype": "Stock Balance",
+        "action": "report",
+        "synonyms": [
+          "stock report",
+          "inventory report",
+          "show stock",
+          "check stock balance",
+          "current stock",
+          "stock level"
+        ],
+        "required_entities": [],
+        "optional_entities": ["item", "warehouse", "item_group", "date"],
+        "examples": [
+          "Show stock balance",
+          "Stock report for Main Warehouse",
+          "Current stock of Product-A",
+          "Inventory report for Raw Material group",
+          "Stock as of yesterday"
+        ],
+        "risk_level": "none"
+      },
+  
+      {
+        "intent_id": "report_accounts_receivable",
+        "category": "report",
+        "target_doctype": "Accounts Receivable",
+        "action": "report",
+        "synonyms": [
+          "AR report",
+          "receivables",
+          "customer outstanding",
+          "unpaid invoices",
+          "pending payments from customers"
+        ],
+        "required_entities": [],
+        "optional_entities": ["customer", "ageing_range", "date"],
+        "examples": [
+          "Show accounts receivable",
+          "Customer outstanding report",
+          "AR for ABC Industries",
+          "Unpaid invoices aging report"
+        ],
+        "risk_level": "none"
+      },
+  
+      {
+        "intent_id": "report_accounts_payable",
+        "category": "report",
+        "target_doctype": "Accounts Payable",
+        "action": "report",
+        "synonyms": [
+          "AP report",
+          "payables",
+          "supplier outstanding",
+          "pending payments to suppliers"
+        ],
+        "required_entities": [],
+        "optional_entities": ["supplier", "ageing_range"],
+        "examples": [
+          "Show accounts payable",
+          "Supplier outstanding report",
+          "AP for Steel Suppliers Ltd"
+        ],
+        "risk_level": "none"
+      },
+  
+      {
+        "intent_id": "bulk_create_items",
+        "category": "bulk",
+        "target_doctype": "Item",
+        "action": "bulk_create",
+        "synonyms": [
+          "import items",
+          "bulk add items",
+          "create multiple items",
+          "upload items"
+        ],
+        "required_entities": ["data_source"],
+        "optional_entities": [],
+        "examples": [
+          "Import items from CSV",
+          "Bulk create items from Excel file",
+          "Upload 100 products"
+        ],
+        "validation_rules": {
+          "async_processing": true,
+          "confirmation_required": true,
+          "data_validation_before_import": true
+        },
+        "risk_level": "high"
+      },
+  
+      {
+        "intent_id": "complex_sales_cycle",
+        "category": "create",
+        "target_doctype": "Multi",
+        "action": "multi_step",
+        "synonyms": [
+          "create order and invoice",
+          "full sales cycle",
+          "order to invoice",
+          "SO DN and invoice"
+        ],
+        "required_entities": ["customer", "items"],
+        "optional_entities": [],
+        "examples": [
+          "Create sales order and invoice for ABC Ltd for 100 Product-A",
+          "Full cycle: order, deliver and invoice customer XYZ",
+          "SO to invoice for customer ABC: Item-A 100 units"
+        ],
+        "execution_pattern": "sales_cycle_so_dn_si",
+        "steps": [
+          "create_sales_order",
+          "submit_sales_order",
+          "create_delivery_note",
+          "submit_delivery_note",
+          "create_sales_invoice",
+          "submit_sales_invoice"
+        ],
+        "risk_level": "high"
+      }
+    ],
+  
+    "entity_types": {
+      "customer": {
+        "erp_field": "customer",
+        "field_type": "Link",
+        "link_doctype": "Customer",
+        "validation": "must_exist",
+        "synonyms": ["client", "buyer", "party"],
+        "extraction_patterns": [
+          "for customer {name}",
+          "customer {name}",
+          "{name} (if context is sales-related)"
+        ]
+      },
+      "supplier": {
+        "erp_field": "supplier",
+        "field_type": "Link",
+        "link_doctype": "Supplier",
+        "validation": "must_exist",
+        "synonyms": ["vendor", "seller"],
+        "extraction_patterns": [
+          "from supplier {name}",
+          "supplier {name}",
+          "to {name} (if context is purchase-related)"
+        ]
+      },
+      "item": {
+        "erp_field": "item_code",
+        "field_type": "Link",
+        "link_doctype": "Item",
+        "validation": "must_exist",
+        "synonyms": ["product", "goods", "material", "sku", "part"],
+        "extraction_patterns": [
+          "{qty} units of {item_name}",
+          "{qty} {item_name}",
+          "{item_name} @ {rate}"
+        ]
+      },
+      "qty": {
+        "erp_field": "qty",
+        "field_type": "Float",
+        "validation": "must_be_positive",
+        "synonyms": ["quantity", "units", "pieces", "count", "nos"],
+        "extraction_patterns": [
+          "{number} units",
+          "{number} pieces",
+          "{number} kg",
+          "{number} {uom}"
+        ]
+      },
+      "rate": {
+        "erp_field": "rate",
+        "field_type": "Currency",
+        "validation": "must_be_positive",
+        "synonyms": ["price", "unit price", "per unit", "each"],
+        "extraction_patterns": [
+          "@ ₹{amount}",
+          "at ₹{amount}",
+          "₹{amount} per unit",
+          "rate {amount}"
+        ]
+      },
+      "warehouse": {
+        "erp_field": "warehouse",
+        "field_type": "Link",
+        "link_doctype": "Warehouse",
+        "validation": "must_exist",
+        "synonyms": ["store", "godown", "location"],
+        "extraction_patterns": [
+          "from {warehouse_name}",
+          "to {warehouse_name}",
+          "in {warehouse_name}"
+        ]
+      },
+      "delivery_date": {
+        "erp_field": "delivery_date",
+        "field_type": "Date",
+        "validation": "must_be_valid_date",
+        "synonyms": ["deliver by", "delivery deadline", "shipment date", "due date"],
+        "extraction_patterns": [
+          "by {date}",
+          "deliver by {date}",
+          "on {date}",
+          "{date} (if context indicates future date)"
+        ]
+      },
+      "amount": {
+        "erp_field": "paid_amount",
+        "field_type": "Currency",
+        "validation": "must_be_positive",
+        "synonyms": ["total", "value", "sum"],
+        "extraction_patterns": [
+          "₹{amount}",
+          "{amount} rupees",
+          "{amount} lakh",
+          "{amount}K"
+        ]
+      },
+      "project": {
+        "erp_field": "project",
+        "field_type": "Link",
+        "link_doctype": "Project",
+        "validation": "must_exist",
+        "synonyms": ["job", "work order"],
+        "extraction_patterns": [
+          "for project {name}",
+          "to project {name}",
+          "job {name}"
+        ]
+      }
+    },
+  
+    "synonym_mappings": {
+      "SO": "Sales Order",
+      "PO": "Purchase Order",
+      "DN": "Delivery Note",
+      "PR": "Purchase Receipt",
+      "SI": "Sales Invoice",
+      "PI": "Purchase Invoice",
+      "PE": "Payment Entry",
+      "SE": "Stock Entry",
+      "JE": "Journal Entry",
+      "QTN": "Quotation",
+      "SQ": "Supplier Quotation",
+      "MR": "Material Request",
+      "WO": "Work Order",
+      "JC": "Job Card",
+      "GRN": "Purchase Receipt",
+      "BOM": "BOM",
+      "QI": "Quality Inspection"
+    },
+  
+    "ambiguity_resolution": {
+      "missing_customer": {
+        "question": "Which customer is this for?",
+        "options_source": "recent_customers_or_search",
+        "max_options": 5
+      },
+      "missing_supplier": {
+        "question": "Which supplier?",
+        "options_source": "recent_suppliers_or_search",
+        "max_options": 5
+      },
+      "missing_item": {
+        "question": "Which item/product?",
+        "options_source": "recent_items_or_search",
+        "max_options": 5
+      },
+      "missing_quantity": {
+        "question": "How many units?",
+        "options_source": "user_input_number",
+        "validation": "positive_number"
+      },
+      "missing_rate": {
+        "question": "What's the rate per unit?",
+        "options_source": "price_list_or_user_input",
+        "fallback": "fetch_from_price_list"
+      },
+      "multiple_customer_matches": {
+        "question": "Did you mean:",
+        "options_source": "matched_customers",
+        "display_format": "{customer_name} ({customer_group}, {territory})"
+      },
+      "multiple_item_matches": {
+        "question": "Did you mean:",
+        "options_source": "matched_items",
+        "display_format": "{item_name} ({item_code}, {item_group})"
+      },
+      "unclear_date": {
+        "question": "When should this be delivered?",
+        "options_source": ["today", "tomorrow", "next_week", "user_input"],
+        "format": "dd-mm-yyyy"
+      },
+      "unclear_doctype": {
+        "question": "What type of document?",
+        "options_source": ["Sales Order", "Sales Invoice", "Purchase Order", "Delivery Note"],
+        "context_based": true
+      }
+    },
+  
+    "contextual_inference_rules": {
+      "payment_entry": {
+        "from_customer_implies": {
+          "payment_type": "Receive",
+          "party_type": "Customer"
+        },
+        "to_supplier_implies": {
+          "payment_type": "Pay",
+          "party_type": "Supplier"
+        },
+        "mode_detection": {
+          "cash": "Cash",
+          "cheque": "Cheque",
+          "neft": "Bank Transfer - NEFT",
+          "rtgs": "Bank Transfer - RTGS",
+          "upi": "UPI",
+          "bank transfer": "Bank Transfer"
+        }
+      },
+      "stock_entry": {
+        "issue_implies": {
+          "stock_entry_type": "Material Issue",
+          "requires": ["from_warehouse"]
+        },
+        "transfer_implies": {
+          "stock_entry_type": "Material Transfer",
+          "requires": ["from_warehouse", "to_warehouse"]
+        },
+        "receipt_implies": {
+          "stock_entry_type": "Material Receipt",
+          "requires": ["to_warehouse"]
+        }
+      },
+      "sales_invoice": {
+        "against_so_implies": "fetch_items_from_sales_order",
+        "against_dn_implies": "fetch_items_from_delivery_note"
+      },
+      "delivery_note": {
+        "from_so_implies": "fetch_items_and_customer_from_sales_order"
+      },
+      "purchase_receipt": {
+        "from_po_implies": "fetch_items_and_supplier_from_purchase_order"
+      }
+    },
+  
+    "confidence_scoring": {
+      "high": {
+        "threshold": 0.85,
+        "indicators": [
+          "All required entities present and validated",
+          "Intent matches pattern with >85% similarity",
+          "No ambiguities detected",
+          "Context is clear"
+        ]
+      },
+      "medium": {
+        "threshold": 0.65,
+        "indicators": [
+          "Required entities present but 1-2 optional missing",
+          "Intent matches pattern with 65-85% similarity",
+          "Minor resolvable ambiguities",
+          "Context partially clear"
+        ]
+      },
+      "low": {
+        "threshold": 0.50,
+        "indicators": [
+          "Missing required entities",
+          "Multiple possible intents",
+          "Entities cannot be resolved",
+          "Context unclear"
+        ]
+      }
+    }
+  }
+  
