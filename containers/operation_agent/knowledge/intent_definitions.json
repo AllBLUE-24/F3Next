@@ -1,0 +1,17 @@
+{
+  "intents": [
+    {
+      "intent_id": "create_sales_order",
+      "synonyms": ["create SO", "new sales order", "create order", "place order", "make SO"],
+      "erp_action": "create",
+      "target_doctype": "Sales Order",
+      "required_entities": ["customer", "items"],
+      "optional_entities": ["delivery_date", "po_no", "po_date"],
+      "examples": [
+        "Create SO for ABC Industries for 100 pieces of Product-001 at ₹500 each",
+        "Create sales order for XYZ Corp: 50 units of Item-A at 1000",
+        "Place an order for Customer Name for 10 pieces of Widget-X"
+      ]
+    }
+  ]
+}

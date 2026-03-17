@@ -1,0 +1,83 @@
+{
+  "Item": {
+    "user_to_erp": {
+      "item_code": "item_code",
+      "item_name": "item_name",
+      "item_group": "item_group",
+      "stock_uom": "stock_uom",
+      "description": "description",
+      "valuation_rate": "valuation_rate",
+      "standard_rate": "standard_rate"
+    },
+    "defaults": { "doctype": "Item" }
+  },
+  "Customer": {
+    "user_to_erp": {
+      "customer_name": "customer_name",
+      "customer_type": "customer_type",
+      "customer_group": "customer_group",
+      "territory": "territory",
+      "gstin": "tax_id"
+    },
+    "defaults": { "doctype": "Customer" }
+  },
+  "Supplier": {
+    "user_to_erp": {
+      "supplier_name": "supplier_name",
+      "supplier_type": "supplier_type",
+      "supplier_group": "supplier_group",
+      "gstin": "tax_id"
+    },
+    "defaults": { "doctype": "Supplier" }
+  },
+  "Sales Invoice": {
+    "user_to_erp": {
+      "customer": "customer",
+      "posting_date": "posting_date",
+      "due_date": "due_date",
+      "items": "items"
+    },
+    "items_child_table": {
+      "item_code": "item_code",
+      "qty": "qty",
+      "rate": "rate",
+      "amount": "amount"
+    },
+    "defaults": { "doctype": "Sales Invoice" }
+  },
+  "Purchase Invoice": {
+    "user_to_erp": {
+      "supplier": "supplier",
+      "bill_no": "bill_no",
+      "bill_date": "bill_date",
+      "posting_date": "posting_date",
+      "items": "items"
+    },
+    "items_child_table": {
+      "item_code": "item_code",
+      "qty": "qty",
+      "rate": "rate"
+    },
+    "defaults": { "doctype": "Purchase Invoice" }
+  },
+  "Sales Order": {
+    "user_to_erp": {
+      "customer": "customer",
+      "items": "items",
+      "delivery_date": "delivery_date",
+      "transaction_date": "transaction_date",
+      "po_no": "po_no",
+      "po_date": "po_date"
+    },
+    "items_child_table": {
+      "item_code": "item_code",
+      "qty": "qty",
+      "rate": "rate",
+      "warehouse": "warehouse"
+    },
+    "defaults": {
+      "transaction_date": "today",
+      "doctype": "Sales Order"
+    }
+  }
+}
