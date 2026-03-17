@@ -31,7 +31,8 @@ export default function InfraPage() {
       if (!companySlug) return;
       try {
         // Call your existing resolver endpoint
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/resolve/slug/${companySlug}`);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await axios.get(`${apiUrl}/api/resolve/slug/${companySlug}`);
         setProject(res.data);
       } catch (err) {
         console.error("Failed to resolve project:", err);
@@ -51,7 +52,8 @@ export default function InfraPage() {
 
     try {
       // Call the NEW Backend Endpoint we defined above
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/deploy/infra`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      await axios.post(`${apiUrl}/api/deploy/infra`, {
         project_id: project.project_id,
         company_slug: companySlug,
         tier: "standard" // You could make this dynamic later

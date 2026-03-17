@@ -71,8 +71,9 @@ async function fetchValidationData(companySlug: string): Promise<{
   items: ValidationItem[];
 } | null> {
   try {
+    const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
     const res = await fetch(
-      `${process.env.API_BASE_URL}/implementation/validate/${companySlug}`,
+      `${base}/implementation/validate/${companySlug}`,
       { cache: 'no-store', headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! } }
     );
     if (!res.ok) return null;
@@ -84,7 +85,8 @@ async function fetchValidationData(companySlug: string): Promise<{
 
 async function submitValidation(formData: FormData) {
   'use server';
-  const res = await fetch(`${process.env.API_BASE_URL}/implementation/validate/submit`, {
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
+  const res = await fetch(`${base}/implementation/validate/submit`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

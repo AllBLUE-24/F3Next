@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import ChatInterface from "@/components/shared/ChatInterface";
+import { useState, useRef, useEffect } from "react";
+import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
 import { sendMessageToDiscoveryAgent } from "@/lib/api/hooks_api";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 90_000; // 90s then show helpful message
+
+const INITIAL_MESSAGES: Message[] = [
+  {
+    id: "intro-1",
+    role: "assistant",
+    content: "Welcome to F3Next. I have loaded your project context.",
+    timestamp: new Date(),
+  },
+];
 
 interface DiscoveryClientProps {
   projectId: string;
@@ -11,76 +25,96 @@ interface DiscoveryClientProps {
 
 export default function DiscoveryClient({ projectId, initialStep }: DiscoveryClientProps) {
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
-  const isPollingRef = useRef(false); // Prevent double polling
+  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const isPollingRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Initial greeting
-  const discoveryMessages = [
-    {
-      id: "intro-1",
-      role: "assistant" as const,
-      content: "Welcome to F3Next. I have loaded your project context.",
-      timestamp: new Date(),
+  const stopPolling = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-  ];
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    isPollingRef.current = false;
+  };
 
-  // --- THE POLLING LOGIC ---
-  const pollForResponse = async () => {
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
+
+  const pollForResponse = (
+    onBotResponse: (text: string) => void,
+    lastAssistantContent: string
+  ) => {
     if (isPollingRef.current) return;
     isPollingRef.current = true;
 
-    const intervalId = setInterval(async () => {
+    timeoutRef.current = setTimeout(() => {
+      stopPolling();
+      onBotResponse(
+        "The agent is taking longer than usual. Make sure the Discovery worker is running in a separate terminal: `python -m containers.discovery.worker` (and that Temporal is running: `temporal server start-dev`)."
+      );
+    }, POLL_TIMEOUT_MS);
+
+    intervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/discovery/status/${projectId}`);
+        const res = await fetch(`${API_BASE_URL}/api/discovery/status/${projectId}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            stopPolling();
+            onBotResponse("Discovery session not found. Please refresh and try again.");
+            return;
+          }
+          return;
+        }
         const data = await res.json();
-
-        // 🔥 CRITICAL FIX: Handle BOTH possible variable names
-        // The Status API usually returns 'bot_response'.
-        // The Chat API usually returns 'message'.
-        // We check both to be safe.
-        const botText = data.bot_response || data.message;
-
-        // Only update if we have actual text and it's new
-        // Note: In a real app, you'd compare against the last message ID
-        // For now, we check if the status is 'COMPLETE' or if step changed
-        if (data.step !== currentStep && botText) {
-          
-          // Add the message to the UI
-          // (Assuming ChatInterface has an internal method or we trigger it via state)
-          // Since ChatInterface is a shared component, we might need to pass a callback 
-          // OR force a reload. 
-          // BUT simpler: Just return the text if this function was called by the handler.
-          
-          // STOP polling if step advanced
-          setCurrentStep(data.step);
-          clearInterval(intervalId);
-          isPollingRef.current = false;
+        const botText = (data.bot_response || data.message || "").trim();
+        const isNewResponse =
+          botText &&
+          botText !== "Thinking..." &&
+          (botText !== lastAssistantContent || lastAssistantContent === "Thinking...");
+        if (isNewResponse) {
+          stopPolling();
+          setCurrentStep(data.step ?? currentStep);
+          onBotResponse(botText);
         }
       } catch (err) {
         console.error("Polling Error:", err);
       }
-    }, 2000); 
+    }, POLL_INTERVAL_MS);
   };
 
   const handleDiscoveryMessage = async (userMessage: string): Promise<string> => {
     try {
-      // 1. Send the User Message
-      const response = await sendMessageToDiscoveryAgent({
+      await sendMessageToDiscoveryAgent({
         project_id: projectId,
-        step: currentStep, 
-        message: userMessage
+        step: currentStep,
+        message: userMessage,
       });
-
-      // 2. The immediate response is just an ACK ("Message received")
-      // We do NOT want to show this to the user as the "Answer".
-      // We want to wait for the real answer from the polling.
-      
-      // Start polling for the REAL answer
-      pollForResponse();
-
-      // Return a temporary placeholder or empty string
-      // If ChatInterface requires a return string immediately, give a "Thinking..." msg
-      return "Thinking..."; 
-
+      const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
+      const lastContent = lastAssistant?.content ?? "";
+      pollForResponse((botText) => {
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === "assistant") {
+            next[next.length - 1] = { ...last, content: botText };
+          } else {
+            next.push({
+              id: `bot-${Date.now()}`,
+              role: "assistant",
+              content: botText,
+              timestamp: new Date(),
+            });
+          }
+          return next;
+        });
+      }, lastContent);
+      return "Thinking...";
     } catch (error) {
       console.error("Chat Error:", error);
       return "Error connecting to agent.";
@@ -98,8 +132,9 @@ export default function DiscoveryClient({ projectId, initialStep }: DiscoveryCli
         </p>
       </div>
 
-      <ChatInterface 
-        initialMessages={discoveryMessages}
+      <ChatInterface
+        messages={messages}
+        setMessages={setMessages}
         onSendMessage={handleDiscoveryMessage}
       />
     </main>

@@ -30,7 +30,9 @@ OUTPUT FORMAT (JSON ONLY):
   "reason": "String (Internal logic log)",
   "extracted_tags": ["#Tag1", "#Tag2"],
   "bot_response": "String (The message to show the user)",
-  "next_step_id": Integer (Current step if RETRY, Current + 1 if SUCCESS)
+  "next_step_id": Integer (Current step if RETRY, Current + 1 if SUCCESS),
+  "f3iche_hint": "trading|manufacturing|service|null (only when confident from answer)",
+  "industry_hint": "String (e.g., Electronics, Pharma, FMCG) or null"
 }}
 
 ---
@@ -78,6 +80,9 @@ OUTPUT FORMAT (JSON ONLY):
   "recommended_erp": "String (e.g., ERPNext Manufacturing Edition)",
   "fit_score": Integer (0-100),
   "headline": "String (e.g., 'A Perfect Match for Discrete Manufacturing')",
-  "reasoning": "String (The sales pitch)"
+  "reasoning": "String (The sales pitch)",
+  "f3iche": "trading|manufacturing|service (process-based niche)",
+  "industry": "String (e.g., Electronics, Pharma, FMCG)",
+  "price_plan": "String (e.g., Starter, Standard, Enterprise)"
 }}
 """

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase"; // Import your firebase config
-import { useAuthState } from "react-firebase-hooks/auth"; // You might need to install this: npm i react-firebase-hooks
+import Link from "next/link";
+import { auth, isFirebaseConfigured } from "@/lib/firebase";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 // Helper to turn "Tesla Motors" -> "tesla-motors"
 const slugify = (text: string) => {
@@ -16,9 +17,9 @@ const slugify = (text: string) => {
     .replace(/\-\-+/g, "-");  // Replace multiple - with single -
 };
 
-export default function OnboardingPage() {
+function OnboardingForm() {
   const router = useRouter();
-  const [user, loading] = useAuthState(auth);
+  const [user, loading] = useAuthState(auth!);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -244,4 +245,22 @@ export default function OnboardingPage() {
       </div>
     </div>
   );
+}
+
+export default function OnboardingPage() {
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
+        <div className="w-full max-w-md space-y-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
+          <h1 className="text-xl font-semibold text-white">Firebase not configured</h1>
+          <p className="text-sm text-zinc-400">Use the test app to explore F3Next without signing in.</p>
+          <Link href="/dev/test" className="inline-block w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
+            Test app (no login)
+          </Link>
+          <Link href="/" className="block text-sm text-blue-400 hover:text-blue-300">← Back to landing</Link>
+        </div>
+      </div>
+    );
+  }
+  return <OnboardingForm />;
 }

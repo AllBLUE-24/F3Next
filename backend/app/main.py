@@ -28,6 +28,8 @@ from app.api.agents import router as agents_router
 from app.api.config_apply import router as config_apply_router
 from app.api.migration import router as migration_router
 from app.api.ingest import router as ingest_router
+from app.api.implementation import router as implementation_router
+from app.api.dev import router as dev_router
 
 
 @asynccontextmanager
@@ -81,3 +83,5 @@ app.include_router(agents_router, prefix="/api")
 app.include_router(config_apply_router, prefix="/api")
 app.include_router(migration_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
+app.include_router(implementation_router, prefix="/api")
+app.include_router(dev_router, prefix="/api")

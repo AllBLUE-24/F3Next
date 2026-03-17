@@ -47,7 +47,8 @@ export default function ConfigApplyPage() {
 
     try {
       // Calls the NEW backend endpoint (defined below)
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/config_apply/start`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/config_apply/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: projectId }),

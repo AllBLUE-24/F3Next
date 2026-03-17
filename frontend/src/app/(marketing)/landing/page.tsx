@@ -64,6 +64,16 @@ export default function LandingPage() {
             </Link>
           </div>
 
+          {/* Dev: Test without login */}
+          <div className="mt-6">
+            <Link
+              href="/dev/test"
+              className="text-xs text-zinc-600 hover:text-zinc-500 underline"
+            >
+              Test app (no login)
+            </Link>
+          </div>
+
           {/* Social proof line */}
           <p className="mt-8 text-center text-xs text-gray-700 font-medium tracking-wide uppercase">
             Trusted by manufacturers in Pune · Nashik · Aurangabad

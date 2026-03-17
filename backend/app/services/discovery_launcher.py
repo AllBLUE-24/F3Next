@@ -1,4 +1,5 @@
 import uuid
+from uuid import UUID
 from temporalio.client import Client
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from sqlalchemy import select
@@ -10,20 +11,21 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
     Starts the Discovery Workflow or signals it if already running.
     Ensures the 'hooks' DB row exists before starting.
     """
-    
+    pid = UUID(project_id) if isinstance(project_id, str) else project_id
+
     # ---------------------------------------------------------
     # 1. CRITICAL FIX: Ensure DB Row Exists
     # ---------------------------------------------------------
     async with AsyncSessionLocal() as db:
-        # Check if the row exists
-        result = await db.execute(select(Hook).where(Hook.project_id == project_id))
+        # Check if the row exists (use UUID for SQLite Uuid column)
+        result = await db.execute(select(Hook).where(Hook.project_id == pid))
         existing_hook = result.scalar_one_or_none()
         
         if not existing_hook:
             print(f"🛠 Creating new Hook row for {project_id}")
             # Create the initial row
             new_hook = Hook(
-                project_id=uuid.UUID(project_id), 
+                project_id=pid, 
                 discovery_status="STARTING",
                 discovery_step=1,
                 extracted_tags=[], 

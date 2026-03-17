@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB, JSON
+from sqlalchemy.types import Uuid, JSON
 from sqlalchemy.sql import func
 from shared.database.db import Base
 import uuid
@@ -42,7 +42,7 @@ class Client(Base):
 class Project(Base):
     __tablename__ = "projects"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id = Column(String, ForeignKey("clients.id"), nullable=False)
     company_name = Column(String, nullable=True)
     
@@ -67,8 +67,9 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     company_slug = Column(String, unique=True, nullable=True)
-    processed_config = Column(JSONB, nullable=True)
-    deployment_details = Column(JSONB, nullable=True)
+    processed_config = Column(JSON, nullable=True)
+    deployment_details = Column(JSON, nullable=True)
     context_tags = Column(JSON, nullable=True, default=[])
+    implementation_profile = Column(JSON, nullable=True)  # F3iche, industry, company context (versioned)
 
     

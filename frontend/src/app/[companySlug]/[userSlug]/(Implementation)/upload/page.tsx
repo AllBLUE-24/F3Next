@@ -5,7 +5,8 @@ export const metadata = { title: 'Upload Files — F3Next' };
 
 async function uploadFiles(formData: FormData): Promise<{ jobId: string }> {
   'use server';
-  const res = await fetch(`${process.env.API_BASE_URL}/implementation/upload`, {
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || "http://localhost:8000";
+  const res = await fetch(`${base}/implementation/upload`, {
     method: 'POST',
     headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },
     body: formData,

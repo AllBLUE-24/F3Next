@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
+import { auth, isFirebaseConfigured } from "@/lib/firebase";
 
 // Helper for slug generation
 const slugify = (text: string) => {
@@ -21,12 +21,9 @@ interface PageProps {
   params: Promise<{ companySlug: string; inviteCode: string }>;
 }
 
-export default function InvitePage({ params }: PageProps) {
-  // 1. Unwrap Params
-  const { companySlug, inviteCode } = use(params);
-  
+function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCode: string }) {
   const router = useRouter();
-  const [user, authLoading] = useAuthState(auth);
+  const [user, authLoading] = useAuthState(auth!);
 
   // State
   const [isValidating, setIsValidating] = useState(true);
@@ -256,4 +253,24 @@ export default function InvitePage({ params }: PageProps) {
       </div>
     </div>
   );
+}
+
+export default function InvitePage({ params }: PageProps) {
+  const { companySlug, inviteCode } = use(params);
+
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950 p-4">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold text-white mb-2">Firebase not configured</h1>
+          <p className="text-zinc-400 mb-6">Use the test app to explore F3Next without signing in.</p>
+          <Link href="/dev/test" className="inline-block rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
+            Test app (no login)
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <InviteForm companySlug={companySlug} inviteCode={inviteCode} />;
 }
