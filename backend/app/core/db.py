@@ -18,7 +18,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if USE_SQLITE or not DATABASE_URL:
     _db_path = Path(__file__).resolve().parent.parent.parent.parent / "f3next.db"
     DATABASE_URL = f"sqlite+aiosqlite:///{_db_path}"
-    print(f"📁 Using SQLite: {_db_path}")
+    # Avoid unicode emoji in Windows cp1252 consoles
+    print(f"Using SQLite: {_db_path}")
 
 engine = create_async_engine(
     DATABASE_URL,

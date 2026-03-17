@@ -9,7 +9,7 @@ async def launch_config_apply_agent(project_id: str) -> str:
     Service: Connects to Temporal and triggers the ConfigApplyWorkflow.
     If already running, returns the existing Run ID.
     """
-    print(f"🚀 SERVICE: Launching Config-Apply Agent for Project {project_id}...")
+    print(f"[ConfigApply] Launching Config-Apply Agent for project {project_id}...")
     
     client = await Client.connect(TEMPORAL_HOST)
     workflow_id = f"apply-{project_id}"

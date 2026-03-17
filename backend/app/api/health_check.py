@@ -82,7 +82,7 @@ async def submit_health_check(
 
     # --- 4. RUN TEMPORAL AGENT ---
     project_id_str = str(project.id)
-    print(f"🚀 Triggering Temporal Workflow for Project {project_id_str}")
+    print(f"[HealthCheck] Triggering workflow for project {project_id_str}")
 
     try:
         # Crucial: Pass the firebase_uid and answers. 

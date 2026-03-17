@@ -6,7 +6,7 @@ async def start_template_agent(project_id: str, config_data: dict) -> str:
     """
     Connects to Temporal and starts the TemplateGenWorkflow.
     """
-    print(f"🚀 SERVICE: Starting Template Agent for Project {project_id}...")
+    print(f"[Templates] Starting Template Agent for project {project_id}...")
     client = await Client.connect(TEMPORAL_HOST)
 
     handle = await client.start_workflow(

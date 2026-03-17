@@ -22,7 +22,7 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
         existing_hook = result.scalar_one_or_none()
         
         if not existing_hook:
-            print(f"🛠 Creating new Hook row for {project_id}")
+            print(f"[Discovery] Creating new Hook row for {project_id}")
             # Create the initial row
             new_hook = Hook(
                 project_id=pid, 
@@ -52,12 +52,12 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
             id=workflow_id,
             task_queue="discovery-queue",
         )
-        print(f"🚀 Started New Discovery Workflow: {workflow_id}")
+        print(f"[Discovery] Started new workflow: {workflow_id}")
         
     except WorkflowAlreadyStartedError:
         # 3. If already running, send the message as a Signal
         handle = client.get_workflow_handle(workflow_id)
         await handle.signal("receive_user_reply", user_message)
-        print(f"📨 Signaled Existing Discovery Workflow: {workflow_id}")
+        print(f"[Discovery] Signaled existing workflow: {workflow_id}")
 
     return workflow_id

@@ -19,7 +19,7 @@ async def main():
         "tier": "standard"
     }
 
-    print(f"🚀 Triggering Infra Workflow for {input_data['company_slug']}...")
+    print(f"[Infra] Triggering workflow for {input_data['company_slug']}...")
 
     # 3. Start the Workflow
     # This doesn't run the code locally. It pushes a task to the Queue.
@@ -31,8 +31,7 @@ async def main():
     )
 
     print(f"✅ Workflow Submitted! ID: {handle.id}")
-    print(f"👉 Now check your Terminal running 'worker.py'")
-    print(f"👉 Check the UI at http://localhost:8233")
+    print("Check the terminal running the infra worker and the UI at http://localhost:8233")
 
     # Optional: Wait for the result (blocks until finished)
     # result = await handle.result()

@@ -35,7 +35,7 @@ from app.api.dev import router as dev_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup Logic ---
-    print("🚀 App starting: Verifying database tables...")
+    print("App starting: Verifying database tables...")
     async with engine.begin() as conn:
         # Create tables if they don't exist
         await conn.run_sync(Base.metadata.create_all)
