@@ -1,108 +1,73 @@
-"""
-containers/OS/os_worker.py
-
-THE single Temporal worker for the entire ERP-OS pipeline.
-All 9 Agents are now LIVE! 🚀
-"""
-
-from __future__ import annotations
-
 import asyncio
 import logging
-import os
-import sys
-
-from dotenv import load_dotenv
-load_dotenv()
-
 from temporalio.client import Client
 from temporalio.worker import Worker
-from temporalio.contrib.pydantic import pydantic_data_converter
 
-from containers.OS.os_workflow.workflow import ERPOSCommandWorkflow
+# ─── Clean Terminal Logging ───────────────────────────────────────────────────
+# Suppress raw SQL queries and internal Temporal background warnings
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s │ %(message)s",
+    datefmt="%H:%M:%S",
+)
+logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
+logging.getLogger("temporalio.worker").setLevel(logging.ERROR)
 
-# ── ALL 9 REAL ACTIVITIES ──────────────────────────────────────────────────────
+# All your existing activities
 from containers.OS.clarity_agent.activities import extract_intent, resolve_ambiguity
 from containers.OS.context_retrieval.activities import retrieve_context
 from containers.OS.command_planner.activities import plan_command
 from containers.OS.payload_generator.activities import generate_payload
 from containers.OS.validation_agent.activities import validate_payload
 from containers.OS.execution_agent.activities import execute_command
-from containers.OS.result_formatter.activities import format_result  # ✅ AGENT 9 LIVE
+from containers.OS.result_formatter.activities import format_result
+from containers.OS.os_workflow.workflow import ERPOSCommandWorkflow
+from containers.OS.search_planner.activities import plan_search
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-TASK_QUEUE    = "os-main-queue"
-TEMPORAL_HOST = os.getenv("TEMPORAL_HOST", "localhost:7233")
+async def main():
+    client = await Client.connect("localhost:7233")
 
-logging.basicConfig(
-    level  = logging.INFO,
-    format = "%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
-    datefmt = "%H:%M:%S",
-)
-logger = logging.getLogger("os_worker")
+    activities_list = [
+        extract_intent, resolve_ambiguity, retrieve_context,
+        plan_command, generate_payload, validate_payload, 
+        execute_command, format_result, plan_search
+    ]
 
-
-async def run_worker() -> None:
-    logger.info("━" * 60)
-    logger.info("ERP-OS Worker starting")
-    logger.info("Temporal : %s", TEMPORAL_HOST)
-    logger.info("Queue    : %s", TASK_QUEUE)
-    logger.info("━" * 60)
-
-    client = await Client.connect(TEMPORAL_HOST, data_converter=pydantic_data_converter)
-
-    worker = Worker(
+    # Worker 1: Main Router Queue (Workflow + Clarity/Context)
+    worker_main = Worker(
         client,
-        task_queue = TASK_QUEUE,
-        workflows  = [ERPOSCommandWorkflow],
-        activities = [
-            extract_intent,
-            resolve_ambiguity,
-            retrieve_context,
-            plan_command,
-            generate_payload,
-            validate_payload,
-            execute_command,     
-            format_result,     # ✅ REAL Result Formatter
-        ],
-        max_concurrent_activities     = 20,
-        max_concurrent_workflow_tasks = 10,
+        task_queue="os-main-queue",
+        workflows=[ERPOSCommandWorkflow],
+        activities=activities_list,
     )
 
-    logger.info("")
-    logger.info("✅ Activities registered:")
-    logger.info("   ✅ extract_intent       (Clarity Agent)")
-    logger.info("   ✅ resolve_ambiguity    (Clarity Agent)")
-    logger.info("   ✅ retrieve_context     (Context Retrieval)")
-    logger.info("   ✅ plan_command         (Command Planner)")
-    logger.info("   ✅ generate_payload     (Payload Generator)")
-    logger.info("   ✅ validate_payload     (Validation Agent)")
-    logger.info("   ✅ execute_command      (Execution Agent)")
-    logger.info("   ✅ format_result        (Result Formatter)")
-    logger.info("")
-    logger.info("🟢 FULL PIPELINE LIVE — waiting for commands...")
-    logger.info("   Press Ctrl+C to stop.")
-    logger.info("")
+    # Worker 2: Execute Heavy Lifting Queue
+    worker_execute = Worker(
+        client,
+        task_queue="os-execute-queue",
+        activities=activities_list, 
+    )
 
-    if sys.platform != "win32":
-        import signal
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(_shutdown(worker)))
+    # Future Workers (Search & Analyze)
+    worker_search = Worker(client, task_queue="os-search-queue", activities=activities_list)
+    worker_analyze = Worker(client, task_queue="os-analyze-queue", activities=activities_list)
 
-    async with worker:
-        await asyncio.Event().wait()
-
-
-async def _shutdown(worker: Worker) -> None:
-    logger.info("Shutting down OS worker...")
-    await worker.shutdown()
-    logger.info("Worker stopped.")
-    sys.exit(0)
-
+    print("\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
+    print("┃                 F3NEXT ERP-OS MULTI-QUEUE                   ┃")
+    print("┠─────────────────────────────────────────────────────────────┨")
+    print("┃  [1] os-main-queue      (Router & Clarity/Context)          ┃")
+    print("┃  [2] os-execute-queue   (Standard ERP Writes)               ┃")
+    print("┃  [3] os-search-queue    (Read-Only Data Fetching)           ┃")
+    print("┃  [4] os-analyze-queue   (Data Aggregation & AI Analysis)    ┃")
+    print("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
+    print("🟢 All queues live and waiting for commands...\n")
+    
+    await asyncio.gather(
+        worker_main.run(),
+        worker_execute.run(),
+        worker_search.run(),
+        worker_analyze.run()
+    )
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(run_worker())
-    except KeyboardInterrupt:
-        logger.info("OS worker stopped.")
+    asyncio.run(main())

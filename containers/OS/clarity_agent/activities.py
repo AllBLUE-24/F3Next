@@ -65,8 +65,14 @@ async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
             try:
                 return json.loads(cleaned)
             except json.JSONDecodeError:
-                # Try to repair truncated JSON by closing open braces/brackets
-                repaired = _repair_json(cleaned)
+                # Pass 1: sanitize common Gemini malformations
+                sanitized = _sanitize_json(cleaned)
+                try:
+                    return json.loads(sanitized)
+                except json.JSONDecodeError:
+                    pass
+                # Pass 2: repair truncated JSON
+                repaired = _repair_json(sanitized)
                 if repaired:
                     return json.loads(repaired)
                 raise
@@ -90,6 +96,40 @@ async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
 
     raise ValueError(f"LLM call failed after {max_retries} attempts: {last_err}")
 
+
+
+def _sanitize_json(text: str) -> str:
+    """
+    Fix common Gemini JSON malformations before attempting parse:
+      1. Missing colon:  "key" "value"  →  "key": "value"
+         (causes: Expecting ':' delimiter)
+      2. Trailing commas before } or ]
+         (causes: Expecting property name or '}'
+      3. Single-quoted strings  →  double-quoted
+      4. Python-style booleans/nulls  (True/False/None  →  true/false/null)
+    """
+    # 1. Missing colon between quoted key and value
+    #    Matches: "somekey" "value"  OR  "somekey" {  OR  "somekey" [  OR  "somekey" number
+    text = re.sub(
+        r'("(?:[^"\\]|\\.)*")\s+(?=["{\[\-\d])',
+        r'\1: ',
+        text,
+    )
+
+    # 2. Trailing commas before closing brace or bracket
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+
+    # 3. Single-quoted strings → double-quoted (Gemini sometimes uses these)
+    # Only replace when not inside an already double-quoted string
+    # Simple approach: swap ' → " carefully
+    text = re.sub(r"(?<![\\])'", '"', text)
+
+    # 4. Python booleans/null → JSON
+    text = re.sub(r'\bTrue\b',  'true',  text)
+    text = re.sub(r'\bFalse\b', 'false', text)
+    text = re.sub(r'\bNone\b',  'null',  text)
+
+    return text
 
 def _repair_json(text: str) -> str | None:
     """
@@ -250,7 +290,13 @@ INTENT IDs:
   create_sales_order, create_purchase_order, create_sales_invoice,
   create_purchase_invoice, create_delivery_note, create_payment_entry,
   create_stock_entry, create_journal_entry, submit_document,
-  cancel_document, get_document, search_documents, generate_report
+  cancel_document, get_document, search_documents, generate_report,
+  create_customer, create_supplier, create_item, create_quotation
+
+MASTER DATA RULES:
+  "Create a customer named X"  → create_customer, target_doctype=Customer, entities.customer=X
+  "Add supplier X"             → create_supplier, target_doctype=Supplier, entities.supplier=X
+  "Create item X"              → create_item,     target_doctype=Item
 
 RISK LEVELS:
   low=create draft   medium=update existing   high=submit/cancel/delete   critical=bulk
@@ -274,24 +320,48 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
     """
     Deterministic fallback when LLM fails.
     Does NOT set ambiguities — avoids re-prompting the user.
-    Uses keyword matching to guess intent.
+    Uses keyword matching to guess intent + party type.
+
+    FIX: now correctly sets supplier vs customer based on intent,
+         handles master data intents (create_customer, create_supplier, create_item),
+         and uses a stop-word-aware party extractor.
     """
     p = prompt.lower()
     today = date.today().isoformat()
 
-    # Guess doctype from keywords
-    if any(k in p for k in ['sales order', ' so ', 'so for', 'sell', 'customer order']):
-        intent_id, doctype, action, category = 'create_sales_order', 'Sales Order', 'create', 'create'
-    elif any(k in p for k in ['purchase order', ' po ', 'po for', 'purchase', 'buy']):
-        intent_id, doctype, action, category = 'create_purchase_order', 'Purchase Order', 'create', 'create'
-    elif any(k in p for k in ['invoice', 'bill']):
+    # ── Intent detection (order matters — most specific first) ───────────────
+    # Master data: use regex to handle "create a customer", "add new customer", etc.
+    # Use tight match: verb must be followed DIRECTLY by (optional article +) noun
+    # This avoids "Create SO for ABC ... Product-001" matching create_item
+    if re.search(r'\b(create|add|new)\s+(?:an?\s+|the\s+|new\s+)?customer\b', p):
+        intent_id, doctype, action, category = 'create_customer', 'Customer', 'create', 'create'
+    elif re.search(r'\b(create|add|new)\s+(?:an?\s+|the\s+|new\s+)?supplier\b', p):
+        intent_id, doctype, action, category = 'create_supplier', 'Supplier', 'create', 'create'
+    elif re.search(r'\b(create|add|new)\s+(?:an?\s+|the\s+|new\s+)?(?:item|product)\b', p):
+        intent_id, doctype, action, category = 'create_item', 'Item', 'create', 'create'
+    # Transactional docs — specific compound phrases BEFORE generic single words
+    elif any(k in p for k in ['purchase invoice', 'pinv']):
+        intent_id, doctype, action, category = 'create_purchase_invoice', 'Purchase Invoice', 'create', 'create'
+    elif any(k in p for k in ['sales invoice', 'sinv']):
         intent_id, doctype, action, category = 'create_sales_invoice', 'Sales Invoice', 'create', 'create'
+    elif any(k in p for k in ['purchase order', ' po ', 'po for']):
+        intent_id, doctype, action, category = 'create_purchase_order', 'Purchase Order', 'create', 'create'
+    elif any(k in p for k in ['sales order', ' so ', 'so for']):
+        intent_id, doctype, action, category = 'create_sales_order', 'Sales Order', 'create', 'create'
+    elif any(k in p for k in ['invoice', 'bill from', 'sinv']):
+        intent_id, doctype, action, category = 'create_sales_invoice', 'Sales Invoice', 'create', 'create'
+    elif any(k in p for k in ['purchase', 'buying', 'procure', 'buy ']):
+        intent_id, doctype, action, category = 'create_purchase_order', 'Purchase Order', 'create', 'create'
+    elif any(k in p for k in ['sell', 'customer order', 'bill']):
+        intent_id, doctype, action, category = 'create_sales_order', 'Sales Order', 'create', 'create'
     elif any(k in p for k in ['payment', 'pay', 'receipt']):
         intent_id, doctype, action, category = 'create_payment_entry', 'Payment Entry', 'create', 'create'
     elif any(k in p for k in ['stock entry', 'transfer', 'material']):
         intent_id, doctype, action, category = 'create_stock_entry', 'Stock Entry', 'create', 'create'
     elif any(k in p for k in ['delivery', 'dispatch', 'ship']):
         intent_id, doctype, action, category = 'create_delivery_note', 'Delivery Note', 'create', 'create'
+    elif any(k in p for k in ['quotation', 'quote']):
+        intent_id, doctype, action, category = 'create_quotation', 'Quotation', 'create', 'create'
     elif any(k in p for k in ['submit', 'confirm']):
         intent_id, doctype, action, category = 'submit_document', 'Sales Order', 'submit', 'workflow'
     elif any(k in p for k in ['cancel']):
@@ -301,29 +371,59 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
     else:
         intent_id, doctype, action, category = 'create_sales_order', 'Sales Order', 'create', 'create'
 
-    # Extract customer
-    customer = None
-    m = re.search(r'for\s+([A-Za-z0-9 &\.\-]+?)(?:\s*[—\-–]|\s*,|\s*\d|\s*$)', prompt)
-    if m:
-        customer = m.group(1).strip()
+    # ── Party extraction ──────────────────────────────────────────────────────
+    # Stop words: action verbs and quantity words that should NOT be part of a name
+    _PARTY_STOP = r'(?:\s+(?:buying|selling|for|to|from|named|called|with|having|at|@|₹)\b|\s*[—\-–,]|\s*\d|\s*$)'
 
-    # Extract items
+    # For purchase orders and supplier-based intents → extract supplier
+    _is_supplier_intent = intent_id in (
+        'create_purchase_order', 'create_purchase_invoice', 'create_supplier'
+    )
+
+    customer = None
+    supplier = None
+    party_name = None
+
+    # "named X" or "called X" → master data name
+    m_named = re.search(r'(?:named|called)\s+([A-Za-z0-9 &\.\-]+?)(?:' + _PARTY_STOP + r')', prompt, re.IGNORECASE)
+    if m_named:
+        party_name = m_named.group(1).strip()
+
+    # "for X" or "from X" → party in transactional docs
+    # Skip role words like "customer"/"supplier"/"the" before the actual name
+    if not party_name:
+        m_party = re.search(
+            r'(?:for|from)\s+(?:customer\s+|supplier\s+|the\s+|a\s+)?([A-Za-z0-9 &\.\-]+?)(?:' + _PARTY_STOP + r')',
+            prompt, re.IGNORECASE
+        )
+        if m_party:
+            party_name = m_party.group(1).strip()
+
+    if party_name:
+        if _is_supplier_intent:
+            supplier = party_name
+        elif intent_id == 'create_customer':
+            customer = party_name   # "create customer named Stark" → customer field
+        else:
+            customer = party_name
+
+    # ── Item extraction ───────────────────────────────────────────────────────
     items = []
-    m_item = re.search(r'(\d+(?:\.\d+)?)\s+(?:units?|pcs?|nos?|qty)?\s*(?:of\s+)?([A-Z0-9\-]+)', prompt, re.IGNORECASE)
+    m_item = re.search(r'(\d+(?:\.\d+)?)\s+(?:units?|pcs?|nos?|qty)?\s*(?:of\s+)?([A-Z0-9][A-Z0-9\-\.]+)', prompt, re.IGNORECASE)
     m_rate = re.search(r'(?:@|at|₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)', prompt, re.IGNORECASE)
     if m_item:
         items = [{
             "item_code": m_item.group(2),
-            "qty": float(m_item.group(1)),
-            "rate": float(m_rate.group(1)) if m_rate else None,
+            "qty":       float(m_item.group(1)),
+            "rate":      float(m_rate.group(1)) if m_rate else None,
             "warehouse": None,
-            "uom": None,
+            "uom":       None,
         }]
 
     logger.warning(
         "extract_intent: using keyword fallback (LLM failed: %s). "
         "Guessed intent=%s doctype=%s customer=%s items=%d",
-        reason[:80], intent_id, doctype, customer, len(items),
+        reason[:80], intent_id, doctype, customer or supplier, len(items),
     )
 
     return {
@@ -334,7 +434,7 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
         "erp_type":               erp_type,
         "entities": {
             "customer":           customer,
-            "supplier":           None,
+            "supplier":           supplier,
             "items":              items,
             "transaction_date":   today,
             "delivery_date":      None,

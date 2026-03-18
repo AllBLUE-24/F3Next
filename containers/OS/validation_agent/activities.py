@@ -29,15 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn(name="validate_payload")
-async def validate_payload(data: dict) -> dict:
+async def validate_payload(payload_bundle: dict, context: dict) -> dict:
     """
     Validation Agent activity.
 
-    Workflow passes: {"payload_bundle": ..., "context": ...}
+    Workflow passes: payload_bundle and context
     """
-    payload_bundle = data.get("payload_bundle", {})
-    context        = data.get("context", {})
-
     steps   = payload_bundle.get("steps", [])
     n_steps = len(steps)
     doctype = steps[0].get("doctype", "?") if steps else "?"

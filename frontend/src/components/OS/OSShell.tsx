@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * components/OS/OSShell.tsx
- *
- * The single controller for the entire OS interface.
- * All state lives here. Children are purely presentational.
- *
- * State machine:
- *   idle → submitting → polling → awaiting_clarification
- *                              → awaiting_confirmation
- *                              → done | error | cancelled
- */
-
 import React, {
   useState, useEffect, useRef, useCallback, type ReactNode,
 } from "react";
@@ -23,15 +11,13 @@ import {
 
 import PipelineStatus     from "@/components/OS/PipelineStatus";
 import OutputLog          from "@/components/OS/OutputLog";
-import TerminalInput      from "@/components/OS/TerminalInput";
+import TerminalInput, { type CommandMode } from "@/components/OS/TerminalInput";
 import ClarificationBlock from "@/components/OS/ClarificationBlock";
 import ConfirmationBlock  from "@/components/OS/ConfirmationBlock";
 
 import {
   uid, type LogEntry, type UiPhase, TERMINAL_PHASES,
 } from "@/types/types";
-
-// ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface OSShellProps {
   projectId: string;
@@ -40,11 +26,7 @@ export interface OSShellProps {
   erpType?:  "erpnext" | "odoo";
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const POLL_MS = 1500;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function entry(role: LogEntry["role"], content: string, meta?: LogEntry["meta"]): LogEntry {
   return { id: uid(), role, content, timestamp: new Date(), meta };
@@ -52,40 +34,29 @@ function entry(role: LogEntry["role"], content: string, meta?: LogEntry["meta"])
 
 function buildCtxJson(log: LogEntry[]): string {
   return JSON.stringify(
-    log
-      .filter((e) => e.role === "user" || e.role === "assistant")
-      .slice(-6)
-      .map((e) => ({ role: e.role, content: e.content }))
+    log.filter((e) => e.role === "user" || e.role === "assistant").slice(-6)
+       .map((e) => ({ role: e.role, content: e.content }))
   );
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OSShell({
   projectId, companyId, userId, erpType = "erpnext",
 }: OSShellProps): React.JSX.Element {
-  // ── State ──────────────────────────────────────────────────────────────────
   const [phase,       setPhase]       = useState<UiPhase>("idle");
   const [log,         setLog]         = useState<LogEntry[]>([]);
   const [agentStep,   setAgentStep]   = useState<AgentStep>("");
   const [confirmReq,  setConfirmReq]  = useState<ConfirmationRequest | null>(null);
   const [inputLocked, setInputLocked] = useState<boolean>(false);
 
-  // Stable refs (safe in intervals / closures)
   const wfRef   = useRef<string | null>(null);
   const logRef  = useRef<LogEntry[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Keep logRef in sync
   useEffect(() => { logRef.current = log; }, [log]);
-
-  // ── Log helpers ────────────────────────────────────────────────────────────
 
   const addEntry = useCallback((e: LogEntry): void => {
     setLog((prev: LogEntry[]) => [...prev, e]);
   }, []);
-
-  // ── Polling ────────────────────────────────────────────────────────────────
 
   const stopPolling = useCallback((): void => {
     if (pollRef.current !== null) {
@@ -102,7 +73,6 @@ export default function OSShell({
         const step = data.status;
         setAgentStep(step);
 
-        // Paused — surface to UI
         if (step === "awaiting_clarification" || step === "awaiting_confirmation") {
           setConfirmReq(data.confirmation_request);
           setPhase(step === "awaiting_clarification" ? "awaiting_clarification" : "awaiting_confirmation");
@@ -111,23 +81,27 @@ export default function OSShell({
           return;
         }
 
-        // Terminal
         if (TERMINAL_PHASES.includes(step as UiPhase) || step === "validation_failed") {
           stopPolling();
+          const pollResponse = data.response ?? null;
 
           if (step === "done") {
-            try {
-              const result = await fetchResult(wfId);
-              addEntry(entry("assistant", result.response ?? "Done.", undefined));
-            } catch {
-              addEntry(entry("assistant", "✓ Command completed."));
+            if (pollResponse) {
+              addEntry(entry("assistant", pollResponse));
+            } else {
+              try {
+                const result = await fetchResult(wfId);
+                addEntry(entry("assistant", result.response ?? "✓ Done."));
+              } catch {
+                addEntry(entry("assistant", "✓ Command completed."));
+              }
             }
             setPhase("done");
           } else if (step === "error" || step === "validation_failed") {
-            addEntry(entry("error", "Command failed — check details above and try again."));
+            addEntry(entry("error", pollResponse ?? "Command failed — check details above and try again."));
             setPhase("error");
           } else if (step === "cancelled") {
-            addEntry(entry("system", "Command cancelled. No changes were made."));
+            addEntry(entry("system", pollResponse ?? "Command cancelled. No changes were made."));
             setPhase("cancelled");
           }
 
@@ -135,34 +109,34 @@ export default function OSShell({
           setAgentStep("");
         }
       } catch (err: unknown) {
-        // Transient — keep polling
         console.error("OS poll:", err);
       }
     }, POLL_MS);
   }, [stopPolling, addEntry]);
 
-  // Cleanup
   useEffect(() => (): void => { stopPolling(); }, [stopPolling]);
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
-  const handleSubmit = useCallback(async (prompt: string): Promise<void> => {
+  const handleSubmit = useCallback(async (prompt: string, mode: CommandMode): Promise<void> => {
     const trimmed = prompt.trim();
     if (!trimmed || inputLocked) return;
 
     setInputLocked(true);
     setPhase("submitting");
     setAgentStep("clarity");
+    
     addEntry(entry("user", trimmed));
 
     try {
       const res = await submitCommand({
-        prompt:          trimmed,
+        prompt:          trimmed,          // 🔴 FIX: Clean prompt, no more wrapper text!
         project_id:      projectId,
         company_id:      companyId,
         user_id:         userId,
         erp_type:        erpType,
         session_context: buildCtxJson(logRef.current),
+        mode:            mode,             // 🔴 FIX: Passing the mode directly as a property!
       });
 
       wfRef.current = res.workflow_id;
@@ -177,12 +151,9 @@ export default function OSShell({
     }
   }, [inputLocked, projectId, companyId, userId, erpType, addEntry, startPolling]);
 
-  // ── Confirm / Cancel ───────────────────────────────────────────────────────
-
   const handleConfirm = useCallback(async (decision: "confirm" | "cancel"): Promise<void> => {
     const wfId = wfRef.current;
     if (!wfId) return;
-
     setConfirmReq(null);
 
     if (decision === "cancel") {
@@ -207,12 +178,9 @@ export default function OSShell({
     }
   }, [addEntry, startPolling]);
 
-  // ── Clarification answer ───────────────────────────────────────────────────
-
   const handleAnswer = useCallback(async (answer: string): Promise<void> => {
     const wfId = wfRef.current;
     if (!wfId) return;
-
     addEntry(entry("user", answer));
     setConfirmReq(null);
 
@@ -229,62 +197,28 @@ export default function OSShell({
     }
   }, [addEntry, startPolling]);
 
-  // ── Dismiss error → back to idle ──────────────────────────────────────────
-
   const handleDismiss = useCallback((): void => {
     setPhase("idle");
     setInputLocked(false);
     setAgentStep("");
   }, []);
 
-  // ─── Render ──────────────────────────────────────────────────────────────
   const isProcessing = phase === "submitting" || phase === "polling";
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      height: "100%",
-      overflow: "hidden",
-    }}>
-      {/* Pipeline status strip — only while processing */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <PipelineStatus step={agentStep} visible={isProcessing} />
-
-      {/* Scrollable output */}
       <div style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
-        <OutputLog
-          entries={log}
-          companyId={companyId}
-          phase={phase}
-        />
+        <OutputLog entries={log} companyId={companyId} phase={phase} />
       </div>
-
-      {/* Inline clarification — replaces input temporarily */}
       {phase === "awaiting_clarification" && confirmReq && (
-        <ClarificationBlock
-          question={confirmReq.question ?? "Could you clarify?"}
-          round={confirmReq.round ?? 1}
-          onAnswer={handleAnswer}
-        />
+        <ClarificationBlock question={confirmReq.question ?? "Could you clarify?"} round={confirmReq.round ?? 1} onAnswer={handleAnswer} />
       )}
-
-      {/* Inline confirmation — above input */}
       {phase === "awaiting_confirmation" && confirmReq && (
-        <ConfirmationBlock
-          request={confirmReq}
-          onDecide={handleConfirm}
-        />
+        <ConfirmationBlock request={confirmReq} onDecide={handleConfirm} />
       )}
-
-      {/* Main prompt input */}
       {phase !== "awaiting_clarification" && (
-        <TerminalInput
-          companyId={companyId}
-          onSubmit={handleSubmit}
-          disabled={inputLocked}
-          phase={phase}
-          onDismissError={phase === "error" ? handleDismiss : undefined}
-        />
+        <TerminalInput companyId={companyId} onSubmit={handleSubmit} disabled={inputLocked} phase={phase} onDismissError={phase === "error" ? handleDismiss : undefined} />
       )}
     </div>
   );

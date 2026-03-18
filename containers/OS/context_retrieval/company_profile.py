@@ -164,7 +164,7 @@ async def fetch_profile_from_db(
                     h.answers_health_check
                 FROM projects p
                 LEFT JOIN hooks h ON h.project_id = p.id
-                WHERE p.company_slug = :project_id  -- 🔴 CHANGE THIS LINE 
+                WHERE p.company_slug = :project_id   
                 ORDER BY h.created_at DESC
                 LIMIT 1
             """)

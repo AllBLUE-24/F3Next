@@ -54,6 +54,33 @@ logger = logging.getLogger(__name__)
 # ── HTTP status codes that should NOT be retried ──────────────────────────────
 _NO_RETRY_STATUSES = {400, 401, 403, 404, 409, 417, 422}
 
+# ── Master data doctypes that need duplicate-existence check before POST ───────
+# ERPNext auto-renames on duplicate (e.g. "Stark Industries" → "Stark Industries - 1")
+# instead of erroring, so we must check first.
+_MASTER_DATA_DOCTYPES: set[str] = {
+    "Customer", "Supplier", "Item", "Warehouse", "Territory",
+    "Customer Group", "Supplier Group", "Item Group",
+    "Brand", "UOM", "Company", "Department", "Designation",
+    "Sales Person", "Price List", "Payment Terms",
+}
+
+# Field that holds the human-readable name for each master doctype
+_MASTER_NAME_FIELD: dict[str, str] = {
+    "Customer":       "customer_name",
+    "Supplier":       "supplier_name",
+    "Item":           "item_code",
+    "Warehouse":      "warehouse_name",
+    "Territory":      "territory_name",
+    "Customer Group": "customer_group_name",
+    "Supplier Group": "supplier_group",
+    "Item Group":     "item_group_name",
+    "Brand":          "brand",
+    "UOM":            "uom_name",
+    "Company":        "company_name",
+    "Department":     "department_name",
+    "Designation":    "designation_name",
+}
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -83,6 +110,52 @@ def _parse_erp_error(status: int, body: dict) -> str:
     if exc:
         return exc.split("\n")[-1].strip() or exc
     return msg or f"ERPNext returned HTTP {status}"
+
+
+# ── Pre-flight duplicate check for master data ───────────────────────────────
+
+async def _check_master_exists(
+    session:  aiohttp.ClientSession,
+    base_url: str,
+    doctype:  str,
+    payload:  dict,
+    headers:  dict,
+) -> "str | None":
+    """
+    Check if a master data record with the same name already exists before POSTing.
+    ERPNext silently renames duplicates (Stark Industries -> Stark Industries - 1)
+    instead of returning an error, so we must detect this ourselves.
+    Returns the existing doc name if found, None if safe to create.
+    """
+    name_field = _MASTER_NAME_FIELD.get(doctype)
+    if not name_field:
+        return None
+
+    candidate_name = payload.get(name_field) or payload.get("name")
+    if not candidate_name:
+        return None
+
+    check_url = (
+        base_url.rstrip("/")
+        + "/api/resource/"
+        + quote(doctype, safe="")
+        + "/"
+        + quote(str(candidate_name), safe="")
+    )
+
+    try:
+        async with session.get(
+            check_url,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status == 200:
+                body = await resp.json(content_type=None)
+                existing_name = body.get("data", {}).get("name", candidate_name)
+                return str(existing_name)
+            return None   # 404 = doesn't exist, anything else = ignore
+    except Exception:
+        return None   # If check fails, let POST proceed and surface ERPNext's own error
 
 
 # ── Core HTTP caller (reusable per step) ──────────────────────────────────────
@@ -217,6 +290,25 @@ async def execute_command(
                     doc_name = step_payload.pop("name", None) or step_payload.pop("document_name", None)
                     if doc_name:
                         url = f"{url}/{quote(str(doc_name), safe='')}"
+
+                # ── Pre-flight duplicate check for master data creates ─────────
+                # ERPNext silently renames duplicates instead of erroring.
+                # We detect this BEFORE posting so the user gets a clear message.
+                if step_action == "create" and step_doctype in _MASTER_DATA_DOCTYPES:
+                    existing = await _check_master_exists(
+                        session, erp_url, step_doctype, step_payload, headers,
+                    )
+                    if existing:
+                        name_field = _MASTER_NAME_FIELD.get(step_doctype, "name")
+                        candidate  = step_payload.get(name_field) or step_payload.get("name", "")
+                        activity.logger.warning(
+                            "  ⚠️  step %d: duplicate check — %s '%s' already exists as '%s'",
+                            step_num, step_doctype, candidate, existing,
+                        )
+                        raise ValueError(
+                            f"DuplicateEntryError: '{candidate}' already exists as '{existing}' "
+                            f"in {step_doctype}. Open the existing record or use a different name."
+                        )
 
                 step_result = await _call_erpnext(
                     session, http_method, url, headers, step_payload, step_num,

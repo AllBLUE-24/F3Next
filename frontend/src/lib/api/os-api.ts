@@ -1,7 +1,5 @@
 /**
- * lib/os-api.ts
- * Typed client for the ERP-OS backend.
- * backend/app/api/ handles routing → backend/app/services/ launches Temporal queues.
+ * lib/api/os-api.ts
  */
 
 declare const process: { env: Record<string, string | undefined> };
@@ -17,7 +15,8 @@ export interface CommandRequest {
   user_id:          string;
   erp_type?:        "erpnext" | "odoo";
   session_id?:      string;
-  session_context?: string; // JSON string of last N turns
+  session_context?: string; 
+  mode:             "execute" | "analyze" | "search"; // 🔴 NEW: Explicit mode sent to backend
 }
 
 export interface CommandDispatch {
@@ -44,10 +43,8 @@ export type AgentStep =
 
 export interface ConfirmationRequest {
   type:        "ambiguity" | "confirmation";
-  // ambiguity
   question?:   string;
   round?:      number;
-  // confirmation
   risk_level?: "low" | "medium" | "high";
   preview?: {
     action_summary:   string;
@@ -60,6 +57,7 @@ export interface ConfirmationRequest {
 export interface WorkflowStatus {
   status:               AgentStep;
   confirmation_request: ConfirmationRequest | null;
+  response?:            string | null;
 }
 
 export interface WorkflowResult {
@@ -97,33 +95,27 @@ async function call<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
-/** POST /api/os/command */
 export const submitCommand = (body: CommandRequest) =>
   call<CommandDispatch>("/api/os/command", { method: "POST", body: JSON.stringify(body) });
 
-/** GET /api/os/status/:id */
 export const pollStatus = (id: string) =>
   call<WorkflowStatus>(`/api/os/status/${id}`);
 
-/** GET /api/os/result/:id — call only after status === "done" */
 export const fetchResult = (id: string) =>
   call<WorkflowResult>(`/api/os/result/${id}`);
 
-/** POST /api/os/confirm/:id */
 export const confirmCommand = (id: string, decision: "confirm" | "cancel") =>
   call<void>(`/api/os/confirm/${id}`, {
     method: "POST",
     body: JSON.stringify({ decision }),
   });
 
-/** POST /api/os/answer/:id */
 export const answerClarification = (id: string, answer: string) =>
   call<void>(`/api/os/answer/${id}`, {
     method: "POST",
     body: JSON.stringify({ answer }),
   });
 
-/** GET /api/os/sessions/:projectId */
 export const fetchSessions = (projectId: string) =>
   call<{ sessions: HistorySession[] }>(`/api/os/sessions/${projectId}`)
     .then((r) => r.sessions);

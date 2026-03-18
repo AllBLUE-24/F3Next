@@ -10,9 +10,6 @@ Responsibilities:
   - Query workflow status via Temporal query handlers
   - Send signals (user_confirmation, user_answer)
   - Await the final workflow result
-
-All session persistence is lightweight — stored in Redis or returned directly.
-Production: swap Redis calls with your session_service.py.
 """
 
 from __future__ import annotations
@@ -33,6 +30,7 @@ from shared.models.command import (
     CommandDispatch,
     CommandRequest,
     CommandWorkflowInput,
+    CommandWorkflowOutput, # 🔴 FIX: Added to prevent Temporal DataConverter errors!
     ConfirmationPreview,
     ConfirmationRequest,
     WorkflowResult,
@@ -44,7 +42,7 @@ logger = logging.getLogger(__name__)
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 TEMPORAL_HOST     = "localhost:7233"   # Override via env in production
-OS_TASK_QUEUE     = "os-main-queue"    # The first queue — workflow routes from here
+OS_TASK_QUEUE     = "os-main-queue" # The first queue — workflow routes from here
 WORKFLOW_TIMEOUT  = timedelta(hours=1) # Max time for a single command workflow
 
 # ─── Temporal client (lazy singleton) ────────────────────────────────────────
@@ -163,9 +161,8 @@ async def query_workflow_status(workflow_id: str) -> WorkflowStatus:
     try:
         raw: dict[str, Any] = await handle.query("get_status")
     except Exception as e:
-        # Gracefully handle "ResourceExhausted" traffic jams without crashing the frontend
-        logger.warning("Status query skipped for %s (worker busy): %s", workflow_id, e)
-        return WorkflowStatus(status="processing")
+        logger.warning("Status query failed for %s: %s", workflow_id, e)
+        return WorkflowStatus(status="polling")
 
     step   = raw.get("status", "polling")
     cr_raw = raw.get("confirmation_request")
@@ -208,40 +205,52 @@ async def query_workflow_status(workflow_id: str) -> WorkflowStatus:
 async def get_workflow_result(workflow_id: str) -> WorkflowResult:
     """
     Await the final result of a completed workflow.
-    Should only be called after status == "done".
-    Raises TimeoutError if called on a still-running workflow.
+    Should only be called after status == "done" or "error".
     """
     client = await _get_client()
     handle: WorkflowHandle = client.get_workflow_handle(workflow_id)
 
     try:
-        # Don't import CommandWorkflowOutput here to avoid Pydantic mismatch,
-        # Temporal might return a raw dict if the worker doesn't strictly cast it.
         output = await handle.result(
             follow_runs=True,
             rpc_timeout=timedelta(seconds=5),  # Don't block — caller should check status first
         )
         
-        # 🔴 FIX: Check if Temporal returned a dict or an object
+        # Safely parse Temporal's output whether it's a dict or an object
         if isinstance(output, dict):
             return WorkflowResult(
                 status   = output.get("status", "error"),
                 response = output.get("response", "No response provided."),
                 result   = output.get("result"),
-                errors   = output.get("errors")
+                errors   = output.get("errors", [])
             )
         else:
             return WorkflowResult(
                 status   = getattr(output, "status", "error"),
                 response = getattr(output, "response", "No response provided."),
                 result   = getattr(output, "result", None),
-                errors   = getattr(output, "errors", None)
+                errors   = getattr(output, "errors", [])
             )
 
     except TimeoutError:
         raise
     except Exception as e:
         logger.exception("Failed to get result for workflow %s: %s", workflow_id, e)
+        
+        # 🔴 ULTIMATE SAFETY NET: If handle.result() crashes (e.g. DataConverterError),
+        # we bypass the crash by querying the live workflow to rescue the English translation!
+        try:
+            raw = await handle.query("get_status")
+            if raw and raw.get("response"):
+                return WorkflowResult(
+                    status   = raw.get("status", "error"),
+                    response = raw.get("response"), # The rescued English translation!
+                    result   = None,
+                    errors   = [{"message": "Recovered via workflow status query."}]
+                )
+        except Exception:
+            pass
+
         return WorkflowResult(
             status   = "error",
             response = "An error occurred while retrieving the result.",
@@ -252,10 +261,6 @@ async def get_workflow_result(workflow_id: str) -> WorkflowResult:
 # ─── 4. Signal: user confirmation ─────────────────────────────────────────────
 
 async def signal_confirmation(workflow_id: str, decision: str) -> None:
-    """
-    Signal the workflow with the user's confirm/cancel decision.
-    The workflow's user_confirmation signal handler receives this.
-    """
     client = await _get_client()
     handle: WorkflowHandle = client.get_workflow_handle(workflow_id)
 
@@ -270,10 +275,6 @@ async def signal_confirmation(workflow_id: str, decision: str) -> None:
 # ─── 5. Signal: user answer to clarification ──────────────────────────────────
 
 async def signal_user_answer(workflow_id: str, answer: str) -> None:
-    """
-    Signal the workflow with the user's answer to a clarification question.
-    The workflow's user_answer signal handler receives this.
-    """
     client = await _get_client()
     handle: WorkflowHandle = client.get_workflow_handle(workflow_id)
 
@@ -288,12 +289,6 @@ async def signal_user_answer(workflow_id: str, answer: str) -> None:
 # ─── 6. List sessions ─────────────────────────────────────────────────────────
 
 async def list_project_sessions(project_id: str, limit: int = 20) -> list[dict]:
-    """
-    Return recent OS command sessions for a project.
-    TODO: Replace with proper session_service.py + PostgreSQL query.
-    For now returns empty list — wire to your session store.
-    """
-    # Stub — replace with:
-    # return await session_service.list_sessions(project_id, limit=limit)
+    # Stub — replace with real DB logic later
     logger.debug("list_project_sessions stub called for %s", project_id)
     return []
