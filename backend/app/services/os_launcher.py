@@ -103,6 +103,9 @@ async def dispatch_os_command(req: CommandRequest) -> CommandDispatch:
         erp_type        = req.erp_type,
         session_id      = session_id,
         session_context = _parse_session_context(req.session_context),
+        # 🟢 CRITICAL FIX: Pass the mode to the workflow! 
+        # Without this, the workflow defaults to EXECUTE and fails on revenue queries.
+        mode            = req.mode, 
     )
 
     # Import here to avoid circular import at module load
@@ -115,20 +118,18 @@ async def dispatch_os_command(req: CommandRequest) -> CommandDispatch:
             id                  = workflow_id,
             task_queue          = OS_TASK_QUEUE,
             execution_timeout   = WORKFLOW_TIMEOUT,
-            retry_policy        = RetryPolicy(maximum_attempts=1),  # Workflow itself — no retry
+            retry_policy        = RetryPolicy(maximum_attempts=1),
         )
     except WorkflowAlreadyStartedError:
-        # Should never happen with uuid4 IDs, but guard anyway
         logger.warning("Duplicate workflow ID attempted: %s", workflow_id)
 
-    logger.info("Dispatched OS workflow %s for project %s", workflow_id, req.project_id)
+    logger.info("Dispatched OS workflow %s with mode %s", workflow_id, req.mode)
 
     return CommandDispatch(
         status      = "dispatched",
         workflow_id = workflow_id,
         session_id  = session_id,
     )
-
 
 # ─── 2. Query status ──────────────────────────────────────────────────────────
 
