@@ -1,0 +1,805 @@
+{
+  "erp_id": "erpnext",
+  "display_name": "ERPNext",
+  "vendor": "Frappe Technologies",
+  "vendor_origin": "India (Mumbai)",
+  "version_current": "v15",
+  "deployment_models": ["self_hosted", "frappe_cloud", "managed_partner"],
+  "open_source": true,
+  "source_url": "https://github.com/frappe/erpnext",
+  "license": "GNU GPL v3",
+  "last_profile_updated": "2025-02-11",
+
+  "core_philosophy": {
+    "design_principle": "Single source of truth. Every transaction flows through one integrated system — no data silos between departments. Accounts, Stock, Manufacturing, HR are not bolt-ons, they are one system.",
+    "target_mindset": "Companies willing to adapt their processes to system discipline. ERPNext rewards structure. Companies that want 'ERP to work how we work' will struggle unless their processes are already reasonably well-defined.",
+    "flexibility_vs_structure": "High structure, medium-to-high flexibility. Out-of-box covers 85% of MSME needs. Remaining 15% customizable without touching core (via hooks, custom fields, custom doctypes). Core rarely needs forking.",
+    "customization_philosophy": "Configure first (custom fields, custom print formats, workflows). Script second (server-side scripts, client scripts). Code only when unavoidable (custom apps, hooks). Philosophy: don't break upgrade path.",
+    "indian_dna": "ERPNext was built in India, for Indian businesses first. GST, e-Invoicing, e-Way Bill, TDS, PF/ESI are first-class citizens — not afterthoughts. This is a fundamental advantage over SAP/Oracle for Indian MSME market.",
+    "community_model": "Large open-source community. 15,000+ GitHub stars. 1,000+ contributors. Active forum (discuss.frappe.io). Indian partner ecosystem of 500+ certified implementers. Community solves problems fast."
+  },
+
+  "ideal_customer_profile": {
+    "company_size": {
+      "employees_min": 5,
+      "employees_max": 500,
+      "sweet_spot": "20-150 employees"
+    },
+    "annual_revenue_inr": {
+      "min": 5000000,
+      "max": 2000000000,
+      "sweet_spot": "₹1 crore to ₹100 crore"
+    },
+    "digital_maturity": {
+      "minimum_required": "level_2",
+      "description": "Company uses computers, email, possibly Tally/Excel. Not paper-only. Owner or at least one staff member can learn software with training.",
+      "levels": {
+        "level_1": "Paper-only, no computers (too early for ERPNext)",
+        "level_2": "Tally/Excel-based (ready for ERPNext — sweet spot)",
+        "level_3": "Existing ERP (migrating — works well)",
+        "level_4": "Custom legacy system (complex migration, but possible)"
+      }
+    },
+    "process_maturity": {
+      "minimum_required": "level_2",
+      "description": "Company has some defined processes, not totally ad-hoc. Owner can describe how they work. Invoices exist. Purchase orders sometimes raised.",
+      "if_below_level_2": "Extensive process consulting needed before ERPNext. ERPNext won't fix undefined processes — it will just automate the chaos."
+    },
+    "change_readiness": "medium",
+    "owner_profile": "Owner understands that ERP requires discipline, not just software. Willing to enforce process changes on team. Has identified at least one internal champion.",
+    "technical_profile": "No in-house IT required for usage. Implementation partner handles setup. 1-2 staff can learn system admin basics for day-to-day management."
+  },
+
+  "strengths": {
+    "functional": [
+      "End-to-end integrated ERP — Accounts, Stock, Sales, Purchases, Manufacturing, HR, Projects all in one system. No integration needed between modules.",
+      "Manufacturing depth — BOM, Work Order, Job Card, Routing, Workstation, Subcontracting, Quality Inspection. Covers discrete, job shop, and process manufacturing.",
+      "India compliance — GST (CGST/SGST/IGST/CESS), e-Invoicing (IRN), e-Way Bill, TDS, TCS, PF, ESI, professional tax. All built-in, not add-ons.",
+      "Project-based costing — Native Project module with cost tracking (material + labor + overhead per project). Excellent for job shops, fabrication, services, construction.",
+      "Batch and serial tracking — Full lot-based traceability for food/pharma. Serial number tracking for electronics/equipment. FIFO/FEFO enforcement.",
+      "Item Variants — Size/color/grade variants without separate item codes. Template + Attribute system. Critical for garment, hardware, footwear industries.",
+      "Subcontracting — Material transfer to job worker tracked. Goods received from subcontractor. Material accountability maintained.",
+      "Multi-company — Single ERPNext instance can run 5-10 companies. Inter-company transactions, consolidated financials. Great for groups.",
+      "Asset management — Fixed asset register, depreciation (SLM/WDV), asset maintenance, disposal.",
+      "POS (Point of Sale) — Offline-capable POS. Works without internet. Syncs when connectivity restored. Suitable for retail.",
+      "API-first architecture — Every doctype has REST API. Integrates with any external system (e-commerce, WhatsApp, logistics APIs)."
+    ],
+    "technical": [
+      "Open-source — No license fees ever. Source code fully available. No vendor lock-in on software.",
+      "Self-hosting possible — Run on own server, DigitalOcean, AWS, or own office computer. Full data ownership.",
+      "Frappe Framework — Metadata-driven framework. Adding custom fields, doctypes, workflows requires zero code. Low-code extensibility.",
+      "Role-based permissions — Granular permission system. Role → Doctype → Field level. User sees only what they should see.",
+      "Workflow engine — Approval workflows configurable without code. Purchase Order approval chain, leave application approval, invoice approval — all configurable.",
+      "Custom reports — Query Report (SQL), Script Report (Python), Dashboard. Business intelligence built-in. No separate BI tool needed for 80% of MSME reporting needs.",
+      "Notifications — Email, SMS, system notifications. Event-driven. 'When Sales Order is submitted, notify warehouse manager'.",
+      "Mobile access — Mobile-responsive UI. Works on phone browser. No separate app needed (though PWA available).",
+      "Multi-language — 100+ languages. Hindi, Tamil, Telugu, Marathi for Indian users. UI language configurable per user.",
+      "Print format — Custom invoice/PO/report printing. Company letterhead. GST-compliant tax invoice format out-of-box."
+    ],
+    "business": [
+      "Zero license cost — No per-user fee, no module fee, no annual license. Total cost of ownership dramatically lower than SAP/Oracle.",
+      "Indian partner ecosystem — 500+ ERPNext partners across India. Tier 1 cities: Multiple options. Tier 2/3 cities: Growing presence.",
+      "Frappe Cloud — Managed hosting from Frappe (vendor). Automatic updates, backups, support. ₹3,000-₹15,000/month. No DevOps needed.",
+      "Upgrade path — Regular releases (v13→v14→v15). Upgrade script provided. Self-hosters can upgrade. Frappe Cloud upgrades automatically.",
+      "No data ransom — Since open-source, data export is always possible. No vendor can hold your data hostage.",
+      "Community knowledge base — discuss.frappe.io has solutions to 95% of common problems. YouTube tutorials (Frappe + community). Free learning."
+    ],
+    "india_specific": [
+      "GST — Returns (GSTR-1, GSTR-3B) data available. GST reconciliation. HSN/SAC codes. Tax included/excluded pricing. Composite dealer support.",
+      "e-Invoicing — IRN generation via NIC API or GSP. QR code on invoice. Cancellation workflow. Mandatory for turnover >₹5 crore.",
+      "e-Way Bill — Generation via API. Vehicle number, transporter. For inter-state shipments >₹50,000.",
+      "TDS/TCS — Section-wise TDS deduction. TDS certificate (Form 16A). 26AS reconciliation.",
+      "Indian COA — Pre-configured India chart of accounts. State-wise tax accounts.",
+      "Indian payroll — PF, ESI, gratuity, bonus, professional tax, LWF. Salary slip in Indian format.",
+      "Tally migration — Standard Tally XML export can be imported. Chart of accounts, opening balances, historical data migration support."
+    ]
+  },
+
+  "limitations": {
+    "usability": [
+      "UI is functional but not beautiful — Compared to Zoho Books or Odoo, ERPNext UI feels dated. Non-tech users need training. Learning curve: 2-4 weeks to get comfortable.",
+      "Overwhelming for very small companies — Full ERPNext has 50+ modules/doctypes visible. For a 5-person company, this is noise. Needs good implementation (hide unused modules) to be manageable.",
+      "Mobile UI incomplete — Browser works on mobile, but not optimized. Field-level UX on phone is clunky. No native iOS/Android app (PWA only).",
+      "Error messages cryptic — Technical error messages shown to end users. 'LinkValidationError: Cannot delete' is confusing to non-tech user. Implementation partner must handle error documentation.",
+      "Reports need customization — Standard reports sufficient for 70% of needs. Remaining 30% needs custom query/script reports. Non-technical users cannot write these themselves."
+    ],
+    "functional_gaps": [
+      "No built-in WhatsApp integration — WhatsApp order management not native. Requires third-party integration (ERPNext + WhatsApp Business API). Extra cost + setup.",
+      "CRM is weak — ERPNext CRM is basic (Leads, Opportunities, Pipeline). For serious sales teams, Frappe CRM (separate app) or Zoho CRM integration needed.",
+      "eCommerce is basic — ERPNext Webshop exists but not competitive with Shopify/WooCommerce. For serious B2C eCommerce, integrate with Shopify (not built-in).",
+      "HR/Payroll is adequate, not excellent — For companies >100 employees with complex HR, dedicated HRMS (Keka, Darwinbox) may be preferred alongside ERPNext for ERP.",
+      "No Tally-level simplicity for accountants — Tally trained accountants find ERPNext unfamiliar. Voucher entry in Tally = 30 seconds. Same in ERPNext = 2-3 minutes (more fields, validation, workflow). Training mandatory.",
+      "Multi-currency limitations — Works for most cases. Complex multi-currency with real-time exchange rates, hedging, forex revaluation needs customization for financial services.",
+      "Hospitality/hotel PMS — No property management system. Room booking, housekeeping, restaurant POS integration is weak. Avoid for hotels.",
+      "Healthcare — No clinical workflow (OPD, IPD, EMR, prescriptions). Basic invoicing only. Avoid for hospitals/clinics beyond billing."
+    ],
+    "implementation_risks": [
+      "Implementation partner quality varies WIDELY — Good partner = smooth implementation. Bad partner = ERPNext blamed for failure. Vetting partner is critical.",
+      "Data migration effort underestimated — Cleaning Tally/Excel data for ERPNext import takes 2-4x more time than expected. Dirty data is #1 implementation failure cause.",
+      "Customization addiction — 'Just add one more field' accumulates. Heavily customized instances become unmaintainable, hard to upgrade.",
+      "Training skipped — Companies rush to go-live, skip training. 3 months later, 20 support tickets all traceable to untrained users.",
+      "Process redesign avoided — Company wants ERPNext to match old broken process. Doesn't fix the process. ERP then automates the broken process (garbage in, garbage out)."
+    ],
+    "scale_limits": [
+      "Very large scale needs tuning — >500 concurrent users, >1 million transactions/month: needs dedicated DBA, server tuning, possibly Elasticsearch for search. Not plug-and-play at scale.",
+      "Complex manufacturing — Multi-plant, multi-country, complex shop floor automation (SCADA integration, real-time OEE) needs heavy customization or may need specialized MES.",
+      "Retail chains with POS at 100+ locations — ERPNext POS works but scaling to high-frequency POS (1000+ transactions/hour across multiple locations) needs architecture planning."
+    ]
+  },
+
+  "industry_fit": {
+    "excellent_fit": {
+      "score": 0.90,
+      "industries": [
+        {
+          "industry": "Manufacturing MSMEs",
+          "why": "BOM, Work Order, Job Card, Quality Inspection, Subcontracting are all built-in. Best value ERP for manufacturing in sub-₹100 crore revenue segment.",
+          "f3_niches": ["manufacturing_garment_variants", "manufacturing_food_batch", "manufacturing_fabrication_jobshop"]
+        },
+        {
+          "industry": "Trading and Distribution",
+          "why": "Multi-warehouse, reorder level, lot tracking, price lists, distributor management. India GST for B2B trading built-in.",
+          "f3_niches": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume"]
+        },
+        {
+          "industry": "Professional Services",
+          "why": "Project module with task management, timesheet, billing, project profitability. Suitable for CA firms, consultancies, agencies.",
+          "f3_niches": ["service_professional"]
+        },
+        {
+          "industry": "Job Shops (Fabrication, Printing, Packaging)",
+          "why": "Project-based costing with Job Cards. Material issue to project. Scrap tracking. Excellent fit for custom job-based manufacturing.",
+          "f3_niches": ["manufacturing_fabrication_jobshop"]
+        },
+        {
+          "industry": "Food Processing",
+          "why": "Batch tracking, expiry date management, FIFO enforcement, quality inspection, India compliance. Food manufacturers find ERPNext well-suited.",
+          "f3_niches": ["manufacturing_food_batch"]
+        }
+      ]
+    },
+    "moderate_fit": {
+      "score": 0.65,
+      "industries": [
+        {
+          "industry": "Retail (small chain, <20 locations)",
+          "why": "POS works well for small retail. Multi-location inventory. But not as smooth as dedicated retail software (POS Nation, RetailEdge). Acceptable for cost-conscious retailers.",
+          "caveat": "High-frequency POS (>200 transactions/day per location) needs performance testing before go-live."
+        },
+        {
+          "industry": "Construction",
+          "why": "Project module handles project costing. Material management for construction materials works. But no quantity surveyor module, no WBS-level billing, no site-level reporting without customization.",
+          "caveat": "Construction-specific customization needed. Evaluate Frappe Construction App."
+        },
+        {
+          "industry": "Education Institutions",
+          "why": "Fee collection, accounting work well. Frappe LMS (learning management) is separate app that integrates. Basic student management possible.",
+          "caveat": "No timetable management, attendance tracking, academic module. Use alongside dedicated EduERP or Fedena for academic functions."
+        },
+        {
+          "industry": "Automotive Dealers",
+          "why": "Inventory (vehicle stock), service (job card for vehicle servicing), parts trading. Covers basics well.",
+          "caveat": "No DMS (Dealer Management System) specific features (RC transfer, hypothecation, insurance). Needs customization or dedicated DMS."
+        },
+        {
+          "industry": "Pharma Distributors",
+          "why": "Batch + expiry tracking for medicine distribution. B2B trading workflows. India GST.",
+          "caveat": "No Schedule H drug licensing, cold chain management, government tender management. For pharma manufacturers, needs careful evaluation."
+        }
+      ]
+    },
+    "poor_fit": {
+      "score": 0.25,
+      "industries": [
+        {
+          "industry": "Hospitals and Clinics",
+          "why": "No clinical workflow (OPD, IPD, prescriptions, lab reports, NABH compliance). ERPNext can handle billing only. Standalone HMIS (HealthPlix, Practo) handles clinical; integration is complex.",
+          "recommendation": "For billing-only: ERPNext possible. For full hospital: Avoid. Use OpenMRS, HealthPlix."
+        },
+        {
+          "industry": "Hotels and Hospitality",
+          "why": "No PMS (property management system). No room inventory, booking engine, housekeeping workflow, channel management, RevPAR reporting.",
+          "recommendation": "Use dedicated hospitality software (Opera, Hotelogix). ERPNext only for back-office accounting integration."
+        },
+        {
+          "industry": "E-commerce pure-play (D2C high volume)",
+          "why": "ERPNext webshop not competitive. For high-volume D2C (100+ orders/day), Shopify or WooCommerce is mandatory. ERPNext as backend (inventory, accounting) integrated via API possible.",
+          "recommendation": "Shopify/WooCommerce → ERPNext integration (ERPNext as ERP backend, not storefront)."
+        },
+        {
+          "industry": "Financial Services (NBFC, Broking, Insurance)",
+          "why": "No loan management system, no trading/settlement workflows, no actuarial functions. Core banking and financial product management not in ERPNext scope.",
+          "recommendation": "Dedicated NBFC software or Frappe loan management app for simple microfinance. Not suitable for complex financial products."
+        },
+        {
+          "industry": "Very large enterprises (>500 employees, >₹500 crore revenue)",
+          "why": "Not architectural limitation per se, but support ecosystem, customization complexity, and multi-country compliance at scale pushes towards SAP/Oracle. ERPNext can technically handle but risk increases.",
+          "recommendation": "ERPNext with very experienced implementation partner possible for ₹200-500 crore range. Beyond that, evaluate SAP Business One."
+        }
+      ]
+    }
+  },
+
+  "scale_fit": {
+    "startup_to_10cr": {
+      "fit": "excellent",
+      "recommendation": "ERPNext is best-in-class for this range. Nothing else offers this depth at this price.",
+      "typical_modules": ["Accounts", "Stock", "Sales", "Purchases"],
+      "deployment": "Frappe Cloud (shared) OR basic self-hosted (DigitalOcean ₹2,000/month server)"
+    },
+    "10cr_to_100cr": {
+      "fit": "excellent",
+      "recommendation": "Sweet spot. All modules usable, partner ecosystem strong, ROI very clear.",
+      "typical_modules": ["All core + Manufacturing OR Projects + HR"],
+      "deployment": "Frappe Cloud (standard) OR dedicated server (₹5,000-10,000/month)"
+    },
+    "100cr_to_500cr": {
+      "fit": "good_with_conditions",
+      "recommendation": "Works well with experienced implementation partner. Heavy customization risk if not managed. Multi-entity, multi-location setups common.",
+      "typical_modules": ["All modules + Multi-company + Advanced analytics"],
+      "deployment": "Dedicated managed hosting OR private cloud (AWS/Azure). 3-5 server setup."
+    },
+    "above_500cr": {
+      "fit": "moderate_risk",
+      "recommendation": "Evaluate carefully. Large Indian companies run on ERPNext successfully but need very experienced team. Consider SAP B1 as alternative if complexity is very high.",
+      "deployment": "Enterprise-grade infrastructure mandatory"
+    }
+  },
+
+  "complexity_fit": {
+    "single_entity_single_location": {
+      "fit": "excellent",
+      "implementation_risk": "low"
+    },
+    "single_entity_multi_location": {
+      "fit": "excellent",
+      "implementation_risk": "low_to_medium",
+      "notes": "Multi-warehouse, multi-branch cost centers. Standard ERPNext feature."
+    },
+    "multi_entity_group": {
+      "fit": "good",
+      "implementation_risk": "medium",
+      "notes": "Multi-company setup. Inter-company transactions, consolidated P&L. Works but needs planning."
+    },
+    "multi_country": {
+      "fit": "moderate",
+      "implementation_risk": "high",
+      "notes": "Multi-currency supported. Local compliance (non-India) needs customization. Not first choice for companies with significant overseas operations."
+    },
+    "complex_manufacturing_multi_plant": {
+      "fit": "moderate",
+      "implementation_risk": "medium_to_high",
+      "notes": "Works with experienced partner. SCADA/MES integration needs custom app development."
+    }
+  },
+
+  "implementation_strategy": {
+    "recommended_approach": "phased_waterfall",
+    "approach_rationale": "ERPNext has many modules. Going live with everything simultaneously causes overwhelm and failure. Phase by module, validate each before moving to next.",
+    "phases": {
+      "phase_1": {
+        "name": "Foundation",
+        "modules": ["Accounts", "Stock", "Sales", "Purchases"],
+        "duration_weeks": "4-6 (SME), 8-12 (mid-market)",
+        "go_live_readiness": "Company can invoice, track stock, manage payables/receivables"
+      },
+      "phase_2": {
+        "name": "Operations",
+        "modules": ["Manufacturing (BOM, Work Order, Job Card) OR Projects (for service/job shop)"],
+        "duration_weeks": "4-6 additional",
+        "go_live_readiness": "Production/job tracking live. Cost visibility improving."
+      },
+      "phase_3": {
+        "name": "People and Optimization",
+        "modules": ["HR", "Payroll", "Custom reports", "Automation", "Dashboards"],
+        "duration_weeks": "3-4 additional",
+        "go_live_readiness": "Full ERP operational. Analytics and automation running."
+      }
+    },
+    "critical_success_factors": [
+      "Strong discovery phase — understand business before configuring anything",
+      "Data cleanup before migration — dirty data is #1 failure cause",
+      "Owner as champion — without top-level enforcement, staff revert to old methods",
+      "Parallel run — keep Tally/Excel running for 1-2 months alongside ERPNext",
+      "Training before go-live — not on the job (first live entry should not be training)",
+      "Phased go-live — one department/module at a time, not big bang"
+    ],
+    "typical_timeline": {
+      "micro_company_5_to_15_employees": "4-6 weeks (Accounts + Stock + Sales only)",
+      "small_company_15_to_50_employees": "8-12 weeks (All core + 1 operational module)",
+      "medium_company_50_to_150_employees": "16-24 weeks (All modules, multi-phase)",
+      "large_company_above_150_employees": "24-40 weeks (Complex requirements, extensive testing)"
+    }
+  },
+
+  "customization_model": {
+    "no_code_customizations": [
+      "Custom fields on any doctype",
+      "Custom forms (Form Builder)",
+      "Custom print formats (Jinja2 templates)",
+      "Workflow (approval chains, status transitions)",
+      "Custom reports (Query Report — SQL, no backend code needed)",
+      "Custom dashboards",
+      "Naming series (invoice numbering format)",
+      "Item Groups, Customer Groups, cost centers — all configurable",
+      "Permission rules (role-based, user-specific)"
+    ],
+    "low_code_customizations": [
+      "Client scripts (JavaScript — run in browser, auto-fill fields, validate on save)",
+      "Server scripts (Python — run on backend, complex validation, automated actions)",
+      "Custom notification templates",
+      "Data import/export scripts"
+    ],
+    "requires_developer": [
+      "Custom apps (new doctype, complex workflow, external API integration)",
+      "Frappe hooks (deep system behavior modification)",
+      "Custom payment gateway integration",
+      "Third-party API integration (WhatsApp, logistics, eCommerce platforms)"
+    ],
+    "customization_risk": "Low if done via configuration/scripts. Medium-high if custom apps. High if core Frappe/ERPNext code modified (upgrade breaks customization).",
+    "recommended_rule": "Never modify core code. Always build as separate custom app or via hooks. Keeps upgrade path clean."
+  },
+
+  "data_migration_fit": {
+    "from_tally": {
+      "feasibility": "high",
+      "effort": "medium",
+      "path": "Tally XML export → ERPNext import tool OR Frappe migration scripts. Chart of accounts, opening balances, outstanding invoices, vendor/customer masters.",
+      "known_issues": [
+        "Tally ledger names ≠ ERPNext account naming convention (manual mapping needed)",
+        "Multi-currency opening balances need careful handling",
+        "Tally narrations don't map 1:1 to ERPNext remarks fields"
+      ]
+    },
+    "from_excel": {
+      "feasibility": "high",
+      "effort": "low_to_medium",
+      "path": "ERPNext Data Import tool (CSV upload). Templates available for every doctype. Batch import.",
+      "known_issues": [
+        "Relationship validation — customer must exist before invoice can be imported",
+        "Date format differences (DD/MM/YYYY vs MM/DD/YYYY)",
+        "Duplicate detection not automatic — must clean Excel first"
+      ]
+    },
+    "from_another_erp": {
+      "feasibility": "medium",
+      "effort": "high",
+      "path": "No one-click migration. Custom scripts needed. REST API available on source (if modern ERP) or CSV export.",
+      "known_issues": [
+        "Doctype mapping between systems (SAP GL → ERPNext Account)",
+        "Workflow state migration (open orders mid-migration)",
+        "Historical transaction volume may slow import"
+      ]
+    },
+    "dirty_data_tolerance": {
+      "rating": "medium",
+      "explanation": "ERPNext validates data on import. Missing mandatory fields = import fails. Linked record missing = import fails. Data must be cleaned BEFORE import. ERPNext is stricter than Tally (which allows anything).",
+      "ai_agent_implication": "F3 data quality assessment step is CRITICAL before mapping/import. ERPNext will reject dirty data, causing failed imports and user frustration."
+    },
+    "master_data_rigidity": {
+      "rating": "high",
+      "explanation": "Item must have item_group, stock_uom. Customer must have customer_group, customer_type. Account must have account_type, parent_account. These are mandatory. Can't import partial records.",
+      "implication": "All master data must be complete before transactional data import."
+    },
+    "opening_balance_criticality": "CRITICAL. Opening stock valuation, opening GL balances, outstanding invoices must be 100% correct on go-live date. Errors here cascade into all future financial reports. This is THE most common point of failure.",
+    "migration_risks_ranked": [
+      "Incorrect opening stock valuation (FIFO/Moving Average — choose before first transaction, can't change after)",
+      "Wrong chart of accounts structure (flattening Tally's complex ledger tree into ERPNext's 4-level COA)",
+      "Outstanding invoices missing supplier/customer (link validation fails at import time)",
+      "Incomplete item master (missing HSN, missing UOM, missing item group)",
+      "Fiscal year start date wrong (all transactions in wrong period)"
+    ]
+  },
+
+  "cost_structure": {
+    "license_cost": {
+      "amount": "₹0",
+      "model": "Free forever (open source GPL v3)",
+      "note": "No per-user licensing. No module licensing. Add 1000 users — zero extra license cost."
+    },
+    "hosting_cost": {
+      "frappe_cloud_shared": "₹2,000-₹5,000/month (up to 50 users, standard performance)",
+      "frappe_cloud_dedicated": "₹8,000-₹20,000/month (dedicated resources, high performance)",
+      "self_hosted_vps": "₹2,000-₹8,000/month (DigitalOcean/AWS VPS, requires Linux admin skill OR outsourced DevOps)",
+      "self_hosted_own_server": "₹0/month cloud (one-time server cost ₹50,000-₹2,00,000, plus electricity, internet, maintenance)"
+    },
+    "implementation_cost": {
+      "diy_with_community": "₹0-₹50,000 (time cost only, for tech-savvy users with simple requirements)",
+      "small_partner_msme": "₹1,50,000-₹5,00,000 (for 20-50 person company, standard modules, 6-8 week project)",
+      "experienced_partner_complex": "₹5,00,000-₹20,00,000 (for 50-150 person company, manufacturing or complex multi-module)",
+      "enterprise_partner": "₹20,00,000+ (for 150+ person company, multi-entity, extensive customization)"
+    },
+    "ongoing_support_cost": {
+      "self_managed": "₹0 (community support only — time cost of searching forum, YouTube)",
+      "partner_AMC": "₹10,000-₹50,000/month (implementation partner on annual maintenance contract, issue resolution, minor changes)",
+      "frappe_direct_support": "Available for Frappe Cloud enterprise plans"
+    },
+    "total_cost_of_ownership_3yr_example": {
+      "scenario": "30-person manufacturing company, Frappe Cloud, experienced partner",
+      "hosting_3yr": "₹4,000/month × 36 = ₹1,44,000",
+      "implementation": "₹3,50,000",
+      "support_3yr": "₹20,000/month × 36 = ₹7,20,000",
+      "training": "₹50,000",
+      "total_3yr_tco": "₹12,64,000 (~₹12.6 lakh)",
+      "per_user_per_month": "₹1,167 (30 users, 36 months)",
+      "comparison_sap_b1": "SAP B1 equivalent setup = ₹50-80 lakh 3yr TCO"
+    }
+  },
+
+  "risk_profile": {
+    "implementation_risk_factors": [
+      {
+        "risk": "Owner resistance to process change",
+        "severity": "CRITICAL",
+        "indicator": "Owner says 'we'll adjust ERPNext to our process' without being willing to improve the process",
+        "mitigation": "Upfront expectation setting. ERPNext works with good processes, not in spite of bad ones."
+      },
+      {
+        "risk": "No internal champion",
+        "severity": "HIGH",
+        "indicator": "Implementation delegated entirely to one junior staff who has no authority to enforce change",
+        "mitigation": "Owner or senior manager must be personally involved. Champion needs authority + time."
+      },
+      {
+        "risk": "Data quality too poor, no cleanup budget",
+        "severity": "HIGH",
+        "indicator": "Excel with 50% empty fields, 30% duplicates, inconsistent formats",
+        "mitigation": "Dedicated data cleanup effort (1-4 weeks). Budget for this. F3 data quality assessment step critical."
+      },
+      {
+        "risk": "Rushed go-live timeline",
+        "severity": "HIGH",
+        "indicator": "Customer says 'we need to go live in 2 weeks for all modules'",
+        "mitigation": "Scope to Phase 1 only (Accounts + Stock). Phased approach. Rushing causes panic go-live, data errors, user rejection."
+      },
+      {
+        "risk": "Bad implementation partner",
+        "severity": "HIGH",
+        "indicator": "Partner is cheap but has no domain knowledge of customer's industry",
+        "mitigation": "F3 fills this gap. F3 is the implementation intelligence, partner is execution arm."
+      },
+      {
+        "risk": "Customization scope creep",
+        "severity": "MEDIUM",
+        "indicator": "'Just add one more field' requests every week",
+        "mitigation": "Document all customizations, prioritize ruthlessly, build only what is essential for go-live."
+      },
+      {
+        "risk": "Staff training skipped",
+        "severity": "MEDIUM",
+        "indicator": "Company wants to 'learn on the job'",
+        "mitigation": "Minimum 2 days formal training per department before go-live. Role-specific manuals."
+      }
+    ],
+    "high_risk_company_profiles": [
+      "Company has never used computers (digital maturity Level 1)",
+      "Owner is not involved and has delegated to someone with no authority",
+      "Business processes are completely informal (no purchase orders, verbal everything)",
+      "Company has had failed ERP implementation before and is skeptical",
+      "Company needs ERP live in <4 weeks for complex requirements",
+      "Data is entirely on paper (no Excel, no Tally export possible)"
+    ],
+    "low_risk_company_profiles": [
+      "Currently on Tally, frustrated with lack of manufacturing module",
+      "Excel-based with decent discipline (data entry is regular)",
+      "Owner is personally driving the ERP initiative",
+      "Company size 20-60 employees (manageable change management)",
+      "Single location, single product line (limited complexity)",
+      "Has tried ERPNext demo, already understands basic concepts"
+    ]
+  },
+
+  "comparison_markers": {
+    "vs_tally": {
+      "erpnext_wins": [
+        "Manufacturing module (Tally has none — BOM, Work Order, Job Card not in Tally)",
+        "Multi-user collaboration (Tally is single-user legacy architecture)",
+        "Process workflow and approvals (Tally has none)",
+        "Project costing for job shops",
+        "API integration (Tally is closed, hard to integrate)",
+        "Cloud-native (Tally is desktop-first)",
+        "Inventory management depth (multi-warehouse, batch, serial)"
+      ],
+      "tally_wins": [
+        "Speed of voucher entry (Tally keyboard-driven, faster for accountants)",
+        "Indian CA community familiarity (Tally is industry standard for audit)",
+        "GST filing (Tally has deeper Tally.Net integration for direct filing)",
+        "Price (Tally Prime: ₹15,000-18,000 one-time. ERPNext implementation: ₹1.5-5 lakh)",
+        "Simplicity (Tally has 10 screens. ERPNext has 200+)"
+      ],
+      "recommend_erpnext_over_tally_when": "Company needs manufacturing, multi-user, or workflow capabilities. Tally is for accounting only."
+    },
+    "vs_zoho_books": {
+      "erpnext_wins": [
+        "Manufacturing module (Zoho Books has none — need Zoho Inventory + Zoho Manufacturing separately)",
+        "Open source (no vendor lock-in, no license cap risk)",
+        "Self-hosting option (data sovereignty)",
+        "Deeper inventory (batch, serial, multi-warehouse)",
+        "Total cost for large user count (Zoho per-user pricing gets expensive)"
+      ],
+      "zoho_wins": [
+        "UI/UX superior (Zoho Books is beautiful, modern, intuitive)",
+        "Mobile app (native iOS/Android, much better than ERPNext mobile)",
+        "Quick setup (Zoho Books live in 1 day. ERPNext: 4-8 weeks)",
+        "Zoho suite integration (CRM, Desk, Analytics — seamless if already on Zoho)",
+        "Customer support (Zoho has paid support. ERPNext has community + partner)"
+      ],
+      "recommend_erpnext_over_zoho_when": "Manufacturing company, or company with >50 users (Zoho per-user cost becomes expensive), or needs deep inventory."
+    },
+    "vs_odoo": {
+      "erpnext_wins": [
+        "India compliance (ERPNext GST/TDS is deeper than Odoo India localization)",
+        "Manufacturing depth (ERPNext manufacturing module is more battle-tested for Indian SMEs)",
+        "Total cost (Odoo enterprise license expensive. ERPNext free.)",
+        "Indian partner ecosystem (ERPNext has larger India-specific partner base)",
+        "Community quality for Indian use cases"
+      ],
+      "odoo_wins": [
+        "App marketplace (Odoo has 30,000+ apps. ERPNext has ~500 community apps)",
+        "UI/UX (Odoo UI is more polished)",
+        "eCommerce (Odoo eCommerce is production-grade. ERPNext webshop is basic)",
+        "HR module (Odoo Payroll is stronger for multi-country)",
+        "International compliance breadth (more country localizations than ERPNext)"
+      ],
+      "recommend_erpnext_over_odoo_when": "Indian manufacturing MSME. Budget-conscious. Needs deep India GST compliance without customization."
+    },
+    "vs_sap_b1": {
+      "erpnext_wins": [
+        "Cost (SAP B1 implementation ₹30-80 lakh. ERPNext ₹2-15 lakh. 5-10x cheaper.)",
+        "India MSME suitability (SAP B1 is enterprise-grade, overkill for <₹50 crore revenue)",
+        "Implementation speed (ERPNext 8-16 weeks. SAP B1 6-18 months.)",
+        "Flexibility without code (ERPNext low-code. SAP B1 needs ABAP developer.)"
+      ],
+      "sap_b1_wins": [
+        "Brand/credibility (banks, investors, auditors trust SAP more)",
+        "Scale (SAP B1 handles >500 users, >5 million transactions reliably)",
+        "Multi-country compliance (SAP localizations for 50+ countries are production-grade)",
+        "Industry-specific modules (SAP B1 has vertical-specific add-ons)",
+        "Support ecosystem (SAP has structured 24/7 support. ERPNext relies on partners.)"
+      ],
+      "recommend_erpnext_over_sap_when": "Company is <₹200 crore revenue, Indian operations focus, manufacturing or trading, budget-conscious."
+    }
+  },
+
+  "red_flags": {
+    "company_red_flags": [
+      {
+        "flag": "Owner says 'I want exactly what I have in Excel, but in ERPNext'",
+        "risk": "CRITICAL",
+        "why": "This means zero process improvement. ERPNext will be a complex Excel. High failure risk.",
+        "response": "Explain: ERPNext requires process adaptation. The goal is better processes, not digital Excel."
+      },
+      {
+        "flag": "Company has had 2+ failed ERP implementations",
+        "risk": "HIGH",
+        "why": "Root cause likely organizational (not tool). New tool won't fix organizational resistance.",
+        "response": "Deep discovery: Why did previous implementations fail? Address root cause first."
+      },
+      {
+        "flag": "Company size: 2-4 people, revenue <₹50 lakh",
+        "risk": "MEDIUM",
+        "why": "ERPNext overhead (implementation cost, learning curve, maintenance) may not justify ROI at this size.",
+        "response": "Suggest: Zoho Books or Vyapar first. Revisit ERPNext at 10+ employees."
+      },
+      {
+        "flag": "Company is a hospital, hotel, or pure e-commerce",
+        "risk": "HIGH",
+        "why": "ERPNext poor fit for these industries (no clinical, no PMS, no serious eCommerce).",
+        "response": "Recommend specialized software. ERPNext only for back-office accounting if needed."
+      },
+      {
+        "flag": "Owner is not involved, completely delegated to junior staff",
+        "risk": "HIGH",
+        "why": "Change management requires authority. Junior staff can't enforce new processes on senior staff.",
+        "response": "Require owner commitment before proceeding. Without owner buy-in, expect 60% failure probability."
+      },
+      {
+        "flag": "Company expects go-live in less than 3 weeks for manufacturing",
+        "risk": "HIGH",
+        "why": "Manufacturing setup (BOM, operations, workstations, quality) cannot be done properly in <3 weeks. Rushing = bad setup = user rejection.",
+        "response": "Minimum 6 weeks for manufacturing go-live (Phase 1 basics). Explain the risk of rushing."
+      }
+    ],
+    "data_red_flags": [
+      "No data available at all (no Excel, no Tally — purely paper) → Opening stock and master data creation from scratch: 3-6 weeks minimum",
+      "Item master has 10,000+ items with duplicate names → Deduplication effort needed before import",
+      "Outstanding invoices have no customer name (generic 'Cash Customer') → Can't migrate properly, need cleanup",
+      "Multiple currencies used with no exchange rate records → Opening balance reconciliation nightmare"
+    ]
+  },
+
+  "success_patterns": {
+    "companies_that_succeed_with_erpnext": [
+      "Manufacturing MSME: 25-60 employees. Owner drives implementation. Clear process (even if manual). Willing to change.",
+      "FMCG Distributor: Beat-based sales, multi-warehouse stock. Currently on Tally + Excel hybrid. Frustrated with lack of inventory visibility.",
+      "Garment exporter: Size/color variants, BOM-based costing, export compliance. Tally doesn't handle variants.",
+      "Food processor: Batch tracking, expiry management, FSSAI compliance documentation. Excel-based is compliance risk.",
+      "Job shop (fabrication, printing): Project costing, Job Cards, scrap tracking. No ERP used previously.",
+      "Professional services: Project billing, timesheet, multi-project management. Excel losing track of billable hours."
+    ],
+    "implementation_success_indicators": [
+      "Owner personally attends all training sessions",
+      "Data cleanup completed before implementation start (not during)",
+      "Phased go-live (Accounts + Stock first, Manufacturing in Phase 2)",
+      "Parallel run for 1-2 months (ERPNext + old system simultaneously for safety)",
+      "Weekly review meetings during first 3 months post go-live",
+      "Internal champion with time allocated (not 'besides their regular job')"
+    ]
+  },
+
+  "failure_patterns": {
+    "common_failure_modes": [
+      {
+        "pattern": "Big Bang Go-Live",
+        "description": "All modules go live on Day 1. Manufacturing, Accounts, HR, everything simultaneously.",
+        "outcome": "Overwhelmed users, multiple critical issues simultaneously, panic, blame, rollback.",
+        "prevention": "Always phased. Phase 1: Core modules only. Never big bang for first implementation."
+      },
+      {
+        "pattern": "Data Migration as Afterthought",
+        "description": "Implementation proceeds without data prep. Data migration started in Week 7 of 8-week project.",
+        "outcome": "Dirty data discovered during import. Delays. Incorrect opening balances. Trust lost.",
+        "prevention": "Data migration prep starts Week 1. Data quality assessment before any configuration."
+      },
+      {
+        "pattern": "No Process Redesign",
+        "description": "ERPNext configured exactly like old broken process. Workflow around existing bad habits.",
+        "outcome": "ERP runs, but same old problems continue in new tool. ROI not realized.",
+        "prevention": "Process review before configuration. Fix broken processes, then configure ERP for fixed process."
+      },
+      {
+        "pattern": "Training Skipped",
+        "description": "Cost-cutting on training. 'They'll figure it out, it's user-friendly'.",
+        "outcome": "Errors in first month. Support calls spike. Workarounds developed outside system. System abandoned.",
+        "prevention": "Role-specific training (accounting team, warehouse, production). Practice run before go-live."
+      },
+      {
+        "pattern": "Excessive Customization Before Stabilization",
+        "description": "Customization requests start Week 2. 'Add this field, change that workflow' while core still not stable.",
+        "outcome": "Scope creep. Project never completes. Customization breaks during upgrade.",
+        "prevention": "Go-live with standard ERPNext. Customization only after 3 months of stable operation. Priority queue."
+      }
+    ]
+  },
+
+  "scoring_adjustments": {
+    "boost_conditions": {
+      "is_manufacturing_msme": {
+        "adjustment": 0.20,
+        "reason": "ERPNext manufacturing depth is unmatched in this price range"
+      },
+      "is_job_shop_fabrication": {
+        "adjustment": 0.20,
+        "reason": "Project + Job Card workflow maps perfectly to job shop operations"
+      },
+      "is_india_based": {
+        "adjustment": 0.15,
+        "reason": "India GST, e-Invoicing, e-Way Bill, TDS built-in. No localization cost."
+      },
+      "uses_tally_currently": {
+        "adjustment": 0.10,
+        "reason": "Tally migration path well-established. Strong Indian Tally community overlap."
+      },
+      "needs_manufacturing_module": {
+        "adjustment": 0.15,
+        "reason": "Manufacturing-specific competitors (Zoho, Tally) lack this depth"
+      },
+      "revenue_10cr_to_100cr": {
+        "adjustment": 0.10,
+        "reason": "ERPNext sweet spot. ROI most clear at this revenue range."
+      },
+      "batch_expiry_tracking_needed": {
+        "adjustment": 0.10,
+        "reason": "Batch + expiry tracking is native ERPNext feature (critical for food/pharma)"
+      },
+      "open_source_preference": {
+        "adjustment": 0.10,
+        "reason": "Zero license cost, data ownership, customizability — all aligned with open-source preference"
+      },
+      "project_based_costing_needed": {
+        "adjustment": 0.15,
+        "reason": "ERPNext Projects module is industry-leading for this price range"
+      },
+      "multi_warehouse_needed": {
+        "adjustment": 0.08,
+        "reason": "Native multi-warehouse support with stock ledger per location"
+      }
+    },
+    "penalty_conditions": {
+      "very_low_digital_maturity": {
+        "adjustment": -0.25,
+        "reason": "Company not ready for structured ERP. Needs simpler starting point."
+      },
+      "ui_ux_priority_high": {
+        "adjustment": -0.10,
+        "reason": "ERPNext UI is functional but not beautiful. Zoho/Odoo better if UX is deciding factor."
+      },
+      "very_large_enterprise_500plus_employees": {
+        "adjustment": -0.15,
+        "reason": "Scale risk increases. SAP/Oracle more appropriate at this size."
+      },
+      "hospital_or_hotel_industry": {
+        "adjustment": -0.40,
+        "reason": "ERPNext does not support clinical or PMS workflows. Wrong tool."
+      },
+      "pure_ecommerce_dtc": {
+        "adjustment": -0.20,
+        "reason": "ERPNext eCommerce is weak. Shopify/WooCommerce needed for storefront."
+      },
+      "multi_country_complex_compliance": {
+        "adjustment": -0.15,
+        "reason": "Non-India country localizations in ERPNext are less mature"
+      },
+      "needs_24_7_paid_support": {
+        "adjustment": -0.10,
+        "reason": "ERPNext support relies on community + partner. No direct 24/7 SLA from Frappe for standard plans."
+      },
+      "owner_resistant_to_process_change": {
+        "adjustment": -0.30,
+        "reason": "ERPNext requires process discipline. Resistance = implementation failure risk high."
+      },
+      "budget_less_than_2_lakh_total": {
+        "adjustment": -0.15,
+        "reason": "Below ₹2 lakh total budget, can't do proper ERPNext implementation. Suggest Zoho Books or Vyapar."
+      },
+      "revenue_below_50_lakh": {
+        "adjustment": -0.15,
+        "reason": "ROI on ERPNext implementation questionable at very small scale. Simpler tools more appropriate."
+      }
+    },
+    "scoring_formula": "base_score = 0.60 (ERPNext default neutral). final_score = base_score + sum(boost_conditions) + sum(penalty_conditions). Normalize to 0-1. Score > 0.75 = Recommend. Score 0.55-0.75 = Recommend with conditions. Score < 0.55 = Consider alternative."
+  },
+
+  "f3_integration_notes": {
+    "agent_behavior_hints": [
+      "When user is manufacturing MSME in India on Tally: ERPNext score will be 0.85+. Recommend confidently.",
+      "When user is food processor: Emphasize batch tracking, expiry management, FSSAI documentation via ERPNext. Key differentiator.",
+      "When user is job shop: Emphasize Project + Job Card costing. 'Finally know job-wise profitability' is the hook.",
+      "When user is trader (FMCG/hardware/auto parts): Emphasize multi-warehouse, price lists, reorder, GST. Beat-based field sales tracking.",
+      "When user is very small (< ₹50 lakh revenue, 5 people): Suggest starting with Zoho Books or Vyapar. Revisit ERPNext at ₹1 crore revenue.",
+      "When user is hospital or hotel: Do NOT recommend ERPNext. Be honest about limitations. Recommend specialized software.",
+      "When owner shows resistance to process change in chatbot conversation: Lower ERPNext score, flag implementation risk prominently.",
+      "When user says 'I want everything in 2 weeks': Adjust recommendation to 'ERPNext possible but timeline risky. Start with Phase 1 only.'"
+    ],
+    "data_signals_that_boost_erpnext_score": [
+      "BOM/recipe files uploaded → Manufacturing depth of ERPNext becomes key value prop",
+      "Batch/expiry columns in uploaded data → ERPNext batch tracking fits perfectly",
+      "Multiple warehouse/location names → ERPNext multi-warehouse native feature",
+      "Job numbers in uploaded data → ERPNext Project module is exact solution",
+      "GST columns present → ERPNext India compliance is strong fit",
+      "Tally export file detected → Well-established migration path to ERPNext"
+    ],
+    "data_signals_that_lower_erpnext_score": [
+      "Room/booking/check-in columns → Hotel industry, ERPNext wrong fit",
+      "Patient/prescription columns → Hospital industry, ERPNext wrong fit",
+      "Only 2-3 employees mentioned → Scale too small for ERPNext overhead",
+      "Very high transaction volume (>10,000 transactions/day) → Performance planning needed"
+    ],
+    "consultant_talking_points": {
+      "opening_value_prop": "ERPNext is the most complete, India-ready ERP for manufacturing and trading businesses in the ₹1-100 crore revenue range — and it costs zero in license fees.",
+      "cost_comparison": "SAP Business One implementation: ₹30-80 lakh. ERPNext implementation: ₹2-8 lakh. Same integrated ERP capability for 10x less cost.",
+      "india_advantage": "Built in India, by Indians, for Indian businesses. GST, e-Invoicing, TDS — not add-ons. First-class features. Your CA and auditor will recognize the compliance output.",
+      "manufacturing_advantage": "If you make anything — garments, food, metal parts, anything — ERPNext will tell you: What is this job costing me today? Tally can't do this. Excel can't do this.",
+      "honest_limitation": "ERPNext is not the simplest software. It will take 4-8 weeks to learn properly. Your team needs to commit. If you want something you can set up in 1 day, Zoho Books is simpler — but it won't give you manufacturing or deep inventory capabilities."
+    }
+  }
+}
+```
+
+---
+
+## 🎯 What Makes This Different from ChatGPT's Template
+
+### **1. F3-Native Intelligence**
+The `f3_integration_notes` section directly connects to your F3 niche files — when food batch signals detected → boost score, when hospital signals detected → heavy penalty. Your consultant agent doesn't need custom logic per ERP. It just reads this section.
+
+### **2. Honest, Trust-Building Limitations**
+The limitations aren't fluff — they're specific (Tally accountants find ERPNext slow for voucher entry, mobile UI is incomplete, CRM is weak). An agent that admits real weaknesses earns user trust and avoids setting wrong expectations.
+
+### **3. Scoring Formula is Explicit**
+```
+base_score = 0.60
+final_score = 0.60 + boosts + penalties
+> 0.75 = Recommend
+0.55-0.75 = Recommend with conditions
+< 0.55 = Suggest alternative

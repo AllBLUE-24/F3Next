@@ -1,0 +1,601 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Signal Registry — Maps patterns found in company-uploaded files to F3-Niche candidates. Agent scans all uploaded files, collects signals, scores each niche, and selects the highest-confidence match.",
+    "how_agent_uses_this": {
+      "step_1": "Scan every uploaded file: extract sheet names, column headers, file names, and sample data values",
+      "step_2": "For each detected pattern, look it up in this registry → get niche_suggestions and weight",
+      "step_3": "Sum weights per niche across all detected signals → produce niche scores",
+      "step_4": "Apply against_signals: subtract weight if a contradicting signal is found",
+      "step_5": "Normalize scores → pick niche with score above confidence_threshold (0.60 default)",
+      "step_6": "Below threshold → trigger clarifying_questions for that ambiguous axis",
+      "step_7": "Load the winning niche JSON and begin building company profile"
+    },
+    "signal_types": {
+      "file_name": "The name of the uploaded file itself",
+      "sheet_name": "Tab/sheet name in Excel workbook",
+      "column_header": "Column header in any row of the file",
+      "data_pattern": "Pattern found in actual data values",
+      "structural": "How the file is shaped (multi-sheet, number of rows, etc.)"
+    },
+    "niche_ids": [
+      "trading_fmcg_distributor",
+      "trading_hardware_variants",
+      "manufacturing_garment_variants",
+      "manufacturing_food_batch",
+      "trading_autoparts_highvolume",
+      "manufacturing_fabrication_jobshop",
+      "service_professional"
+    ]
+  },
+
+  "confidence_threshold": 0.60,
+
+  "scoring_logic": {
+    "description": "Score = sum of weights of all detected signals for a niche, minus weights of against_signals detected",
+    "normalization": "Divide each niche score by max possible score for that niche to get 0–1 value",
+    "tie_breaking": "If two niches within 0.05 of each other → ask disambiguation question",
+    "minimum_signals_required": 3
+  },
+
+  "signals": {
+
+    "file_name_signals": {
+      "description": "Patterns in the name of the uploaded file",
+      "rules": [
+        {
+          "pattern": ["customer list", "customer master", "party list", "customer data", "customers.xlsx", "customers.csv"],
+          "type": "file_name",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "manufacturing_garment_variants", "manufacturing_food_batch", "service_professional"],
+          "weight": 0.2,
+          "notes": "Customer file = any business model. Low discriminating power alone."
+        },
+        {
+          "pattern": ["item list", "product list", "SKU list", "item master", "inventory", "stock list", "parts list"],
+          "type": "file_name",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "manufacturing_garment_variants", "manufacturing_food_batch"],
+          "weight": 0.2,
+          "against": ["service_professional"],
+          "against_weight": 0.4,
+          "notes": "Any item file = not a pure service business"
+        },
+        {
+          "pattern": ["BOM", "bill of material", "recipe", "formula", "product structure", "raw material list", "components"],
+          "type": "file_name",
+          "suggests": ["manufacturing_garment_variants", "manufacturing_food_batch", "manufacturing_fabrication_jobshop"],
+          "weight": 0.7,
+          "against": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "service_professional"],
+          "against_weight": 0.5,
+          "notes": "BOM file = strong manufacturer signal"
+        },
+        {
+          "pattern": ["work order", "production order", "batch production", "job card", "job sheet", "production log"],
+          "type": "file_name",
+          "suggests": ["manufacturing_garment_variants", "manufacturing_food_batch", "manufacturing_fabrication_jobshop"],
+          "weight": 0.8,
+          "against": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "service_professional"],
+          "against_weight": 0.6,
+          "notes": "Production file = manufacturer. Very high weight."
+        },
+        {
+          "pattern": ["timesheet", "time log", "hours", "attendance", "resource plan", "project tracker", "project cost"],
+          "type": "file_name",
+          "suggests": ["service_professional"],
+          "weight": 0.75,
+          "against": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume"],
+          "against_weight": 0.5
+        },
+        {
+          "pattern": ["godown", "warehouse", "branch stock", "location wise stock", "multi location"],
+          "type": "file_name",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume"],
+          "weight": 0.3,
+          "notes": "Multiple warehouses signals trading/distribution more than manufacturing at SME scale"
+        },
+        {
+          "pattern": ["fabric", "yarn", "dyeing", "embroidery", "stitching", "cutting", "pattern", "garment"],
+          "type": "file_name",
+          "suggests": ["manufacturing_garment_variants"],
+          "weight": 0.85,
+          "against": ["service_professional", "trading_autoparts_highvolume"],
+          "against_weight": 0.7
+        },
+        {
+          "pattern": ["batch", "expiry", "manufacturing date", "shelf life", "MFG date", "EXP date"],
+          "type": "file_name",
+          "suggests": ["manufacturing_food_batch"],
+          "weight": 0.8,
+          "notes": "Expiry tracking = food/pharma/perishable = food batch niche"
+        },
+        {
+          "pattern": ["part number", "part no", "OEM code", "make model", "vehicle", "spare parts"],
+          "type": "file_name",
+          "suggests": ["trading_autoparts_highvolume"],
+          "weight": 0.85,
+          "against": ["service_professional", "manufacturing_garment_variants"],
+          "against_weight": 0.6
+        },
+        {
+          "pattern": ["drawing", "fabrication", "cutting plan", "job no", "order no", "client work", "site work"],
+          "type": "file_name",
+          "suggests": ["manufacturing_fabrication_jobshop"],
+          "weight": 0.8,
+          "against": ["trading_fmcg_distributor", "service_professional"],
+          "against_weight": 0.5
+        },
+        {
+          "pattern": ["invoice", "sales invoice", "bill", "tax invoice", "GST invoice"],
+          "type": "file_name",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "manufacturing_garment_variants", "manufacturing_food_batch"],
+          "weight": 0.15,
+          "notes": "Invoice file alone is low signal — almost everyone has one"
+        },
+        {
+          "pattern": ["client list", "retainer", "engagement", "consulting", "professional fees", "service billing"],
+          "type": "file_name",
+          "suggests": ["service_professional"],
+          "weight": 0.8,
+          "against": ["trading_fmcg_distributor", "trading_autoparts_highvolume", "manufacturing_garment_variants"],
+          "against_weight": 0.5
+        }
+      ]
+    },
+
+    "column_header_signals": {
+      "description": "Column headers detected in any spreadsheet. Most discriminating signal type.",
+      "rules": [
+
+        {
+          "pattern": ["Component", "Raw Material", "Input Material", "Qty per Unit", "Component Qty", "Material Code"],
+          "type": "column_header",
+          "suggests": ["manufacturing_garment_variants", "manufacturing_food_batch", "manufacturing_fabrication_jobshop"],
+          "weight": 0.9,
+          "against": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "service_professional"],
+          "against_weight": 0.7,
+          "notes": "Component/raw material column = BOM existence = manufacturer. Very high weight."
+        },
+        {
+          "pattern": ["Batch No", "Batch Number", "Batch ID", "Lot No", "Lot Number"],
+          "type": "column_header",
+          "suggests": ["manufacturing_food_batch"],
+          "weight": 0.85,
+          "against": ["service_professional", "trading_autoparts_highvolume", "trading_hardware_variants"],
+          "against_weight": 0.5
+        },
+        {
+          "pattern": ["Expiry Date", "Expiry", "Best Before", "Use By", "MFG Date", "Manufacturing Date"],
+          "type": "column_header",
+          "suggests": ["manufacturing_food_batch"],
+          "weight": 0.9,
+          "against": ["service_professional", "trading_autoparts_highvolume"],
+          "against_weight": 0.7
+        },
+        {
+          "pattern": ["Serial No", "Serial Number", "S/N", "Serial"],
+          "type": "column_header",
+          "suggests": ["trading_autoparts_highvolume"],
+          "weight": 0.4,
+          "notes": "Serial tracking can appear in auto parts, electronics. Moderate weight."
+        },
+        {
+          "pattern": ["Size", "Colour", "Color", "Shade", "Pattern", "Design No", "Style Code"],
+          "type": "column_header",
+          "suggests": ["manufacturing_garment_variants", "trading_hardware_variants"],
+          "weight": 0.6,
+          "notes": "Variants could be garment (size+color) or hardware (size+grade). Needs disambiguation from other signals."
+        },
+        {
+          "pattern": ["Part No", "Part Number", "OEM No", "OEM Code", "Make", "Model", "Vehicle", "Application"],
+          "type": "column_header",
+          "suggests": ["trading_autoparts_highvolume"],
+          "weight": 0.85,
+          "against": ["manufacturing_garment_variants", "manufacturing_food_batch", "service_professional"],
+          "against_weight": 0.6
+        },
+        {
+          "pattern": ["Job No", "Job Number", "Work Order No", "Job Card", "Client PO No", "Customer Drawing"],
+          "type": "column_header",
+          "suggests": ["manufacturing_fabrication_jobshop"],
+          "weight": 0.85,
+          "against": ["trading_fmcg_distributor", "service_professional"],
+          "against_weight": 0.5
+        },
+        {
+          "pattern": ["Hours", "Hours Worked", "Billable Hours", "Time Spent", "Task", "Milestone", "Project Name"],
+          "type": "column_header",
+          "suggests": ["service_professional"],
+          "weight": 0.8,
+          "against": ["trading_fmcg_distributor", "trading_autoparts_highvolume", "manufacturing_fabrication_jobshop"],
+          "against_weight": 0.5
+        },
+        {
+          "pattern": ["GSTIN", "GST No", "GST Number", "GST Registration"],
+          "type": "column_header",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "manufacturing_garment_variants", "manufacturing_food_batch"],
+          "weight": 0.3,
+          "notes": "GSTIN = B2B India business. Eliminates pure B2C and very small informal businesses."
+        },
+        {
+          "pattern": ["Credit Limit", "Credit Days", "Payment Terms", "Due Days"],
+          "type": "column_header",
+          "suggests": ["trading_fmcg_distributor", "trading_autoparts_highvolume", "trading_hardware_variants"],
+          "weight": 0.4,
+          "notes": "Credit terms = B2B trading. Rarely in food batch manufacturing or services."
+        },
+        {
+          "pattern": ["HSN", "HSN Code", "SAC", "SAC Code"],
+          "type": "column_header",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "manufacturing_garment_variants", "manufacturing_food_batch"],
+          "weight": 0.2,
+          "notes": "HSN = goods, SAC = services. If SAC present → service_professional signal"
+        },
+        {
+          "pattern": ["SAC Code", "Service Code", "Service Description"],
+          "type": "column_header",
+          "suggests": ["service_professional"],
+          "weight": 0.6,
+          "against": ["trading_fmcg_distributor", "trading_autoparts_highvolume"],
+          "against_weight": 0.3
+        },
+        {
+          "pattern": ["Warehouse", "Location", "Godown", "Store", "Branch"],
+          "type": "column_header",
+          "suggests": ["trading_fmcg_distributor", "trading_autoparts_highvolume"],
+          "weight": 0.25,
+          "notes": "Multiple location management = larger trading operation"
+        },
+        {
+          "pattern": ["Reorder Level", "Min Stock", "Safety Stock", "Reorder Qty"],
+          "type": "column_header",
+          "suggests": ["trading_autoparts_highvolume", "trading_fmcg_distributor"],
+          "weight": 0.5,
+          "notes": "Reorder management = high SKU volume trading. Auto parts and FMCG distributors typically manage this."
+        },
+        {
+          "pattern": ["Subcontractor", "Sub-contractor", "Job Work", "Outsourced", "Processing Charges"],
+          "type": "column_header",
+          "suggests": ["manufacturing_garment_variants", "manufacturing_fabrication_jobshop"],
+          "weight": 0.65,
+          "against": ["service_professional", "trading_fmcg_distributor"],
+          "against_weight": 0.4
+        },
+        {
+          "pattern": ["Fabric", "Yarn", "Thread", "GSM", "Meter", "Stitching", "Embroidery", "Dyeing"],
+          "type": "column_header",
+          "suggests": ["manufacturing_garment_variants"],
+          "weight": 0.9,
+          "against": ["service_professional", "trading_autoparts_highvolume", "trading_fmcg_distributor"],
+          "against_weight": 0.7
+        },
+        {
+          "pattern": ["Ingredient", "Formulation", "Recipe", "Mixture", "Blend", "Net Weight", "Shelf Life", "FSSAI"],
+          "type": "column_header",
+          "suggests": ["manufacturing_food_batch"],
+          "weight": 0.9,
+          "against": ["service_professional", "trading_autoparts_highvolume"],
+          "against_weight": 0.7
+        },
+        {
+          "pattern": ["Drawing No", "Dimension", "Material Grade", "Thickness", "Diameter", "Weld", "Plate"],
+          "type": "column_header",
+          "suggests": ["manufacturing_fabrication_jobshop"],
+          "weight": 0.85,
+          "against": ["service_professional", "trading_fmcg_distributor"],
+          "against_weight": 0.6
+        },
+        {
+          "pattern": ["Grade", "Pipe Size", "Wire Gauge", "Brand", "Category", "Sub-category"],
+          "type": "column_header",
+          "suggests": ["trading_hardware_variants"],
+          "weight": 0.5,
+          "notes": "Hardware items often have grade/size but no manufacturing"
+        },
+        {
+          "pattern": ["Zone", "Region", "Territory", "Salesman", "Beat", "Route"],
+          "type": "column_header",
+          "suggests": ["trading_fmcg_distributor"],
+          "weight": 0.55,
+          "notes": "Route-based selling is typical of FMCG distribution"
+        },
+        {
+          "pattern": ["MRP", "Maximum Retail Price", "Price to Retailer", "PTR", "Price to Distributor", "PTD"],
+          "type": "column_header",
+          "suggests": ["trading_fmcg_distributor", "manufacturing_food_batch"],
+          "weight": 0.6,
+          "notes": "MRP/PTR/PTD pricing structure is typical of FMCG channel"
+        }
+      ]
+    },
+
+    "data_value_signals": {
+      "description": "Patterns detected in the actual data values (not just headers). Agent samples first 100 rows.",
+      "rules": [
+        {
+          "pattern": "GSTIN format: 2-digit state code + 10-char PAN + 1 entity + Z + 1 check (e.g. 27AABCU9603R1ZX)",
+          "regex": "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$",
+          "type": "data_pattern",
+          "suggests": ["trading_fmcg_distributor", "trading_hardware_variants", "trading_autoparts_highvolume", "manufacturing_garment_variants", "manufacturing_food_batch"],
+          "weight": 0.35,
+          "notes": "GSTIN = registered B2B India business. Confirms India + B2B axis."
+        },
+        {
+          "pattern": "High item count: more than 500 unique items detected",
+          "type": "structural",
+          "suggests": ["trading_autoparts_highvolume", "trading_fmcg_distributor"],
+          "weight": 0.5,
+          "notes": "500+ SKUs = high-volume trading. Auto parts and FMCG distributors typically have large catalogs."
+        },
+        {
+          "pattern": "Low item count: fewer than 50 unique items detected",
+          "type": "structural",
+          "suggests": ["service_professional", "manufacturing_fabrication_jobshop", "manufacturing_garment_variants"],
+          "weight": 0.3,
+          "notes": "Fewer than 50 items = service or job shop (custom) or narrow product range manufacturer"
+        },
+        {
+          "pattern": "Item names with size suffix: e.g. 'Shirt-S', 'Shirt-M', 'Shirt-L', 'Shirt-XL'",
+          "type": "data_pattern",
+          "suggests": ["manufacturing_garment_variants"],
+          "weight": 0.8
+        },
+        {
+          "pattern": "Item names with pipe/grade pattern: e.g. '20mm GI Pipe', '1inch MS Pipe Class B'",
+          "type": "data_pattern",
+          "suggests": ["trading_hardware_variants"],
+          "weight": 0.75
+        },
+        {
+          "pattern": "Item names with part number pattern: e.g. 'TVS-2345', 'Hero-98765', 'BRNG-6205'",
+          "type": "data_pattern",
+          "suggests": ["trading_autoparts_highvolume"],
+          "weight": 0.8
+        },
+        {
+          "pattern": "Dates in future or far past in 'expiry' or 'best before' column",
+          "type": "data_pattern",
+          "suggests": ["manufacturing_food_batch"],
+          "weight": 0.85
+        },
+        {
+          "pattern": "Invoice amounts are round numbers with no stock movement (only service lines)",
+          "type": "data_pattern",
+          "suggests": ["service_professional"],
+          "weight": 0.7
+        },
+        {
+          "pattern": "Tax column has only 'SAC' codes (starts with 99)",
+          "type": "data_pattern",
+          "suggests": ["service_professional"],
+          "weight": 0.75,
+          "against": ["trading_fmcg_distributor", "trading_autoparts_highvolume"],
+          "against_weight": 0.5
+        },
+        {
+          "pattern": "Multiple rows for same customer with small order amounts (e.g. <500 per line)",
+          "type": "structural",
+          "suggests": ["trading_fmcg_distributor"],
+          "weight": 0.5,
+          "notes": "High-frequency small-ticket orders = FMCG distributor pattern"
+        },
+        {
+          "pattern": "Job/order number column where each order has unique customer+unique spec",
+          "type": "structural",
+          "suggests": ["manufacturing_fabrication_jobshop"],
+          "weight": 0.8,
+          "notes": "Every order is different = job shop"
+        },
+        {
+          "pattern": "All invoices to same 5-10 customers repeating every month",
+          "type": "structural",
+          "suggests": ["service_professional"],
+          "weight": 0.7,
+          "notes": "Retainer/recurring billing pattern = professional services"
+        },
+        {
+          "pattern": "Negative quantity rows in stock file",
+          "type": "data_pattern",
+          "suggests_data_issue": "allow_negative_stock = on in current system → process maturity low → flag in context profile",
+          "weight": 0,
+          "notes": "Not a niche signal — but IS a context profile flag. Company has stock discipline problems."
+        },
+        {
+          "pattern": "MRP column with values higher than selling price column",
+          "type": "data_pattern",
+          "suggests": ["trading_fmcg_distributor", "manufacturing_food_batch"],
+          "weight": 0.55
+        },
+        {
+          "pattern": "Multiple price columns for same item (e.g. 'Dealer Price', 'Retailer Price', 'MRP')",
+          "type": "structural",
+          "suggests": ["trading_fmcg_distributor", "trading_autoparts_highvolume"],
+          "weight": 0.6,
+          "notes": "Multi-tier pricing = price list feature needed in ERPNext"
+        }
+      ]
+    },
+
+    "sheet_name_signals": {
+      "description": "Signals from Excel workbook tab names",
+      "rules": [
+        {
+          "pattern": ["BOM", "Bill of Materials", "Recipe", "Formulation", "Raw Materials", "Components"],
+          "type": "sheet_name",
+          "suggests": ["manufacturing_garment_variants", "manufacturing_food_batch", "manufacturing_fabrication_jobshop"],
+          "weight": 0.85
+        },
+        {
+          "pattern": ["Production", "Work Orders", "Job Sheet", "Batch", "Output", "Finished Goods"],
+          "type": "sheet_name",
+          "suggests": ["manufacturing_garment_variants", "manufacturing_food_batch", "manufacturing_fabrication_jobshop"],
+          "weight": 0.8
+        },
+        {
+          "pattern": ["Beat", "Route", "Zone", "Territory", "Salesman Wise", "Beat Plan"],
+          "type": "sheet_name",
+          "suggests": ["trading_fmcg_distributor"],
+          "weight": 0.7
+        },
+        {
+          "pattern": ["Parts", "Catalogue", "Part Numbers", "Vehicle Wise", "Application Guide"],
+          "type": "sheet_name",
+          "suggests": ["trading_autoparts_highvolume"],
+          "weight": 0.8
+        },
+        {
+          "pattern": ["Projects", "Timesheets", "Milestones", "Retainers", "Engagement"],
+          "type": "sheet_name",
+          "suggests": ["service_professional"],
+          "weight": 0.8
+        },
+        {
+          "pattern": ["Expiry Tracker", "Batch Register", "FSSAI", "Shelf Life"],
+          "type": "sheet_name",
+          "suggests": ["manufacturing_food_batch"],
+          "weight": 0.85
+        }
+      ]
+    }
+  },
+
+  "clarifying_questions": {
+    "description": "When agent confidence is below threshold, ask these questions to disambiguate. Keyed by the axis that is ambiguous.",
+    "business_model_ambiguous": {
+      "trigger": "manufacturing vs trading score within 0.05 of each other",
+      "question": "Does your company manufacture or produce anything? (Even simple assembly or packing counts)",
+      "options": ["Yes, we make/assemble/process products", "No, we only buy and sell"],
+      "maps_to": {"yes": "manufacturer niches", "no": "trader niches"}
+    },
+    "garment_vs_food_ambiguous": {
+      "trigger": "manufacturing_garment_variants and manufacturing_food_batch within 0.05",
+      "question": "What type of products do you manufacture?",
+      "options": ["Garments, textiles, or fabric-based products", "Food, beverages, or packaged consumables", "Metal, wood, or fabricated goods", "Something else"],
+      "maps_to": {
+        "garments": "manufacturing_garment_variants",
+        "food": "manufacturing_food_batch",
+        "metal/wood": "manufacturing_fabrication_jobshop"
+      }
+    },
+    "trading_type_ambiguous": {
+      "trigger": "trading niches within 0.05 of each other",
+      "question": "Which best describes your products?",
+      "options": ["FMCG, grocery, or daily use consumer goods", "Hardware, pipes, tiles, or building materials", "Auto parts, spares, or machinery components", "General merchandise or mixed goods"],
+      "maps_to": {
+        "FMCG": "trading_fmcg_distributor",
+        "hardware": "trading_hardware_variants",
+        "auto parts": "trading_autoparts_highvolume"
+      }
+    },
+    "service_vs_trading_ambiguous": {
+      "trigger": "service_professional and any trading niche within 0.05",
+      "question": "Do you maintain any physical inventory or stock?",
+      "options": ["Yes, we keep stock and ship goods", "No, we provide only services (consulting, labor, software)"],
+      "maps_to": {
+        "yes": "trading or manufacturing niches",
+        "no": "service_professional"
+      }
+    },
+    "size_confirmation": {
+      "trigger": "always ask to set context profile",
+      "question": "Approximately how many people work in your business?",
+      "options": ["1–10 people (micro)", "10–50 people (small)", "50–200 people (medium)"],
+      "maps_to_axis": "company_size"
+    },
+    "current_system_confirmation": {
+      "trigger": "always ask to set context profile",
+      "question": "What software do you currently use to manage accounts or inventory?",
+      "options": ["Tally", "Excel only", "Paper / nothing digital", "Another ERP or software"],
+      "maps_to_axis": "current_system"
+    }
+  },
+
+  "context_profile_flags": {
+    "description": "These are NOT niche signals — they go into the Context Profile as data quality and process maturity indicators",
+    "flags": [
+      {
+        "id": "negative_stock_detected",
+        "trigger": "Negative quantities found in any stock file",
+        "meaning": "Company runs on negative stock — allow_negative_stock was enabled. Opening stock data will be unreliable.",
+        "action": "Set context_profile.stock_data_quality = poor. Flag for manual stock count before go-live."
+      },
+      {
+        "id": "duplicate_item_names",
+        "trigger": "Same item name appears with different codes, or same code appears with different names",
+        "meaning": "Item master is messy. High data cleanup effort required.",
+        "action": "Set context_profile.item_master_quality = poor. Estimate 2–3x extra time for item master cleanup."
+      },
+      {
+        "id": "missing_hsn_codes",
+        "trigger": "HSN Code column is empty or absent in item file",
+        "meaning": "GST compliance gap. All invoices will fail e-invoicing / GSTR filing.",
+        "action": "Set context_profile.gstin_compliance_risk = high. Add HSN mapping as mandatory pre-go-live task."
+      },
+      {
+        "id": "missing_gstin_on_customers",
+        "trigger": "Customer file has GSTIN column but many blank values",
+        "meaning": "ITC risk for their customers. Also indicates unregistered dealers in customer base.",
+        "action": "Set context_profile.customer_data_completeness = partial."
+      },
+      {
+        "id": "no_bom_file_present",
+        "trigger": "Niche is a manufacturer but no BOM/component/recipe file was uploaded",
+        "meaning": "Company does not have documented BOMs. Must be built from scratch.",
+        "action": "Set context_profile.bom_status = missing. Add BOM discovery session as mandatory step. This is a blocker for Work Orders."
+      },
+      {
+        "id": "multi_warehouse_signals",
+        "trigger": "Multiple city/branch/location names appear as distinct values in stock files",
+        "meaning": "Company operates multiple storage locations.",
+        "action": "Set context_profile.warehouse_count = multiple. Enable multi-warehouse in ERPNext setup."
+      },
+      {
+        "id": "tally_export_detected",
+        "trigger": "File contains 'Tally' in file name, or has typical Tally export structure (Opening Balance / Closing Balance columns, Narration column)",
+        "meaning": "Company is on Tally. Accounts and ledger data will be well-structured. Stock data may be unreliable.",
+        "action": "Set context_profile.current_system = tally. Use Tally COA for account mapping. Prioritize ledger migration."
+      },
+      {
+        "id": "very_old_data_detected",
+        "trigger": "Transaction dates older than 5 years present in files",
+        "meaning": "Company uploaded historical data. Only import recent fiscal year(s) to avoid system bloat.",
+        "action": "Set context_profile.data_scope = historical_included. Confirm migration scope with company."
+      },
+      {
+        "id": "single_customer_pattern",
+        "trigger": "80%+ of invoice rows are for same 1–3 customers",
+        "meaning": "Company is highly dependent on few clients — high revenue concentration risk.",
+        "action": "Set context_profile.customer_concentration = high. Note as business risk in company profile."
+      }
+    ]
+  },
+
+  "niche_score_to_id_map": {
+    "trading_fmcg_distributor": {
+      "key_discriminating_signals": ["beat/route/zone columns", "MRP/PTR pricing", "high customer count with small orders", "FMCG product names"],
+      "minimum_score_for_confident_match": 0.65
+    },
+    "trading_hardware_variants": {
+      "key_discriminating_signals": ["grade/size columns", "pipe/fitting/tile product names", "variant combinations without BOM"],
+      "minimum_score_for_confident_match": 0.60
+    },
+    "manufacturing_garment_variants": {
+      "key_discriminating_signals": ["fabric/yarn column headers", "size+color variants", "BOM/recipe file present", "subcontractor column"],
+      "minimum_score_for_confident_match": 0.70
+    },
+    "manufacturing_food_batch": {
+      "key_discriminating_signals": ["expiry/batch columns", "shelf life column", "ingredient/formulation columns", "FSSAI reference"],
+      "minimum_score_for_confident_match": 0.70
+    },
+    "trading_autoparts_highvolume": {
+      "key_discriminating_signals": ["part number columns", "OEM/make/model columns", "500+ item count", "vehicle application column"],
+      "minimum_score_for_confident_match": 0.70
+    },
+    "manufacturing_fabrication_jobshop": {
+      "key_discriminating_signals": ["job number per unique order", "drawing/dimension columns", "no standard BOM", "material grade columns"],
+      "minimum_score_for_confident_match": 0.65
+    },
+    "service_professional": {
+      "key_discriminating_signals": ["SAC codes", "timesheet/hours columns", "no stock file present", "recurring same-customer invoices"],
+      "minimum_score_for_confident_match": 0.65
+    }
+  }
+}
