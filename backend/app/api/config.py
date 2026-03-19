@@ -42,13 +42,13 @@ async def start_config_workflow(payload: StartPayload):
         handle = client.get_workflow_handle(workflow_id)
         # Terminate will stop the workflow if it's Running, Pulsing, or stuck in Retries
         await handle.terminate("Restarting via UI trigger")
-        print(f"💀 Terminated existing zombie: {workflow_id}")
+        print(f"[Config] Terminated existing workflow: {workflow_id}")
     except Exception:
         # If it doesn't exist, we just move on
         pass
 
     try:
-        print(f"🚀 Launching Fresh Workflow: {workflow_id}")
+        print(f"[Config] Launching fresh workflow: {workflow_id}")
         await client.start_workflow(
             "ConfigWorkflow",
             args=[container_id, project_id_str, initial_tags], 
@@ -62,7 +62,7 @@ async def start_config_workflow(payload: StartPayload):
 
 @router.get("/config/{container_id}/status")
 async def get_config_status(container_id: str):
-    print(f"🔎 API: Checking status for {container_id}...")
+    print(f"[Config] Checking status for {container_id}...")
     try:
         client = await Client.connect(TEMPORAL_HOST)
         handle = client.get_workflow_handle(f"config-workflow-{container_id}")

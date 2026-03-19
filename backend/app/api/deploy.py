@@ -18,7 +18,7 @@ async def launch_downstream_workflows(project_id: str, container_id: str, config
     Helper function to start the parallel agents.
     """
     client = await Client.connect(TEMPORAL_HOST)
-    print(f"🚀 Launching Downstream Agents for Project {project_id}")
+    print(f"[Deploy] Launching downstream agents for project {project_id}")
 
     # 1. Start Apply Agent (Updates ERPNext Settings)
     try:

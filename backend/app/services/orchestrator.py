@@ -12,7 +12,7 @@ async def trigger_post_config_actions(project_id: str, container_id: str, final_
     1. Updates DB Status -> DEPLOYMENT_IN_PROGRESS
     2. Triggers 'ConfigApplyWorkflow' & 'TemplateGenWorkflow' in parallel.
     """
-    print(f"🥁 ORCHESTRATOR: Launching Deployment for {container_id}...")
+    print(f"[Orchestrator] Launching deployment for {container_id}...")
 
     # --- 1. UPDATE DB STATUS ---
     async with AsyncSessionLocal() as session:
@@ -35,7 +35,7 @@ async def trigger_post_config_actions(project_id: str, container_id: str, final_
         id=f"apply-{container_id}",
         task_queue="erpnext-apply-queue"
     )
-    print(f"   🚀 Started Apply Agent (RunID: {apply_handle.result_run_id})")
+    print(f"   [Orchestrator] Started Apply Agent (RunID: {apply_handle.result_run_id})")
 
     # Agent B: Template Generator (The Creator)
     template_handle = await client.start_workflow(
@@ -44,7 +44,7 @@ async def trigger_post_config_actions(project_id: str, container_id: str, final_
         id=f"template-{project_id}",
         task_queue="erpnext-template-queue"
     )
-    print(f"   🚀 Started Template Agent (RunID: {template_handle.result_run_id})")
+    print(f"   [Orchestrator] Started Template Agent (RunID: {template_handle.result_run_id})")
 
     return {
         "status": "launched",

@@ -58,12 +58,18 @@ async def get_discovery_status(project_id: UUID, db: AsyncSession = Depends(get_
         if not hook:
             raise HTTPException(status_code=404, detail="Discovery session not found")
 
+        discovery_metadata = hook.discovery_metadata or {}
         return {
-            "bot_response": hook.last_bot_response, # The latest question
+            "bot_response": hook.last_bot_response,  # The latest question
             "extracted_tags": hook.extracted_tags,   # For the 'Detected Attributes' UI
-            "step": hook.discovery_step,            # Current step (1-5)
-            "status": hook.discovery_status,        # START, RETRY, or COMPLETE
-            "is_complete": hook.discovery_status == "COMPLETE"
+            "step": hook.discovery_step,             # Current step (1-5)
+            "status": hook.discovery_status,         # START, RETRY, or COMPLETE
+            "is_complete": hook.discovery_status == "COMPLETE",
+            "f3iche": discovery_metadata.get("f3iche"),
+            "industry": discovery_metadata.get("industry"),
+            "price_plan": discovery_metadata.get("price_plan"),
+            "recommended_erp": discovery_metadata.get("recommended_erp"),
+            "fit_score": discovery_metadata.get("fit_score"),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

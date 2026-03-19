@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth } from '@/lib/firebase'; 
+import { auth, isFirebaseConfigured } from '@/lib/firebase'; 
 import { onAuthStateChanged, User } from 'firebase/auth';
 import QuestionsList, { QUESTIONS_DATA } from './questions';
 import { ChevronRight, FileBarChart, Loader2, ArrowRight } from 'lucide-react';
@@ -30,7 +30,7 @@ function HealthCheckContent() {
       setAnswers(JSON.parse(savedAnswers));
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth!, (currentUser) => {
       setUser(currentUser);
       if (currentUser && savedAnswers && searchParams.get('return') === 'true') {
         setShowModal(true);
@@ -52,7 +52,11 @@ function HealthCheckContent() {
 
     if (!user) {
       localStorage.setItem('f3_temp_answers', JSON.stringify(answers));
-      router.push('/login?redirect=/health_check'); 
+      if (isFirebaseConfigured) {
+        router.push('/login?redirect=/health_check'); 
+      } else {
+        router.push('/dev/test');
+      }
     } else {
       setShowModal(true);
     }
@@ -72,7 +76,8 @@ function HealthCheckContent() {
     };
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/health_check/submit`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/health_check/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

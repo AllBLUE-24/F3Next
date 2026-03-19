@@ -19,8 +19,9 @@ const DEV_SANDBOX: SandboxInstance = {
 
 async function fetchSandbox(companySlug: string): Promise<SandboxInstance | null> {
   try {
+    const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || "http://localhost:8000";
     const res = await fetch(
-      `${process.env.API_BASE_URL}/implementation/sandbox/${companySlug}`,
+      `${base}/implementation/sandbox/${companySlug}`,
       { cache: 'no-store', headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! } }
     );
     if (!res.ok) return null;
@@ -32,7 +33,8 @@ async function fetchSandbox(companySlug: string): Promise<SandboxInstance | null
 
 async function approveForProduction(formData: FormData) {
   'use server';
-  const res = await fetch(`${process.env.API_BASE_URL}/implementation/approve`, {
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || "http://localhost:8000";
+  const res = await fetch(`${base}/implementation/approve`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

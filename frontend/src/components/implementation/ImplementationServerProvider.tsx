@@ -30,20 +30,16 @@ function mockDeployment(): DeploymentState {
 }
 
 const IS_DEV = process.env.NODE_ENV === 'development';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
 // ────────────────────────────────────────────────────────────────────────────────
 
 async function fetchSession(
   companySlug: string,
   userSlug: string
 ): Promise<ImplementationSession | null> {
-  if (!process.env.API_BASE_URL) {
-    if (IS_DEV) return mockSession(companySlug, userSlug);
-    return null;
-  }
-
   try {
     const res = await fetch(
-      `${process.env.API_BASE_URL}/implementation/session?company=${companySlug}&user=${userSlug}`,
+      `${API_BASE}/implementation/session?company=${companySlug}&user=${userSlug}`,
       {
         cache: 'no-store',
         headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },
@@ -61,13 +57,9 @@ async function fetchSession(
 }
 
 async function fetchDeploymentState(instanceId: string): Promise<DeploymentState> {
-  if (!process.env.API_BASE_URL) {
-    if (IS_DEV) return mockDeployment();
-  }
-
   try {
     const res = await fetch(
-      `${process.env.API_BASE_URL}/deployment/${instanceId}`,
+      `${API_BASE}/deployment/${instanceId}`,
       {
         cache: 'no-store',
         headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },

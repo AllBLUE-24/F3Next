@@ -1,4 +1,5 @@
 import uuid
+from uuid import UUID
 from temporalio.client import Client
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from sqlalchemy import select
@@ -10,20 +11,21 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
     Starts the Discovery Workflow or signals it if already running.
     Ensures the 'hooks' DB row exists before starting.
     """
-    
+    pid = UUID(project_id) if isinstance(project_id, str) else project_id
+
     # ---------------------------------------------------------
     # 1. CRITICAL FIX: Ensure DB Row Exists
     # ---------------------------------------------------------
     async with AsyncSessionLocal() as db:
-        # Check if the row exists
-        result = await db.execute(select(Hook).where(Hook.project_id == project_id))
+        # Check if the row exists (use UUID for SQLite Uuid column)
+        result = await db.execute(select(Hook).where(Hook.project_id == pid))
         existing_hook = result.scalar_one_or_none()
         
         if not existing_hook:
-            print(f"🛠 Creating new Hook row for {project_id}")
+            print(f"[Discovery] Creating new Hook row for {project_id}")
             # Create the initial row
             new_hook = Hook(
-                project_id=uuid.UUID(project_id), 
+                project_id=pid, 
                 discovery_status="STARTING",
                 discovery_step=1,
                 extracted_tags=[], 
@@ -50,12 +52,12 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
             id=workflow_id,
             task_queue="discovery-queue",
         )
-        print(f"🚀 Started New Discovery Workflow: {workflow_id}")
+        print(f"[Discovery] Started new workflow: {workflow_id}")
         
     except WorkflowAlreadyStartedError:
         # 3. If already running, send the message as a Signal
         handle = client.get_workflow_handle(workflow_id)
         await handle.signal("receive_user_reply", user_message)
-        print(f"📨 Signaled Existing Discovery Workflow: {workflow_id}")
+        print(f"[Discovery] Signaled existing workflow: {workflow_id}")
 
     return workflow_id

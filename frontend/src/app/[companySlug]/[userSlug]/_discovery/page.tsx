@@ -23,7 +23,8 @@ interface ProjectResolution {
 async function getProjectFromSlug(slug: string): Promise<ProjectResolution | null> {
   try {
     // This calls your FastAPI backend directly
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/resolve-slug/${slug}`, {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const res = await fetch(`${apiUrl}/api/resolve-slug/${slug}`, {
       method: "GET",
       cache: "no-store", // Ensure we get fresh data every time
       // Add internal headers for security if needed
@@ -57,7 +58,7 @@ export default async function DiscoveryPage({ params }: PageProps) {
   // @ts-ignore - Temporary fix to bypass build error for deployment
   <DiscoveryClient 
     projectId={context.project_id} 
-    // If your client needs the name, pass it here too
+    initialStep={1}
   />
 );
 }

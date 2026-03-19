@@ -11,17 +11,24 @@ interface Message {
   timestamp: Date;
 }
 
+export type { Message };
+
 interface ChatInterfaceProps {
   initialMessages?: Message[];
   onSendMessage?: (message: string) => Promise<string>; // Optional handler for real API calls
+  /** Controlled mode: when provided, parent owns messages (e.g. for polling updates) */
+  messages?: Message[];
+  setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
 // --- Component ---
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   initialMessages = [],
   onSendMessage,
+  messages: controlledMessages,
+  setMessages: setControlledMessages,
 }) => {
-  const [messages, setMessages] = useState<Message[]>(initialMessages.length > 0 ? initialMessages : [
+  const [internalMessages, setInternalMessages] = useState<Message[]>(initialMessages.length > 0 ? initialMessages : [
     {
       id: "welcome-1",
       role: "assistant",
@@ -29,6 +36,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       timestamp: new Date(),
     }
   ]);
+  const isControlled = controlledMessages != null && setControlledMessages != null;
+  const messages = isControlled ? controlledMessages : internalMessages;
+  const setMessages = isControlled ? setControlledMessages! : setInternalMessages;
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -91,9 +101,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  // Format time helper
+  // Format time helper — use fixed locale to avoid hydration mismatch (server vs client)
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (

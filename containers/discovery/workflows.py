@@ -3,7 +3,12 @@ from temporalio import workflow
 
 # Import activities from our local module
 with workflow.unsafe.imports_passed_through():
-    from containers.discovery.activities import analyze_discovery_turn, save_discovery_state
+    from containers.discovery.activities import (
+        analyze_discovery_turn,
+        save_discovery_state,
+        generate_erp_recommendation,
+        save_discovery_metadata,
+    )
 
 @workflow.defn
 class DiscoveryChatWorkflow:
@@ -65,6 +70,25 @@ class DiscoveryChatWorkflow:
             
             # Use the 'message' field we ensured exists in activity
             bot_message = analysis.get("message", "One moment, please...")
-            self._user_reply = None 
-    
-        return {"status": "complete", "tags": list(set(self._extracted_tags))}
+            self._user_reply = None
+
+        # Final step: Generate ERP recommendation + F3iche + Industry
+        recommendation = await workflow.execute_activity(
+            generate_erp_recommendation,
+            list(set(self._extracted_tags)),
+            start_to_close_timeout=timedelta(minutes=2),
+        )
+        await workflow.execute_activity(
+            save_discovery_metadata,
+            {"project_id": project_id, "recommendation": recommendation},
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+
+        return {
+            "status": "complete",
+            "tags": list(set(self._extracted_tags)),
+            "f3iche": recommendation.get("f3iche", "trading"),
+            "industry": recommendation.get("industry", ""),
+            "recommended_erp": recommendation.get("recommended_erp"),
+            "fit_score": recommendation.get("fit_score"),
+        }

@@ -29,11 +29,14 @@ from app.api.config_apply import router as config_apply_router
 from app.api.migration import router as migration_router
 from app.api.ingest import router as ingest_router
 from app.api.os_command import router as os_router
+from app.api.implementation import router as implementation_router
+from app.api.dev import router as dev_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup Logic ---
-    print("🚀 App starting: Verifying database tables...")
+    print("App starting: Verifying database tables...")
     async with engine.begin() as conn:
         # Create tables if they don't exist
         await conn.run_sync(Base.metadata.create_all)
@@ -82,3 +85,5 @@ app.include_router(config_apply_router, prefix="/api")
 app.include_router(migration_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
 app.include_router(os_router, prefix="/api")
+app.include_router(implementation_router, prefix="/api")
+app.include_router(dev_router, prefix="/api")
