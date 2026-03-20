@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "ERPNext Doctype Dependency Graph — Single source of truth for doctype relationships, field requirements, and module memberships."
+  },
+  "setup_layers": {
+    "layer_0_system": ["Company", "Currency", "UOM", "Country", "Fiscal Year"],
+    "layer_1_config": ["Account", "Cost Center", "Warehouse", "Tax Template"],
+    "layer_2_masters": ["Item Group", "Customer Group", "Supplier Group", "Territory", "Price List"],
+    "layer_3_parties": ["Item", "Customer", "Supplier"],
+    "layer_4_pricing": ["Item Price", "BOM"],
+    "layer_5_transactions": ["Purchase Order", "Sales Order", "Stock Entry"],
+    "layer_6_fulfillment": ["Purchase Receipt", "Delivery Note", "Work Order"],
+    "layer_7_finance": ["Purchase Invoice", "Sales Invoice", "Payment Entry", "Journal Entry"]
+  },
+  "import_phases": {
+    "phase_a_config": ["Company", "Fiscal Year", "Currency", "UOM", "Account", "Item Group", "Customer Group", "Supplier Group", "Warehouse", "Tax Template"],
+    "phase_b_master": ["Item", "Customer", "Supplier", "Item Price", "BOM"],
+    "phase_c_transactional": ["Stock Entry", "Journal Entry", "Purchase Invoice", "Sales Invoice", "Payment Entry"]
+  }
+}

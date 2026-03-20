@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "id": "trading",
+    "name": "Trading / Distribution",
+    "description": "Companies that buy and sell goods without manufacturing. Includes electronics traders, pharma/medical traders, FMCG distributors.",
+    "process_based": true,
+    "industry_agnostic": true
+  },
+  "workflows": [
+    {
+      "id": "purchase_to_sale",
+      "name": "Purchase → Stock → Sale",
+      "steps": ["Purchase Order", "Purchase Receipt", "Stock Entry", "Sales Order", "Delivery Note", "Sales Invoice"]
+    },
+    {
+      "id": "direct_invoice",
+      "name": "Direct Invoice (Micro)",
+      "steps": ["Purchase Invoice", "Sales Invoice", "Stock Entry"]
+    }
+  ],
+  "required_modules": ["Accounts", "Stock", "Selling", "Buying"],
+  "required_doctypes": [
+    "Company", "Fiscal Year", "Currency", "UOM", "Account", "Warehouse", "Tax Template",
+    "Item Group", "Customer Group", "Supplier Group", "Territory", "Price List",
+    "Item", "Customer", "Supplier", "Item Price",
+    "Purchase Order", "Sales Order", "Stock Entry",
+    "Purchase Receipt", "Delivery Note",
+    "Purchase Invoice", "Sales Invoice", "Payment Entry", "Journal Entry"
+  ],
+  "conditional_doctypes": {
+    "BOM": "never",
+    "Work Order": "never",
+    "Job Card": "never"
+  },
+  "setup_order": [
+    "Company", "Fiscal Year", "Currency", "UOM",
+    "Account", "Warehouse", "Tax Template",
+    "Item Group", "Customer Group", "Supplier Group", "Territory", "Price List",
+    "Item", "Customer", "Supplier", "Item Price"
+  ],
+  "validation_rules": {
+    "min_warehouses": 1,
+    "gst_required": true,
+    "opening_stock_required": true
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Maps patterns found in company-uploaded files to F3iche candidates. Agent scans files, collects signals, scores each niche, selects highest-confidence match."
+  },
+  "signals": {
+    "trading": {
+      "keywords": [
+        "trader", "trading", "distributor", "wholesale", "retail", "reseller",
+        "purchase order", "sales order", "inventory", "stock", "SKU", "HSN",
+        "GST invoice", "bill of supply", "challan", "delivery note",
+        "supplier", "customer", "item master", "product list"
+      ],
+      "file_patterns": [
+        "invoice", "bill", "purchase", "sales", "stock statement",
+        "item list", "customer list", "supplier list", "ledger"
+      ],
+      "structure_signals": [
+        "item_code", "qty", "rate", "amount", "GST", "HSN",
+        "customer_name", "supplier_name", "warehouse", "godown"
+      ],
+      "exclude_keywords": ["BOM", "work order", "production", "manufacture", "assembly"]
+    },
+    "manufacturing": {
+      "keywords": [
+        "manufacture", "manufacturing", "production", "BOM", "bill of material",
+        "work order", "job card", "raw material", "finished goods", "WIP",
+        "assembly", "fabrication", "component", "recipe", "batch"
+      ],
+      "file_patterns": [
+        "BOM", "component list", "recipe", "production order",
+        "work order", "job sheet", "material consumption"
+      ],
+      "structure_signals": [
+        "component", "qty_per_unit", "parent_item", "raw_material",
+        "finished_good", "workstation", "operation"
+      ],
+      "boost_keywords": ["BOM", "work order", "production"]
+    },
+    "service": {
+      "keywords": [
+        "service", "consulting", "professional", "project", "hourly",
+        "retainer", "subscription", "license", "maintenance"
+      ],
+      "file_patterns": [
+        "timesheet", "project", "invoice", "service invoice"
+      ],
+      "structure_signals": [
+        "service_item", "hours", "rate", "project", "non_stock"
+      ],
+      "exclude_keywords": ["inventory", "stock", "warehouse", "SKU", "item master"]
+    }
+  },
+  "scoring": {
+    "keyword_match_weight": 2,
+    "file_pattern_weight": 3,
+    "structure_signal_weight": 4,
+    "exclude_penalty": -5,
+    "boost_multiplier": 1.5,
+    "min_confidence_threshold": 0.3
+  }
+}

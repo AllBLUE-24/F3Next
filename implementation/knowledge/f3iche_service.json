@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "id": "service",
+    "name": "Service",
+    "description": "Companies that sell services rather than physical goods. Limited inventory, focus on invoicing and payments.",
+    "process_based": true,
+    "industry_agnostic": true
+  },
+  "workflows": [
+    {
+      "id": "service_invoice",
+      "name": "Service Delivery → Invoice",
+      "steps": ["Customer", "Sales Invoice", "Payment Entry"]
+    }
+  ],
+  "required_modules": ["Accounts", "Selling"],
+  "required_doctypes": [
+    "Company", "Fiscal Year", "Currency", "Account", "Tax Template",
+    "Customer Group", "Territory", "Customer",
+    "Sales Invoice", "Payment Entry", "Journal Entry"
+  ],
+  "conditional_doctypes": {
+    "Item": "non_stock_only",
+    "Warehouse": "never",
+    "BOM": "never",
+    "Work Order": "never"
+  },
+  "setup_order": [
+    "Company", "Fiscal Year", "Currency",
+    "Account", "Tax Template",
+    "Customer Group", "Territory", "Customer"
+  ],
+  "validation_rules": {
+    "min_warehouses": 0,
+    "gst_required": true,
+    "opening_stock_required": false
+  }
+}

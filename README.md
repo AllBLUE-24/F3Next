@@ -17,6 +17,42 @@ AI-powered ERP discovery and implementation for manufacturers.
 
 ---
 
+## Features in this application
+
+| Feature | Description |
+|--------|--------------|
+| **Discovery (consultant chatbot)** | Chat flow that asks about industry, manufacturing/trading style, turnover, current systems, and pain points. Recommends ERP (e.g. ERPNext), price plan, and F3iche. Uses Temporal workflow + optional Ollama/Gemini; falls back to mock if LLM is unavailable. |
+| **Implementation pipeline** | Upload files → infer signals/F3iche → verify F3iche match → target structure → map file → validate → import plan. Company profile is updated along the way. |
+| **Dev Test session** | One-click test session at `/dev/test`: creates a project + client, returns company/user slug and project ID so you can test without Firebase or signup. |
+| **Resolver & onboarding** | Resolve project by slug (`/api/resolve/slug/{slug}`). Onboarding: check slug, complete onboarding. |
+| **Health Check** | Submit questionnaire; optional Temporal workflow; capture interest and report status. |
+| **Config & Config-Apply agents** | Start config workflow, answer questions by layer, check status. Config-Apply launches downstream agent for applying config. |
+| **Migration** | Get upload URL, start analysis, poll status, confirm mapping. For data migration workflows. |
+| **Ingest** | Upload and ingest files (e.g. for discovery or implementation). |
+| **Deploy / Infra** | Trigger infrastructure deployment (e.g. deploy/infra) for a project. |
+| **Auth** | Firebase sync and user resolution; graceful behaviour when Firebase is not configured. |
+| **Mission Control (Home)** | Project home with links to Upload, Validate, Data Mapper, Testing Suite, Discovery, Config, Infra, Ingestion, Migration, etc. |
+
+---
+
+## What you’ll see (output)
+
+| When you… | Output in the app (UI) | Output in the terminal / API |
+|-----------|------------------------|-------------------------------|
+| **Start backend** | — | `Using SQLite: ...` then `Uvicorn running on http://0.0.0.0:8000`. |
+| **Start frontend** | — | `Local: http://localhost:3000`. |
+| **Open app** | Landing page at localhost:3000; login/signup or “Firebase not configured” + link to Dev Test. | — |
+| **Use Dev Test** | Redirect to `/{companySlug}/{userSlug}/home` with project context; Mission Control with tiles. | Backend: test session created; optional log. |
+| **Open Discovery** | Chat UI: “Welcome to F3Next…” then bot questions (industry → make-to-order → turnover → current system → pain point). After 5 steps, recommendation (ERP, fit score, etc.) or timeout message if worker not running. | Discovery worker: SQL updates, activity logs. Temporal: workflow events. |
+| **Send a Discovery message** | “Thinking…” then bot reply (or after ~90 s: message to start Temporal + worker). | Worker: `analyze_discovery_turn`, `save_discovery_state`; DB updates. |
+| **Use Implementation (Upload)** | Upload screen; after upload, success or error. | Backend: implementation upload endpoint logs. |
+| **Use Implementation (Validate / Map)** | Validation UI or mapping result. | Backend: `/api/implementation/validate`, `/map-file`, etc. |
+| **Call API docs** | — | Open http://localhost:8000/docs: Swagger UI with all routes (discovery, health_check, implementation, dev, etc.). |
+| **Health Check submit** | Success message; stored report/project_id in localStorage. | Backend: health_check submit; optional workflow. |
+| **Config / Config-Apply start** | Status or next step in UI. | Backend: `[Config]` / `[ConfigApply]` logs; Temporal if used. |
+
+---
+
 ## Quick run (see output clearly)
 
 Open **4–5 terminals** and keep them visible so you can see logs from each part.

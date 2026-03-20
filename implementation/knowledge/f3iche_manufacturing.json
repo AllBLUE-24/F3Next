@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "id": "manufacturing",
+    "name": "Manufacturing",
+    "description": "Companies that produce goods from raw materials. Includes discrete manufacturing, process manufacturing, assembly.",
+    "process_based": true,
+    "industry_agnostic": true
+  },
+  "workflows": [
+    {
+      "id": "make_to_stock",
+      "name": "Make to Stock",
+      "steps": ["BOM", "Work Order", "Stock Entry (Manufacture)", "Sales Order", "Delivery Note", "Sales Invoice"]
+    },
+    {
+      "id": "make_to_order",
+      "name": "Make to Order / Job Shop",
+      "steps": ["Sales Order", "BOM", "Work Order", "Job Card", "Stock Entry (Manufacture)", "Delivery Note", "Sales Invoice"]
+    }
+  ],
+  "required_modules": ["Accounts", "Stock", "Selling", "Buying", "Manufacturing"],
+  "required_doctypes": [
+    "Company", "Fiscal Year", "Currency", "UOM", "Account", "Warehouse", "Tax Template",
+    "Item Group", "Customer Group", "Supplier Group", "Territory", "Price List",
+    "Item", "Customer", "Supplier", "Item Price", "BOM",
+    "Purchase Order", "Sales Order", "Stock Entry", "Work Order",
+    "Purchase Receipt", "Delivery Note",
+    "Purchase Invoice", "Sales Invoice", "Payment Entry", "Journal Entry"
+  ],
+  "conditional_doctypes": {
+    "BOM": "always",
+    "Work Order": "always",
+    "Job Card": "conditional"
+  },
+  "setup_order": [
+    "Company", "Fiscal Year", "Currency", "UOM",
+    "Account", "Warehouse", "Tax Template",
+    "Item Group", "Customer Group", "Supplier Group", "Territory", "Price List",
+    "Item", "Customer", "Supplier", "Item Price", "BOM"
+  ],
+  "validation_rules": {
+    "min_warehouses": 2,
+    "bom_required": true,
+    "gst_required": true,
+    "opening_stock_required": true
+  }
+}
