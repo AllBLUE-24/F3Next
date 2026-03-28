@@ -3,8 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation'; 
 import Link from 'next/link';
-import { signInWithEmailAndPassword, signInWithPopup, User } from 'firebase/auth'; // Import User type
-import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
+import { createClient } from '@/utils/supabase/client';
 
 export const dynamic = "force-dynamic";
 
@@ -16,31 +15,10 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const supabase = createClient();
 
-  if (!isFirebaseConfigured) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-100 text-center">
-          <h2 className="text-xl font-semibold text-gray-900">Firebase not configured</h2>
-          <p className="text-sm text-gray-600">
-            Use the test app to explore F3Next without signing in.
-          </p>
-          <Link
-            href="/dev/test"
-            className="inline-block w-full py-2 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            Test app (no login)
-          </Link>
-          <Link href="/" className="block text-sm text-indigo-600 hover:text-indigo-500">
-            ← Back to landing
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // --- 🔥 THE NEW REDIRECT LOGIC ---
-  const handleSuccessRedirect = async (user: User) => {
+  // --- THE NEW REDIRECT LOGIC ---
+  const handleSuccessRedirect = async (user: any) => {
     // 1. If there is a specific redirect (e.g., from a shared link), go there
     if (redirectPath) {
       router.push(`${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`);
@@ -53,7 +31,7 @@ function LoginForm() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       
       // Ask Backend: "Where does this UID belong?"
-      const res = await fetch(`${API_URL}/api/resolve/user/${user.uid}`);
+      const res = await fetch(`${API_URL}/api/resolve/user/${user.id}`);
       
       if (res.ok) {
         const data = await res.json();
@@ -77,21 +55,31 @@ function LoginForm() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-      await handleSuccessRedirect(credential.user); // Pass the user object
-    } catch (err) {
+    
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError || !data.user) {
       setError('Invalid email or password.');
       setLoading(false);
+      return;
     }
+
+    await handleSuccessRedirect(data.user);
   };
 
   const handleGoogleSignIn = async () => {
     setError('');
-    try {
-      const credential = await signInWithPopup(auth, googleProvider);
-      await handleSuccessRedirect(credential.user); // Pass the user object
-    } catch (err) {
+    const { data, error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (authError) {
       setError('Google sign-in failed.');
     }
   };

@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { auth, isFirebaseConfigured } from "@/lib/firebase";
-import { useAuthState } from "react-firebase-hooks/auth";
+import { createClient } from "@/utils/supabase/client";
 
 // Helper to turn "Tesla Motors" -> "tesla-motors"
 const slugify = (text: string) => {
@@ -17,9 +16,12 @@ const slugify = (text: string) => {
     .replace(/\-\-+/g, "-");  // Replace multiple - with single -
 };
 
-function OnboardingForm() {
+export default function OnboardingPage() {
   const router = useRouter();
-  const [user, loading] = useAuthState(auth!);
+  const supabase = createClient();
+
+  const [sessionUser, setSessionUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -34,12 +36,28 @@ function OnboardingForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if not logged in
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-    }
-  }, [user, loading, router]);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.push('/login');
+      } else {
+        setSessionUser(user);
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.push('/login');
+      } else {
+        setSessionUser(session.user);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [router, supabase]);
 
   // Handle Input Changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,7 +94,7 @@ function OnboardingForm() {
     setErrors({});
 
     try {
-      if (!user) return;
+      if (!sessionUser) return;
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       
@@ -84,7 +102,7 @@ function OnboardingForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: user.uid,
+          user_id: sessionUser.id,
           full_name: formData.fullName,
           user_slug: formData.userSlug,
           role: formData.role,
@@ -110,7 +128,7 @@ function OnboardingForm() {
     }
   };
 
-  if (loading) return <div className="p-8 text-white">Loading...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center p-8 text-white">Loading...</div>;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
@@ -245,22 +263,4 @@ function OnboardingForm() {
       </div>
     </div>
   );
-}
-
-export default function OnboardingPage() {
-  if (!isFirebaseConfigured) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
-        <div className="w-full max-w-md space-y-6 rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center">
-          <h1 className="text-xl font-semibold text-white">Firebase not configured</h1>
-          <p className="text-sm text-zinc-400">Use the test app to explore F3Next without signing in.</p>
-          <Link href="/dev/test" className="inline-block w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
-            Test app (no login)
-          </Link>
-          <Link href="/" className="block text-sm text-blue-400 hover:text-blue-300">← Back to landing</Link>
-        </div>
-      </div>
-    );
-  }
-  return <OnboardingForm />;
 }

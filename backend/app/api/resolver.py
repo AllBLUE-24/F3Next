@@ -36,14 +36,14 @@ async def resolve_project_slug(slug_str: str, db: AsyncSession = Depends(get_sha
         "status": project.status
     }
 
-@router.get("/user/{firebase_uid}")
-async def resolve_user_context(firebase_uid: str, db: AsyncSession = Depends(get_shared_db)):
+@router.get("/user/{supabase_uid}")
+async def resolve_user_context(supabase_uid: str, db: AsyncSession = Depends(get_shared_db)):
     """
-    Given a Firebase UID, returns the user's slug and their company slug.
+    Given a Supabase UID, returns the user's slug and their company slug.
     Used for redirecting after login.
     """
     # 1. Fetch the Client (User)
-    query = select(Client).where(Client.id == firebase_uid)
+    query = select(Client).where(Client.id == supabase_uid)
     result = await db.execute(query)
     user = result.scalar_one_or_none()
 

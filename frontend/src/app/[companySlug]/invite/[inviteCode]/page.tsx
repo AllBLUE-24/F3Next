@@ -3,8 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, isFirebaseConfigured } from "@/lib/firebase";
+import { createClient } from "@/utils/supabase/client";
 
 // Helper for slug generation
 const slugify = (text: string) => {
@@ -23,11 +22,14 @@ interface PageProps {
 
 function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCode: string }) {
   const router = useRouter();
-  const [user, authLoading] = useAuthState(auth!);
+  const supabase = createClient();
+  
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // State
   const [isValidating, setIsValidating] = useState(true);
-  const [inviteData, setInviteData] = useState<any>(null); // Stores company name, etc.
+  const [inviteData, setInviteData] = useState<any>(null);
   const [error, setError] = useState("");
   
   // Onboarding Form State
@@ -37,6 +39,22 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
     role: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auth Effect
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [supabase]);
 
   // 2. Validate Invite Code on Load
   useEffect(() => {
@@ -91,7 +109,7 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invite_code: inviteCode,
-          user_id: user.uid, // Firebase UID
+          user_id: user.id, // Supabase UID
           full_name: formData.fullName,
           user_slug: formData.userSlug,
           role: formData.role
@@ -111,7 +129,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
 
   // 4. Render States
   
-  // Loading Spinner
   if (isValidating || authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
@@ -123,7 +140,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
     );
   }
 
-  // Invalid Invite State
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-950 p-4">
@@ -143,7 +159,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
     );
   }
 
-  // Not Logged In State
   if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-950 p-4">
@@ -158,7 +173,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
           <div className="space-y-4">
             <p className="text-sm text-zinc-500">Please log in to accept this invitation.</p>
             <Link 
-              // Redirect back to this invite page after login
               href={`/login?redirect=/${companySlug}/invite/${inviteCode}`}
               className="block w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
             >
@@ -170,7 +184,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
     );
   }
 
-  // 5. Main Content: Onboarding Form (Logged In & Valid)
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
       <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 shadow-xl backdrop-blur-sm">
@@ -188,7 +201,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
         </div>
 
         <form onSubmit={handleJoinTeam} className="space-y-6">
-          {/* Read Only Email */}
           <div>
             <label className="block text-sm font-medium text-zinc-500 mb-1">Signed in as</label>
             <div className="flex items-center space-x-2 text-zinc-300">
@@ -197,7 +209,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
             </div>
           </div>
 
-          {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1">Full Name</label>
             <input
@@ -211,7 +222,6 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
             />
           </div>
 
-          {/* Role & Slug Grid */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">Your Role</label>
@@ -257,20 +267,5 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
 
 export default function InvitePage({ params }: PageProps) {
   const { companySlug, inviteCode } = use(params);
-
-  if (!isFirebaseConfigured) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950 p-4">
-        <div className="max-w-md text-center">
-          <h1 className="text-xl font-semibold text-white mb-2">Firebase not configured</h1>
-          <p className="text-zinc-400 mb-6">Use the test app to explore F3Next without signing in.</p>
-          <Link href="/dev/test" className="inline-block rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">
-            Test app (no login)
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return <InviteForm companySlug={companySlug} inviteCode={inviteCode} />;
 }

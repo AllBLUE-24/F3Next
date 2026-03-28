@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth, isFirebaseConfigured } from '@/lib/firebase'; 
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { createClient } from '@/utils/supabase/client';
 import QuestionsList, { QUESTIONS_DATA } from './questions';
 import { ChevronRight, FileBarChart, Loader2, ArrowRight } from 'lucide-react';
 
@@ -12,9 +11,10 @@ export const dynamic = "force-dynamic";
 function HealthCheckContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const supabase = createClient();
   
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
@@ -30,15 +30,21 @@ function HealthCheckContent() {
       setAnswers(JSON.parse(savedAnswers));
     }
 
-    const unsubscribe = onAuthStateChanged(auth!, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser && savedAnswers && searchParams.get('return') === 'true') {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user && savedAnswers && searchParams.get('return') === 'true') {
         setShowModal(true);
       }
     });
 
-    return () => unsubscribe();
-  }, [searchParams]);
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [searchParams, supabase]);
 
   const handleSelect = (key: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
@@ -52,11 +58,7 @@ function HealthCheckContent() {
 
     if (!user) {
       localStorage.setItem('f3_temp_answers', JSON.stringify(answers));
-      if (isFirebaseConfigured) {
-        router.push('/login?redirect=/health_check'); 
-      } else {
-        router.push('/dev/test');
-      }
+      router.push('/login?redirect=/health_check'); 
     } else {
       setShowModal(true);
     }
@@ -67,7 +69,7 @@ function HealthCheckContent() {
     setLoading(true);
 
     const payload = {
-      firebase_uid: user.uid,
+      supabase_uid: user.id,
       user_email: user.email || "",
       full_name: formData.fullName,
       company_name: formData.companyName,
@@ -130,7 +132,6 @@ function HealthCheckContent() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       
-      {/* --- HEADER --- */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
            <div className="flex items-center gap-3">
@@ -143,7 +144,6 @@ function HealthCheckContent() {
              {Object.keys(answers).length} / {QUESTIONS_DATA.length} Answered
            </div>
         </div>
-        {/* Progress Bar */}
         <div className="h-1 w-full bg-slate-100">
             <div 
               className="h-full bg-indigo-600 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(79,70,229,0.5)]" 
@@ -152,7 +152,6 @@ function HealthCheckContent() {
         </div>
       </header>
 
-      {/* --- MAIN CONTENT --- */}
       <main className="max-w-3xl mx-auto px-4 py-12 pb-32">
         
         <div className="text-center mb-12">
@@ -163,12 +162,10 @@ function HealthCheckContent() {
             </p>
         </div>
 
-        {/* Questions List Component (Ensure this component is also styled well, usually passed as props or styled internally) */}
         <div className="space-y-6">
             <QuestionsList answers={answers} handleSelect={handleSelect} />
         </div>
 
-        {/* --- BOTTOM ACTION BAR --- */}
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.05)]">
             <div className="max-w-3xl mx-auto flex justify-between items-center">
                 <div className="text-xs text-slate-400 hidden sm:block">
@@ -189,7 +186,6 @@ function HealthCheckContent() {
 
       </main>
 
-      {/* --- MODAL --- */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">

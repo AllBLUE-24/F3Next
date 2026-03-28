@@ -13,7 +13,7 @@ router = APIRouter(prefix="/health_check", tags=["Health Check"])
 
 # --- Schemas ---
 class AnonymousSubmission(BaseModel):
-    firebase_uid: str
+    supabase_uid: str
     user_email: str
     full_name: str
     role: str
@@ -34,13 +34,13 @@ async def submit_health_check(
     db: AsyncSession = Depends(get_shared_db),
 ):
     # 1. ENSURE CLIENT
-    client_res = await db.execute(select(Client).where(Client.id == payload.firebase_uid))
+    client_res = await db.execute(select(Client).where(Client.id == payload.supabase_uid))
     client = client_res.scalar_one_or_none()
     
     if not client:
         # Note: annual_bleed must be nullable in DB for this to work
         client = Client(
-            id=payload.firebase_uid, 
+            id=payload.supabase_uid, 
             email=payload.user_email,
             full_name=payload.full_name,
             role=payload.role,
@@ -51,12 +51,12 @@ async def submit_health_check(
         await db.flush()
 
     # 2. ENSURE PROJECT
-    proj_res = await db.execute(select(Project).where(Project.client_id == payload.firebase_uid))
+    proj_res = await db.execute(select(Project).where(Project.client_id == payload.supabase_uid))
     project = proj_res.scalar_one_or_none()
 
     if not project:
         project = Project(
-            client_id=payload.firebase_uid, 
+            client_id=payload.supabase_uid, 
             company_name=payload.company_name,
             status=ProjectStatus.CREATED 
         )
@@ -85,10 +85,10 @@ async def submit_health_check(
     print(f"[HealthCheck] Triggering workflow for project {project_id_str}")
 
     try:
-        # Crucial: Pass the firebase_uid and answers. 
+        # Crucial: Pass the supabase_uid and answers. 
         # If your launcher needs project_id, pass project_id_str
         workflow_id = await start_health_check_flow(
-            uid=payload.firebase_uid, 
+            uid=payload.supabase_uid, 
             answers=payload.answers,
             project_id=project_id_str
         )

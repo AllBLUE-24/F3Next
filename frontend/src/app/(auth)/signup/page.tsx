@@ -3,12 +3,10 @@
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation'; 
 import Link from 'next/link';
-import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider, isFirebaseConfigured } from '@/lib/firebase'; 
+import { createClient } from '@/utils/supabase/client';
 
 export const dynamic = "force-dynamic";
 
-// 1. Inner Component (Contains the Logic)
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -16,35 +14,13 @@ function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-
-  if (!isFirebaseConfigured) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-100 text-center">
-          <h2 className="text-xl font-semibold text-gray-900">Firebase not configured</h2>
-          <p className="text-sm text-gray-600">
-            Use the test app to explore F3Next without signing in.
-          </p>
-          <Link
-            href="/dev/test"
-            className="inline-block w-full py-2 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-          >
-            Test app (no login)
-          </Link>
-          <Link href="/" className="block text-sm text-indigo-600 hover:text-indigo-500">
-            ← Back to landing
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const [loading, setLoading] = useState(false);
+  const supabase = createClient();
 
   const handleSuccessRedirect = () => {
-    // If there is a specific redirect (e.g. from an invite link), use it.
     if (redirectPath) {
       router.push(`${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`);
     } else {
-      // Otherwise, standard flow: Go to Onboarding
       router.push('/onboarding');
     }
   };
@@ -52,27 +28,40 @@ function SignupForm() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      handleSuccessRedirect(); 
-    } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
+    setLoading(true);
+
+    const { data, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (authError) {
+      if (authError.message.includes('already in use') || authError.status === 422) {
         setError('This email is already in use.');
-      } else if (err.code === 'auth/weak-password') {
+      } else if (authError.message.includes('weak')) {
         setError('Password should be at least 6 characters.');
       } else {
         setError('Failed to create account. Please try again.');
       }
+      setLoading(false);
+      return;
     }
+    
+    handleSuccessRedirect(); 
   };
 
   const handleGoogleSignIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      handleSuccessRedirect(); 
-    } catch (err) {
+    setError('');
+    const { data, error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (authError) {
       setError('Google sign-in failed.');
-      console.error(err);
+      console.error(authError);
     }
   };
 
@@ -94,8 +83,9 @@ function SignupForm() {
 
         <button
           onClick={handleGoogleSignIn}
+          disabled={loading}
           type="button"
-          className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-all"
+          className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-all disabled:opacity-50"
         >
           <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -141,9 +131,10 @@ function SignupForm() {
 
           <button
             type="submit"
-            className="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            disabled={loading}
+            className="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-wait"
           >
-            Create Account
+            {loading ? "Creating..." : "Create Account"}
           </button>
         </form>
 
@@ -161,7 +152,6 @@ function SignupForm() {
   );
 }
 
-// 2. Export Wrapper (This stops the build error)
 export default function SignupPage() {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
