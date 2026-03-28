@@ -17,7 +17,7 @@ import logging
 from datetime import date
 from typing import Any
 
-from containers.OS.payload_generator.kb_fields import field_kb
+from containers.os.payload_generator.kb_fields import field_kb
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,10 @@
 from temporalio.client import Client
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-TEMPORAL_HOST = "localhost:7233"
+
+TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
 
 async def start_template_agent(project_id: str, config_data: dict) -> str:
     """

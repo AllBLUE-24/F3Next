@@ -40,9 +40,9 @@ async function getProjectFromSlug(slug: string): Promise<ProjectResolution | nul
 }
 
 export default async function DiscoveryPage({ params }: PageProps) {
- // 2. Use the correct param (companyslug)
+ // 2. Use the correct params and await them
  const resolvedParams = await params;
- const { companySlug } = resolvedParams;
+ const { companySlug, userSlug } = resolvedParams;
 
  console.log(`🔍 Resolving Context for: ${companySlug}`);
 
@@ -53,12 +53,13 @@ export default async function DiscoveryPage({ params }: PageProps) {
  // 3. Use our Universal Helper
  const context = await getProjectContext(companySlug);
 
- // 4. Pass the resolved ID to the Client Component
+ // 4. Pass the resolved ID and slugs to the Client Component
  return (
-  // @ts-ignore - Temporary fix to bypass build error for deployment
   <DiscoveryClient 
     projectId={context.project_id} 
     initialStep={1}
+    companySlug={companySlug}
+    userSlug={userSlug}
   />
 );
 }

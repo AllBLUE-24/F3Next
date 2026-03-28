@@ -9,7 +9,7 @@ sys.path.append(str(BASE_DIR))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.health_check import router as health_router
+#  from app.api.health_check import router as health_router
 from app.api.auth import router as auth_router
 from dotenv import load_dotenv
 load_dotenv()
@@ -17,7 +17,7 @@ load_dotenv()
 # Import models to ensure tables are registered for creating
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
-from app.core.db import engine, Base
+from shared.database.db import engine, Base
 from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resolver import router as resolver_router
@@ -72,7 +72,7 @@ app.add_middleware(
 )
 
 # Routes
-app.include_router(health_router)
+# app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(discovery_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")

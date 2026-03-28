@@ -1,6 +1,9 @@
 import asyncio
 import sys
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add the parent directory to path so we can import workflows
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -9,7 +12,7 @@ from temporalio.client import Client
 
 async def main():
     # 1. Connect to Temporal Server
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     # 2. Prepare the Input Data (Simulating what Discovery Agent sends)
     # 💡 CHANGE THIS SLUG to test a new deployment (e.g., test-client-19)

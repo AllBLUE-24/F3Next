@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation"; // <-- IMPORT ROUTER
 import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
 import { sendMessageToDiscoveryAgent } from "@/lib/api/hooks_api";
 
@@ -21,9 +22,18 @@ const INITIAL_MESSAGES: Message[] = [
 interface DiscoveryClientProps {
   projectId: string;
   initialStep: number;
+  companySlug: string; // <-- ADDED
+  userSlug: string;    // <-- ADDED
 }
 
-export default function DiscoveryClient({ projectId, initialStep }: DiscoveryClientProps) {
+export default function DiscoveryClient({ 
+  projectId, 
+  initialStep, 
+  companySlug, 
+  userSlug 
+}: DiscoveryClientProps) {
+  const router = useRouter(); // <-- INITIALIZE ROUTER
+  
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const isPollingRef = useRef(false);
@@ -71,12 +81,24 @@ export default function DiscoveryClient({ projectId, initialStep }: DiscoveryCli
           }
           return;
         }
+        
         const data = await res.json();
+        
+        // --- ADDED REDIRECT LOGIC ---
+        // If the workflow is done, stop everything and route to recommendation page
+        if (data.is_complete || data.status === "COMPLETE") {
+          stopPolling();
+          router.push(`/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`);
+          return;
+        }
+        // -----------------------------
+
         const botText = (data.bot_response || data.message || "").trim();
         const isNewResponse =
           botText &&
           botText !== "Thinking..." &&
           (botText !== lastAssistantContent || lastAssistantContent === "Thinking...");
+          
         if (isNewResponse) {
           stopPolling();
           setCurrentStep(data.step ?? currentStep);
@@ -95,8 +117,10 @@ export default function DiscoveryClient({ projectId, initialStep }: DiscoveryCli
         step: currentStep,
         message: userMessage,
       });
+      
       const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
       const lastContent = lastAssistant?.content ?? "";
+      
       pollForResponse((botText) => {
         setMessages((prev) => {
           const next = [...prev];
@@ -114,6 +138,7 @@ export default function DiscoveryClient({ projectId, initialStep }: DiscoveryCli
           return next;
         });
       }, lastContent);
+      
       return "Thinking...";
     } catch (error) {
       console.error("Chat Error:", error);

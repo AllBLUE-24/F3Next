@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.db import get_db
+from shared.database.db import get_shared_db
 from shared.models.core import Client, Project, ProjectStatus
 # Assuming you have an auth dependency. If not, we can use a simple header for now.
-# from app.core.auth import get_current_user 
+# from app.core.auth import get_current_user  -----> app.core hata diya gaya hai !
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
@@ -21,7 +21,7 @@ class OnboardingRequest(BaseModel):
 async def check_slug(
     type: str = Query(..., regex="^(company|user)$"), 
     slug: str = Query(...), 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_shared_db)
 ):
     """
     Checks if a slug is already taken. Returns true if available.
@@ -39,7 +39,7 @@ async def check_slug(
 @router.post("/complete")
 async def complete_onboarding(
     data: OnboardingRequest, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_shared_db)
 ):
     """
     Saves user details and creates the company project.

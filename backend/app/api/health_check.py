@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.db import get_db
+from shared.database.db import get_shared_db
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
 from pydantic import BaseModel
@@ -31,7 +31,7 @@ class InterestSubmission(BaseModel):
 @router.post("/submit")
 async def submit_health_check(
     payload: AnonymousSubmission,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_shared_db),
 ):
     # 1. ENSURE CLIENT
     client_res = await db.execute(select(Client).where(Client.id == payload.firebase_uid))
@@ -115,7 +115,7 @@ async def submit_health_check(
 @router.post("/capture-interest")
 async def capture_interest(
     payload: InterestSubmission,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_shared_db),
 ):
     try:
         p_uuid = UUID(payload.project_id)
@@ -151,7 +151,7 @@ async def capture_interest(
     
 
 @router.get("/status/{project_id}")
-async def get_report_status(project_id: str, db: AsyncSession = Depends(get_db)):
+async def get_report_status(project_id: str, db: AsyncSession = Depends(get_shared_db)):
     # Fetch the hook to check if report_content is populated
     query = select(Hook, Project).join(Project).where(Hook.project_id == project_id)
     result = await db.execute(query)

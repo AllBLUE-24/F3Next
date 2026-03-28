@@ -3,7 +3,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from containers.OS.execution.activities import (
+    from containers.os.execution_agent.activities import (
         validate_payload,
         execute_erpnext_operation,
         save_execution_log

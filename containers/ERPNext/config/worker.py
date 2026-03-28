@@ -1,14 +1,18 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 # REMOVED: from backend.config import TEMPORAL_HOST 
 
-from containers.ERPNext.config.activities import fetch_context_tags, fetch_layer_questions, save_config_progress, generate_processed_config, save_final_config_db
-from containers.ERPNext.config.workflows import ConfigWorkflow
+from containers.erpnext.config.activities import fetch_context_tags, fetch_layer_questions, save_config_progress, generate_processed_config, save_final_config_db
+from containers.erpnext.config.workflows import ConfigWorkflow
 
 async def main():
     # HARDCODED CONFIGURATION
-    TEMPORAL_HOST = "localhost:7233" 
+    TEMPORAL_HOST = os.getenv("TEMPORAL_HOST") 
 
     # Connect to Temporal Server
     client = await Client.connect(TEMPORAL_HOST)

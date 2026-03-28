@@ -13,7 +13,7 @@ services:
       - ../.env
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - TEMPORAL_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
       - PYTHONPATH=/app:/app/shared # Ensures shared/ and agents/ are importable
     depends_on:
       db:
@@ -101,7 +101,7 @@ services:
     env_file:
       - ../.env
     environment:
-      - TEMPORAL_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
       - PYTHONPATH=/app:/app/shared
     depends_on:
       - temporal

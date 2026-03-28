@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from containers.OS.clarity_agent.kb_loader import kb
+from containers.os.clarity_agent.kb_loader import kb
 
 
 # ─── Output schema description ────────────────────────────────────────────────

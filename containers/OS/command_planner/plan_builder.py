@@ -22,7 +22,7 @@ import logging
 from typing import Any, Optional
 
 from shared.models.plan import ExecutionPlan, PlanStep
-from containers.OS.command_planner.kb_plans import plans_kb
+from containers.os.command_planner.kb_plans import plans_kb
 
 logger = logging.getLogger(__name__)
 

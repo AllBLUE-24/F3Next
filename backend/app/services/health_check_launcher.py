@@ -1,11 +1,14 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from temporalio.client import Client
 from containers.health_check.workflows import HealthCheckWorkflow
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
 async def start_health_check_flow(uid: str, answers: dict, project_id: str):
     # Connect to the temporal service in the docker network
-    temporal_url = os.getenv("TEMPORAL_URL", "127.0.0.1:7233")
+    temporal_url = os.getenv("TEMPORAL_HOST")
     client = await Client.connect(temporal_url)
     workflow_id = f"hc-verify-{uid}"
     # Start the workflow

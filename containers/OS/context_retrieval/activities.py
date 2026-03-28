@@ -36,8 +36,8 @@ from datetime import timedelta
 
 from temporalio import activity 
 
-from containers.OS.context_retrieval.kb_context import context_kb
-from containers.OS.context_retrieval.company_profile import load_company_context
+from containers.os.context_retrieval.kb_context import context_kb
+from containers.os.context_retrieval.company_profile import load_company_context
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ async def retrieve_context(data: dict) -> dict:
     except Exception as e:
         logger.exception("company profile load failed: %s", e)
         # Import here to avoid circular import at module load
-        from containers.OS.context_retrieval.company_profile import _build_dummy_profile
+        from containers.os.context_retrieval.company_profile import _build_dummy_profile
         company_profile = _build_dummy_profile(company_id)
 
     activity.heartbeat("Loading doctype schema")

@@ -22,8 +22,8 @@ import logging
 
 from temporalio import activity
 
-from containers.OS.validation_agent.kb_rules import rules_kb
-from containers.OS.validation_agent.validator import validate_payload_bundle
+from containers.os.validation_agent.kb_rules import rules_kb
+from containers.os.validation_agent.validator import validate_payload_bundle
 
 logger = logging.getLogger(__name__)
 

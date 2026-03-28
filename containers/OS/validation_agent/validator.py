@@ -53,8 +53,8 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-from containers.OS.validation_agent.kb_rules import rules_kb
-from containers.OS.payload_generator.kb_fields import field_kb
+from containers.os.validation_agent.kb_rules import rules_kb
+from containers.os.payload_generator.kb_fields import field_kb
 
 logger = logging.getLogger(__name__)
 

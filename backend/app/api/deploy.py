@@ -5,9 +5,13 @@ from shared.database.db import AsyncSessionLocal
 from shared.models.core import Project, ProjectStatus
 from sqlalchemy.future import select
 from sqlalchemy import update
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 router = APIRouter()
-TEMPORAL_HOST = "localhost:7233"
+TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
 
 class DeployPayload(BaseModel):
     project_id: str

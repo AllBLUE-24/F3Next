@@ -1,7 +1,11 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import json
 from temporalio.client import Client
-from containers.OS.execution.workflows import ERPNextExecutionWorkflow
+from containers.os.execution_agent.workflows import ERPNextExecutionWorkflow
 
 # ── THIS IS WHAT YOU MANUALLY WRITE FOR NOW ──────────────
 payload = {
@@ -30,7 +34,7 @@ payload = {
 # ─────────────────────────────────────────────────────────
 
 async def main():
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     result = await client.execute_workflow(
         ERPNextExecutionWorkflow.run,

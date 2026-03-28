@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 
 _RETRY_2 = RetryPolicy(
     maximum_attempts    = 2,
-    initial_interval    = timedelta(seconds=1),
+    initial_interval    = timedelta(seconds=2),
     backoff_coefficient = 2.0,
 )
 
 _RETRY_3 = RetryPolicy(
     maximum_attempts    = 3,
-    initial_interval    = timedelta(seconds=2),
+    initial_interval    = timedelta(seconds=3),
     backoff_coefficient = 2.0,
     non_retryable_error_types = ["ValueError", "PermissionError", "AuthError"],
 )
@@ -292,7 +292,7 @@ class ERPOSCommandWorkflow:
                     "format_result",
                     args=[validation_error_result, intent_dict, inp.prompt],
                     task_queue             = OS_QUEUE,
-                    start_to_close_timeout = timedelta(seconds=15),
+                    start_to_close_timeout = timedelta(seconds=25),
                     retry_policy           = _NO_RETRY,
                 )
             except Exception:
@@ -439,7 +439,7 @@ class ERPOSCommandWorkflow:
             "format_result",
             args=[execution_result, intent_dict, inp.prompt],
             task_queue             = OS_QUEUE,
-            start_to_close_timeout = timedelta(seconds=15),
+            start_to_close_timeout = timedelta(seconds=25),
             retry_policy           = _RETRY_2,
         )
 

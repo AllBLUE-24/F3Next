@@ -23,7 +23,7 @@ if not S3_BUCKET:
     raise RuntimeError("CRITICAL: S3_BUCKET_NAME is missing in .env file!")
 
 REGION = os.getenv("AWS_REGION", "ap-south-1")
-TEMPORAL_HOST = os.getenv("TEMPORAL_HOST", "localhost:7233")
+TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
 
 s3_client = boto3.client(
     "s3",

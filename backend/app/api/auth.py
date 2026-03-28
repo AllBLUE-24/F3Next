@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.db import get_db
+from shared.database.db import get_shared_db
 from shared.models.core import Client, Project
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -12,7 +12,7 @@ class AuthSyncPayload(BaseModel):
     email: str
 
 @router.post("/sync")
-async def sync_user(payload: AuthSyncPayload, db: AsyncSession = Depends(get_db)):
+async def sync_user(payload: AuthSyncPayload, db: AsyncSession = Depends(get_shared_db)):
     # Simple check: If user exists, return project_id. If not, create.
     res_c = await db.execute(select(Client).where(Client.id == payload.firebase_uid))
     if not res_c.scalar_one_or_none():

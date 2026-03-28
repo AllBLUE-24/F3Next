@@ -5,7 +5,7 @@ from temporalio.common import RetryPolicy
 # Import your activities definition (interface only)
 # 💡 FIX: Removed 'infra_result' from the import list
 with workflow.unsafe.imports_passed_through():
-    from containers.ERPNext.infra_agent.activities import (
+    from containers.erpnext.infra_agent.activities import (
         deploy_inventory_container, 
         save_deployment_details, 
         generate_erpnext_keys

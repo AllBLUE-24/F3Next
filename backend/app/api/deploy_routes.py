@@ -1,4 +1,8 @@
 from fastapi import APIRouter, HTTPException
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from pydantic import BaseModel
 from temporalio.client import Client
 
@@ -17,7 +21,7 @@ async def trigger_infra_deployment(payload: InfraRequest):
     """
     try:
         # 1. Connect to Temporal
-        client = await Client.connect("localhost:7233")
+        client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
         # 2. Prepare Workflow Input
         workflow_input = {

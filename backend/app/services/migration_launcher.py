@@ -1,5 +1,8 @@
 from temporalio.client import Client
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import uuid
 
 # Define the task queue name (must match your Worker's task queue)
@@ -10,7 +13,7 @@ async def launch_legacy_migration_workflow(company_slug: str, s3_file_key: str) 
     Connects to Temporal and starts the LegacyDataMigrationWorkflow.
     """
     # Connect to Temporal Server
-    client = await Client.connect(os.getenv("TEMPORAL_HOST", "localhost:7233"))
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     # Generate a unique workflow ID
     workflow_id = f"migration-{company_slug}-{uuid.uuid4()}"

@@ -1,14 +1,18 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 
 # Import the actual implementations
-from containers.ERPNext.infra_agent.activities import deploy_inventory_container, generate_erpnext_keys, save_deployment_details
-from containers.ERPNext.infra_agent.workflows import ERPNextProvisioningWorkflow
+from containers.erpnext.infra_agent.activities import deploy_inventory_container, generate_erpnext_keys, save_deployment_details
+from containers.erpnext.infra_agent.workflows import ERPNextProvisioningWorkflow
 
 async def main():
     # 1. Connect to Temporal Server (Localhost for now)
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     # 2. Define the Worker
     # 'task_queue' must match what you use when starting the workflow

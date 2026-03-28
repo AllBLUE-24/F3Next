@@ -1,8 +1,12 @@
 from temporalio.client import Client
 # 🟢 Import the specific exception
 from temporalio.exceptions import WorkflowAlreadyStartedError
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-TEMPORAL_HOST = "localhost:7233"
+
+TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
 
 async def launch_config_apply_agent(project_id: str) -> str:
     """

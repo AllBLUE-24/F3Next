@@ -7,7 +7,7 @@ from shared.utils.health_check_financial import get_mapped_value
 from containers.health_check.knowledge_base import KNOWLEDGE_BASE
 from containers.health_check.prompts import REPORT_GENERATION_PROMPT
 from sqlalchemy import text
-from backend.app.core.db import engine
+from shared.database.db import engine
 
 # Setup absolute path for .env to ensure GEMINI_API_KEY is found
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent

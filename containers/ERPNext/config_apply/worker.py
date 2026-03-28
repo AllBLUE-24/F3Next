@@ -1,14 +1,18 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 
 # Adjust imports to match your folder structure
-from containers.ERPNext.config_apply.workflows import ConfigApplyWorkflow
-from containers.ERPNext.config_apply.activities import ConfigApplyActivities
+from containers.erpnext.config_apply.workflows import ConfigApplyWorkflow
+from containers.erpnext.config_apply.activities import ConfigApplyActivities
 
 async def main():
     # Connect to Temporal
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     # Create an instance of the activities class
     activities = ConfigApplyActivities()

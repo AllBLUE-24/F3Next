@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.db import get_db
+from shared.database.db import get_shared_db
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
 import uuid
@@ -16,7 +16,7 @@ USER_SLUG = "test-user"
 
 
 @router.post("/create-test-session")
-async def create_test_session(db: AsyncSession = Depends(get_db)):
+async def create_test_session(db: AsyncSession = Depends(get_shared_db)):
     """
     Creates a test user + project so you can test the app without Firebase.
     Returns the URL to open: /{company_slug}/{user_slug}/home

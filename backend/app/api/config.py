@@ -6,9 +6,13 @@ from typing import Dict, Any, List
 from temporalio.client import Client
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from uuid import UUID # 🟢 Add this import
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 router = APIRouter()
-TEMPORAL_HOST = "localhost:7233"
+TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
 
 # --- Pydantic Models ---
 class StartPayload(BaseModel):

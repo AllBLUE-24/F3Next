@@ -1,232 +1,216 @@
-"""Implementation system API — F3iche, signals, profile, target, mapping, validation, import."""
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+"""
+Implementation API routes — thin layer over ImplementationLauncher.
+Every endpoint either starts a workflow, sends a signal, or queries state.
+No business logic lives here.
 
-from app.core.db import get_db
-from shared.models.core import Project
-from shared.models.hooks import Hook
-from app.services.implementation.company_profile import CompanyProfileService
-from app.services.implementation.signals_inference import SignalsInferenceService
-from app.services.implementation.f3iche_verification import F3icheVerificationService
-from app.services.implementation.target_structure import TargetStructureService
-from app.services.implementation.mapping_engine import MappingEngine
-from app.services.implementation.validation_engine import ValidationEngine
-from app.services.implementation.import_engine import ImportEngine
+Replaces: backend/app/services/implementation/implementation.py (old direct-service router)
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel
+from app.services.is_launcher import ImplementationLauncher
 
 router = APIRouter(prefix="/implementation", tags=["Implementation"])
 
 
-# --- Request/Response Models ---
+# ── Dep helper ────────────────────────────────────────────────────────────────
 
-class SignalsInferRequest(BaseModel):
+async def get_launcher() -> ImplementationLauncher:
+    return ImplementationLauncher()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Workflow lifecycle
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/start/{project_id}", summary="Start or resume the implementation workflow")
+async def start_workflow(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    return await launcher.start(project_id)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Signals  (one endpoint per human action in the UI)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class FilesUploadedRequest(BaseModel):
     project_id: UUID
-    uploaded_files: List[Dict[str, Any]]  # [{file_name, object_path}]
-    file_contents: Optional[Dict[str, str]] = None  # filename -> text content
+    uploaded_files: List[Dict[str, Any]]         # [{file_name, object_path}]
+    file_contents: Optional[Dict[str, str]] = None  # filename → raw text
 
 
-class F3icheVerifyRequest(BaseModel):
+# Add this endpoint
+@router.post("/upload", summary="Handle file upload and signal workflow")
+async def handle_upload(
+    files: List[UploadFile] = File(...),
+    # You might also need project_id if it's passed in the form data
+    # project_id: UUID = Form(...),
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    # 1. Logic to save files locally or to cloud storage (S3/GCS)
+    # ...
+    
+    # 2. Extract metadata needed for the Temporal signal
+    uploaded_file_data = [{"file_name": f.filename, "object_path": "path/where/saved"} for f in files]
+    
+    # 3. Read content if required by your workflow
+    file_contents = {f.filename: (await f.read()).decode('utf-8') for f in files}
+    
+    # 4. Signal the Temporal workflow (assuming you have the project_id)
+    # If project_id isn't in the form data, you'll need to update the frontend to send it.
+    # await launcher.signal_files_uploaded(project_id, uploaded_file_data, file_contents)
+    
+    return {"jobId": "dummy_job_id"} # Match the frontend's expected return type
+
+@router.post("/signal/files-uploaded", summary="Notify workflow that files have been uploaded")
+async def signal_files_uploaded(
+    req: FilesUploadedRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    await launcher.signal_files_uploaded(req.project_id, req.uploaded_files, req.file_contents)
+    return {"ok": True, "signal": "files_uploaded"}
+
+
+class F3icheConfirmedRequest(BaseModel):
     project_id: UUID
     f3iche_user: str
-    f3iche_signals: str
-    confidence: float = 0.0
+    industry: str
+    industry_sub: Optional[str] = None
+    company_name: Optional[str] = None
+    company_size: Optional[str] = None
 
 
-class TargetStructureRequest(BaseModel):
-    project_id: UUID
-    f3iche: str
-    industry: Optional[str] = None
-
-
-class MapFileRequest(BaseModel):
-    content: str
-    filename: str
-    doctype_hint: Optional[str] = None
-
-
-class ValidateRequest(BaseModel):
-    project_id: UUID
-    mapped_data: Dict[str, Any]
-    target_structure: Dict[str, Any]
-
-
-class ImportPlanRequest(BaseModel):
-    project_id: UUID
-    target_structure: Dict[str, Any]
-    mapped_data: Dict[str, Any]
-    validation_report: Dict[str, Any]
-
-
-# --- Endpoints ---
-
-@router.get("/profile/{project_id}")
-async def get_company_profile(
-    project_id: UUID,
-    db: AsyncSession = Depends(get_db),
+@router.post("/signal/f3iche-confirmed", summary="User has confirmed their business type")
+async def signal_f3iche_confirmed(
+    req: F3icheConfirmedRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
 ):
-    """Get latest company profile for project."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    profile = project.implementation_profile or {}
-    return {"profile": profile, "project_id": str(project_id)}
-
-
-@router.post("/signals/infer")
-async def infer_f3iche_from_files(request: SignalsInferRequest):
-    """Infer F3iche from uploaded files using signals_registry."""
-    svc = SignalsInferenceService()
-    f3iche_id, confidence, signals = svc.infer_f3iche(
-        request.uploaded_files,
-        request.file_contents,
+    await launcher.signal_f3iche_confirmed(
+        req.project_id, req.f3iche_user, req.industry,
+        req.industry_sub, req.company_name, req.company_size,
     )
-    return {
-        "f3iche": f3iche_id,
-        "confidence": round(confidence, 2),
-        "collected_signals": signals,
-    }
+    return {"ok": True, "signal": "f3iche_confirmed"}
 
 
-@router.post("/f3iche/verify")
-async def verify_f3iche_match(request: F3icheVerifyRequest):
-    """Verify user F3iche vs signals-inferred F3iche."""
-    svc = F3icheVerificationService()
-    is_match, status, msg = svc.verify(
-        request.f3iche_user,
-        request.f3iche_signals,
-        request.confidence,
+class FilesMappedRequest(BaseModel):
+    project_id: UUID
+    mapped_data: Dict[str, Any]   # {doctype: {field_mapping, rows, ...}}
+
+
+@router.post("/signal/files-mapped", summary="Upload mapped file data to the workflow")
+async def signal_files_mapped(
+    req: FilesMappedRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    await launcher.signal_files_mapped(req.project_id, req.mapped_data)
+    return {"ok": True, "signal": "files_mapped"}
+
+
+class ValidationSubmittedRequest(BaseModel):
+    project_id: UUID
+    responses: Dict[str, Any]
+    profile_edits: Optional[Dict[str, Any]] = None
+    note: Optional[str] = None
+
+
+@router.post("/signal/validation-submitted", summary="User has resolved all validation items")
+async def signal_validation_submitted(
+    req: ValidationSubmittedRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    await launcher.signal_validation_submitted(
+        req.project_id, req.responses, req.profile_edits, req.note
     )
-    return {
-        "is_match": is_match,
-        "status": status,
-        "clarification_message": msg,
-    }
+    return {"ok": True, "signal": "validation_submitted"}
 
 
-@router.post("/target-structure")
-async def build_target_structure(request: TargetStructureRequest):
-    """Build target structure (action workflow) for implementation."""
-    svc = TargetStructureService()
-    target = svc.build_target_structure(
-        request.f3iche,
-        request.industry,
+class SandboxApprovedRequest(BaseModel):
+    project_id: UUID
+    erpnext_base_url: str
+    erpnext_api_key: str
+    dry_run: bool = False
+
+
+@router.post("/signal/sandbox-approved", summary="Sandbox verified — proceed with live import")
+async def signal_sandbox_approved(
+    req: SandboxApprovedRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    await launcher.signal_sandbox_approved(
+        req.project_id, req.erpnext_base_url, req.erpnext_api_key, req.dry_run
     )
-    return {"target_structure": target}
+    return {"ok": True, "signal": "sandbox_approved"}
 
 
-@router.post("/map-file")
-async def map_file_to_erpnext(request: MapFileRequest):
-    """Map uploaded file content to ERPNext doctype and fields."""
-    engine = MappingEngine()
-    result = engine.map_file_to_erpnext(
-        request.content,
-        request.filename,
-        request.doctype_hint,
-    )
-    return result
+# ══════════════════════════════════════════════════════════════════════════════
+# Queries  (read-only state polling)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/state/{project_id}", summary="Full workflow state in one call")
+async def get_full_state(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        return await launcher.get_full_state(project_id)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/validate")
-async def validate_mapped_data(request: ValidateRequest):
-    """Validate mapped data before import."""
-    engine = ValidationEngine()
-    report = engine.validate_mapped_data(
-        request.mapped_data,
-        request.target_structure,
-    )
+@router.get("/stage/{project_id}", summary="Current pipeline stage")
+async def get_stage(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    return {"stage": await launcher.get_stage(project_id)}
+
+
+@router.get("/tasks/{project_id}", summary="Granular analysis task list (for /analyze page)")
+async def get_analysis_tasks(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    return {"tasks": await launcher.get_analysis_tasks(project_id)}
+
+
+@router.get("/profile/{project_id}", summary="Latest company profile snapshot")
+async def get_profile(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    return {"profile": await launcher.get_profile(project_id)}
+
+
+@router.get("/validation/{project_id}", summary="Validation report")
+async def get_validation_report(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    report = await launcher.get_validation_report(project_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Validation not yet run")
     return {"validation_report": report}
 
 
-@router.post("/import/plan")
-async def build_import_plan(request: ImportPlanRequest):
-    """Build 3-phase import plan."""
-    engine = ImportEngine()
-    plan = engine.build_import_plan(
-        request.target_structure,
-        request.mapped_data,
-        request.validation_report,
-    )
+@router.get("/import-plan/{project_id}", summary="3-phase import plan")
+async def get_import_plan(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    plan = await launcher.get_import_plan(project_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Import plan not yet built")
     return {"import_plan": plan}
 
 
-class ProfileUpdateRequest(BaseModel):
-    project_id: UUID
-    f3iche: str
-    industry: str
-    industry_sub: Optional[str] = None
-    company_size: Optional[str] = None
-    company_name: Optional[str] = None
-    f3iche_user: Optional[str] = None
-    f3iche_signals: Optional[str] = None
-    f3iche_match_status: str = "matched"
-    uploaded_files: Optional[List[Dict]] = None
-    collected_signals: Optional[List[str]] = None
-    target_structure: Optional[Dict] = None
-    field_mappings: Optional[Dict] = None
-    validation_report: Optional[Dict] = None
-    import_phase: Optional[str] = None
-    action: str = "update"
-
-
-@router.post("/profile/update")
-async def update_company_profile(
-    request: ProfileUpdateRequest,
-    db: AsyncSession = Depends(get_db),
+@router.get("/import-results/{project_id}", summary="Live import phase results")
+async def get_import_results(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
 ):
-    """Update company profile (versioned)."""
-    result = await db.execute(select(Project).where(Project.id == request.project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    current = project.implementation_profile or {}
-    version = current.get("version", 0) + 1
-
-    profile = CompanyProfileService.build_profile(
-        project_id=str(request.project_id),
-        version=version,
-        f3iche=request.f3iche,
-        industry=request.industry,
-        industry_sub=request.industry_sub,
-        company_size=request.company_size,
-        company_name=request.company_name,
-        f3iche_user=request.f3iche_user,
-        f3iche_signals=request.f3iche_signals,
-        f3iche_match_status=request.f3iche_match_status,
-        uploaded_files=request.uploaded_files or current.get("uploaded_files"),
-        collected_signals=request.collected_signals or current.get("collected_signals"),
-        target_structure=request.target_structure or current.get("target_structure"),
-        field_mappings=request.field_mappings or current.get("field_mappings"),
-        validation_report=request.validation_report or current.get("validation_report"),
-        import_phase=request.import_phase or current.get("import_phase"),
-        action=request.action,
-    )
-
-    project.implementation_profile = profile
-    await db.commit()
-    await db.refresh(project)
-
-    return {"profile": profile, "version": version}
-
-
-@router.get("/f3iche/list")
-async def list_f3iches():
-    """List available F3iches."""
-    import json
-    from pathlib import Path
-    KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "implementation" / "knowledge"
-    f3iches = []
-    for p in KNOWLEDGE_DIR.glob("f3iche_*.json"):
-        with open(p, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            meta = data.get("_meta", {})
-            f3iches.append({
-                "id": meta.get("id", p.stem.replace("f3iche_", "")),
-                "name": meta.get("name", ""),
-                "description": meta.get("description", ""),
-            })
-    return {"f3iches": f3iches}
+    return {"import_results": await launcher.get_import_results(project_id)}

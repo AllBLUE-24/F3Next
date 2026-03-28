@@ -5,7 +5,7 @@ Temporal activities for the Clarity Agent.
 Registered on: os-main-queue
 
 FIXES vs previous version:
-  - gemini-2.0-flash → gemini-1.5-flash  (higher quota on free tier)
+  - gemini-2.0-flash → gemini-flash-latest  (higher quota on free tier)
   - max_output_tokens: 200 → 1200        (was truncating JSON at char 109)
   - Added retry loop (3x) on quota/rate-limit errors with backoff
   - Fallback intent no longer has ambiguities — avoids re-prompting user

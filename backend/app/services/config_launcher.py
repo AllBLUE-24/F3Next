@@ -1,8 +1,12 @@
 from temporalio.client import Client
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 async def start_config_workflow(container_id: str, project_id: str, initial_tags: list):
-    # HARDCODED CONFIGURATION
-    TEMPORAL_HOST = "localhost:7233"
+    # CONFIGURATION
+    TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
     
     client = await Client.connect(TEMPORAL_HOST)    
     
@@ -18,6 +22,6 @@ async def start_config_workflow(container_id: str, project_id: str, initial_tags
     return workflow_id
 
 async def get_workflow_handle(container_id: str):
-    TEMPORAL_HOST = "localhost:7233"
+    TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
     client = await Client.connect(TEMPORAL_HOST)
     return client.get_workflow_handle(f"config-workflow-{container_id}")

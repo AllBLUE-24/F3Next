@@ -7,7 +7,7 @@ from shared.models.node_bank import NodeBank
 from shared.models.project_answers import ProjectAnswer
 from shared.models.core import Project, ProjectStatus
 from typing import List, Dict, Any
-from containers.ERPNext.config.ai_service import generate_final_config_json
+from containers.erpnext.config.ai_service import generate_final_config_json
 from temporalio.client import Client
 
 

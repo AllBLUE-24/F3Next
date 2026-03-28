@@ -1,4 +1,8 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 from containers.health_check.workflows import HealthCheckWorkflow
@@ -11,7 +15,7 @@ from containers.health_check.workflows import HealthCheckWorkflow
 
 async def main():
     # connect to temporal
-    client = await Client.connect("127.0.0.1:7233") # Connects to the docker service if localhost/127.0.0.1 --> temporal
+    client = await Client.connect(os.getenv("TEMPORAL_HOST")) # Connects to the docker service if localhost/127.0.0.1 --> temporal
     # 2. Register ALL activities with the worker
     worker = Worker(
         client,

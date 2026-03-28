@@ -116,7 +116,7 @@ async def seed(deployment: dict) -> None:
     print(f"\n  ✅ deployment_details saved for '{slug}'")
     print(f"     The OS pipeline will now use real ERPNext at {details['erp_url']}")
     print(f"\n  Restart the OS worker for changes to take effect:")
-    print(f"     python -m containers.OS.os_worker")
+    print(f"     python -m containers.os.os_worker")
 
 
 async def verify(slug: str) -> None:

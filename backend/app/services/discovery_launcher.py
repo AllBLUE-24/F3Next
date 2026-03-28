@@ -1,4 +1,8 @@
 import uuid
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from uuid import UUID
 from temporalio.client import Client
 from temporalio.exceptions import WorkflowAlreadyStartedError
@@ -41,7 +45,7 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
             await db.commit()
     # ---------------------------------------------------------
 
-    client = await Client.connect("127.0.0.1:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
     workflow_id = f"discovery-{project_id}"
     
     try:

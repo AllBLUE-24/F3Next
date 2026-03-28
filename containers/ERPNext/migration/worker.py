@@ -1,6 +1,9 @@
 # containers/ERPNext/migration/worker.py
 import asyncio
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import logging
 from temporalio.client import Client
 from temporalio.worker import Worker
@@ -24,7 +27,7 @@ from .activities import (
 async def main():
     # Connect to Temporal Server
     # In Docker compose, host might be 'temporal' instead of 'localhost'
-    client = await Client.connect(os.getenv("TEMPORAL_HOST", "localhost:7233"))
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     # Define the worker
     worker = Worker(

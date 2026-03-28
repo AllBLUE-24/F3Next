@@ -1,9 +1,13 @@
 from temporalio.client import Client
 import uuid
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 class WorkflowLauncher:
-    def __init__(self, temporal_url="localhost:7233"):
-        self.temporal_url = temporal_url
+    def __init__(self, temporal_url=None):
+        self.temporal_url = temporal_url or os.getenv("TEMPORAL_HOST")
 
     async def launch_agent(self, workflow_name: str, project_id: str, task_queue: str, **kwargs):
         """

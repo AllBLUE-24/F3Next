@@ -6,6 +6,10 @@ CONTEXT:
 We are at Step {current_step} of 5.
 Goal for this Step: Extract tags related to {target_concept_for_this_step}.
 
+PREVIOUS STATE:
+Already Extracted Tags: {accumulated_tags}
+Question You Just Asked: "{previous_bot_question}"
+
 INPUT:
 User's Answer: "{user_answer}"
 
@@ -21,9 +25,11 @@ YOUR TASKS:
    - Look for nuance. (e.g., "We assemble parts" -> #Ind_Manufacturing + #Strat_Assembly).
 
 3. NEXT STEP GENERATION (Only if Valid):
-   - If the answer is good, formulate the Next Question to move to Step {next_step}.
-   - Make the next question "Context-Aware". 
-
+   - Review the "Already Extracted Tags" and "User's Answer".
+   - IF the user has already provided information relevant to the Next Step, DO NOT ask them for it again.
+   - Instead, acknowledge what you already know, and ask a more specific follow-up question or skip directly to the concept after that.
+   - Formulate the Next Question to move the conversation forward naturally.
+   
 OUTPUT FORMAT (JSON ONLY):
 {{
   "status": "SUCCESS" | "RETRY",

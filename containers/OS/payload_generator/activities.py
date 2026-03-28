@@ -25,8 +25,8 @@ import logging
 
 from temporalio import activity
 
-from containers.OS.payload_generator.kb_fields import field_kb
-from containers.OS.payload_generator.payload_builder import build_payload_bundle
+from containers.os.payload_generator.kb_fields import field_kb
+from containers.os.payload_generator.payload_builder import build_payload_bundle
 
 logger = logging.getLogger(__name__)
 

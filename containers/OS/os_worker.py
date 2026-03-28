@@ -1,4 +1,8 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import logging
 from temporalio.client import Client
 from temporalio.worker import Worker
@@ -14,18 +18,18 @@ logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 logging.getLogger("temporalio.worker").setLevel(logging.ERROR)
 
 # All your existing activities
-from containers.OS.clarity_agent.activities import extract_intent, resolve_ambiguity
-from containers.OS.context_retrieval.activities import retrieve_context
-from containers.OS.command_planner.activities import plan_command
-from containers.OS.payload_generator.activities import generate_payload
-from containers.OS.validation_agent.activities import validate_payload
-from containers.OS.execution_agent.activities import execute_command
-from containers.OS.result_formatter.activities import format_result
-from containers.OS.os_workflow.workflow import ERPOSCommandWorkflow
-from containers.OS.search_planner.activities import plan_search
+from containers.os.clarity_agent.activities import extract_intent, resolve_ambiguity
+from containers.os.context_retrieval.activities import retrieve_context
+from containers.os.command_planner.activities import plan_command
+from containers.os.payload_generator.activities import generate_payload
+from containers.os.validation_agent.activities import validate_payload
+from containers.os.execution_agent.activities import execute_command
+from containers.os.result_formatter.activities import format_result
+from containers.os.os_workflow.workflow import ERPOSCommandWorkflow
+from containers.os.search_planner.activities import plan_search
 
 async def main():
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     activities_list = [
         extract_intent, resolve_ambiguity, retrieve_context,

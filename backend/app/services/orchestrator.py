@@ -2,9 +2,13 @@ from temporalio.client import Client
 from sqlalchemy import update
 from shared.database.db import AsyncSessionLocal
 from shared.models.core import Project, ProjectStatus # Ensure ProjectStatus is imported
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Configuration
-TEMPORAL_HOST = "localhost:7233"
+TEMPORAL_HOST = os.getenv("TEMPORAL_HOST")
 
 async def trigger_post_config_actions(project_id: str, container_id: str, final_config: dict):
     """

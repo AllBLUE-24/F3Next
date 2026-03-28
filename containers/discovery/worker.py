@@ -1,4 +1,8 @@
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 from containers.discovery.workflows import DiscoveryChatWorkflow
@@ -10,7 +14,7 @@ from containers.discovery.activities import (
 )
 
 async def main():
-    client = await Client.connect("127.0.0.1:7233")
+    client = await Client.connect(os.getenv("TEMPORAL_HOST"))
     worker = Worker(
         client,
         task_queue="discovery-queue",  # Isolated from health-check

@@ -17,6 +17,10 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from datetime import timedelta
 from functools import lru_cache
 from typing import Any, Optional
@@ -41,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-TEMPORAL_HOST     = "localhost:7233"   # Override via env in production
+TEMPORAL_HOST     = os.getenv("TEMPORAL_HOST")   # Override via env in production
 OS_TASK_QUEUE     = "os-main-queue" # The first queue — workflow routes from here
 WORKFLOW_TIMEOUT  = timedelta(hours=1) # Max time for a single command workflow
 
@@ -109,7 +113,7 @@ async def dispatch_os_command(req: CommandRequest) -> CommandDispatch:
     )
 
     # Import here to avoid circular import at module load
-    from containers.OS.os_workflow.workflow import ERPOSCommandWorkflow
+    from containers.os.os_workflow.workflow import ERPOSCommandWorkflow
 
     try:
         await client.start_workflow(

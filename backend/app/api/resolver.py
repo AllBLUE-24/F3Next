@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.db import get_db
+from shared.database.db import get_shared_db
 from shared.models.core import Project
 from uuid import UUID
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ class ProjectContext(BaseModel):
     # Add other universal flags here (e.g., is_locked, tier)
 
 @router.get("/slug/{slug_str}", response_model=ProjectContext)
-async def resolve_project_slug(slug_str: str, db: AsyncSession = Depends(get_db)):
+async def resolve_project_slug(slug_str: str, db: AsyncSession = Depends(get_shared_db)):
     """
     Universal endpoint: Converts a human-readable URL slug into a System UUID.
     Every frontend page hits this first.
@@ -37,7 +37,7 @@ async def resolve_project_slug(slug_str: str, db: AsyncSession = Depends(get_db)
     }
 
 @router.get("/user/{firebase_uid}")
-async def resolve_user_context(firebase_uid: str, db: AsyncSession = Depends(get_db)):
+async def resolve_user_context(firebase_uid: str, db: AsyncSession = Depends(get_shared_db)):
     """
     Given a Firebase UID, returns the user's slug and their company slug.
     Used for redirecting after login.

@@ -22,8 +22,8 @@ import logging
 
 from temporalio import activity
 
-from containers.OS.command_planner.kb_plans import plans_kb
-from containers.OS.command_planner.plan_builder import build_plan
+from containers.os.command_planner.kb_plans import plans_kb
+from containers.os.command_planner.plan_builder import build_plan
 from shared.models.plan import ExecutionPlan, PlanStep
 
 logger = logging.getLogger(__name__)

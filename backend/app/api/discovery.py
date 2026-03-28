@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from app.services.discovery_launcher import start_or_signal_discovery
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.db import get_db
+from shared.database.db import get_shared_db
 from shared.models.core import Project
-from sqlalchemy import Uuid, select
+from sqlalchemy import select
 from shared.models.hooks import Hook
 from uuid import UUID
 
@@ -16,7 +16,7 @@ class DiscoveryRequest(BaseModel):
     step: int = 1
 
 @router.post("/chat")
-async def chat_discovery(request: DiscoveryRequest, db: AsyncSession = Depends(get_db)):
+async def chat_discovery(request: DiscoveryRequest, db: AsyncSession = Depends(get_shared_db)):
     """
     Receives user message and signals the Temporal Discovery Workflow.
     """
@@ -45,7 +45,7 @@ async def chat_discovery(request: DiscoveryRequest, db: AsyncSession = Depends(g
 
 
 @router.get("/status/{project_id}")
-async def get_discovery_status(project_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_discovery_status(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
     """
     Polls the latest state of the Discovery Chat for the Frontend.
     """
@@ -70,6 +70,31 @@ async def get_discovery_status(project_id: UUID, db: AsyncSession = Depends(get_
             "price_plan": discovery_metadata.get("price_plan"),
             "recommended_erp": discovery_metadata.get("recommended_erp"),
             "fit_score": discovery_metadata.get("fit_score"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{project_id}/recommendation")
+async def get_recommendation_status(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
+    """
+    Dedicated endpoint for the Recommendation Page to poll final ERP results.
+    """
+    try:
+        query = select(Hook).where(Hook.project_id == project_id)
+        result = await db.execute(query)
+        hook = result.scalar_one_or_none()
+
+        if not hook:
+            raise HTTPException(status_code=404, detail="Project context not found")
+
+        # If the metadata is null or empty, Temporal is still processing
+        if not hook.discovery_metadata:
+            return {"status": "processing"}
+
+        # Once Temporal writes the JSON to this column, we return it!
+        return {
+            "status": "ready",
+            "data": hook.discovery_metadata
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

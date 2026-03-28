@@ -37,7 +37,7 @@ class DiscoveryChatWorkflow:
                 save_discovery_state,
                 {
                     "project_id": project_id,
-                    "message": bot_message, # Changed key to 'message' to match activity
+                    "message": bot_message,
                     "step": self._current_step,
                     "tags": self._extracted_tags
                 },
@@ -53,31 +53,48 @@ class DiscoveryChatWorkflow:
                 {
                     "user_answer": self._user_reply,
                     "current_step": self._current_step,
-                    "history": self._conversation_history
+                    "history": self._conversation_history,
+                    "previous_question": bot_message,           # <-- ADDED: Passes context to prompt
+                    "accumulated_tags": self._extracted_tags    # <-- ADDED: Passes context to prompt
                 },
                 start_to_close_timeout=timedelta(minutes=2)
             )
     
             # 4. Update State
             if analysis["status"] == "SUCCESS":
-                self._current_step = analysis["next_step_id"]
-                self._extracted_tags.extend(analysis.get("extracted_tags", []))
+                # --- BULLETPROOF STEP ADVANCEMENT ---
+                reported_next = analysis.get("next_step_id", self._current_step + 1)
+                
+                # If we are on Step 5, force it to Step 6 to break the loop!
+                if self._current_step >= 5:
+                    self._current_step = 6
+                else:
+                    # Make sure it actually moves forward and doesn't get stuck
+                    self._current_step = reported_next if reported_next > self._current_step else self._current_step + 1
+                # ------------------------------------
+                
+                # Combine and deduplicate tags correctly
+                new_tags = analysis.get("extracted_tags", [])
+                self._extracted_tags = list(set(self._extracted_tags + new_tags))
+                
                 self._conversation_history.append(f"User: {self._user_reply}")
-                self._conversation_history.append(f"AI: {analysis['message']}")
+                self._conversation_history.append(f"AI: {analysis.get('message', '')}")
                 
                 if self._current_step > 5:
                     self._is_complete = True
             
-            # Use the 'message' field we ensured exists in activity
             bot_message = analysis.get("message", "One moment, please...")
             self._user_reply = None
+
 
         # Final step: Generate ERP recommendation + F3iche + Industry
         recommendation = await workflow.execute_activity(
             generate_erp_recommendation,
-            list(set(self._extracted_tags)),
+            self._extracted_tags, # Already a deduplicated list
             start_to_close_timeout=timedelta(minutes=2),
         )
+        
+        # This will now safely mark discovery_status="COMPLETE" in Postgres
         await workflow.execute_activity(
             save_discovery_metadata,
             {"project_id": project_id, "recommendation": recommendation},
@@ -86,7 +103,7 @@ class DiscoveryChatWorkflow:
 
         return {
             "status": "complete",
-            "tags": list(set(self._extracted_tags)),
+            "tags": self._extracted_tags,
             "f3iche": recommendation.get("f3iche", "trading"),
             "industry": recommendation.get("industry", ""),
             "recommended_erp": recommendation.get("recommended_erp"),
