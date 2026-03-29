@@ -17,7 +17,8 @@ if not DATABASE_URL or USE_SQLITE:
 
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,
+    echo=False, # Turn to False in production
+    pool_pre_ping=True, 
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
 )
 
