@@ -1,56 +1,103 @@
 services:
-  db:
+  # 1. Temporal's Internal Brain (Do NOT use this for your app data)
+  temporal-db:
     image: postgres:15-alpine
-    container_name: f3_postgres
+    container_name: f3_temporal_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: temporal_admin
+      POSTGRES_PASSWORD: temporal_password # Change this in production
+      POSTGRES_DB: temporal
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - temporal_postgres_data:/var/lib/postgresql/data
 
+  # 2. Temporal Server
   temporal:
     image: temporalio/auto-setup:latest
     container_name: f3_temporal
     depends_on:
-      - db
+      - temporal-db
     ports:
       - "7233:7233"
     environment:
       DB: postgres12
       DB_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PWD: ${POSTGRES_PASSWORD}
-      POSTGRES_SEEDS: db
+      POSTGRES_USER: temporal_admin
+      POSTGRES_PWD: temporal_password
+      POSTGRES_SEEDS: temporal-db
+      # Temporal will auto-create the necessary schemas in the temporal-db
 
+  # 3. Temporal UI
   temporal-ui:
     image: temporalio/ui:latest
     container_name: f3_temporal_ui
+    depends_on:
+      - temporal
     ports:
       - "8080:8080"
     environment:
       TEMPORAL_ADDRESS: temporal:7233
 
-  adminer:
-    image: adminer
-    ports:
-      - "8081:8080"
+  # 4. Your Python Agents
+  discovery-agent:
+    build: 
+      context: .
+      dockerfile: ./containers/discovery/Dockerfile
+    container_name: f3_discovery_agent
+    restart: always
+    env_file: .env # Reads all variables natively
+    depends_on:
+      - temporal
     environment:
-      ADMINER_DEFAULT_SERVER: db
+      - TEMPORAL_HOST_URL=temporal:7233
 
-  minio:
-    image: minio/minio
-    container_name: minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+  health-check-agent:
+    build: 
+      context: .
+      dockerfile: ./containers/health_check/Dockerfile
+    container_name: f3_health_check_agent
+    restart: always
+    env_file: .env
+    depends_on:
+      - temporal
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
-    command: server --console-address ":9001" /data
+      - TEMPORAL_HOST_URL=temporal:7233
+
+  os-agent:
+    build: 
+      context: .
+      dockerfile: ./containers/os/Dockerfile
+    container_name: f3_os_agent
+    restart: always
+    env_file: .env
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_HOST_URL=temporal:7233
+
+  implementation-agent:
+    build: 
+      context: .
+      dockerfile: ./containers/implementation/Dockerfile
+    container_name: f3_implementation_agent
+    restart: always
+    env_file: .env
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_HOST_URL=temporal:7233
+
+  erpnext-agent:
+    build: 
+      context: .
+      dockerfile: ./containers/erpnext/Dockerfile
+    container_name: f3_erpnext_agent
+    restart: always
+    env_file: .env
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_HOST_URL=temporal:7233
 
 volumes:
-  postgres_data:
+  temporal_postgres_data:

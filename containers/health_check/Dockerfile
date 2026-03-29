@@ -1,8 +1,14 @@
 FROM python:3.11-slim
 WORKDIR /app
-COPY requirements.txt .
+
+# Copy this agent's specific requirements
+COPY containers/health_check/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all project code (relies on root build context)
 COPY . .
-# Set PYTHONPATH so the agent can find the 'shared' folder at root
-ENV PYTHONPATH=/app:/app/shared
+
+# Ensure 'shared' and other root modules resolve
+ENV PYTHONPATH=/app
+
 CMD ["python", "containers/health_check/worker.py"]
