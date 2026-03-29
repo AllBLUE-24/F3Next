@@ -9,12 +9,7 @@ from shared.database.db import engine
 from shared.models.hooks import Hook
 from sqlalchemy import update
 
-# Initialize Gemini Client globally or within activity
-def get_llm():
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is not set in environment variables.")
-    return ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
+# Intentionally not establishing a single get_llm so we rely on the router
 
 def _mock_discovery_response(user_answer: str, current_step: int) -> dict:
     """Fallback when API limits or network issues occur."""
@@ -66,8 +61,8 @@ async def analyze_discovery_turn(data: dict) -> dict:
     system_context = f"Use these validation rules: {json.dumps(KNOWLEDGE_BASE['validation_rules'])}"
 
     try:
-        llm = get_llm()
-        response = await llm.ainvoke([("system", system_context), ("human", formatted_prompt)])
+        from llm_router import invoke_smart_llm
+        response = await invoke_smart_llm([("system", system_context), ("human", formatted_prompt)], model_name="gemini-flash-latest")
         content = response.content
 
         clean_json = content.replace("```json", "").replace("```", "").strip()
@@ -109,8 +104,8 @@ async def generate_erp_recommendation(tags: list) -> dict:
     formatted_prompt = RECOMMENDATION_PROMPT.format(extracted_tags=tag_str)
 
     try:
-        llm = get_llm()
-        response = await llm.ainvoke([("human", formatted_prompt)])
+        from llm_router import invoke_smart_llm
+        response = await invoke_smart_llm([("human", formatted_prompt)], model_name="gemini-flash-latest")
         
         clean_json = response.content.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_json)

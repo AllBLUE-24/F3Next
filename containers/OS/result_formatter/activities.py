@@ -242,26 +242,16 @@ Write ONLY the error message:"""
 # ── LLM call ──────────────────────────────────────────────────────────────────
 
 async def _call_gemini(prompt: str) -> str:
-    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage
+    from llm_router import invoke_smart_llm
 
-    llm = ChatGoogleGenerativeAI(
-        model=_MODEL,
-        temperature=0.3,
-        max_output_tokens=500, # Increased limit to prevent truncation
-        google_api_key=os.getenv("GEMINI_API_KEY"),
+    response = await invoke_smart_llm(
+        [HumanMessage(content=prompt)], 
+        model_name=_MODEL, 
+        temperature=0.3, 
+        max_output_tokens=500
     )
-
-    for attempt in range(1, 4):
-        try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
-            return response.content.strip()
-        except Exception as e:
-            is_quota = any(k in str(e).lower() for k in ['quota', 'rate', '429'])
-            if is_quota and attempt < 3:
-                await asyncio.sleep(2 ** attempt)
-                continue
-            raise
+    return response.content.strip()
 
 
 # ── Main activity ──────────────────────────────────────────────────────────────

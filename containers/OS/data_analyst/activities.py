@@ -27,41 +27,24 @@ _MODEL      = "gemini-flash-latest"
 _MAX_TOKENS = 1500
 
 async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
-    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage
+    from llm_router import invoke_smart_llm
 
-    llm = ChatGoogleGenerativeAI(
-        model=_MODEL,
-        temperature=0.1,
-        max_output_tokens=_MAX_TOKENS,
-        google_api_key=os.getenv("GEMINI_API_KEY"),
-    )
+    try:
+        response = await invoke_smart_llm([HumanMessage(content=prompt)], model_name=_MODEL, temperature=0.1, max_output_tokens=_MAX_TOKENS)
+        raw = response.content.strip()
 
-    last_err = None
-    for attempt in range(1, max_retries + 1):
+        cleaned = re.sub(r'^`{3}(?:json)?\s*', '', raw, flags=re.MULTILINE)
+        cleaned = re.sub(r'\s*`{3}\s*$', '', cleaned, flags=re.MULTILINE).strip()
+
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
-            raw = response.content.strip()
-
-            cleaned = re.sub(r'^`{3}(?:json)?\s*', '', raw, flags=re.MULTILINE)
-            cleaned = re.sub(r'\s*`{3}\s*$', '', cleaned, flags=re.MULTILINE).strip()
-
-            try:
-                return json.loads(cleaned)
-            except json.JSONDecodeError:
-                if cleaned.strip().startswith('{') and not cleaned.strip().endswith('}'):
-                    cleaned += '}'
-                return json.loads(cleaned)
-
-        except Exception as e:
-            is_quota = any(k in str(e).lower() for k in ['quota', 'rate', '429'])
-            if is_quota and attempt < max_retries:
-                await asyncio.sleep(2 ** attempt)
-                continue
-            last_err = e
-            break
-
-    raise ValueError(f"LLM call failed: {last_err}")
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            if cleaned.strip().startswith('{') and not cleaned.strip().endswith('}'):
+                cleaned += '}'
+            return json.loads(cleaned)
+    except Exception as e:
+        raise ValueError(f"LLM call failed: {e}")
 
 
 def _build_analyst_prompt(prompt: str, raw_data: list, meta: dict) -> str:

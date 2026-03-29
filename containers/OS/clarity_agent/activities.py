@@ -38,63 +38,37 @@ _MAX_TOKENS = 1200                  # Was 200 — caused truncation at char 109
 async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
     """
     Call Gemini and parse the JSON response.
-    Retries up to 3x on quota/rate-limit errors with exponential backoff.
     Attempts JSON repair if response is truncated.
     """
-    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage
+    from llm_router import invoke_smart_llm
 
-    llm = ChatGoogleGenerativeAI(
-        model=_MODEL,
-        temperature=0.1,
-        max_output_tokens=_MAX_TOKENS,
-        google_api_key=os.getenv("GEMINI_API_KEY"),
-    )
+    try:
+        response = await invoke_smart_llm([HumanMessage(content=prompt)], model_name=_MODEL, temperature=0.1, max_output_tokens=_MAX_TOKENS)
+        raw = response.content.strip()
 
-    last_err = None
-    for attempt_num in range(1, max_retries + 1):
+        # Strip markdown fences
+        cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
+        cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
+
+        # Attempt parse
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
-            raw = response.content.strip()
-
-            # Strip markdown fences
-            cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
-            cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
-
-            # Attempt parse
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Pass 1: sanitize common Gemini malformations
+            sanitized = _sanitize_json(cleaned)
             try:
-                return json.loads(cleaned)
+                return json.loads(sanitized)
             except json.JSONDecodeError:
-                # Pass 1: sanitize common Gemini malformations
-                sanitized = _sanitize_json(cleaned)
-                try:
-                    return json.loads(sanitized)
-                except json.JSONDecodeError:
-                    pass
-                # Pass 2: repair truncated JSON
-                repaired = _repair_json(sanitized)
-                if repaired:
-                    return json.loads(repaired)
-                raise
+                pass
+            # Pass 2: repair truncated JSON
+            repaired = _repair_json(sanitized)
+            if repaired:
+                return json.loads(repaired)
+            raise
 
-        except Exception as e:
-            err_str = str(e).lower()
-            is_quota = any(k in err_str for k in ['quota', 'rate', '429', 'resource_exhausted'])
-
-            if is_quota and attempt_num < max_retries:
-                wait = 2 ** attempt_num   # 2s, 4s, 8s
-                logger.warning(
-                    "Gemini quota/rate error (attempt %d/%d) — retrying in %ds: %s",
-                    attempt_num, max_retries, wait, str(e)[:80],
-                )
-                await asyncio.sleep(wait)
-                last_err = e
-                continue
-
-            last_err = e
-            break
-
-    raise ValueError(f"LLM call failed after {max_retries} attempts: {last_err}")
+    except Exception as e:
+        raise ValueError(f"LLM call failed: {e}")
 
 
 

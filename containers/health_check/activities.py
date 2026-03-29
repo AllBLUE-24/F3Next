@@ -57,11 +57,7 @@ async def analyze_health_logic(data: dict) -> dict:
 @activity.defn
 async def generate_health_report(analysis_results: dict) -> str:
     """Generates the Forensic Audit report using Gemini."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is missing!")
-
-    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
+    from llm_router import invoke_smart_llm
     
     # Fix the KeyError by mapping every placeholder in prompts.py
     formatted_prompt = REPORT_GENERATION_PROMPT.format(
@@ -72,7 +68,7 @@ async def generate_health_report(analysis_results: dict) -> str:
         monthly_interest_loss=analysis_results["monthly_interest_loss"]
     )
     
-    response = await llm.ainvoke(formatted_prompt)
+    response = await invoke_smart_llm(formatted_prompt, model_name="gemini-flash-latest")
     return str(response.content)
 
 
