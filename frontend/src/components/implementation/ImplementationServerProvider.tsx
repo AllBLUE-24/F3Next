@@ -39,7 +39,7 @@ async function fetchSession(
 ): Promise<ImplementationSession | null> {
   try {
     const res = await fetch(
-      `${API_BASE}/implementation/session?company=${companySlug}&user=${userSlug}`,
+      `${API_BASE}/api/implementation/session?company=${companySlug}&user=${userSlug}`,
       {
         cache: 'no-store',
         headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },
@@ -59,7 +59,7 @@ async function fetchSession(
 async function fetchDeploymentState(instanceId: string): Promise<DeploymentState> {
   try {
     const res = await fetch(
-      `${API_BASE}/deployment/${instanceId}`,
+      `${API_BASE}/api/deployment/${instanceId}`,
       {
         cache: 'no-store',
         headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },

@@ -22,7 +22,6 @@ from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resolver import router as resolver_router
 from app.api.config import router as config_router
-from app.api.deploy_routes import router as deploy_routes_router
 from app.api.deploy import router as deploy_router
 from app.api.agents import router as agents_router
 from app.api.config_apply import router as config_apply_router
@@ -30,7 +29,6 @@ from app.api.migration import router as migration_router
 from app.api.ingest import router as ingest_router
 from app.api.os_command import router as os_router
 from app.api.implementation import router as implementation_router
-from app.api.dev import router as dev_router
 
 
 @asynccontextmanager
@@ -79,11 +77,9 @@ app.include_router(onboarding_router, prefix="/api")
 app.include_router(resolver_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(deploy_router, prefix="/api")
-app.include_router(deploy_routes_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 app.include_router(config_apply_router, prefix="/api")
 app.include_router(migration_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
 app.include_router(os_router, prefix="/api")
 app.include_router(implementation_router, prefix="/api")
-app.include_router(dev_router, prefix="/api")

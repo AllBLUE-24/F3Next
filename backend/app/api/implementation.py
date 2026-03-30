@@ -6,7 +6,9 @@ No business logic lives here.
 Replaces: backend/app/services/implementation/implementation.py (old direct-service router)
 """
 from __future__ import annotations
-
+import os
+import boto3
+from botocore.config import Config
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -22,6 +24,45 @@ router = APIRouter(prefix="/implementation", tags=["Implementation"])
 async def get_launcher() -> ImplementationLauncher:
     return ImplementationLauncher()
 
+
+class PresignedUrlRequest(BaseModel):
+    project_id: UUID
+    file_names: List[str]
+
+@router.post("/presigned-urls", summary="Generate direct R2 upload URLs")
+async def generate_presigned_urls(req: PresignedUrlRequest):
+    # Connect to Cloudflare R2
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto"
+    )
+
+    bucket_name = "quarantine"
+    urls = []
+
+    for file_name in req.file_names:
+        object_key = f"{str(req.project_id)}/{file_name}"
+        
+        # Generate a URL valid for 1 hour (3600 seconds) for a PUT request
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={'Bucket': bucket_name, 'Key': object_key},
+            ExpiresIn=3600
+        )
+        
+        urls.append({
+            "file_name": file_name,
+            "upload_url": presigned_url,
+            "object_path": object_key # This is the address Temporal needs later!
+        })
+
+    return {"urls": urls}
+
+    
 # ══════════════════════════════════════════════════════════════════════════════
 # Workflow lifecycle
 # ══════════════════════════════════════════════════════════════════════════════
@@ -44,28 +85,7 @@ class FilesUploadedRequest(BaseModel):
     file_contents: Optional[Dict[str, str]] = None  # filename → raw text
 
 
-# Add this endpoint
-@router.post("/upload", summary="Handle file upload and signal workflow")
-async def handle_upload(
-    files: List[UploadFile] = File(...),
-    # You might also need project_id if it's passed in the form data
-    # project_id: UUID = Form(...),
-    launcher: ImplementationLauncher = Depends(get_launcher),
-):
-    # 1. Logic to save files locally or to cloud storage (S3/GCS)
-    # ...
-    
-    # 2. Extract metadata needed for the Temporal signal
-    uploaded_file_data = [{"file_name": f.filename, "object_path": "path/where/saved"} for f in files]
-    
-    # 3. Read content if required by your workflow
-    file_contents = {f.filename: (await f.read()).decode('utf-8') for f in files}
-    
-    # 4. Signal the Temporal workflow (assuming you have the project_id)
-    # If project_id isn't in the form data, you'll need to update the frontend to send it.
-    # await launcher.signal_files_uploaded(project_id, uploaded_file_data, file_contents)
-    
-    return {"jobId": "dummy_job_id"} # Match the frontend's expected return type
+
 
 @router.post("/signal/files-uploaded", summary="Notify workflow that files have been uploaded")
 async def signal_files_uploaded(

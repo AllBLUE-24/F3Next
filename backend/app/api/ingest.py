@@ -3,7 +3,7 @@ from fastapi import APIRouter, UploadFile, File, Header
 from datetime import datetime
 import uuid
 
-from shared.database.minio import minio_client, ensure_bucket, MINIO_BUCKET
+from shared.database.s3 import s3_client, S3_BUCKET
 
 router = APIRouter(tags=["Ingestion"])
 
@@ -13,12 +13,11 @@ async def ingest_files(
     x_company_slug: str = Header(...),
     x_user_slug: str = Header(...),
 ):
-    ensure_bucket()
-
     uploaded_files = []
 
     for file in files:
-        file.file.seek(0)
+        # Read file into memory for boto3 payload
+        file_bytes = file.file.read()
 
         object_name = (
             f"clients/{x_company_slug}/"
@@ -28,13 +27,11 @@ async def ingest_files(
             f"{uuid.uuid4()}_{file.filename}"
         )
 
-        minio_client.put_object(
-            bucket_name=MINIO_BUCKET,
-            object_name=object_name,
-            data=file.file,
-            length=-1,
-            part_size=10 * 1024 * 1024,
-            content_type=file.content_type or "application/octet-stream",
+        s3_client.put_object(
+            Bucket=S3_BUCKET,
+            Key=object_name,
+            Body=file_bytes,
+            ContentType=file.content_type or "application/octet-stream",
         )
 
         uploaded_files.append({

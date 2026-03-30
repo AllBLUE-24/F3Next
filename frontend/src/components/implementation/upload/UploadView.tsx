@@ -1,7 +1,7 @@
 'use client';
 // PATH: src/components/implementation/upload/UploadView.tsx
 
-import { useCallback, useRef, useState, useTransition } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, File, X, AlertCircle, ArrowRight } from 'lucide-react';
 
@@ -9,18 +9,20 @@ interface FileEntry {
   id: string;
   name: string;
   size: number;
-  file: File; // actual File object kept here
+  file: File; 
 }
 
 interface Props {
-  uploadAction: (formData: FormData) => Promise<{ jobId: string }>;
+  projectId: string; // We need this to tell R2 and Temporal which project this is!
+  getPresignedUrls: (projectId: string, fileNames: string[]) => Promise<{ urls: { file_name: string, upload_url: string, object_path: string }[] }>;
+  signalUploadComplete: (projectId: string, uploadedFiles: { file_name: string, object_path: string }[]) => Promise<any>;
   analyzeHref: string;
 }
 
-export function UploadView({ uploadAction, analyzeHref }: Props) {
+export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, analyzeHref }: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false); // Swapped useTransition for reliable client-side async loading
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -47,20 +49,52 @@ export function UploadView({ uploadAction, analyzeHref }: Props) {
     [addFiles]
   );
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!entries.length) return;
     setError(null);
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        // Append actual File objects — server action receives real binary data
-        entries.forEach((e) => formData.append('files', e.file, e.name));
-        const { jobId } = await uploadAction(formData);
-        router.push(`${analyzeHref}?jobId=${jobId}`);
-      } catch {
-        setError('Upload failed. Please try again.');
-      }
-    });
+    setIsUploading(true);
+
+    try {
+      // 1. Ask FastAPI for the R2 upload tickets (Presigned URLs)
+      const fileNames = entries.map((e) => e.name);
+      const { urls } = await getPresignedUrls(projectId, fileNames);
+
+      const uploadedFilesData: { file_name: string; object_path: string }[] = [];
+
+      // 2. Upload all files directly to Cloudflare R2 in parallel
+      await Promise.all(
+        entries.map(async (entry) => {
+          const fileUrlData = urls.find((u) => u.file_name === entry.name);
+          if (!fileUrlData) throw new Error(`Missing upload URL for ${entry.name}`);
+
+          const res = await fetch(fileUrlData.upload_url, {
+            method: 'PUT',
+            body: entry.file, // Send raw binary directly to R2
+            headers: {
+              'Content-Type': entry.file.type || 'application/octet-stream',
+            },
+          });
+
+          if (!res.ok) throw new Error(`Failed to upload ${entry.name}`);
+
+          uploadedFilesData.push({
+            file_name: entry.name,
+            object_path: fileUrlData.object_path, // Keep track of where it landed in R2
+          });
+        })
+      );
+
+      // 3. Tell FastAPI/Temporal that the files are safe in the quarantine bucket
+      await signalUploadComplete(projectId, uploadedFilesData);
+
+      // 4. Move to the next stage
+      router.push(`${analyzeHref}?jobId=${projectId}`);
+    } catch (err) {
+      console.error(err);
+      setError('Upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const formatBytes = (bytes: number) => {
@@ -169,10 +203,10 @@ export function UploadView({ uploadAction, analyzeHref }: Props) {
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={!entries.length || isPending}
+        disabled={!entries.length || isUploading}
         className="w-full py-4 rounded-xl bg-amber-500 text-black font-black text-base hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 group shadow-xl shadow-amber-500/10"
       >
-        {isPending ? (
+        {isUploading ? (
           <>
             <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
             Uploading…

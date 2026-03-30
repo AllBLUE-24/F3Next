@@ -19,7 +19,11 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False, # Turn to False in production
     pool_pre_ping=True, 
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
+    # UPDATE: We added the cache disable settings to the Postgres fallback
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0
+    },
 )
 
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
