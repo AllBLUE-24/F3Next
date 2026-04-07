@@ -47,8 +47,10 @@ class ERPNextProvisioningWorkflow:
             "project_id": input_data["project_id"],
             "deployment_details": {
                 "site_url": keys_result["site_url"],
+                "user_id": "Administrator",
                 "api_key": keys_result["api_key"],
                 "api_secret": keys_result["api_secret"],
+                "admin_password": keys_result["admin_password"],
                 "container_id": f"cnt_{input_data.get('company_slug')}"
             }
         }

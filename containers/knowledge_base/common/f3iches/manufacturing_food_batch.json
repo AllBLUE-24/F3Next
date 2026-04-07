@@ -1,0 +1,1052 @@
+{
+  "id": "manufacturing_food_batch",
+  "display_name": "Food Processing / Packaged Food Manufacturer",
+  "version": "2.0",
+  "last_updated": "2025-02-11",
+  "regulatory_criticality_level": "HIGH",
+  
+  "business_reality": {
+    "typical_company_profile": {
+      "size": "8-40 employees",
+      "structure": "Owner (often food tech background or family business). Production Manager/Head (handles recipe + process). Quality Control Head (mandatory for FSSAI). 5-15 production workers (mixing, packing). 2-3 QC staff. 1-2 sales/dispatch personnel.",
+      "location": "Food processing clusters OR near raw material source. Examples: Nashik (onion/fruit processing), Sangli (turmeric/raisins), Guntur (chili/spices), Anand (dairy), Coimbatore (coconut), Punjab (wheat/rice processing), Bangalore (ready-to-eat urban foods).",
+      "business_models": [
+        "Own brand manufacturing (60-70% of SMEs) — Sell under own label to distributors/retailers",
+        "Contract manufacturing / Private label (30-40%) — Manufacture for other brands (Reliance, DMart, e-commerce brands)",
+        "Co-packing (10-15%) — Packaging service only (buyer provides processed bulk, you pack into retail units)",
+        "B2B ingredient supply (15-20%) — Spice mixes to restaurants, fruit pulp to juice makers"
+      ],
+      "typical_products": {
+        "snacks": "Namkeen, chips, roasted nuts, popcorn, banana chips, mixture",
+        "spices": "Ground spices, spice mixes (garam masala, sambhar powder), curry powders",
+        "ready_to_eat": "Pickles, chutneys, sauces, jams, ready curry, instant mixes",
+        "beverages": "Juice, squash, concentrates, syrup, coconut water",
+        "dairy": "Paneer, ghee, butter, flavored milk, lassi (if FSSAI dairy license)",
+        "bakery": "Biscuits, cookies, rusk, bread (if FSSAI bakery license)",
+        "frozen": "Frozen parathas, samosas, vegetables (IQF), french fries (if cold chain capability)",
+        "dehydrated": "Onion flakes, garlic powder, dried fruits, instant soup mixes"
+      },
+      "typical_batch_size": "50 kg - 500 kg per batch for SMEs. Large batches (1-5 tons) for contract manufacturing. Batch frequency: Daily OR 2-3x per week depending on demand.",
+      "production_capacity": "500 kg - 5 tons per day depending on product complexity and automation level.",
+      "processing_types_used": [
+        "Mixing/Blending (most common — spices, masalas, snack seasoning)",
+        "Cooking/Heating (curries, sauces, jams)",
+        "Drying/Dehydration (onion flakes, fruit leather, instant mixes)",
+        "Roasting/Frying (namkeen, chips, roasted nuts)",
+        "Pasteurization (juice, milk-based products)",
+        "Sterilization (retort pouches, canned products — less common in SME)",
+        "Freezing (IQF vegetables, frozen snacks — needs cold chain investment)",
+        "Fermentation (pickles, yogurt, traditional products)"
+      ]
+    },
+    
+    "actual_workflow": {
+      "description": "Food processing follows a BATCH-CENTRIC workflow from ingredient receipt to dispatch. Every batch has unique identity (Batch No + MFG Date + Expiry Date). Traceability is legally mandatory for recall capability. Unlike garment's linear flow, food has critical cooling/resting periods and mandatory QC holds.",
+      
+      "step_1_ingredient_procurement": {
+        "business_action": "Raw materials (ingredients) purchased from: (1) APMC mandis (vegetables, fruits, grains), (2) Farmers directly (contract farming for quality consistency), (3) Traders/wholesalers (spices, dry fruits), (4) Packaging material suppliers (pouches, bottles, caps, labels).",
+        "sourcing_reality": "86% of farmers are smallholders (<2 hectares). Sourcing consistent quality is nightmare. Same 'tomato' from 10 different farmers = 10 different varieties, sugar content, acidity. Leads to inconsistent product taste batch-to-batch.",
+        "critical_checks": [
+          "Pesticide residue testing (mandatory for export, optional for domestic but recommended)",
+          "Physical inspection (color, size, damage, foreign matter)",
+          "Moisture content (for grains, spices — affects shelf life)",
+          "Supplier FSSAI license verification (if procuring processed ingredients like refined oil)",
+          "Weighbridge accuracy (ingredient procurement is by weight, 1% shortage = significant margin loss)"
+        ],
+        "erpnext_doctypes": ["Purchase Order", "Purchase Receipt", "Quality Inspection (Raw Material QC)", "Landed Cost Voucher (for freight, handling)"],
+        "erpnext_warehouses": "Raw Material Warehouse (segregated by ingredient type: Spices, Grains, Packaging, Chemicals if food-grade additives used)",
+        "pain_points": [
+          "Seasonal price volatility — Onion price ₹10/kg in November, ₹60/kg in June (procurement planning nightmare)",
+          "Quality inconsistency — Same supplier sends Grade A in first lot, Grade C in second lot (affects product quality)",
+          "Adulteration risk — Turmeric mixed with lead chromate (for color), cumin mixed with grass seeds (detection needs lab testing)",
+          "Storage pest infestation — Grains/spices infested with weevils if stored >2 months without fumigation",
+          "Supplier payment terms — Mandi traders demand cash, but cash flow tight (need working capital)"
+        ]
+      },
+      
+      "step_2_ingredient_preparation": {
+        "business_action": "Primary processing: Cleaning (remove stones, dust, damaged pieces), Washing (if applicable), Sorting (by size/grade), Cutting/Chopping (vegetables, fruits), Grinding/Milling (spices into powder).",
+        "manual_vs_automated": "SMEs: 70% manual (labor-intensive). Medium enterprises: Semi-automated (destoner machines, pulverizers). Large: Fully automated (optical sorters, industrial grinders).",
+        "critical_checks": [
+          "Foreign matter removal (stones, metal pieces — use metal detector or manual picking)",
+          "Moisture content verification (spices must be <10% moisture for good grinding, <12% for storage)",
+          "Pre-wash microbial load (if product is RTE, ingredient must be washed in chlorinated water)"
+        ],
+        "erpnext_doctypes": ["Job Card (if tracking preparation operations)", "Stock Entry (Issue from Raw Material to WIP - Preparation)"],
+        "erpnext_warehouses": "WIP Warehouse (Preparation Area)",
+        "pain_points": [
+          "Stone/metal contamination — Customer complains tooth broke on stone in dal/spice (brand damage + legal liability)",
+          "Over-washing water wastage — Vegetables lose water-soluble vitamins, plus high water bills",
+          "Under-drying before grinding — Spice powder has moisture >12%, grows mold within 2 months (customer rejection)",
+          "Labor availability — Peak season (harvest time), labor moves to farms, factory faces shortage"
+        ]
+      },
+      
+      "step_3_batch_planning_recipe_confirmation": {
+        "business_action": "Production Manager decides: Which product to make today? How many batches? Confirms recipe/formulation (BOM in ERPNext). Checks ingredient stock availability. If shortage, production delayed.",
+        "batch_number_logic": "Format: ProductCode-DDMMYYYY-Batch# Example: CHUTNEY-11022025-01 (Chutney made on 11-Feb-2025, first batch of the day). Batch number MUST be unique and sequential (FSSAI requirement).",
+        "recipe_criticality": "Recipe = Trade secret. Even 1% ingredient variation changes taste. Example: Garam masala with 15 spices, each in specific proportion. If cumin 0.5% extra, entire batch tastes different (customer complaints).",
+        "erpnext_doctypes": ["Work Order", "BOM (Recipe)"],
+        "erpnext_warehouses": "No warehouse movement yet (planning stage)",
+        "pain_points": [
+          "Recipe deviation (accidental or intentional) — Operator adds 'little extra' salt, entire batch too salty, unsellable",
+          "Ingredient shortage mid-batch — Started batch, realized sugar short by 10kg, production stopped",
+          "No standard recipe — Owner knows recipe by heart, never documented, if owner absent, production stops",
+          "Yield estimation wrong — Recipe says '100kg input = 80kg output', reality is 70kg (10kg loss unaccounted)"
+        ]
+      },
+      
+      "step_4_core_processing": {
+        "business_action": "Execute the process: Mixing (spices in ribbon blender), Cooking (sauce in steam jacketed kettle), Frying (chips in deep fryer), Drying (onion in tray dryer), Roasting (nuts in continuous roaster), Pasteurization (juice at 71°C for 15 sec). Process parameters (temperature, time, speed) are CRITICAL for quality and safety.",
+        "process_control_reality": "SMEs: Manual control (operator checks temperature on dial, adjusts knob). Medium: Semi-auto (temperature controller, timer). Large: Fully automated PLC (programmable logic controller).",
+        "critical_checks": [
+          "Temperature monitoring (undercook = bacterial survival = food poisoning risk, overcook = nutrient loss + burnt taste)",
+          "Time adherence (pasteurization MUST be 15 seconds at 71°C, not 10 seconds — product unsafe if shorter)",
+          "Mixing homogeneity (spice mix must be uniform, no clumps, otherwise some packets are too spicy, some bland)",
+          "pH monitoring (for pickles, sauces — pH <4.5 prevents botulism growth, legally required for certain products)"
+        ],
+        "erpnext_doctypes": ["Job Card (Processing Operation)", "Stock Entry (Transfer within WIP — Raw to Processing)"],
+        "erpnext_warehouses": "WIP Warehouse (Processing Area)",
+        "pain_points": [
+          "Temperature deviation undetected — Pasteurization done at 60°C instead of 71°C (product unsafe, but no one knows until customer gets sick)",
+          "Equipment breakdown mid-batch — Mixer motor burns, half-mixed batch stuck inside, must be scrapped (total loss)",
+          "Power outage — Batch in oven, power goes off for 2 hours, batch half-cooked, quality compromised",
+          "Operator error — Wrong ingredient added (salt instead of sugar in jam — entire 500kg batch waste)",
+          "No process log — Can't prove to auditor that pasteurization was done correctly (FSSAI non-compliance)"
+        ]
+      },
+      
+      "step_5_cooling_resting": {
+        "business_action": "Post-processing cooling (if product was heated). Example: Fried chips must cool to room temp before packing (if packed hot, condensation forms inside packet, chips become soggy). Fermented products need resting period (pickle needs 24-48 hours for flavors to develop).",
+        "critical_checks": [
+          "Cooling rate monitoring (rapid cooling = quality retained, slow cooling = bacterial growth risk)",
+          "Ambient condition control (cooling area must be clean, dry, pest-free)",
+          "Resting time adherence (pickle packed too early = unfermented, packed too late = over-fermented/sour)"
+        ],
+        "erpnext_doctypes": ["Job Card (Cooling/Resting Operation)", "Stock Entry (Transfer within WIP)"],
+        "erpnext_warehouses": "WIP Warehouse (Cooling Area)",
+        "pain_points": [
+          "Cooling area contamination — Flies/dust settle on open trays (product contaminated, microbial count high)",
+          "Improper stacking — Product stacked while hot, bottom layers don't cool, develop off-odors",
+          "Time pressure — Sales wants product ASAP, cooling rushed, quality compromised"
+        ]
+      },
+      
+      "step_6_packing": {
+        "business_action": "Product packed into retail units (pouches, bottles, jars, tins, cartons). Packing material is critical part of BOM (cost 15-30% of final product cost). Packing types: Laminate pouches (spices, chips), HDPE bottles (sauces), Glass jars (pickles, jams), Stand-up pouches (premium products).",
+        "packing_process": "Manual filling (small SME) OR semi-auto (pouch filling machine) OR fully auto (Form-Fill-Seal machine). Weighing accuracy critical (Legal Metrology Act — packed weight must match declared weight ±2%).",
+        "critical_checks": [
+          "Net weight accuracy (Legal Metrology inspectors randomly check, if weight is short, penalty ₹25,000-₹1 lakh per violation)",
+          "Seal integrity (if pouch seal is weak, air enters, product oxidizes, shelf life reduces from 6 months to 2 months)",
+          "Headspace (empty space in packet) — too much headspace = looks like cheating customer, too little = product damage during transport",
+          "Foreign object check (metal detector for final packed product — ensures no metal pieces from machinery)"
+        ],
+        "erpnext_doctypes": ["Stock Entry (Manufacture — consume ingredients + packing material, produce finished goods)", "Packing Slip (if carton-level tracking needed)", "Batch creation (Batch No assigned here)"],
+        "erpnext_warehouses": "Finished Goods Warehouse",
+        "batch_mfg_expiry_logic": {
+          "mfg_date": "Date of packing (NOT date of processing). FSSAI rule: MFG date = date when product is packed in final retail container.",
+          "shelf_life_calculation": "Product-specific. Examples: Chips (6 months), Spice powder (12 months), Pickle (24 months), Sauce (12 months), Frozen (18 months).",
+          "expiry_date": "MFG Date + Shelf Life. Example: Packed on 11-Feb-2025, Shelf life = 12 months, Expiry = 11-Feb-2026.",
+          "fssai_requirement": "Both MFG and Expiry MUST be printed on every retail pack. Missing = product seizure by inspectors."
+        },
+        "pain_points": [
+          "Label printing errors — Expiry date printed wrong (shows 2024 instead of 2025), entire batch must be re-labeled (cost + time loss)",
+          "Packing material shortage — Production ready, but pouches out of stock, can't pack (batch sits open, risk of contamination)",
+          "Weight variation — Some packs 98g, some 102g (Legal Metrology violation if average is <100g for '100g' declared pack)",
+          "Seal defects — 5% pouches have weak seals, discovered by customer after 2 months (oxidation, complaints, returns)",
+          "Batch number not stamped — Manual stamping missed on some packs, discovered during dispatch (FSSAI violation, can't ship)"
+        ]
+      },
+      
+      "step_7_batch_quality_control": {
+        "business_action": "Final product testing. Two types: (1) In-house QC — Visual, taste, texture, weight, seal check. (2) Lab testing — Microbial count, chemical analysis, nutritional analysis (done by NABL-accredited external lab OR in-house lab if large company).",
+        "testing_frequency": "Every batch = in-house QC. Lab testing = quarterly OR every 10 batches OR when new batch of raw material used (depending on product risk).",
+        "critical_checks": [
+          "Sensory evaluation (taste, smell, color, texture — does it match standard?)",
+          "Microbial testing (Total Plate Count, Yeast/Mold, Coliform, E.coli, Salmonella — for food safety)",
+          "Chemical testing (Moisture, fat, protein, salt, pH, additives within permissible limits)",
+          "Physical testing (weight, seal strength, vacuum in jar)",
+          "Shelf life testing (Accelerated shelf life test — product kept at 37°C for 3 months = simulates 12 months at room temp)"
+        ],
+        "erpnext_doctypes": ["Quality Inspection", "Quality Inspection Template (per product type)"],
+        "hold_logic": "If QC fails, batch HELD (not released to FG warehouse). Options: (1) Rework (if fixable — e.g., too sweet, blend with less-sweet batch), (2) Downgrade (sell as B-grade at discount), (3) Scrap (total loss if unsafe).",
+        "pain_points": [
+          "No QC done (small SME) — Product shipped without testing, customer complains, brand damage",
+          "QC done but not documented — FSSAI auditor asks for lab reports, no records, penalty",
+          "Lab test delay — Sent sample to lab on Monday, report comes Friday, production waiting (cash flow blocked)",
+          "QC standards not defined — 'Taste should be good' is subjective, different QC staff have different standards, no consistency",
+          "Failed batch disposal — Batch rejected, but not destroyed immediately, sits in warehouse, accidentally shipped to customer (crisis)"
+        ]
+      },
+      
+      "step_8_labeling_declaration": {
+        "business_action": "Final label application (if not done during packing). Label contains: Product name, Brand, Ingredients list (descending order by weight %), Nutritional facts (per 100g), MFG Date, Expiry Date, Batch No, FSSAI License No, Net weight, MRP (if pre-packed), Manufacturer address, Customer care number, Allergen warning (if applicable), Veg/Non-veg symbol.",
+        "legal_requirement": "FSSAI + Legal Metrology + BIS (for certain products like milk, edible oil). Missing any mandatory info = product cannot be sold legally.",
+        "erpnext_doctypes": ["No specific doctype, but label data must be generated from Item master + Batch doctype"],
+        "pain_points": [
+          "Label compliance errors — Ingredients not listed in descending order, FSSAI penalty ₹25,000",
+          "Nutritional facts wrong — Copied from competitor's label without actual testing, customer complains to FSSAI (big trouble)",
+          "MRP missing — Retailers refuse to stock (can't sell without MRP in India)",
+          "Allergen warning missing — Product contains peanuts, no warning, customer has allergic reaction (legal liability + bad press)",
+          "Label language — Product for South India, label only in Hindi/English (some states require local language too)"
+        ]
+      },
+      
+      "step_9_storage": {
+        "business_action": "Finished goods stored in warehouse until dispatch. Storage conditions vary: Ambient (most products), Refrigerated (dairy, fresh juice, some sauces), Frozen (frozen foods at -18°C or below).",
+        "FIFO_criticality": "FIFO (First In First Out) is LEGALLY mandatory. Older batches MUST be dispatched first. If LIFO (Last In First Out) used, older batches expire in warehouse (wastage + FSSAI violation).",
+        "critical_checks": [
+          "Temperature monitoring (if cold storage) — even 2°C temperature rise = reduced shelf life, potential spoilage",
+          "Humidity control (for dry products) — high humidity = product absorbs moisture, becomes sticky/lumpy (spice powder, chips)",
+          "Pest control (rodents, cockroaches, ants) — evidence of pest infestation = entire stock condemned by inspector",
+          "Stock rotation — FIFO physically enforced (older stock in front, newer at back), not just in software"
+        ],
+        "erpnext_doctypes": ["Stock Entry (if internal transfers between warehouses)", "Stock Ledger", "Stock Balance Report with Batch + Expiry visibility"],
+        "erpnext_warehouses": "Finished Goods Warehouse (may have sub-warehouses: FG-Ambient, FG-Refrigerated, FG-Frozen)",
+        "pain_points": [
+          "Near-expiry stock untracked — Batch expires in 2 months, but no alert, discovered only when customer rejects delivery",
+          "FIFO violation — Warehouse staff picks nearest stock (not oldest), older batches expire in back of warehouse (loss ₹50,000-₹5 lakh per year)",
+          "Temperature log not maintained — Cold room temperature rose to 12°C overnight (power failure), no alarm, product quality compromised but no one knows",
+          "Stock damage — Cartons stacked too high, bottom cartons crushed, product packets burst",
+          "Theft/pilferage — Small packets easy to steal, inventory mismatch (physical stock < system stock)"
+        ]
+      },
+      
+      "step_10_dispatch": {
+        "business_action": "Goods loaded onto vehicle (tempo/truck). Delivery challan generated. e-Way Bill generated (if inter-state + value >₹50,000). For cold chain products, insulated vehicle OR ice boxes used.",
+        "critical_checks": [
+          "Batch expiry check before loading — Don't dispatch batch expiring in <3 months (retailers reject)",
+          "Vehicle cleanliness — Food products cannot be transported with non-food items (cement, chemicals) in same vehicle (contamination risk)",
+          "Temperature during transit — If cold chain, temperature logger placed in vehicle, data checked on delivery",
+          "Packing list vs invoice match — Loaded quantity = billed quantity"
+        ],
+        "erpnext_doctypes": ["Delivery Note", "Sales Invoice", "e-Way Bill", "Payment Entry (if advance/COD)"],
+        "erpnext_warehouses": "Finished Goods Warehouse (stock reduced)",
+        "pain_points": [
+          "Vehicle breakdown mid-route — Cold chain vehicle compressor fails, product thaws, entire load waste (no insurance coverage for this)",
+          "Customer rejects near-expiry stock — Sent batch expiring in 2 months, customer wants minimum 4 months, goods returned (reverse logistics cost)",
+          "e-Way Bill errors — Wrong HSN code, truck stopped at check post, goods detained for 2 days (perishable product spoils)",
+          "Delivery proof not collected — Customer claims non-delivery, payment dispute",
+          "Transit damage — Cartons damaged in loading/unloading, product packets crushed"
+        ]
+      }
+    },
+    
+    "key_pain_points": {
+      "inventory_management": [
+        "Expired stock losses — ₹50,000-₹5 lakh per year for typical SME. Batch expires in warehouse, total write-off. Insurance doesn't cover expiry.",
+        "Near-expiry stock unmonitored — No system alerts when batch has <3 months shelf life remaining. Discovered only when customer rejects.",
+        "FIFO violations — Warehouse staff picks convenient stock, not oldest. Results in old batches expiring while new ones are sold.",
+        "Yield variance untracked — Recipe says 100kg input = 80kg output (20% loss for water evaporation, wastage). Reality is 75kg output (5% extra loss unaccounted).",
+        "Ingredient quality variation — Same ingredient from different suppliers has different moisture/quality. Affects final product consistency.",
+        "Cold chain failures — Temperature monitoring manual/absent. Product spoilage undetected until customer complaints."
+      ],
+      
+      "production_tracking": [
+        "Recipe deviations — Operator adds ingredients 'by feel', not by weight. Batch-to-batch taste variation (customer complaints: 'this time it's too spicy').",
+        "Process parameter violations — Pasteurization done at 65°C instead of 71°C (to save time/fuel). Product unsafe but no one knows until outbreak.",
+        "No batch traceability — If customer complaint, can't identify which raw material lot was used. Can't do targeted recall (must recall everything).",
+        "Production delays invisible — Batch should complete in 4 hours, takes 8 hours. No data to identify bottleneck (mixing? cooking? cooling?).",
+        "Rework not tracked — Rejected batch blended into next batch (common practice). But rework quantity/cost not recorded (costing wrong)."
+      ],
+      
+      "quality_control": [
+        "No lab testing budget — SMEs skip microbial testing (₹5,000-₹10,000 per batch). Product shipped with unknown safety status.",
+        "QC standards not documented — 'Good' vs 'Bad' is subjective. Different QC staff, different judgments. No consistency.",
+        "Failed batches not destroyed — Rejected batch marked for scrap, but sits in warehouse. Accidentally shipped in rush period (customer crisis).",
+        "Shelf life determination arbitrary — Owner guesses 'this should last 6 months'. No accelerated shelf life testing. Product fails after 3 months.",
+        "Customer complaints not linked to batches — Customer says 'product was bad', but which batch? Can't investigate root cause."
+      ],
+      
+      "compliance_regulatory": [
+        "FSSAI audit fear — Inspector visits 1-2x per year. If batch register not maintained = penalty ₹25,000-₹1 lakh + license suspension threat.",
+        "Batch register manual/incomplete — Required to maintain: Batch No, MFG date, Ingredients used with lot numbers, Process parameters, QC results. SMEs do this in notebook (often incomplete).",
+        "Recall capability absent — FSSAI: If safety issue, must recall all affected batches within 24 hours. But can't identify which retailers got which batch (no records).",
+        "Label compliance violations — Missing allergen warning, wrong nutritional values, ingredient list not in descending order. Each violation = ₹25,000 penalty.",
+        "License renewal delays — FSSAI license expires, renewal application pending. Technically can't manufacture during this period (but everyone does, high risk)."
+      ],
+      
+      "costing_profitability": [
+        "Ingredient cost fluctuation — Onion ₹10/kg to ₹60/kg. Recipe costing done at ₹20/kg. Actual procurement at ₹50/kg. Margin evaporates but MRP can't be changed (already printed).",
+        "Yield loss not factored — Recipe costing assumes 20% loss. Actual loss is 28%. Margin miscalculation = selling at loss without realizing.",
+        "Packing cost underestimation — Pouches/bottles cost 20-30% of final product. If supplier increases price by 10%, product becomes unprofitable but can't increase MRP mid-season.",
+        "Rework cost invisible — 10% batches reworked (blended into next batch). Rework time/labor/energy not tracked. True cost of production unknown.",
+        "Wastage at all stages — Raw material 5%, processing 8%, packing 3%, storage expiry 2%, transit damage 1% = 19% total. Only 10% budgeted. Profit gap mystery."
+      ],
+      
+      "sales_distribution": [
+        "Distributor returns — Sent 1000 units, distributor returns 200 units (near expiry). Reverse logistics cost + storage of returned stock (expires fully, total loss).",
+        "MRP vs selling price gap — MRP printed ₹100. Distributor wants 15% margin, retailer wants 10%. Net realization ₹75. But costing done at ₹80 (selling at loss).",
+        "Credit period pressure — Distributors pay after 60-90 days. But ingredient suppliers want cash. Working capital crisis.",
+        "Seasonal demand — 70% sales in 4 festival months. Other 8 months slow. But fixed costs (rent, salaries) continue. Profitability very uneven."
+      ]
+    },
+    
+    "pricing_logic": {
+      "model": "Cost-plus pricing with yield loss adjustment. (Raw material cost + Packing cost + Processing cost + Labor + Overhead + Wastage buffer) / Expected yield = Cost per unit. Add 25-40% margin = Selling price to distributor. Distributor adds 15%, Retailer adds 10% = MRP.",
+      "calculation_reality": "Example: Chutney 200g jar. Ingredients ₹30/jar (tomato, spices, oil, vinegar). Glass jar + cap + label ₹15. Processing (cooking fuel, labor) ₹8. Overhead (rent, salary, electricity) ₹7. Recipe yield: 100kg input → 85kg output (15% loss in cooking). Wastage buffer 5%. Total cost = (30+15+8+7) / 0.85 / 0.95 = ₹74 per jar. Add 35% margin = ₹100. Distributor price = ₹100. Distributor sells at ₹115 (15% margin). Retailer MRP = ₹127, rounded to ₹130.",
+      "margin_reality": "Planned margin 35%, actual margin 12-18% after all hidden costs (rework, expiry, returns, credit period interest). Many SMEs discover they're loss-making only during year-end accounts.",
+      "payment_terms": "B2B (distributors): 30-90 days credit (distributor pays after selling stock). B2C (retail chains): 60-120 days credit + 2-3% promotional discount + listing fees. Export: 50% advance, 50% on shipment (LC or bank transfer).",
+      "export_pricing": "FOB price (includes product cost + packing + local transport to port). Buyer arranges shipping. Export realization 15-25% higher than domestic due to: (1) Better quality demand (willing to pay premium), (2) Economies of scale (larger orders), (3) Government subsidies (MEIS/RoDTEP benefits)."
+    },
+    
+    "compliance_requirements": [
+      "FSSAI License (MANDATORY) — State license (turnover <₹12 crore), Central license (turnover >₹12 crore OR interstate trade). License categories: Manufacturing, Storage, Retail. Penalty for no license: ₹2-5 lakh + imprisonment.",
+      "FSSAI Product Approval (for certain categories) — Proprietary food, health supplements, imported ingredients need pre-approval before manufacturing.",
+      "Batch Production Register (MANDATORY) — Must maintain: Batch No (unique sequential), Batch size, MFG Date, Expiry Date, Ingredients used with lot numbers, Process parameters (temperature, time), QC results, Quantity produced vs rejected. Auditor checks this first.",
+      "Lab Testing Reports — Quarterly testing (minimum) for microbial + chemical analysis from NABL-accredited lab. Reports valid 3 months. Required for: FSSAI audit, export, retail chain tie-ups.",
+      "Recall Procedure Documentation — FSSAI mandates: Written procedure for product recall if safety issue detected. Must be able to execute within 24 hours. SMEs rarely have this (major compliance gap).",
+      "GST Registration — Mandatory if turnover >₹40 lakh (₹20 lakh in special category states).",
+      "e-Invoicing — Mandatory if turnover >₹5 crore.",
+      "e-Way Bill — For inter-state shipment >₹50,000.",
+      "Legal Metrology Certification — For pre-packed goods. Must register each product with Weights & Measures department. Annual renewal. Penalty for non-compliance: ₹25,000-₹1 lakh per violation.",
+      "Trade License — From local Municipal Corporation. Renewal annual.",
+      "Factory License (if applicable) — If >10 workers with power OR >20 without power (as per Factories Act).",
+      "Pollution Control NOC — If generating wastewater (from washing, cooking) >10 KLD (kiloliters per day), need consent from State Pollution Control Board.",
+      "Fire NOC — From Fire Department (if building area >500 sq meters).",
+      "Labor Compliance — ESI + PF registration if >10 employees (Employees' State Insurance + Provident Fund).",
+      "Export-specific (if exporting):",
+      "  - RCMC (Registration Cum Membership Certificate) from relevant Export Promotion Council",
+      "  - IEC (Import Export Code) from DGFT",
+      "  - GST LUT (Letter of Undertaking for export without GST payment)",
+      "  - APEDA Registration (if exporting processed food)",
+      "  - Health Certificate from designated lab (for certain countries: EU, USA, Middle East)",
+      "  - Organic Certification (if claiming organic) — NPOP (India), USDA (USA), EU Organic",
+      "BIS Certification (mandatory for certain products):",
+      "  - Milk powder, Infant food, Edible oil, Blended spices (from 2025) require BIS license"
+    ]
+  },
+  
+  "detection_signals": {
+    "strong_signals": {
+      "column_headers": [
+        "batch no", "batch number", "batch code", "lot no", "lot number",
+        "expiry date", "expiry", "exp date", "best before", "use by",
+        "mfg date", "manufacturing date", "date of manufacture", "dom",
+        "shelf life", "shelf life days", "shelf life months",
+        "ingredient", "ingredients", "raw material", "formulation", "recipe",
+        "net weight", "gross weight", "tare weight",
+        "moisture", "moisture content", "moisture %",
+        "fssai", "fssai license", "fssai no", "food license",
+        "yield", "yield %", "production yield",
+        "lab test", "lab report", "test report", "qc report",
+        "total plate count", "tpc", "yeast", "mold", "coliform", "e.coli", "salmonella",
+        "ph", "acidity", "brix", "aw", "water activity"
+      ],
+      "sheet_names": [
+        "batch register", "batch log", "production log",
+        "recipe", "formulation", "bom", "bill of materials",
+        "qc report", "lab report", "quality check",
+        "ingredients", "raw material stock", "rm stock",
+        "finished goods", "fg stock",
+        "packing material", "packaging stock"
+      ],
+      "file_names": [
+        "batch_register", "production_log", "batch_report",
+        "recipe", "formulation", "bom",
+        "ingredient_stock", "rm_stock",
+        "qc_report", "lab_test", "quality_report",
+        "expiry_tracker", "shelf_life"
+      ],
+      "data_patterns": [
+        "Batch numbers with date format (BATCH-11022025-01, LOT20250211A)",
+        "Expiry dates 6-24 months from manufacturing date",
+        "MFG date + Expiry date in same file/row",
+        "Shelf life values in months (3, 6, 12, 18, 24)",
+        "FSSAI license number format (11-14 digits)",
+        "Ingredient names (turmeric, cumin, coriander, tomato, onion, sugar, salt, oil, vinegar, preservatives)",
+        "Net weight in kg/grams/liters (100g, 200g, 500g, 1kg, 200ml, 500ml, 1L)",
+        "Moisture % values (typically 5-15% for dry products)",
+        "pH values (2-7 range for acidic products like pickles, sauces)",
+        "Microbial count values (TPC: <10^4 cfu/g, Yeast/Mold: <10^2)",
+        "Processing temperature values (60-121°C range)",
+        "Recipe yield % (typically 70-95%)"
+      ],
+      "bom_structure": "Ingredients (kg/g/L/ml units) + Processing aids (if any) + Packing material (pouch/bottle/jar + cap/lid + label) = Finished product (units). Yield loss explicitly mentioned (15-30% typical for cooked/fried products)."
+    },
+    "weak_signals": {
+      "column_headers": [
+        "supplier name", "supplier code", "supplier license",
+        "customer name", "distributor", "retailer",
+        "mrp", "selling price", "distributor price",
+        "carton", "box", "case",
+        "production date", "packing date",
+        "process", "processing method", "cooking time", "frying time"
+      ],
+      "customer_types": ["Distributors", "Wholesalers", "Retail chains", "Modern trade", "E-commerce platforms", "HORECA (Hotels/Restaurants/Catering)", "Export houses"],
+      "supplier_types": ["Farmers", "APMC traders", "Ingredient suppliers", "Packaging material suppliers", "Packing machine manufacturers"]
+    },
+    "against_signals": {
+      "column_headers": [
+        "size", "colour", "color", "style", "style no", "variant",
+        "cutting", "sewing", "stitching", "fabric", "gsm", "operator",
+        "part no", "part number", "oem code", "vehicle", "model", "application",
+        "drawing no", "job no", "specification",
+        "sac code", "timesheet", "billable hours", "project"
+      ],
+      "keywords": [
+        "garment", "apparel", "textile", "fabric", "tailoring",
+        "metal", "fabrication", "welding", "cutting", "machining",
+        "software", "consulting", "service", "hours"
+      ],
+      "bom_indicators": [
+        "Fabric consumption in meters (not food)",
+        "Thread in cones (not food)",
+        "Buttons, zippers (not food)",
+        "Steel, aluminum material (not food)"
+      ]
+    }
+  },
+  
+  "absolute_profile": {
+    "mandatory_modules": [
+      "Manufacturing",
+      "Stock",
+      "Buying",
+      "Selling",
+      "Accounts",
+      "Quality Management"
+    ],
+    "optional_modules": [
+      "CRM (for distributor relationship management)",
+      "Projects (for R&D, new product development)",
+      "HR (for operator attendance, piece-rate payment if packing is manual)"
+    ],
+    "compliance_modules": ["GST India", "e-Invoicing", "e-Way Bill"]
+  },
+  
+  "mandatory_doctypes": [
+    "Item",
+    "Item Group",
+    "UOM (Unit of Measure)",
+    "Batch",
+    "BOM (Bill of Materials = Recipe)",
+    "Work Order",
+    "Job Card",
+    "Operation",
+    "Workstation",
+    "Customer",
+    "Supplier",
+    "Warehouse",
+    "Stock Entry",
+    "Material Request",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Quality Inspection",
+    "Quality Inspection Template",
+    "Sales Order",
+    "Delivery Note",
+    "Sales Invoice",
+    "Payment Entry",
+    "Landed Cost Voucher"
+  ],
+  
+  "erpnext_masters_setup": {
+    "item_structure": {
+      "approach": "Item-based, NOT variant-based. Each finished product = 1 item. Example: 'Mango Pickle 200g' is one item, 'Mango Pickle 500g' is another item (different packing, different BOM).",
+      "raw_material_items": {
+        "ingredients": "Turmeric Powder (UOM: Kg), Salt (UOM: Kg), Sugar (UOM: Kg), Tomato (UOM: Kg), Onion (UOM: Kg), Oil-Refined Sunflower (UOM: Liter), Vinegar (UOM: Liter), Preservative-Sodium Benzoate (UOM: Gram)",
+        "packing_material": "Pouch-Laminate-100g (UOM: Piece), Pouch-Laminate-200g (UOM: Piece), Glass Jar-200ml (UOM: Piece), Jar Cap-38mm (UOM: Piece), Label-Mango Pickle (UOM: Piece), Carton-200g Pouch (UOM: Piece)"
+      },
+      "finished_goods_items": "Mango Pickle 200g, Tomato Ketchup 500g, Chili Powder 100g, Garam Masala 50g, Roasted Peanuts 250g",
+      "item_attributes_not_used": "Batch No is NOT an item attribute. Batch No is a separate doctype linked to item. Size/Color attributes NOT used in food (unlike garments)."
+    },
+    
+    "batch_setup": {
+      "critical_importance": "Batch tracking is LEGALLY MANDATORY for food. Without batch, cannot do recall (FSSAI violation). ERPNext Batch doctype must be enabled for all food items (raw material + finished goods).",
+      "batch_naming": "Format: ProductCode-DDMMYYYY-##. Example: PICKLE-11022025-01. Must be sequential and unique.",
+      "batch_fields": {
+        "batch_id": "Unique identifier (auto-generated or manual)",
+        "item": "Linked to Item doctype",
+        "manufacturing_date": "Date of packing (FSSAI rule)",
+        "expiry_date": "Auto-calculated OR manual (MFG Date + Shelf Life)",
+        "batch_qty": "Quantity produced in this batch",
+        "supplier_batch_no": "(for raw materials) Supplier's batch number for traceability"
+      },
+      "expiry_tracking": "ERPNext: Enable 'Has Expiry Date' in Item. Set 'Shelf Life in Days'. Expiry Date auto-calculated on Stock Entry. Stock report shows near-expiry batches (alert when <90 days remaining)."
+    },
+    
+    "bom_structure": {
+      "type": "Single-level BOM (recipe). Multi-level BOM rare (only if intermediate product is also sold separately).",
+      "components": [
+        {"item": "Tomato-Fresh", "qty": "60 Kg", "scrap": "15%", "notes": "Wastage in washing + cooking evaporation"},
+        {"item": "Sugar", "qty": "8 Kg", "scrap": "0%"},
+        {"item": "Salt", "qty": "2 Kg", "scrap": "0%"},
+        {"item": "Vinegar", "qty": "3 Liter", "scrap": "0%"},
+        {"item": "Spices-Mix", "qty": "1 Kg", "scrap": "2%"},
+        {"item": "Preservative-Sodium Benzoate", "qty": "50 Gram", "scrap": "0%"},
+        {"item": "Glass Jar-500ml", "qty": "100 Piece", "scrap": "2%", "notes": "Breakage during packing"},
+        {"item": "Jar Cap-63mm", "qty": "100 Piece", "scrap": "1%"},
+        {"item": "Label-Tomato Ketchup", "qty": "100 Piece", "scrap": "1%"},
+        {"item": "Carton-Ketchup 500ml", "qty": "10 Piece", "scrap": "0%", "notes": "Each carton holds 10 jars"}
+      ],
+      "yield_output": "100 Jars × 500ml = 50 Liters finished ketchup. Input: 60kg tomato → Output: 50L ketchup (yield ~83% after cooking loss).",
+      "operations": [
+        {"operation": "Washing & Sorting", "workstation": "Washing Tank", "time_in_mins": 30},
+        {"operation": "Cooking", "workstation": "Steam Jacketed Kettle", "time_in_mins": 120, "process_params": "Temperature: 95°C, Stirring: Continuous"},
+        {"operation": "Cooling", "workstation": "Cooling Tank", "time_in_mins": 60, "process_params": "Cool to 40°C before filling"},
+        {"operation": "Filling", "workstation": "Filling Machine", "time_in_mins": 45},
+        {"operation": "Capping & Labeling", "workstation": "Capping Machine", "time_in_mins": 30},
+        {"operation": "Quality Check", "workstation": "QC Table", "time_in_mins": 20},
+        {"operation": "Packing in Cartons", "workstation": "Packing Table", "time_in_mins": 15}
+      ],
+      "scrap_handling": "Ingredient scrap % (wastage in cooking, spillage). Packing scrap % (breakage, defects). ERPNext auto-calculates required quantity = BOM qty / (1 - scrap%).",
+      "process_loss": "Cooking tomato: 60kg fresh tomato → 50kg cooked pulp (10kg water evaporates). This is NOT scrap (not wasted), it's process loss. Captured in BOM as yield difference."
+    },
+    
+    "warehouse_setup": {
+      "required_warehouses": [
+        "Raw Material - Ingredients",
+        "Raw Material - Packing Material",
+        "Work In Progress - Preparation (washing, sorting, cutting)",
+        "Work In Progress - Processing (cooking, mixing, frying, drying)",
+        "Work In Progress - Cooling",
+        "Work In Progress - Packing",
+        "Finished Goods - QC Hold (batches awaiting QC clearance)",
+        "Finished Goods - Approved (QC cleared, ready to sell)",
+        "Finished Goods - Near Expiry (batches expiring <3 months)",
+        "Rework",
+        "Scrap / Rejected",
+        "Returns from Market"
+      ],
+      "warehouse_logic": "Each production stage has separate WIP warehouse for visibility. FG warehouses segregated by QC status and expiry proximity. Near-expiry stock in separate warehouse for focused liquidation (discount sales).",
+      "cold_storage": "If products need refrigeration/freezing, separate cold room warehouses: FG - Cold Room (4°C), FG - Freezer (-18°C). Temperature log mandatory."
+    },
+    
+    "operation_workstation_setup": {
+      "operations": [
+        "Ingredient Receiving & QC",
+        "Washing",
+        "Sorting / Grading",
+        "Cutting / Chopping",
+        "Grinding / Milling",
+        "Mixing / Blending",
+        "Cooking / Heating",
+        "Frying",
+        "Roasting",
+        "Drying / Dehydration",
+        "Pasteurization",
+        "Cooling",
+        "Filling",
+        "Capping",
+        "Labeling",
+        "Metal Detection",
+        "Batch QC",
+        "Packing in Cartons",
+        "Final Inspection"
+      ],
+      "workstations": [
+        "Ingredient QC Table",
+        "Washing Tank 1-2",
+        "Sorting Table 1-3",
+        "Cutter / Chopper",
+        "Pulverizer / Grinder",
+        "Ribbon Blender / Mixer",
+        "Steam Jacketed Kettle (cooking)",
+        "Deep Fryer",
+        "Continuous Roaster",
+        "Tray Dryer",
+        "Pasteurizer",
+        "Cooling Tank",
+        "Filling Machine (pouch/bottle)",
+        "Capping Machine",
+        "Labeling Machine",
+        "Metal Detector",
+        "QC Lab",
+        "Packing Table 1-3"
+      ],
+      "process_parameters_tracking": "For critical operations (Cooking, Pasteurization), track: Temperature, Time, Pressure (if applicable). Record in Job Card custom fields or separate Process Log."
+    }
+  },
+  
+  "default_settings": {
+    "stock_settings": {
+      "valuation_method": "FIFO (First In First Out) — MANDATORY for food to ensure older batches sold first",
+      "allow_negative_stock": "false — STRICTLY DISABLED (negative stock = accounting chaos + can't track expiry)",
+      "auto_material_request": true,
+      "default_material_request_type": "Purchase",
+      "allow_over_delivery": false,
+      "allow_over_billing": false,
+      "show_barcode_field": true
+    },
+    "manufacturing_settings": {
+      "disable_capacity_planning": false,
+      "allow_production_on_holidays": true,
+      "update_bom_cost_automatically": true,
+      "material_consumption": "Backflush (consume at Work Order completion)",
+      "backflush_raw_materials_based_on": "BOM",
+      "default_wip_warehouse": "Work In Progress - Processing",
+      "default_fg_warehouse": "Finished Goods - QC Hold",
+      "overproduction_percentage": 3,
+      "make_serial_no_batch_from_work_order": "Batch (not Serial No)",
+      "capacity_planning_for_workstation": "Job Card based"
+    },
+    "quality_settings": {
+      "default_quality_inspection_template": "Create per product category (snacks, sauces, spices)",
+      "quality_inspection_required_before": ["Purchase Receipt", "Stock Entry (Manufacture)"],
+      "auto_quality_inspection_on_goods_receipt": true
+    },
+    "item_settings": {
+      "item_naming_by": "Item Code OR Item Name (standardize)",
+      "default_uom": "Kg (for ingredients), Piece (for packing material)",
+      "allow_negative_stock": false,
+      "automatically_set_serial_nos_based_on_fifo": false,
+      "default_warehouse": "Finished Goods - Approved"
+    },
+    "batch_settings": {
+      "create_new_batch_on_production": true,
+      "batch_expiry_notification_days": 90,
+      "track_batch_expiry": true
+    },
+    "buying_settings": {
+      "supplier_group": "Ingredient Suppliers, Packing Material Suppliers, Service Providers",
+      "buying_price_list": "Standard Buying"
+    },
+    "selling_settings": {
+      "customer_group": "Distributors, Wholesalers, Retail Chains, Export Houses, Direct Consumers",
+      "selling_price_list": "Standard Selling",
+      "maintain_same_sales_rate_throughout_sales_cycle": false
+    },
+    "accounts_settings": {
+      "fiscal_year": "April to March (India standard)",
+      "company_default_currency": "INR",
+      "enable_perpetual_inventory": true,
+      "make_payment_via_journal_entry": false
+    }
+  },
+  
+  "workflow_processes": [
+    {
+      "process_id": "P1_standard_batch_production",
+      "process_name": "Standard Batch Production (Ingredient to Finished Goods)",
+      "trigger": "Production planning decision OR Sales Order",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Check Ingredient Stock Availability",
+          "doctype": "Stock Balance Report",
+          "details": "Production Manager checks if all ingredients + packing material in stock for planned batch size. If shortage, raise Material Request.",
+          "decision": "Stock sufficient? → Yes: Proceed. No: Procure ingredients first.",
+          "output": "Go/No-Go decision for production"
+        },
+        {
+          "step": 2,
+          "action": "Create Work Order",
+          "doctype": "Work Order",
+          "details": "Select finished goods item (e.g., Tomato Ketchup 500g), BOM (recipe), Quantity (batch size = 100 jars), Planned Start Date. Batch No will be auto-generated OR manually entered (format: KETCHUP-11022025-01).",
+          "output": "Work Order in Draft status"
+        },
+        {
+          "step": 3,
+          "action": "Ingredient QC (if new lot received)",
+          "doctype": "Quality Inspection (against Purchase Receipt)",
+          "details": "QC team tests new ingredient lot: Moisture content (grains/spices), Pesticide residue (if export), Physical inspection (color, smell, foreign matter). If QC fails, lot rejected, cannot be used in production.",
+          "output": "QC Report — Accept/Reject"
+        },
+        {
+          "step": 4,
+          "action": "Start Work Order & Issue Material",
+          "doctype": "Work Order → Submit → Start",
+          "details": "Work Order submitted and started. Material issue happens via: (1) Auto-backflush at end (simple) OR (2) Manual Stock Entry now (detailed tracking). For food, auto-backflush is common for SMEs.",
+          "output": "Work Order status: In Process"
+        },
+        {
+          "step": 5,
+          "action": "Ingredient Preparation",
+          "doctype": "Job Card (Preparation Operations)",
+          "details": "Washing (vegetables, fruits in chlorinated water), Sorting (remove damaged pieces), Cutting/Chopping (size reduction), Grinding (spices into powder). Time and operator tracked in Job Card.",
+          "output": "Prepared ingredients ready for processing"
+        },
+        {
+          "step": 6,
+          "action": "Core Processing",
+          "doctype": "Job Card (Processing Operation)",
+          "details": "Cooking (sauce in steam kettle at 95°C for 2 hours), Frying (chips at 180°C for 4 minutes), Mixing (spices in ribbon blender for 15 minutes), Drying (onion in tray dryer at 60°C for 8 hours). CRITICAL: Record process parameters (temp, time) in Job Card or separate log.",
+          "process_criticality": "Temperature/time deviations = food safety risk. Must be monitored and recorded.",
+          "output": "Processed product (cooked sauce, fried chips, blended masala)"
+        },
+        {
+          "step": 7,
+          "action": "Cooling (if applicable)",
+          "doctype": "Job Card (Cooling Operation)",
+          "details": "Hot product cooled to room temperature or specific temp (e.g., juice cooled to 4°C before filling). Cooling time: 1-4 hours depending on product and equipment.",
+          "output": "Cooled product ready for packing"
+        },
+        {
+          "step": 8,
+          "action": "Filling & Packing",
+          "doctype": "Job Card (Packing Operation)",
+          "details": "Product filled into pouches/bottles/jars. Weighing accuracy critical (Legal Metrology). Sealing (heat seal for pouches, capping for bottles). Batch number + MFG date + Expiry date printed on pack (inkjet printer OR pre-printed labels).",
+          "output": "Packed retail units"
+        },
+        {
+          "step": 9,
+          "action": "Metal Detection",
+          "doctype": "Job Card (Metal Detection)",
+          "details": "Packed products passed through metal detector. Any metal contamination detected → pack rejected, investigated (metal from machinery, contamination during packing).",
+          "output": "Metal-free confirmed packs"
+        },
+        {
+          "step": 10,
+          "action": "Batch Quality Control",
+          "doctype": "Quality Inspection",
+          "details": "In-house QC: Visual (color, appearance), Taste/Smell, Weight check (net weight compliance), Seal integrity test. Lab QC (if required): Microbial (TPC, Y/M, Coliform), Chemical (moisture, pH, salt, additives). QC template pre-defined per product.",
+          "decision": "QC Pass → Release to FG. QC Fail → Hold for Rework/Scrap decision.",
+          "output": "QC Report with Accept/Reject status"
+        },
+        {
+          "step": 11,
+          "action": "Complete Work Order (if QC Passed)",
+          "doctype": "Work Order → Finish",
+          "details": "Work Order marked as Finished. Stock Entry (Manufacture) auto-created: Consumes ingredients + packing material from RM warehouse, Produces finished goods in FG-QC Hold warehouse. Batch doctype created with MFG date, Expiry date, Batch qty.",
+          "output": "Finished goods in FG-QC Hold warehouse with Batch No"
+        },
+        {
+          "step": 12,
+          "action": "Transfer to FG-Approved Warehouse",
+          "doctype": "Stock Entry (Material Transfer)",
+          "details": "Once QC cleared, transfer batch from FG-QC Hold to FG-Approved (ready to sell). This is explicit approval step.",
+          "output": "Batch in FG-Approved, available for sale"
+        },
+        {
+          "step": 13,
+          "action": "Monitor Expiry & Plan Sales",
+          "doctype": "Stock Balance Report (filtered by Batch Expiry)",
+          "details": "Sales team monitors batches nearing expiry (<3 months). Plan discount sales, distributor push, or donations before expiry. Batches <1 month expiry moved to FG-Near Expiry warehouse for focused action.",
+          "output": "Expiry-aware sales planning"
+        }
+      ],
+      "typical_timeline": "Batch planning to finished goods: 1-2 days (simple products like spice mix) to 5-7 days (products with fermentation, drying, lab QC wait time)."
+    },
+    
+    {
+      "process_id": "P2_rework_rejected_batch",
+      "process_name": "Rework / Reprocessing of Rejected Batch",
+      "trigger": "Batch fails QC (too salty, wrong consistency, minor defects)",
+      "rework_scenarios": [
+        "Scenario 1: Too salty sauce → Blend with fresh (less salty) batch to dilute.",
+        "Scenario 2: Chips under-fried (soft) → Re-fry to correct crispness.",
+        "Scenario 3: Spice mix color off (too dark) → Blend with lighter batch.",
+        "Scenario 4: Pickle too sour → Add sugar to balance."
+      ],
+      "steps": [
+        {
+          "step": 1,
+          "action": "Identify Rework Possibility",
+          "doctype": "Quality Inspection (Rejected batch)",
+          "details": "QC team + Production Manager decide: Can this be reworked? OR Must be scrapped (unsafe/unsalvageable)?",
+          "decision": "Rework possible → Proceed. Unsafe → Scrap.",
+          "output": "Rework decision"
+        },
+        {
+          "step": 2,
+          "action": "Move Rejected Batch to Rework Warehouse",
+          "doctype": "Stock Entry (Material Transfer)",
+          "details": "Transfer rejected batch from FG-QC Hold to Rework warehouse. This segregates it from good stock.",
+          "output": "Batch in Rework warehouse"
+        },
+        {
+          "step": 3,
+          "action": "Create Rework Work Order",
+          "doctype": "Work Order",
+          "details": "New Work Order for rework process. BOM includes: Rejected batch + Corrective ingredients (e.g., fresh sauce, sugar). Output: Corrected finished product.",
+          "output": "Rework Work Order"
+        },
+        {
+          "step": 4,
+          "action": "Execute Rework",
+          "doctype": "Job Card (Rework Operation)",
+          "details": "Blend rejected batch with corrective ingredients. Re-test taste/consistency. If corrected, proceed to packing. If still fails, scrap.",
+          "output": "Reworked product"
+        },
+        {
+          "step": 5,
+          "action": "Re-QC After Rework",
+          "doctype": "Quality Inspection",
+          "details": "Reworked product re-tested. Must pass QC to be released.",
+          "decision": "Pass → Release. Fail → Scrap (no further rework).",
+          "output": "QC clearance or final rejection"
+        },
+        {
+          "step": 6,
+          "action": "Complete Rework Work Order",
+          "doctype": "Work Order → Finish",
+          "details": "Stock Entry: Consume rejected batch + corrective ingredients, Produce reworked finished goods. NEW batch number (not same as original rejected batch — traceability).",
+          "output": "Reworked batch in FG-Approved"
+        },
+        {
+          "step": 7,
+          "action": "Record Rework Cost",
+          "doctype": "Manual Journal Entry OR Cost tracking report",
+          "details": "Rework cost = Corrective ingredients + Labor time + Energy. This is hidden cost (reduces margin). Must be tracked to understand true profitability.",
+          "output": "Rework cost documented"
+        }
+      ],
+      "common_failure": "Rework not tracked — Rejected batch silently blended into next batch, no record, costing wrong, quality inconsistency."
+    }
+  ],
+  
+  "questions_to_ask": [
+    {
+      "question": "Do you currently track batch numbers and expiry dates for your products?",
+      "purpose": "Assess current traceability capability. If no batch tracking, high priority setup in ERPNext.",
+      "options": ["Yes - manually in register", "Yes - in Excel", "No - not tracked at all", "Partially - only for some products"]
+    },
+    {
+      "question": "How do you determine shelf life for your products?",
+      "purpose": "Check if shelf life is scientifically determined or arbitrary guess.",
+      "options": [
+        "Lab tested (accelerated shelf life study)",
+        "Industry standard (copied from similar products)",
+        "Owner's experience/guess",
+        "As per FSSAI recommendation for product category"
+      ]
+    },
+    {
+      "question": "Do you send samples for lab testing (microbial + chemical analysis)?",
+      "purpose": "Assess QC rigor and budget for lab testing.",
+      "options": [
+        "Yes - every batch (very rare for SME)",
+        "Yes - quarterly or half-yearly",
+        "Yes - only when required for export/retail chain",
+        "No - only in-house visual/taste QC",
+        "No - no QC at all (high risk)"
+      ]
+    },
+    {
+      "question": "What happens to batches that fail quality check?",
+      "purpose": "Understand rework vs scrap process. Need rework tracking in ERPNext.",
+      "options": [
+        "Reworked (blended with fresh batch)",
+        "Sold at discount (B-grade)",
+        "Scrapped (destroyed)",
+        "Depends on defect type"
+      ]
+    },
+    {
+      "question": "How frequently do you manufacture? Daily, weekly, or batch-wise on demand?",
+      "purpose": "Understand production planning pattern. Daily = simpler ERPNext setup. On-demand = need better Material Request workflow.",
+      "options": [
+        "Daily production (same products every day)",
+        "Weekly batches (plan 1 week in advance)",
+        "Fortnightly (2 batches per month)",
+        "On-demand (only when order received)"
+      ]
+    },
+    {
+      "question": "Do you manufacture for your own brand, or do contract manufacturing for others?",
+      "purpose": "Contract manufacturing = customer-specific BOM, labeling, QC. Different ERPNext setup.",
+      "options": [
+        "Own brand only",
+        "Contract manufacturing only (private label for others)",
+        "Both (own brand + contract)",
+        "Co-packing (only packing service, buyer provides bulk product)"
+      ]
+    },
+    {
+      "question": "What is your biggest pain point related to production?",
+      "purpose": "Identify priority area to focus ERPNext implementation.",
+      "options": [
+        "Ingredient quality inconsistency (affects product taste)",
+        "Expiry losses (stock expires in warehouse)",
+        "Costing inaccuracy (don't know true cost)",
+        "Recipe deviations (batch-to-batch quality variation)",
+        "Compliance documentation (FSSAI batch register, lab reports)",
+        "Customer complaints about quality"
+      ]
+    },
+    {
+      "question": "Do you have cold storage or refrigerated warehouse?",
+      "purpose": "If yes, need temperature monitoring, FIFO strictly enforced. Cold chain products have stricter requirements.",
+      "options": [
+        "Yes - refrigerated warehouse (4°C)",
+        "Yes - freezer (-18°C)",
+        "No - all products are ambient storage",
+        "Planning to install"
+      ]
+    }
+  ],
+  
+  "common_data_gaps": [
+    "No batch register — Batch numbers never tracked formally. Production done, sold, but no record of which ingredient lot was used in which batch (traceability impossible).",
+    "Shelf life not defined — ERPNext asks 'Shelf Life in Days' for each product. Owner doesn't know exact number (guesses 6 months, 12 months). Need lab testing or conservative estimate.",
+    "Recipe not documented — Owner knows recipe by heart ('add this much salt, that much sugar'). Not written down with exact quantities. BOM creation requires weighing and documenting each ingredient precisely.",
+    "Ingredient supplier batch numbers missing — Purchased spices, but supplier batch number not recorded on Purchase Receipt. If quality issue, can't trace back to supplier lot.",
+    "Process parameters not logged — Cooking temperature, time, mixing speed never recorded. If quality issue, can't investigate if process was correct.",
+    "QC standards not defined — 'Good color, good taste' is subjective. No measurable criteria (pH 4.0-4.5, salt 2-3%, moisture <10%). Quality Inspection Template cannot be created without defined standards.",
+    "Rework quantity not tracked — Rejected batches reworked, but quantity, cost, time not recorded. Hidden cost eats into margin unknowingly.",
+    "Near-expiry stock not identified — No system to flag batches expiring in next 3 months. Discovered only when customer rejects delivery or inspector checks during audit.",
+    "Packing material specifications missing — Pouches/bottles procured, but thickness, barrier properties, printing details not documented. If quality issue (seal fails), can't hold supplier accountable.",
+    "Customer return reasons not analyzed — Products returned by distributors, but reason not categorized (near expiry, quality issue, overstocking). Can't fix root cause."
+  ],
+  
+  "common_failures": [
+    {
+      "failure": "No batch tracking enabled in ERPNext",
+      "why_it_fails": "User creates items but doesn't enable 'Has Batch No' checkbox. Production happens, finished goods created without batch number. FSSAI audit = major non-compliance. Recall impossible.",
+      "correct_approach": "Enable 'Has Batch No' + 'Has Expiry Date' for ALL food items (raw material + finished goods). Set 'Create New Batch Automatically' in Manufacturing Settings. Set 'Shelf Life in Days' in Item master."
+    },
+    {
+      "failure": "Expiry date not enforced in sales",
+      "why_it_fails": "Batch created with expiry date, but Delivery Note allows shipping expired batch. Customer receives expired product, complaint + legal risk.",
+      "correct_approach": "Enable 'Do Not Allow Expired Batch' in Stock Settings. System blocks delivery of expired batch. Also enable 'Warn Before Expiry Days' = 90 (alert when batch has <3 months shelf life)."
+    },
+    {
+      "failure": "FIFO not followed (selling new batches while old batches sit)",
+      "why_it_fails": "ERPNext valuation method set to Moving Average or LIFO. Warehouse staff picks nearest stock (not oldest). Old batches expire, huge loss.",
+      "correct_approach": "Set Valuation Method = FIFO (MANDATORY for food). In Delivery Note, ERPNext auto-picks oldest batch first. Warehouse staff must physically follow FIFO (old stock in front, new at back)."
+    },
+    {
+      "failure": "Recipe (BOM) yield not matched with actual production yield",
+      "why_it_fails": "BOM says 100kg input → 85kg output (15% loss). Reality: 75kg output (25% loss). Material consumption wrong, costing wrong, margin miscalculated.",
+      "correct_approach": "Measure actual yield for 3-5 batches. Update BOM scrap % to match reality. Example: If actual loss is 25%, set total scrap/process loss to reflect this. Review BOM quarterly based on actual production data."
+    },
+    {
+      "failure": "Rework not tracked, blended silently into fresh batch",
+      "why_it_fails": "Batch fails QC, reworked by blending with next batch, but no ERPNext entry. Rework cost invisible, costing wrong, traceability lost.",
+      "correct_approach": "Create separate Rework Work Order. Consume rejected batch + corrective ingredients, produce new batch with NEW batch number. Track rework time, cost. Report monthly rework % to identify quality improvement areas."
+    },
+    {
+      "failure": "Quality Inspection not done before releasing finished goods",
+      "why_it_fails": "Work Order completed, Stock Entry (Manufacture) done, finished goods in FG warehouse, ready to sell. But QC not done. Defective batch shipped to customer.",
+      "correct_approach": "Work Order completion creates finished goods in 'FG - QC Hold' warehouse (separate). Quality Inspection mandatory. Only after QC pass, Stock Entry (Transfer) from QC Hold → FG Approved. QC fail → Rework or Scrap."
+    },
+    {
+      "failure": "Ingredient procurement without quality check",
+      "why_it_fails": "Purchase Receipt done without Quality Inspection. Poor quality ingredient used in production, product quality fails, batch rejected, total loss.",
+      "correct_approach": "Enable 'Quality Inspection Required' for all ingredient items. Purchase Receipt → Quality Inspection → Accept/Reject. Rejected ingredients return to supplier or scrap. Only accepted ingredients available for production."
+    },
+    {
+      "failure": "Lab test reports not linked to batches",
+      "why_it_fails": "Lab testing done, reports received, but not attached to batch in ERPNext. FSSAI auditor asks for batch report, search through emails/files, waste time.",
+      "correct_approach": "Attach lab test report PDF to Batch doctype (Attachments section). Also create Quality Inspection record with test results (microbial counts, chemical parameters). All batch-related docs in one place."
+    },
+    {
+      "failure": "MFG and Expiry dates not printed on packs (or printed wrong)",
+      "why_it_fails": "Manual stamping/labeling, human error. Some packs missing dates, some have wrong dates. FSSAI violation, product seizure.",
+      "correct_approach": "Automate date printing using inkjet printer OR pre-printed labels generated from ERPNext (Batch doctype has MFG + Expiry, print label from system). Daily cross-check: Pick random pack, verify dates match batch register."
+    },
+    {
+      "failure": "Near-expiry stock not monitored, discovered too late",
+      "why_it_fails": "No alert system. Batch expires in 1 month, discovered only when customer rejects OR during physical stock check. Can't liquidate in time, total loss.",
+      "correct_approach": "Use ERPNext Stock Balance report filtered by 'Expiry Date < 90 days from today'. Run this weekly. Sales team gets alert, plans discount sales, distributor push, donations. Move near-expiry stock to separate warehouse (visual reminder)."
+    }
+  ],
+  
+  "implementation_timeline": {
+    "week_1_foundation": {
+      "tasks": [
+        "Company setup (FSSAI license number, GST, address)",
+        "Fiscal Year (April-March)",
+        "Chart of Accounts (India standard)",
+        "Enable: GST India, e-Invoicing, e-Way Bill, Legal Metrology (if applicable)",
+        "Warehouse creation: RM-Ingredients, RM-Packing, WIP-Preparation, WIP-Processing, WIP-Cooling, WIP-Packing, FG-QC Hold, FG-Approved, FG-Near Expiry, Rework, Scrap, Returns",
+        "UOM setup: Kg, Gram, Liter, ML, Piece, Packet, Carton",
+        "Enable Batch tracking globally: Stock Settings → 'Use Batch-wise Valuation' = Yes",
+        "Set Valuation Method = FIFO (MANDATORY)",
+        "Operation master: Ingredient QC, Washing, Sorting, Cutting, Grinding, Mixing, Cooking, Frying, Roasting, Drying, Pasteurization, Cooling, Filling, Capping, Labeling, Metal Detection, Batch QC, Packing",
+        "Workstation master: QC Table, Washing Tank, Sorting Table, Cutter, Grinder, Blender, Kettle, Fryer, Roaster, Dryer, Pasteurizer, Cooling Tank, Filling Machine, Capping Machine, Labeling Machine, Metal Detector, QC Lab, Packing Table"
+      ],
+      "deliverable": "ERPNext foundation + Batch tracking enabled"
+    },
+    
+    "week_2_masters": {
+      "tasks": [
+        "Item Group structure: Raw Material → Ingredients, Raw Material → Packing Material, Finished Goods → Product Category (Snacks, Spices, Sauces, etc.)",
+        "Ingredient items: For each ingredient, create item with: UOM, Has Batch = Yes, Min/Max stock levels. Example: Turmeric Powder (Kg), Salt (Kg), Sugar (Kg), Tomato (Kg), Oil (Liter), Preservative (Gram).",
+        "Packing material items: Pouches (by size), Bottles, Jars, Caps, Labels, Cartons. Each with UOM = Piece, Has Batch = Yes (for supplier batch tracking).",
+        "Finished goods items: Each product-size combination = 1 item. Enable: Has Batch = Yes, Has Expiry = Yes, Shelf Life in Days = [specify]. Example: Mango Pickle 200g (Shelf Life 730 days), Tomato Ketchup 500g (Shelf Life 365 days).",
+        "Supplier Master: Ingredient suppliers (farmers, APMC traders, wholesalers), Packing material suppliers, Lab (for testing), Service providers (fumigation, pest control). Record FSSAI license if applicable.",
+        "Customer Master: Distributors, Wholesalers, Retail chains, Export houses, Direct consumers. Record GSTIN, credit limit, payment terms.",
+        "Quality Inspection Templates: Create per product category. Example: 'Sauce QC Template' with parameters: Color (visual), Taste (sensory), pH (4.0-4.5), Salt % (2-3%), Moisture (<10%), Microbial TPC (<10^4), Seal strength (visual). 'Spice Powder QC Template' with: Color, Aroma, Moisture (<12%), Fineness (mesh size), Foreign matter (visual)."
+      ],
+      "deliverable": "All master data ready. Can create test BOM."
+    },
+    
+    "week_3_recipes_bom": {
+      "tasks": [
+        "BOM creation: For top 3-5 products, create detailed BOMs (recipes). Measure ingredients precisely (actual weighing during production). Include: Ingredients (with scrap %), Packing material (with breakage %), Operations (with time estimates), Process parameters (temperature, time). Example BOM: 'Tomato Ketchup 500g' → Tomato 60kg (15% scrap), Sugar 8kg, Vinegar 3L, Spices 1kg, Preservative 50g, Glass Jar 100pcs (2% breakage), Cap 100pcs (1% breakage), Label 100pcs (1% breakage). Operations: Washing 30min, Cooking 120min at 95°C, Cooling 60min, Filling 45min, QC 20min, Packing 15min.",
+        "Shelf life determination: If not already known, conservative estimate OR quick lab test (accelerated shelf life). Update 'Shelf Life in Days' in Item master. ERPNext will auto-calculate expiry date on production.",
+        "Test Work Order: Create sample work order for 1 product. Issue material (manual Stock Entry for now, backflush later). Complete operations via Job Cards. Record process parameters. Do QC. Complete Work Order, generate finished goods with Batch No. Verify: Batch created, MFG date = today, Expiry date = MFG + Shelf Life, Stock in FG-QC Hold.",
+        "Test Quality Inspection: Create QC report for test batch. Enter test results (pH, moisture, visual checks). Accept OR Reject. If Accept, transfer to FG-Approved. If Reject, transfer to Rework.",
+        "Test Rework: Create rework Work Order for rejected batch. Blend with corrective ingredient. Complete rework WO, generate new batch. Verify rework batch has NEW batch number."
+      ],
+      "deliverable": "BOMs validated. Work Order → QC → Rework flow tested."
+    },
+    
+    "week_4_golive": {
+      "tasks": [
+        "Opening stock entry: All existing stock (ingredients, packing material, finished goods) as on go-live date. For finished goods, create batches with actual MFG and Expiry dates (from physical packs).",
+        "Batch register migration: If historical batches need tracking (last 6 months), create batches in ERPNext with MFG, Expiry, Qty. Helpful for FSSAI compliance.",
+        "Outstanding Purchase Orders: Import pending POs (ingredients, packing on order).",
+        "Outstanding Sales Orders: Import pending orders to distributors.",
+        "First live production: Actual production day. Work Order created, material issued, production tracked via Job Cards, QC done, batch created, stock in FG-Approved. Sales team can now sell this batch.",
+        "User training: Production Manager (Work Order, Job Card, BOM), QC team (Quality Inspection, batch approval), Purchase team (PO, PR, ingredient QC), Sales team (SO, DN, batch expiry check), Accounts (Invoice, Payment, FIFO cost verification).",
+        "FSSAI Batch Register setup: ERPNext report created: Batch register showing Batch No, Product, Batch size, MFG date, Expiry, Ingredients used (with lot numbers), Process parameters, QC results. Export to PDF for auditor.",
+        "Expiry monitoring: Set up weekly task: Run Stock Balance report → filter 'Expiry < 90 days' → send to Sales Manager. Action: Discount sales, distributor push.",
+        "First month-end: Stock valuation report (verify FIFO costing), P&L (check if costing accurate), Batch-wise stock report (verify no expired stock in FG-Approved), Ingredient consumption report (verify yield matches BOM)."
+      ],
+      "deliverable": "ERPNext live. Batch tracking working. FSSAI compliance documented."
+    }
+  },
+  
+  "success_metrics": {
+    "must_track": [
+      "Batch-level traceability — Can trace any finished goods batch to ingredient lot numbers used (FSSAI compliance)",
+      "Expiry loss % — (Expired stock value / Total production value) × 100. Target: <2%",
+      "Recipe adherence — Batch-to-batch consistency. Measure: Customer complaints about 'taste different' per 1000 batches. Target: <5 complaints",
+      "Yield variance — (Actual yield - BOM yield) / BOM yield × 100. Target: <5% variance",
+      "QC rejection rate — (Rejected batch value / Total production value) × 100. Target: <3%",
+      "Rework % — (Reworked batch value / Total production value) × 100. Track trend. Reduce over time.",
+      "Lab test coverage — % of batches with lab test reports. Target: 100% for export, 25% for domestic (minimum quarterly)",
+      "Near-expiry liquidation — % of near-expiry stock (<3 months) sold before expiry. Target: >95%",
+      "FIFO compliance — % of deliveries where oldest batch was dispatched. Target: 100%",
+      "Ingredient quality acceptance rate — (Accepted ingredient lots / Total lots received) × 100. Target: >95%",
+      "Customer complaints (quality-related) — Per 10,000 units sold. Target: <10 complaints",
+      "FSSAI audit readiness — Time to generate batch register, lab reports, process logs for auditor. Target: <30 minutes (if ERPNext updated properly)"
+    ]
+  },
+  
+  "confidence_threshold": 0.75,
+  
+  "notes_for_ai_agent": {
+    "critical_understanding": [
+      "Food manufacturing is BATCH-CENTRIC, not piece-centric. Every operation, every record must link to Batch No.",
+      "Batch tracking is LEGALLY MANDATORY (FSSAI). Without batch, system is non-compliant, implementation fails.",
+      "Expiry date management is CRITICAL. System must prevent sale of expired batches (hard block, not warning).",
+      "FIFO is MANDATORY for food (not optional). Ensures oldest batches sold first, prevents expiry losses.",
+      "Recipe (BOM) = Trade secret + Food safety. 1% deviation can cause: (1) Taste complaints, (2) Food poisoning (if process temp/time wrong), (3) Legal issues.",
+      "Yield loss (input vs output weight) is 15-30% in food (cooking evaporation, wastage). Must be in BOM, else material shortage + costing wrong.",
+      "Quality control has TWO levels: In-house (visual, taste) + Lab testing (microbial, chemical). Lab testing budget often missing in SME (risk).",
+      "Rework is VERY COMMON in food (blend rejected batch with fresh). Must be tracked separately, else cost invisible.",
+      "Compliance documentation (batch register, lab reports) is NOT optional — FSSAI audits 1-2x per year, penalties ₹25,000-₹1 lakh + license suspension.",
+      "Food has shorter implementation timeline tolerance — Product expires if implementation drags. Go-live must be fast (4 weeks max for SME)."
+    ],
+    "data_quality_checks": [
+      "Check if user uploaded file with 'Batch No' OR 'Expiry Date' columns → Strong signal for food niche",
+      "Check BOM structure: Ingredients in Kg/Liter + Packing in Pieces → Finished goods in Pieces/Packets. If missing, BOM needs creation.",
+      "Check if FSSAI license number present in company info → Food manufacturer confirmed",
+      "Check shelf life values: If shelf life >24 months OR <3 months, likely error (investigate). Most food products: 6-24 months shelf life.",
+      "Check yield %: If BOM shows >95% yield (very low loss), likely unrealistic for cooked/fried products. Cross-verify with actual production data.",
+      "Check expiry date calculation: MFG Date + Shelf Life = Expiry Date. If not matching, data error.",
+      "Check for cold storage requirement: If product name has 'frozen', 'fresh', 'refrigerated' → Cold storage mandatory, temperature monitoring setup needed.",
+      "Check for allergen keywords: 'Peanut', 'Milk', 'Egg', 'Soy', 'Wheat', 'Tree Nuts' → Allergen warning mandatory on label (Legal Metrology + FSSAI)."
+    ],
+    "implementation_priorities": [
+      "Priority 1: Batch tracking setup (if wrong, entire system fails FSSAI compliance)",
+      "Priority 2: FIFO enforcement (if wrong, expiry losses will be massive)",
+      "Priority 3: BOM with realistic yield (if wrong, material shortage + costing error + margin loss)",
+      "Priority 4: Expiry date auto-calculation (if wrong, legal violations + customer complaints)",
+      "Priority 5: Quality Inspection templates (if missing, QC inconsistent, quality failures)",
+      "Priority 6: Near-expiry stock monitoring (if missing, stock expires silently, ₹lakhs loss per year)"
+    ],
+    "regulatory_risk_flags": [
+      "No FSSAI license number provided → BLOCKER. Cannot implement ERPNext for unlicensed food business (illegal operation).",
+      "No lab testing done currently → HIGH RISK. Advise user: Microbial testing minimum quarterly (₹5,000-₹10,000 per test). Budget this before go-live.",
+      "No batch register maintained → HIGH RISK. FSSAI penalty ₹25,000-₹1 lakh if auditor checks. ERPNext batch tracking solves this, but user must commit to discipline.",
+      "Near-expiry stock sold (user admits in interview) → MEDIUM RISK. Retailers may reject, customer complaints. System must alert, sales team must act.",
+      "Rework blended silently (user admits) → MEDIUM RISK. Cost invisible, traceability lost. Must set up formal rework tracking.",
+      "No recall procedure → HIGH RISK (for export). If exporting, recall capability is legally mandatory. System must enable: Identify all affected batches → Identify which customers received them → Contact within 24 hours."
+    ]
+  }
+}

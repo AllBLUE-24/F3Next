@@ -3,19 +3,10 @@
 import { notFound } from 'next/navigation';
 import { ImplementationProvider } from '@/contexts/ImplementationContext';
 import type { ImplementationSession, DeploymentState } from '@/types/implementation';
+import { getProjectContext } from '@/lib/context/project-context';
 
-// ─── Dev mock — only used when API_BASE_URL is not set or fetch fails in dev ───
-function mockSession(companySlug: string, userSlug: string): ImplementationSession {
-  return {
-    id: 'dev-session-001',
-    companySlug,
-    userSlug,
-    currentStep: 'upload',
-    instanceId: 'dev-instance-001',
-    analysisJobId: null,
-    createdAt: new Date().toISOString(),
-  };
-}
+const IS_DEV = process.env.NODE_ENV === 'development';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
 
 function mockDeployment(): DeploymentState {
   return {
@@ -29,40 +20,13 @@ function mockDeployment(): DeploymentState {
   };
 }
 
-const IS_DEV = process.env.NODE_ENV === 'development';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
-// ────────────────────────────────────────────────────────────────────────────────
-
-async function fetchSession(
-  companySlug: string,
-  userSlug: string
-): Promise<ImplementationSession | null> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/api/implementation/session?company=${companySlug}&user=${userSlug}`,
-      {
-        cache: 'no-store',
-        headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },
-        // Fail fast in dev so the page doesn't hang
-        signal: AbortSignal.timeout(IS_DEV ? 3000 : 10000),
-      }
-    );
-    if (!res.ok) return IS_DEV ? mockSession(companySlug, userSlug) : null;
-    return res.json();
-  } catch {
-    // Backend unreachable — use mock in dev, hard fail in prod
-    if (IS_DEV) return mockSession(companySlug, userSlug);
-    return null;
-  }
-}
-
 async function fetchDeploymentState(instanceId: string): Promise<DeploymentState> {
   try {
     const res = await fetch(
       `${API_BASE}/api/deployment/${instanceId}`,
       {
         cache: 'no-store',
-        headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! },
+        headers: { 'x-internal-secret': process.env.INTERNAL_SECRET || '' },
         signal: AbortSignal.timeout(IS_DEV ? 3000 : 10000),
       }
     );
@@ -88,11 +52,21 @@ interface Props {
 }
 
 export async function ImplementationServerProvider({ companySlug, userSlug, children }: Props) {
-  const session = await fetchSession(companySlug, userSlug);
+  // 1. Universal Slug Resolver (Direct Postgres access via Cache)
+  const context = await getProjectContext(companySlug);
 
-  // In production with no session → genuine 404
-  // In dev this never happens because mockSession always returns a value
-  if (!session) notFound();
+  if (!context) notFound();
+
+  // 2. Synthesize Context into the required Provider Session schema
+  const session: ImplementationSession = {
+    id: context.project_id,
+    companySlug,
+    userSlug,
+    currentStep: context.status === 'created' ? 'upload' : 'analyze',
+    instanceId: context.project_id, // Hardlinking deployment instance to project uuid
+    analysisJobId: null,
+    createdAt: new Date().toISOString(),
+  };
 
   const deployment = await fetchDeploymentState(session.instanceId);
 

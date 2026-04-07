@@ -99,7 +99,20 @@ async function submitValidation(formData: FormData) {
       note:         formData.get('note'),
     }),
   });
-  if (!res.ok) throw new Error('Validation submission failed');
+  
+  if (!res.ok) {
+    // 1. Try to extract the JSON error message from your backend
+    const errorData = await res.json().catch(() => null); 
+    
+    // 2. Format a better error message for your console
+    const backendMessage = errorData?.detail || errorData?.message || res.statusText;
+    
+    console.error(`Backend rejected the request with status: ${res.status}`);
+    console.error(`Backend error details:`, errorData);
+  
+    // 3. Throw an error containing the actual backend complaint
+    throw new Error(`Validation failed: ${backendMessage}`);
+  }
 }
 
 interface Props {

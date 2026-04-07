@@ -1,0 +1,813 @@
+{
+  "id": "manufacturing_garment_variants",
+  "display_name": "Small Garment Manufacturer (Apparel/Readymade Garments)",
+  "version": "2.0",
+  "last_updated": "2025-02-11",
+  
+  "business_reality": {
+    "typical_company_profile": {
+      "size": "5-50 employees",
+      "structure": "Owner/Partner handles design + sales. Production Manager/Floor Supervisor runs shopfloor. 2-5 Master Tailors, 10-30 workers/helpers/operators.",
+      "location": "Tier 2/3 cities in textile clusters — Tirupur (Tamil Nadu), Ludhiana (Punjab), Surat (Gujarat), Ichalkaranji (Maharashtra), Bangalore (Karnataka), Noida (UP).",
+      "business_models": [
+        "CMT (Cut-Make-Trim) job work for brands — 60-80% of small units",
+        "Own label + job work mix (40% own brand, 60% CMT)",
+        "Export-focused (African/Middle East markets, small export houses)",
+        "Captive unit for retail chain (Reliance, Pantaloons, etc.)"
+      ],
+      "typical_products": "T-shirts, shirts, trousers, kurtis, sarees (readymade), nightwear, kids wear, uniforms (school/corporate).",
+      "typical_order_size": "500-10,000 pieces per style. Export orders: 5,000-50,000 pieces.",
+      "production_capacity": "200-2,000 pieces per day depending on style complexity."
+    },
+    
+    "actual_workflow": {
+      "description": "Indian garment manufacturing follows a linear 8-step production flow from fabric receipt to dispatch. Each step has specific inventory movements, quality checks, and operator-level tracking requirements.",
+      
+      "step_1_fabric_receipt": {
+        "business_action": "Raw fabric arrives from textile mills (grey/dyed/printed). Accessories arrive from local suppliers (buttons, threads, zippers, labels, poly bags).",
+        "critical_checks": [
+          "Fabric GSM (grams per square meter) — must match PO spec",
+          "Shade matching — same lot/dye batch to avoid color variation",
+          "Roll measurement — meter count, width verification",
+          "Fabric defects — holes, slubs, printing errors (inspection done)"
+        ],
+        "erpnext_doctypes": ["Purchase Order", "Purchase Receipt", "Quality Inspection"],
+        "erpnext_warehouses": "Raw Material Warehouse (Fabric), Accessories Warehouse",
+        "pain_points": [
+          "Fabric supplier sends wrong shade — entire lot rejected, production delayed",
+          "GSM lower than ordered — customer rejects finished garment (fabric feels thin)",
+          "Roll shortage — supplier bills for 100m, actual is 95m (pilferage or measurement error)",
+          "Quality inspection not done — defective fabric discovered during cutting (too late)"
+        ]
+      },
+      
+      "step_2_spreading": {
+        "business_action": "Layers of fabric laid out on cutting table. Marker/pattern placed on top. Number of layers = ply count (depends on fabric thickness and cutter capacity). Typical: 50-100 plies.",
+        "critical_checks": [
+          "Fabric relaxation — fabric must rest 24 hours to avoid shrinkage post-cutting",
+          "Shade segregation — all plies must be same shade lot",
+          "Marker efficiency — minimize fabric wastage (good marker = 85-90% efficiency, bad = 70-75%)"
+        ],
+        "erpnext_doctypes": ["Work Order", "Job Card (Spreading Operation)"],
+        "erpnext_warehouses": "WIP Warehouse (Spreading Area)",
+        "pain_points": [
+          "No formal spreading record — if quality issue found later, can't trace which fabric roll was used",
+          "Fabric wastage not measured — don't know if marker efficiency is good or bad",
+          "Mixed shades in same lay — finished garments have visible shade variation (customer rejection)"
+        ]
+      },
+      
+      "step_3_cutting": {
+        "business_action": "Fabric cut using manual scissors/electric cutter/band knife/die cutter. Cut pieces bundled by size (all S-size sleeves in one bundle, M-size sleeves in another). Bundle card attached (size, color, quantity, style code).",
+        "critical_checks": [
+          "Cutting accuracy — pattern must be followed exactly (seam allowance critical)",
+          "Bundle numbering — each bundle gets unique ID for traceability",
+          "Component sorting — fronts, backs, sleeves, collars sorted separately"
+        ],
+        "erpnext_doctypes": ["Job Card (Cutting Operation)", "Stock Entry (Issue fabric, Receive cut pieces)", "Quality Inspection (Cutting QC)"],
+        "erpnext_warehouses": "WIP Warehouse (Cut Pieces)",
+        "stock_movement": "Fabric (meters) → Cut Pieces (pieces/bundles). UOM change: Meter → Piece.",
+        "pain_points": [
+          "Fabric issued vs cut pieces produced mismatch — fabric wastage not captured (10-15% wastage normal, but not tracked)",
+          "Wrong size cut — operator cuts 100 Large instead of 100 Medium (customer order mismatch)",
+          "Bundle card missing — pieces get mixed up, can't track which cutting batch they belong to",
+          "Asymmetric cutting — left and right side pieces don't match (quality failure)"
+        ]
+      },
+      
+      "step_4_sewing": {
+        "business_action": "Multiple stitching operations performed by different operators. Each garment passes through 15-30 operations (attach collar, stitch sleeves, side seam, hem, buttonhole, button attach, label attach). Operators work on piece-rate (paid per piece stitched).",
+        "critical_checks": [
+          "Seam strength — stitches per inch (SPI) must meet spec",
+          "Symmetry — collar points equal, sleeve length equal",
+          "Stitch type — chain stitch, lock stitch, overlock (as per style sheet)",
+          "Thread tension — loose stitches = rejection"
+        ],
+        "operator_tracking": "Each operator has a token/ID. Pieces carry operator ID for quality traceability. If defect found, know which operator stitched it.",
+        "erpnext_doctypes": ["Job Card (per sewing operation)", "Workstation (sewing machine ID)", "Stock Entry (Issue cut pieces to sewing, Receive semi-finished goods)"],
+        "erpnext_warehouses": "WIP Warehouse (Sewing Line)",
+        "pain_points": [
+          "Operator absenteeism — specific operation bottleneck (no replacement operator skilled in that operation)",
+          "Quality variation operator-to-operator — some operators produce 5% defects, others 20%",
+          "Piece-rate payment tracking nightmare — manual tally of how many pieces each operator completed per day",
+          "Thread breakage/machine breakdown — production line stops, delay cascades",
+          "Rework not tracked — defective pieces sent back to operator, but rework time/cost not captured"
+        ]
+      },
+      
+      "step_5_finishing": {
+        "business_action": "Garments pressed/ironed. Loose threads trimmed. Minor repairs done (missing buttons, open seams). Final shape given.",
+        "critical_checks": [
+          "Pressing temperature — too high burns fabric, too low doesn't remove wrinkles",
+          "Shine marks — iron leaves shiny patch (rejection)",
+          "Thread trimming — all loose threads removed"
+        ],
+        "erpnext_doctypes": ["Job Card (Finishing Operation)", "Quality Inspection (Pre-pack QC)"],
+        "erpnext_warehouses": "WIP Warehouse (Finishing Area)",
+        "pain_points": [
+          "Pressing damage — garments burned/scorched (total rejection, no salvage value)",
+          "No final QC before packing — defects discovered by customer (rejection + penalty)"
+        ]
+      },
+      
+      "step_6_inspection_qc": {
+        "business_action": "100% inspection OR AQL (Acceptance Quality Limit) sampling. Defects marked: Critical (major construction defect, unwearable), Major (visible defect, affects appearance), Minor (small issue, customer may accept). Defect rate calculated. If above threshold, batch rejected or rework triggered.",
+        "critical_checks": [
+          "Measurement check — chest, length, sleeve length (as per size spec)",
+          "Color matching — all garments in batch must be same shade",
+          "Stitch integrity — no open seams, no skipped stitches",
+          "Fabric defects — holes, stains, printing errors"
+        ],
+        "erpnext_doctypes": ["Quality Inspection", "Stock Entry (Reject to Rework/Scrap)"],
+        "erpnext_warehouses": "Rework Warehouse, Scrap Warehouse (seconds/defectives)",
+        "rejection_handling": "Rejected pieces either: (1) Sent to rework (fix defect), (2) Downgraded to 'seconds' (sold at discount), (3) Scrapped (no value).",
+        "pain_points": [
+          "Rejection discovered after packing — entire batch unpacked, re-inspected (time loss)",
+          "No defect code tracking — can't identify root cause (which operation/operator caused defect)",
+          "Customer rejection at delivery — no internal QC caught the issue, damage to reputation",
+          "Rework cost not tracked — don't know true cost of poor quality"
+        ]
+      },
+      
+      "step_7_packing": {
+        "business_action": "Garments folded as per customer requirement. Placed in poly bags with size sticker. Multiple pieces packed in carton with packing list. Carton sealed and labeled (customer name, PO number, style, total pieces, size breakdown).",
+        "critical_checks": [
+          "Packing list accuracy — carton contains exactly what label says",
+          "Size assortment — customer ordered 100S + 200M + 100L, carton must match",
+          "Labeling — price tag, care label, brand label attached correctly"
+        ],
+        "erpnext_doctypes": ["Packing Slip", "Stock Entry (Transfer WIP to Finished Goods)", "Serial No / Batch (if carton-level tracking needed)"],
+        "erpnext_warehouses": "Finished Goods Warehouse",
+        "pain_points": [
+          "Packing mismatch — carton label says 100 pieces, actual contains 95 (shortage at customer end)",
+          "Wrong size in carton — customer ordered M, carton contains L (customer complaint)",
+          "Missing labels — garments packed without price tag (can't be sold in retail)"
+        ]
+      },
+      
+      "step_8_dispatch": {
+        "business_action": "Cartons loaded onto truck/tempo. Delivery challan / e-Way Bill generated. Goods sent to customer (buyer's warehouse) or export shipment (port/airport). Delivery acknowledgment received.",
+        "critical_checks": [
+          "Invoice vs packing list match — billed quantity = shipped quantity",
+          "e-Way Bill generation (mandatory for inter-state shipment in India)",
+          "Transporter receipt — proof of handover"
+        ],
+        "erpnext_doctypes": ["Delivery Note", "Sales Invoice", "e-Way Bill", "Payment Entry (if COD/advance)"],
+        "erpnext_warehouses": "Finished Goods Warehouse (stock reduced)",
+        "pain_points": [
+          "Goods dispatched without invoice — accounting mismatch, GST filing issue",
+          "Delivery proof not collected — customer claims non-receipt, payment dispute",
+          "e-Way Bill not generated — truck stopped at state border, goods detained (penalty + delay)"
+        ]
+      }
+    },
+    
+    "key_pain_points": {
+      "inventory_management": [
+        "Fabric wastage tracking nightmare — fabric issued vs finished goods produced mismatch, but don't know where loss occurred (cutting, sewing damage, theft)",
+        "WIP (Work-in-Progress) never counted — fabric issued to floor, but not stitched yet. Where is it? No visibility.",
+        "Accessory shortage discovered mid-production — need 1000 buttons, have only 800, production stops",
+        "Fabric shade variation — same style garments have visible color difference (mixed fabric lots)"
+      ],
+      
+      "production_tracking": [
+        "Don't know which stage each order is in — customer calls asking status, owner has to go to floor and check manually",
+        "Operator productivity unknown — some operators produce 50 pieces/day, others 30, but no data to identify and fix",
+        "Bottleneck identification impossible — sewing delayed because cutting is slow, but no metrics to prove it",
+        "Rework cost invisible — defective pieces sent back for correction, but time/cost not tracked"
+      ],
+      
+      "quality_control": [
+        "Quality issues discovered by customer — internal QC not effective, rejection at delivery stage (penalty + reputation damage)",
+        "Can't trace defect source — which operator, which fabric roll, which cutting batch caused the defect? No traceability.",
+        "Rejection rate not measured — don't know if 5% rejection or 20% rejection (no data-driven improvement)"
+      ],
+      
+      "costing_accuracy": [
+        "Fabric consumption not standardized — owner estimates '2.5 meters per shirt', actual consumption is 2.8 meters (loss of margin)",
+        "Accessory cost approximation — buttons/threads/labels cost guessed, not calculated per piece",
+        "Labour cost allocation random — operators paid daily wage, but cost per garment not known (can't price accurately)",
+        "Wastage not factored in costing — quote based on perfect production (no wastage), but reality is 10-15% wastage (profit evaporates)"
+      ],
+      
+      "subcontracting_jobwork": [
+        "Fabric sent to job worker (for cutting or stitching), but no formal tracking — if job worker claims 'fabric was short', no proof",
+        "Job work billing mismatch — job worker bills for 1000 pieces, but only 950 pieces received",
+        "Job worker delays — no visibility into job worker's progress, sudden delay on delivery date",
+        "Quality issues from job worker — defects discovered after goods received, but job worker denies responsibility"
+      ],
+      
+      "sales_order_fulfillment": [
+        "Customer changes size breakdown mid-production — ordered 100S+100M, now wants 50S+150M (cutting already done for old sizes)",
+        "Delivery date commitment nightmare — don't know production capacity, commit unrealistic dates, miss deadline",
+        "Partial shipments not tracked — order for 1000 pieces, shipped 700, balance 300 pending, but no system to track pending quantity"
+      ]
+    },
+    
+    "pricing_logic": {
+      "model": "Cost-plus pricing. Fabric cost + Accessory cost + Cutting charges + Stitching charges + Finishing charges + Overhead (10-15%) = Ex-factory price.",
+      "calculation_reality": "Owner estimates based on experience, not actual data. Example: 'This shirt needs 2 meters fabric at ₹80/m, thread ₹5, buttons ₹3, stitching ₹20 = ₹193. Add 15% = ₹222. Quote ₹250 to buyer.'",
+      "margin_reality": "Quoted margin vs actual margin very different. Wastage, rework, delays eat into margin. Often realize profit/loss only after order completion.",
+      "payment_terms": "30-50% advance on order confirmation. Balance on delivery OR 30-60 days credit (for established customers).",
+      "export_pricing": "FOB (Free on Board) — includes garment cost + packing + local transport to port. Buyer arranges shipping."
+    },
+    
+    "compliance_requirements": [
+      "GST registration mandatory (turnover > ₹40 lakh)",
+      "e-Invoicing mandatory (turnover > ₹5 crore)",
+      "e-Way Bill for inter-state shipments > ₹50,000",
+      "Factory license (Factories Act) — if >10 workers using power, or >20 workers without power",
+      "ESI + PF registration (Employees' State Insurance + Provident Fund) — if >10 employees",
+      "MSME Udyam registration (optional but beneficial for credit access)",
+      "Export: RCMC (Registration Cum Membership Certificate), IEC (Import Export Code), GST LUT (Letter of Undertaking)"
+    ]
+  },
+  
+  "detection_signals": {
+    "strong_signals": {
+      "column_headers": [
+        "size", "colour", "color", "style", "style no", "style code",
+        "fabric", "gsm", "yarn", "stitching", "stitch", "operator",
+        "cutting", "sewing", "finishing", "inspection",
+        "roll no", "shade", "lot no", "marker", "lay",
+        "front", "back", "sleeve", "collar",
+        "bundle", "bundle no", "pieces", "pcs",
+        "sam", "smv" 
+      ],
+      "sheet_names": [
+        "fabric consumption", "size breakdown", "color breakdown",
+        "style master", "bom", "cutting plan", "production plan",
+        "operator performance", "job card", "inspection report",
+        "fabric stock", "trims stock", "accessories"
+      ],
+      "file_names": [
+        "fabric_consumption", "size_chart", "style_sheet",
+        "production_report", "cutting_plan", "bom"
+      ],
+      "data_patterns": [
+        "Multiple rows for same item with size suffix (S/M/L/XL/XXL)",
+        "Color variations for same style (Red/Blue/Green/Black/White)",
+        "Fabric consumption in meters per piece",
+        "GSM values (120-300 range typical for apparel fabric)",
+        "SAM/SMV values (Standard Allowed Minutes / Standard Minute Value)",
+        "Roll numbers with meter counts",
+        "Bundle numbers with piece counts",
+        "Operator IDs or names with piece counts"
+      ],
+      "bom_structure": "Fabric (main material, meters) + Thread (meters/grams) + Buttons (pieces) + Zipper (pieces) + Labels (pieces) + Poly bag (pieces) = Finished Garment (pieces)"
+    },
+    "weak_signals": {
+      "column_headers": ["buyer", "po no", "shipment date", "carton", "packing list"],
+      "customer_types": ["Retailers", "Boutiques", "Export houses", "E-commerce brands", "Retail chains"],
+      "supplier_types": ["Fabric mills", "Textile traders", "Button suppliers", "Label printers", "Packaging suppliers"]
+    },
+    "against_signals": {
+      "column_headers": [
+        "expiry date", "batch no", "shelf life",
+        "part number", "oem code", "vehicle application",
+        "job no", "drawing no", "material grade",
+        "sac code", "timesheet", "billable hours"
+      ],
+      "keywords": ["chemical", "ingredient", "formulation", "recipe (unless garment wash recipe)", "machine part", "drawing", "specification sheet (unless garment tech pack)"]
+    }
+  },
+  
+  "absolute_profile": {
+    "mandatory_modules": [
+      "Manufacturing",
+      "Stock",
+      "Buying",
+      "Selling",
+      "Accounts"
+    ],
+    "optional_modules": [
+      "CRM (for buyer relationship management)",
+      "Projects (for large export orders with milestones)",
+      "Quality Management (for detailed QC workflows)",
+      "HR (for operator attendance + piece-rate payment)"
+    ],
+    "compliance_modules": ["GST India", "e-Invoicing", "e-Way Bill"]
+  },
+  
+  "mandatory_doctypes": [
+    "Item",
+    "Item Attribute",
+    "Item Variant",
+    "BOM",
+    "Work Order",
+    "Job Card",
+    "Workstation",
+    "Operation",
+    "Routing",
+    "Customer",
+    "Supplier",
+    "Warehouse",
+    "Stock Entry",
+    "Material Request",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Quality Inspection",
+    "Sales Order",
+    "Delivery Note",
+    "Packing Slip",
+    "Sales Invoice",
+    "Payment Entry",
+    "Subcontracting Order"
+  ],
+  
+  "erpnext_masters_setup": {
+    "item_structure": {
+      "approach": "Use Item Template + Item Attributes for size/color variants. Do NOT create separate item codes for each size/color combination.",
+      "example": {
+        "template_item": "T-Shirt Round Neck Cotton",
+        "attributes": [
+          {"attribute": "Size", "values": ["S", "M", "L", "XL", "XXL"]},
+          {"attribute": "Color", "values": ["White", "Black", "Navy", "Red", "Grey"]}
+        ],
+        "generated_variants": "T-Shirt Round Neck Cotton-S-White, T-Shirt Round Neck Cotton-S-Black, ... (25 variants auto-generated)"
+      },
+      "raw_material_items": {
+        "fabric": "Fabric-Cotton-Jersey-160GSM (UOM: Meter)",
+        "thread": "Thread-Polyester-40s (UOM: Cone)",
+        "buttons": "Button-Plastic-15mm-White (UOM: Piece)",
+        "label": "Label-Woven-Brand (UOM: Piece)",
+        "polybag": "Poly Bag-Medium (UOM: Piece)"
+      }
+    },
+    
+    "bom_structure": {
+      "type": "Single-level BOM (not multi-level for most garments)",
+      "components": [
+        {"item": "Fabric-Cotton-Jersey-160GSM", "qty": "2.2 Meter", "scrap": "10%"},
+        {"item": "Thread-Polyester-40s", "qty": "0.05 Cone", "scrap": "5%"},
+        {"item": "Button-Plastic-15mm-White", "qty": "4 Piece", "scrap": "2%"},
+        {"item": "Label-Woven-Brand", "qty": "1 Piece", "scrap": "0%"},
+        {"item": "Poly Bag-Medium", "qty": "1 Piece", "scrap": "0%"}
+      ],
+      "operations": [
+        {"operation": "Cutting", "workstation": "Cutting Table 1", "time_in_mins": 5},
+        {"operation": "Sewing", "workstation": "Sewing Machine 1", "time_in_mins": 25},
+        {"operation": "Finishing", "workstation": "Pressing Table 1", "time_in_mins": 3}
+      ],
+      "scrap_handling": "Set scrap percentage per component. ERPNext auto-calculates material required = (BOM qty) / (1 - scrap%)."
+    },
+    
+    "warehouse_setup": {
+      "required_warehouses": [
+        "Raw Material - Fabric",
+        "Raw Material - Accessories",
+        "Work In Progress - Spreading",
+        "Work In Progress - Cutting",
+        "Work In Progress - Sewing",
+        "Work In Progress - Finishing",
+        "Finished Goods",
+        "Rework",
+        "Scrap / Seconds",
+        "Subcontractor - [Job Worker Name]"
+      ],
+      "warehouse_logic": "Each production stage has separate WIP warehouse for visibility. Stock Entry moves goods stage-to-stage."
+    },
+    
+    "operation_workstation_setup": {
+      "operations": [
+        "Spreading",
+        "Cutting",
+        "Sewing - Collar Attach",
+        "Sewing - Sleeve Attach",
+        "Sewing - Side Seam",
+        "Sewing - Hem",
+        "Sewing - Buttonhole",
+        "Sewing - Button Attach",
+        "Sewing - Label Attach",
+        "Finishing - Pressing",
+        "Finishing - Thread Trimming",
+        "Inspection"
+      ],
+      "workstations": [
+        "Cutting Table 1", "Cutting Table 2",
+        "Sewing Machine 1-20",
+        "Pressing Table 1-3",
+        "Inspection Table 1-2"
+      ],
+      "operator_linking": "Link Workstation to Employee (operator). Job Card shows which operator performed operation."
+    }
+  },
+  
+  "default_settings": {
+    "stock_settings": {
+      "valuation_method": "FIFO (First In First Out)",
+      "allow_negative_stock": false,
+      "auto_material_request": true,
+      "auto_indent": false,
+      "default_material_request_type": "Purchase"
+    },
+    "manufacturing_settings": {
+      "disable_capacity_planning": false,
+      "allow_production_on_holidays": true,
+      "update_bom_cost_automatically": true,
+      "material_consumption": "Backflush (consume material at Work Order completion)",
+      "backflush_raw_materials_based_on": "BOM",
+      "default_wip_warehouse": "Work In Progress - Sewing",
+      "default_fg_warehouse": "Finished Goods",
+      "overproduction_percentage": 5,
+      "make_serial_no_batch_from_work_order": false,
+      "capacity_planning_for_workstation": "Job Card based"
+    },
+    "buying_settings": {
+      "supplier_group": "Fabric Suppliers, Accessory Suppliers, Job Workers",
+      "buying_price_list": "Standard Buying"
+    },
+    "selling_settings": {
+      "customer_group": "Buyers, Export Houses, Retail Chains",
+      "selling_price_list": "Standard Selling",
+      "sales_update_frequency": "Each Transaction"
+    },
+    "accounts_settings": {
+      "fiscal_year": "April to March (India standard)",
+      "company_default_currency": "INR",
+      "cost_center": "Main - [Company Abbr]",
+      "enable_perpetual_inventory": true
+    }
+  },
+  
+  "workflow_processes": [
+    {
+      "process_id": "P1_order_to_delivery_inhouse_production",
+      "process_name": "Order to Delivery (In-house Production)",
+      "trigger": "Sales Order received from buyer",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Create Sales Order",
+          "doctype": "Sales Order",
+          "details": "Enter customer, style (item template), size/color breakdown (item variants), quantity, delivery date.",
+          "output": "Sales Order confirmed"
+        },
+        {
+          "step": 2,
+          "action": "Check/Create BOM",
+          "doctype": "BOM",
+          "details": "If new style, create BOM with fabric consumption + accessories. If existing style, verify BOM is updated.",
+          "decision": "BOM exists? → Yes: Proceed. No: Create BOM.",
+          "output": "BOM ready for production"
+        },
+        {
+          "step": 3,
+          "action": "Create Work Order",
+          "doctype": "Work Order",
+          "details": "Auto-generated from Sales Order OR manually created. Select item (finished garment), BOM, quantity, planned start date.",
+          "output": "Work Order in Draft status"
+        },
+        {
+          "step": 4,
+          "action": "Generate Material Request",
+          "doctype": "Material Request",
+          "details": "Work Order auto-generates Material Request for fabric + accessories based on BOM. Check stock availability.",
+          "output": "Material Request for Purchase"
+        },
+        {
+          "step": 5,
+          "action": "Create Purchase Order",
+          "doctype": "Purchase Order",
+          "details": "Convert Material Request to Purchase Order. Select supplier, negotiate price, set delivery date.",
+          "output": "Purchase Order sent to supplier"
+        },
+        {
+          "step": 6,
+          "action": "Receive Material",
+          "doctype": "Purchase Receipt",
+          "details": "Goods received from supplier. Quality check done (fabric GSM, shade, roll measurement).",
+          "linked_doctype": "Quality Inspection",
+          "output": "Stock updated in Raw Material Warehouse"
+        },
+        {
+          "step": 7,
+          "action": "Start Work Order",
+          "doctype": "Work Order",
+          "details": "Change Work Order status from Draft to 'In Process'. Material availability confirmed.",
+          "output": "Production started"
+        },
+        {
+          "step": 8,
+          "action": "Issue Material (Spreading + Cutting)",
+          "doctype": "Stock Entry (Material Issue for Manufacture)",
+          "details": "Issue fabric from Raw Material Warehouse to WIP - Spreading. Create Job Card for Spreading operation.",
+          "output": "Fabric in spreading area"
+        },
+        {
+          "step": 9,
+          "action": "Complete Spreading",
+          "doctype": "Job Card",
+          "details": "Operator completes spreading operation. Record time, operator ID, fabric roll numbers used.",
+          "output": "Fabric laid out, ready for cutting"
+        },
+        {
+          "step": 10,
+          "action": "Complete Cutting",
+          "doctype": "Job Card",
+          "details": "Cutting operation completed. Record cut pieces count, bundle numbers, operator ID. Quality check (cutting accuracy).",
+          "linked_doctype": "Stock Entry (Transfer - WIP Spreading to WIP Cutting)",
+          "output": "Cut pieces bundled, moved to sewing"
+        },
+        {
+          "step": 11,
+          "action": "Sewing Operations",
+          "doctype": "Job Card (multiple - one per operation)",
+          "details": "Multiple sewing operations (collar, sleeves, side seam, hem, buttons, labels). Each operation has separate Job Card. Track operator, time, pieces completed.",
+          "output": "Semi-finished garments"
+        },
+        {
+          "step": 12,
+          "action": "Finishing",
+          "doctype": "Job Card",
+          "details": "Pressing, thread trimming. Job Card tracks finishing time and operator.",
+          "output": "Finished garments ready for QC"
+        },
+        {
+          "step": 13,
+          "action": "Quality Inspection",
+          "doctype": "Quality Inspection",
+          "details": "100% check or AQL sampling. Defects logged (Critical/Major/Minor). Accept/Reject decision.",
+          "decision": "Accepted → Pack. Rejected → Rework or Scrap.",
+          "output": "Accepted pieces to packing, Rejected to Rework/Scrap"
+        },
+        {
+          "step": 14,
+          "action": "Complete Work Order (Backflush Material)",
+          "doctype": "Work Order",
+          "details": "Mark Work Order as 'Completed'. ERPNext auto-creates Stock Entry (Manufacture) — consumes raw material, produces finished goods. Finished goods added to Finished Goods Warehouse.",
+          "output": "Stock updated: Raw material consumed, Finished goods produced"
+        },
+        {
+          "step": 15,
+          "action": "Packing",
+          "doctype": "Packing Slip",
+          "details": "Create packing slip with size breakdown. Poly bag + carton packing.",
+          "output": "Cartons ready for dispatch"
+        },
+        {
+          "step": 16,
+          "action": "Create Delivery Note",
+          "doctype": "Delivery Note",
+          "details": "Against Sales Order. Select items (finished garments), quantity, packing details. e-Way Bill generated (if inter-state).",
+          "output": "Goods dispatched to customer"
+        },
+        {
+          "step": 17,
+          "action": "Create Sales Invoice",
+          "doctype": "Sales Invoice",
+          "details": "Against Delivery Note. GST applied. e-Invoice generated (if applicable).",
+          "output": "Invoice sent to customer"
+        },
+        {
+          "step": 18,
+          "action": "Receive Payment",
+          "doctype": "Payment Entry",
+          "details": "Customer pays via bank transfer/cheque/cash. Payment Entry links to Sales Invoice.",
+          "output": "Payment received, outstanding cleared"
+        }
+      ],
+      "typical_timeline": "Sales Order to Delivery: 15-30 days (depending on order size and fabric availability)"
+    },
+    
+    {
+      "process_id": "P2_subcontracting_jobwork",
+      "process_name": "Subcontracting / Job Work Process",
+      "trigger": "Work Order created, but cutting/stitching outsourced to job worker",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Create Subcontracting Order (PO to Job Worker)",
+          "doctype": "Purchase Order (with 'Supply Raw Materials' checked)",
+          "details": "Job worker is supplier. Item = service (cutting/stitching). Rate = per piece rate. Raw materials to be supplied listed in PO.",
+          "output": "PO sent to job worker"
+        },
+        {
+          "step": 2,
+          "action": "Transfer Material to Job Worker",
+          "doctype": "Stock Entry (Send to Subcontractor)",
+          "details": "Issue fabric + accessories from Raw Material Warehouse to Subcontractor Warehouse (linked to job worker).",
+          "output": "Material with job worker"
+        },
+        {
+          "step": 3,
+          "action": "Job Worker Processes Material",
+          "doctype": "Job Card (optional - if tracking job worker's progress)",
+          "details": "Job worker cuts fabric / stitches garments. No ERPNext entry at this stage (happens outside system).",
+          "output": "Processed goods ready"
+        },
+        {
+          "step": 4,
+          "action": "Receive Finished/Semi-Finished Goods",
+          "doctype": "Purchase Receipt (against Subcontracting Order)",
+          "details": "Receive cut pieces or finished garments from job worker. Stock Entry auto-created: Material consumed from Subcontractor Warehouse, Finished/Semi-finished goods added to WIP/FG Warehouse.",
+          "linked_doctype": "Quality Inspection (check job work quality)",
+          "output": "Goods back in factory, stock updated"
+        },
+        {
+          "step": 5,
+          "action": "Create Purchase Invoice (Job Work Charges)",
+          "doctype": "Purchase Invoice",
+          "details": "Bill from job worker for service charges (per piece rate × quantity). GST applied. Payment terms as agreed.",
+          "output": "Job work cost recorded"
+        },
+        {
+          "step": 6,
+          "action": "Add Job Work Cost to Item Valuation",
+          "doctype": "Landed Cost Voucher (optional but recommended)",
+          "details": "Allocate job work charges to finished goods valuation. Ensures true cost is captured.",
+          "output": "Correct item valuation including job work cost"
+        }
+      ],
+      "typical_timeline": "Material handover to receipt: 5-10 days (job worker turnaround time)",
+      "common_failure": "Not using Subcontracting module — tracking job work as regular PO loses material traceability."
+    }
+  ],
+  
+  "questions_to_ask": [
+    {
+      "question": "Do you manufacture only your own brand, or do you also do job work (CMT) for other brands?",
+      "purpose": "Determine if subcontracting module needs setup for inward job work (buyer supplies fabric).",
+      "options": ["Own brand only", "Job work only", "Both (50-50 or 60-40 or 70-30)"]
+    },
+    {
+      "question": "How many sizes do you typically produce per style?",
+      "purpose": "Understand variant complexity. 5 sizes = setup Item Attributes. 10+ sizes = review if all needed.",
+      "options": ["3 sizes (S/M/L)", "5 sizes (S/M/L/XL/XXL)", "7+ sizes (include baby sizes, plus sizes)"]
+    },
+    {
+      "question": "Do you give fabric to outside tailors/job workers for cutting or stitching?",
+      "purpose": "Enable Subcontracting module. Setup subcontractor warehouse.",
+      "options": ["No - all in-house", "Yes - cutting only", "Yes - stitching only", "Yes - both cutting and stitching"]
+    },
+    {
+      "question": "How do you calculate fabric consumption per garment?",
+      "purpose": "Check if formal BOM exists or just thumb rule estimation.",
+      "options": ["We have standard marker/pattern (BOM ready)", "We estimate based on experience (need BOM creation)", "Different for every order (no standard)"]
+    },
+    {
+      "question": "What is your typical order size?",
+      "purpose": "Small orders (<500 pcs) need fast setup. Large orders (>5000 pcs) need detailed tracking.",
+      "options": ["100-500 pieces", "500-2000 pieces", "2000-10000 pieces", "10000+ pieces (export)"]
+    },
+    {
+      "question": "Do you export garments?",
+      "purpose": "Export = need shipping docs, FOB costing, LC tracking. Enable Projects module for export order tracking.",
+      "options": ["No - only domestic", "Yes - occasional export (10-20%)", "Yes - primarily export (50%+)"]
+    },
+    {
+      "question": "Do you track operator-wise production (piece-rate payment)?",
+      "purpose": "If yes, enable Job Card operator tracking. Link Workstation to Employee.",
+      "options": ["No - daily wage for all", "Yes - piece-rate for sewing operators only", "Yes - piece-rate for all operations"]
+    },
+    {
+      "question": "How do you handle quality rejections?",
+      "purpose": "Setup Rework warehouse. Define rework process (send back to operation or scrap).",
+      "options": ["Rework defective pieces", "Sell as seconds (discounted)", "Scrap (no value)", "Mix of all"]
+    }
+  ],
+  
+  "common_data_gaps": [
+    "BOM missing entirely — Fabric consumption never formally documented. Owner knows 'approximately 2 meters per shirt' but actual may vary by 10-15%.",
+    "Item variants not structured — 100 separate item codes created instead of 1 template + 5 sizes + 4 colors = 20 variants. Maintenance nightmare.",
+    "Subcontractor details incomplete — Job worker has no GSTIN, no formal address. Can't raise Purchase Order.",
+    "Wastage percentage not defined — BOM shows '2 meters fabric' but doesn't account for 10% cutting wastage. Material shortage during production.",
+    "WIP inventory never counted — Fabric issued to floor = ₹5 lakh. Finished goods produced = ₹3 lakh. Where is ₹2 lakh? WIP not tracked.",
+    "Operation time estimates missing — BOM operations have no time defined. Can't do capacity planning or delivery date estimation.",
+    "Quality parameters not documented — QC done by eye, no checklist. Can't train new QC staff, inconsistent quality.",
+    "Operator skill matrix missing — Don't know which operator can do which operation. Production planning is guesswork.",
+    "Packing specs not defined — Customer wants specific packing (1 piece per polybag, 50 pieces per carton) but not documented in system."
+  ],
+  
+  "common_failures": [
+    {
+      "failure": "Creating 500 separate items instead of using Item Variant Template",
+      "why_it_fails": "5 sizes × 4 colors = 20 variants per style. 25 styles = 500 items. Unmaintainable. BOM changes require updating 500 BOMs.",
+      "correct_approach": "Create 1 Item Template per style. Define Attributes (Size, Color). ERPNext auto-generates 20 variants. BOM created at template level. All variants inherit same BOM."
+    },
+    {
+      "failure": "Not enabling Subcontracting module for job work",
+      "why_it_fails": "Job work tracked as regular Purchase Order. Material issue not linked. Job worker accountability zero. Material pilferage can't be detected.",
+      "correct_approach": "Enable 'Supply Raw Materials' in Purchase Order. Create Stock Entry (Send to Subcontractor). On Purchase Receipt, ERPNext auto-consumes supplied material. Accountability maintained."
+    },
+    {
+      "failure": "Not using Job Card for operator tracking",
+      "why_it_fails": "Production is black box. Don't know which operator did which operation. If quality issue, can't trace source. Piece-rate payment calculation is manual (Excel sheet).",
+      "correct_approach": "Create Job Card for each operation. Link Workstation to Employee. Job Card tracks start time, end time, pieces completed, operator ID. Auto-calculate piece-rate payment from Job Card data."
+    },
+    {
+      "failure": "Fabric wastage not captured in BOM",
+      "why_it_fails": "BOM shows 2 meters fabric per shirt. Reality: 10% wastage in cutting. Actual fabric needed = 2.2 meters. Material shortage during production. Costing wrong (margin loss).",
+      "correct_approach": "Define Scrap % in BOM. If scrap = 10%, ERPNext auto-calculates required fabric = 2 / (1 - 0.10) = 2.22 meters. Material Request accurate. Costing correct."
+    },
+    {
+      "failure": "Not setting up WIP warehouses",
+      "why_it_fails": "All WIP lumped into one 'Production' warehouse. Can't track which stage each order is in. If production delayed, don't know where bottleneck is (cutting or sewing?).",
+      "correct_approach": "Create separate WIP warehouses: WIP-Spreading, WIP-Cutting, WIP-Sewing, WIP-Finishing. Stock Entry moves goods stage-to-stage. Real-time visibility of production status."
+    },
+    {
+      "failure": "Mixing raw material UOM with finished goods UOM",
+      "why_it_fails": "Fabric purchased in Meters. Garment sold in Pieces. ERPNext confused if same UOM used. Stock report shows '100 meters fabric' and '100 pieces garment' together (meaningless).",
+      "correct_approach": "Define separate UOMs. Raw material = Meter. Finished goods = Piece. BOM shows conversion: 2.2 Meters → 1 Piece. Stock reports accurate."
+    },
+    {
+      "failure": "Backflushing material without quality check",
+      "why_it_fails": "Work Order completed, material auto-consumed (backflushed). But 20% garments rejected in QC. Rejected garments went to rework, but material already consumed. Stock mismatch.",
+      "correct_approach": "Complete Work Order only after QC. If rejection, create Stock Entry for rejected pieces (move to Rework warehouse). Rework treated as separate mini Work Order."
+    }
+  ],
+  
+  "implementation_timeline": {
+    "week_1_foundation": {
+      "tasks": [
+        "Company setup (name, address, GST, fiscal year)",
+        "Chart of Accounts (use India standard COA)",
+        "Currency: INR",
+        "Enable India GST, e-Invoicing, e-Way Bill",
+        "Warehouse creation: Raw Material (Fabric), Raw Material (Accessories), WIP (Spreading/Cutting/Sewing/Finishing), Finished Goods, Rework, Scrap, Subcontractor warehouses",
+        "UOM setup: Meter, Piece, Cone, Kg, Dozen",
+        "Item Attributes: Size (S/M/L/XL/XXL), Color (White/Black/Navy/Red/Grey/etc.)",
+        "Operation master: Spreading, Cutting, Sewing (multiple operations), Finishing, Inspection",
+        "Workstation master: Cutting Table 1-2, Sewing Machine 1-20, Pressing Table 1-3"
+      ],
+      "deliverable": "ERPNext foundation ready for data entry"
+    },
+    
+    "week_2_masters": {
+      "tasks": [
+        "Item Templates: Create 1 template per style family (T-Shirt, Shirt, Trouser, Kurti, etc.)",
+        "Item Variants: Auto-generate variants for each template (size × color combinations)",
+        "Raw Material Items: Fabric types, Thread, Buttons, Zippers, Labels, Poly Bags",
+        "Supplier Master: Fabric suppliers, Accessory suppliers, Job workers (with GSTIN, address, payment terms)",
+        "Customer Master: Buyers, Export houses, Retail chains (with GSTIN, credit limit, payment terms)",
+        "BOM creation: Sample style with realistic fabric consumption + accessories + operations",
+        "Price List: Buying price list (fabric/accessory rates), Selling price list (garment rates)"
+      ],
+      "deliverable": "Master data ready. Can start test Work Order."
+    },
+    
+    "week_3_transactions": {
+      "tasks": [
+        "Opening stock entry: Fabric stock, Accessory stock, WIP, Finished goods (as on go-live date)",
+        "Outstanding Sales Orders: Pending orders to be imported",
+        "Outstanding Purchase Orders: Fabric/accessories on order",
+        "Test Work Order: Create sample work order, issue material, complete operations via Job Cards, backflush material, receive finished goods",
+        "Test Subcontracting: Send material to job worker, receive processed goods, check stock updates",
+        "Quality Inspection testing: Create sample QC report, accept/reject pieces",
+        "Sales cycle testing: Sales Order → Work Order → Delivery Note → Sales Invoice → Payment"
+      ],
+      "deliverable": "All processes tested. Ready for go-live."
+    },
+    
+    "week_4_golive_training": {
+      "tasks": [
+        "First live Work Order: Actual production order processed in ERPNext",
+        "User training: Production Manager (Work Order, Job Card), Purchase Person (PO, PR), Sales Person (SO, DN), Accounts Person (Invoice, Payment)",
+        "Daily monitoring: Check stock movements, WIP levels, material shortage alerts",
+        "First month-end: Stock valuation report, P&L, WIP report, operator productivity report",
+        "Issue resolution: Fix data entry errors, adjust processes based on user feedback"
+      ],
+      "deliverable": "ERPNext live. Parallel run with Excel for 1 month for safety."
+    }
+  },
+  
+  "success_metrics": {
+    "must_track": [
+      "Fabric wastage % (Target: <12%)",
+      "Production efficiency (Pieces per day per operator)",
+      "Quality rejection rate (Target: <5%)",
+      "On-time delivery % (Target: >90%)",
+      "WIP days (Fabric issued to finished goods produced) (Target: <15 days)",
+      "Material shortage incidents per month (Target: <5)",
+      "Costing accuracy (Quoted margin vs actual margin) (Target: variance <5%)"
+    ]
+  },
+  
+  "confidence_threshold": 0.70,
+  
+  "notes_for_ai_agent": {
+    "critical_understanding": [
+      "Garment manufacturing is variant-heavy (size + color). MUST use Item Variant, not separate item codes.",
+      "Production workflow is linear: Fabric → Spreading → Cutting → Sewing → Finishing → QC → Packing → Dispatch. Each stage needs separate WIP warehouse.",
+      "Job Card is critical for operator tracking. Without Job Card, production is black box.",
+      "Subcontracting is very common. Material issue to job worker must be tracked (Send to Subcontractor).",
+      "Fabric wastage (10-15%) must be in BOM as Scrap %. If not defined, material shortage guaranteed.",
+      "Quality rejection is high (5-20%). Rework warehouse + rework process mandatory.",
+      "Payment structure: Advance + balance (not full upfront). Track payment milestones in Sales Order."
+    ],
+    "data_quality_checks": [
+      "Check if user uploaded size/color breakdown file → Strong signal for garment niche",
+      "Check BOM structure: Fabric (meter) + Thread + Buttons → Garment (piece). If missing, BOM needs creation.",
+      "Check if subcontractor names present → Enable subcontracting module",
+      "Check fabric consumption per piece: If <1 meter or >5 meters, likely data error (investigate)",
+      "Check operator names in any file → Enable Job Card operator tracking"
+    ],
+    "implementation_priorities": [
+      "Priority 1: Item Variant setup (if wrong, entire system fails)",
+      "Priority 2: BOM with fabric wastage (if wrong, material shortage + costing error)",
+      "Priority 3: WIP warehouse structure (if wrong, no production visibility)",
+      "Priority 4: Job Card operator linking (if missing, no productivity tracking)",
+      "Priority 5: Quality Inspection templates (if missing, rejection not captured)"
+    ]
+  }
+}

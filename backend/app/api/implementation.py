@@ -2,8 +2,6 @@
 Implementation API routes — thin layer over ImplementationLauncher.
 Every endpoint either starts a workflow, sends a signal, or queries state.
 No business logic lives here.
-
-Replaces: backend/app/services/implementation/implementation.py (old direct-service router)
 """
 from __future__ import annotations
 import os
@@ -12,8 +10,11 @@ from botocore.config import Config
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
+from shared.database.db import AsyncSessionLocal
+from sqlalchemy.future import select
+from shared.models.core import Project
 from app.services.is_launcher import ImplementationLauncher
 
 router = APIRouter(prefix="/implementation", tags=["Implementation"])
@@ -31,6 +32,12 @@ class PresignedUrlRequest(BaseModel):
 
 @router.post("/presigned-urls", summary="Generate direct R2 upload URLs")
 async def generate_presigned_urls(req: PresignedUrlRequest):
+    # Retrieve company slug from DB to organize R2 paths
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(select(Project).where(Project.id == req.project_id))
+        proj = res.scalar_one_or_none()
+        company_slug = proj.company_slug if proj else "unknown"
+
     # Connect to Cloudflare R2
     s3_client = boto3.client(
         "s3",
@@ -45,9 +52,8 @@ async def generate_presigned_urls(req: PresignedUrlRequest):
     urls = []
 
     for file_name in req.file_names:
-        object_key = f"{str(req.project_id)}/{file_name}"
+        object_key = f"{company_slug}/{str(req.project_id)}/{file_name}"
         
-        # Generate a URL valid for 1 hour (3600 seconds) for a PUT request
         presigned_url = s3_client.generate_presigned_url(
             'put_object',
             Params={'Bucket': bucket_name, 'Key': object_key},
@@ -57,7 +63,7 @@ async def generate_presigned_urls(req: PresignedUrlRequest):
         urls.append({
             "file_name": file_name,
             "upload_url": presigned_url,
-            "object_path": object_key # This is the address Temporal needs later!
+            "object_path": object_key
         })
 
     return {"urls": urls}
@@ -70,9 +76,16 @@ async def generate_presigned_urls(req: PresignedUrlRequest):
 @router.post("/start/{project_id}", summary="Start or resume the implementation workflow")
 async def start_workflow(
     project_id: UUID,
+    background_tasks: BackgroundTasks,
     launcher: ImplementationLauncher = Depends(get_launcher),
 ):
-    return await launcher.start(project_id)
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(select(Project).where(Project.id == project_id))
+        proj = res.scalar_one_or_none()
+        company_slug = proj.company_slug if proj else "unknown"
+
+    impl_result = await launcher.start(project_id)
+    return impl_result
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -82,9 +95,7 @@ async def start_workflow(
 class FilesUploadedRequest(BaseModel):
     project_id: UUID
     uploaded_files: List[Dict[str, Any]]         # [{file_name, object_path}]
-    file_contents: Optional[Dict[str, str]] = None  # filename → raw text
-
-
+    company_slug: Optional[str] = None
 
 
 @router.post("/signal/files-uploaded", summary="Notify workflow that files have been uploaded")
@@ -92,7 +103,11 @@ async def signal_files_uploaded(
     req: FilesUploadedRequest,
     launcher: ImplementationLauncher = Depends(get_launcher),
 ):
-    await launcher.signal_files_uploaded(req.project_id, req.uploaded_files, req.file_contents)
+    await launcher.signal_files_uploaded(
+        req.project_id, 
+        req.uploaded_files, 
+        req.company_slug
+    )
     return {"ok": True, "signal": "files_uploaded"}
 
 
@@ -115,20 +130,6 @@ async def signal_f3iche_confirmed(
         req.industry_sub, req.company_name, req.company_size,
     )
     return {"ok": True, "signal": "f3iche_confirmed"}
-
-
-class FilesMappedRequest(BaseModel):
-    project_id: UUID
-    mapped_data: Dict[str, Any]   # {doctype: {field_mapping, rows, ...}}
-
-
-@router.post("/signal/files-mapped", summary="Upload mapped file data to the workflow")
-async def signal_files_mapped(
-    req: FilesMappedRequest,
-    launcher: ImplementationLauncher = Depends(get_launcher),
-):
-    await launcher.signal_files_mapped(req.project_id, req.mapped_data)
-    return {"ok": True, "signal": "files_mapped"}
 
 
 class ValidationSubmittedRequest(BaseModel):

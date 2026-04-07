@@ -1,14 +1,32 @@
 """
 Import Agent — Temporal activities for the 3-phase ERPNext import.
-Moved from: backend/app/services/implementation/import_engine.py
+
+Activities read state from Supabase/R2 and persist results back.
+Temporal only sees tiny string returns.
 """
 from __future__ import annotations
 
+import json
+import os
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import boto3
+from botocore.config import Config
 from temporalio import activity
+
+
+def _get_s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
 
 
 # ── Embedded service logic ────────────────────────────────────────────────────
@@ -25,14 +43,13 @@ class _ImportEngine:
     def build_plan(
         self,
         target_structure: Dict,
-        mapped_data: Dict[str, Any],
-        validation_report: Dict,
+        mapped_doctypes: List[str],
+        validation_status: str,
     ) -> Dict[str, Any]:
-        if validation_report.get("overall") == "fail":
+        if validation_status == "fail":
             return {
                 "status": "blocked",
                 "reason": "Validation failed. Fix errors before import.",
-                "validation_report": validation_report,
             }
 
         required = target_structure.get("required_doctypes", [])
@@ -45,8 +62,7 @@ class _ImportEngine:
                     continue
                 steps.append({
                     "doctype": dt,
-                    "data": mapped_data.get(dt),
-                    "action": "create" if dt in mapped_data else "default_or_skip",
+                    "action": "create" if dt in mapped_doctypes else "default_or_skip",
                 })
             return {"phase": phase_id, "name": name, "description": desc, "doctypes": doctypes, "steps": steps}
 
@@ -73,36 +89,23 @@ class _ImportEngine:
             "total_steps": sum(len(p["steps"]) for p in phases),
         }
 
-    def dry_run_phase(self, phase_id: str, steps: List[Dict]) -> Dict[str, Any]:
-        results = []
-        for step in steps:
-            rows = 0
-            if step.get("data"):
-                d = step["data"]
-                r = d.get("rows", d.get("data", []))
-                rows = len(r) if isinstance(r, list) else 0
-            results.append({
-                "doctype": step["doctype"],
-                "status": "dry_run",
-                "would_create": rows,
-            })
-        return {"phase": phase_id, "results": results, "timestamp": datetime.utcnow().isoformat() + "Z"}
-
 
 # ── Input dataclasses ────────────────────────────────────────────────────────
 
 @dataclass
 class BuildImportPlanInput:
-    target_structure: Dict[str, Any]
-    mapped_data: Dict[str, Any]
-    validation_report: Dict[str, Any]
+    session_id: str
+    project_id: str
+    company_slug: str = "unknown"
 
 
 @dataclass
 class ExecutePhaseInput:
+    session_id: str
     phase_id: str
-    steps: List[Dict[str, Any]]
-    dry_run: bool = True           # False = real ERPNext API calls
+    project_id: str
+    company_slug: str = "unknown"
+    dry_run: bool = True
     erpnext_base_url: Optional[str] = None
     erpnext_api_key: Optional[str] = None
 
@@ -110,45 +113,186 @@ class ExecutePhaseInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="build_import_plan")
-async def build_import_plan(inp: BuildImportPlanInput) -> Dict[str, Any]:
+async def build_import_plan(inp: BuildImportPlanInput) -> str:
     """
-    Produce the ordered 3-phase import plan.
-    Returns: {status, phases, total_steps}  — or {status: "blocked"} on validation failure.
+    Read target structure + validation status from Supabase, build the
+    3-phase import plan, persist to R2 + Supabase.
+
+    Returns: "ready" or "blocked"
     """
+    activity.logger.info("▶ build_import_plan started | session=%s", inp.session_id)
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISSession, ISMapping, ISImportRun
+    from sqlalchemy import select, update
+
+    # ── 1. Read from Supabase ────────────────────────────────────────────────
+    async with AsyncSessionLocal() as session:
+        stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+        result = await session.execute(stmt)
+        is_session = result.scalar_one_or_none()
+
+        if not is_session:
+            activity.logger.error("  ❌ Session %s not found", inp.session_id)
+            return "error:session_not_found"
+
+        target_structure = is_session.target_structure or {}
+
+        # Get mapped doctypes
+        stmt = select(ISMapping).where(ISMapping.session_id == uuid.UUID(inp.session_id))
+        result = await session.execute(stmt)
+        mappings = result.scalars().all()
+
+    mapped_doctypes = [m.doctype_name for m in mappings]
+    
+    # Check overall validation status
+    validation_status = "pass"
+    for m in mappings:
+        if m.status == "failed":
+            validation_status = "fail"
+            break
+
+    activity.logger.info("  target=%d doctypes, mapped=%d, validation=%s",
+                         len(target_structure.get("required_doctypes", [])),
+                         len(mapped_doctypes), validation_status)
+
+    # ── 2. Build plan ────────────────────────────────────────────────────────
     engine = _ImportEngine()
-    return engine.build_plan(inp.target_structure, inp.mapped_data, inp.validation_report)
+    plan = engine.build_plan(target_structure, mapped_doctypes, validation_status)
+    plan_status = plan.get("status", "blocked")
+
+    # ── 3. Persist plan to R2 ────────────────────────────────────────────────
+    slug = inp.company_slug or "unknown"
+    plan_key = f"{slug}/{inp.project_id}/_import_plan/plan.json"
+    try:
+        s3 = _get_s3_client()
+        s3.put_object(
+            Bucket="clean-data",
+            Key=plan_key,
+            Body=json.dumps(plan, indent=2, default=str).encode("utf-8"),
+            ContentType="application/json",
+        )
+        activity.logger.info("  ✅ R2 uploaded: clean-data/%s", plan_key)
+    except Exception as e:
+        activity.logger.error("  ❌ R2 plan upload failed: %s", e)
+
+    # ── 4. Create import run records in Supabase ─────────────────────────────
+    if plan_status == "ready":
+        async with AsyncSessionLocal() as session:
+            for phase_def in plan.get("phases", []):
+                new_run = ISImportRun(
+                    id=uuid.uuid4(),
+                    session_id=uuid.UUID(inp.session_id),
+                    phase=phase_def["phase"],
+                    execution_plan=phase_def,
+                )
+                session.add(new_run)
+            await session.commit()
+            activity.logger.info("  ✅ is_import_runs created for %d phases", len(plan.get("phases", [])))
+
+    activity.logger.info("✅ build_import_plan done | status=%s total_steps=%s",
+                         plan_status, plan.get("total_steps"))
+    return plan_status
 
 
 @activity.defn(name="execute_import_phase")
-async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
+async def execute_import_phase(inp: ExecutePhaseInput) -> str:
     """
     Execute (or dry-run) a single import phase.
-    In dry_run mode: counts rows without touching ERPNext.
-    In live mode: POSTs each step to the ERPNext REST API.
+    
+    Reads the execution plan from is_import_runs, downloads row data from R2,
+    executes against ERPNext API, then persists results back to Supabase.
+
+    Returns: "success" or "error"
     """
-    engine = _ImportEngine()
+    activity.logger.info("▶ execute_import_phase started | session=%s phase=%s dry_run=%s",
+                         inp.session_id, inp.phase_id, inp.dry_run)
 
-    if inp.dry_run or not inp.erpnext_base_url:
-        return engine.dry_run_phase(inp.phase_id, inp.steps)
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISImportRun, ISMapping
+    from sqlalchemy import select, update
 
-    # ── Live ERPNext import ────────────────────────────────────────────────
-    import httpx  # optional dep; only needed for live import
+    # ── 1. Read execution plan from Supabase ─────────────────────────────────
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(ISImportRun)
+            .where(ISImportRun.session_id == uuid.UUID(inp.session_id))
+            .where(ISImportRun.phase == inp.phase_id)
+        )
+        result = await session.execute(stmt)
+        import_run = result.scalar_one_or_none()
 
+    if not import_run:
+        activity.logger.error("  ❌ Import run not found for phase %s", inp.phase_id)
+        return "error:not_found"
+
+    plan = import_run.execution_plan or {}
+    steps = plan.get("steps", [])
+
+    # ── 2. For each step, download data from R2 if needed ────────────────────
+    s3 = _get_s3_client()
+    slug = inp.company_slug or "unknown"
     results = []
-    async with httpx.AsyncClient(base_url=inp.erpnext_base_url, timeout=30.0) as client:
-        for step in inp.steps:
-            if not step.get("data") or step.get("action") == "default_or_skip":
-                results.append({"doctype": step["doctype"], "status": "skipped"})
-                continue
-            try:
+
+    for step in steps:
+        dt = step.get("doctype", "")
+        action = step.get("action", "")
+
+        if action == "default_or_skip":
+            results.append({"doctype": dt, "status": "skipped"})
+            continue
+
+        # Download extracted rows from R2
+        rows_key = f"{slug}/{inp.project_id}/mappings/extracted_rows/{dt}.json"
+        rows = []
+        try:
+            response = s3.get_object(Bucket="clean-data", Key=rows_key)
+            rows = json.loads(response["Body"].read().decode("utf-8"))
+        except Exception:
+            activity.logger.info("  No R2 data for %s — skipping", dt)
+            results.append({"doctype": dt, "status": "skipped", "detail": "No data in R2"})
+            continue
+
+        if inp.dry_run or not inp.erpnext_base_url:
+            results.append({
+                "doctype": dt,
+                "status": "dry_run",
+                "would_create": len(rows),
+            })
+            continue
+
+        # ── Live ERPNext import ──────────────────────────────────────────
+        import httpx
+        try:
+            async with httpx.AsyncClient(base_url=inp.erpnext_base_url, timeout=30.0) as client:
                 resp = await client.post(
-                    f"/api/resource/{step['doctype']}",
-                    json=step["data"],
+                    f"/api/resource/{dt}",
+                    json={"data": rows},
                     headers={"Authorization": f"token {inp.erpnext_api_key}"},
                 )
                 resp.raise_for_status()
-                results.append({"doctype": step["doctype"], "status": "created", "name": resp.json().get("data", {}).get("name")})
-            except Exception as exc:
-                results.append({"doctype": step["doctype"], "status": "error", "detail": str(exc)})
+                results.append({"doctype": dt, "status": "created", "count": len(rows)})
+        except Exception as exc:
+            results.append({"doctype": dt, "status": "error", "detail": str(exc)})
 
-    return {"phase": inp.phase_id, "results": results, "timestamp": datetime.utcnow().isoformat() + "Z"}
+    # ── 3. Persist results back to Supabase ──────────────────────────────────
+    phase_result = {
+        "phase": inp.phase_id,
+        "results": results,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(ISImportRun)
+            .where(ISImportRun.id == import_run.id)
+            .values(
+                results=phase_result,
+                completed_at=datetime.utcnow(),
+            )
+        )
+        await session.commit()
+        activity.logger.info("  ✅ is_import_runs updated for phase %s", inp.phase_id)
+
+    activity.logger.info("✅ execute_import_phase done | phase=%s", inp.phase_id)
+    return "success"

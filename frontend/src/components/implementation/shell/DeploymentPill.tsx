@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { DeploymentState } from '@/types/implementation';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 const STATUS_CONFIG = {
   pending:   { label: 'Initializing',       dot: 'bg-gray-500',                text: 'text-gray-500',  ring: 'bg-gray-500/10 border-gray-500/20' },
   deploying: { label: 'Deploying Instance', dot: 'bg-amber-500 animate-pulse', text: 'text-amber-400', ring: 'bg-amber-500/10 border-amber-500/20' },
@@ -35,7 +37,7 @@ export function DeploymentPill() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/deployment-status?company=${companySlug}`);
+        const res = await fetch(`${API_BASE}/api/deployment/slug/${companySlug}`);
         if (!res.ok) throw new Error('not ok');
         const data: DeploymentState = await res.json();
         if (!stopped) setDeployment(data);
@@ -96,6 +98,12 @@ export function DeploymentPill() {
           >
             Open
           </a>
+          {(deployment as any).adminPassword && (
+            <>
+              <span className="text-white/20">·</span>
+              <span className="text-gray-400">Admin / <span className="text-white font-mono select-all font-bold">{(deployment as any).adminPassword}</span></span>
+            </>
+          )}
         </>
       )}
     </div>

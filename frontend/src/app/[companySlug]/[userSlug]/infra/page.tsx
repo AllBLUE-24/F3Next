@@ -89,28 +89,25 @@ export default function InfraPage() {
     );
   }
 
-  if (deploySuccess) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-white px-4">
-        <div className="text-6xl mb-6 animate-bounce">🏗️</div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Deployment Initiated!</h1>
-        <p className="text-gray-500 text-center max-w-md mb-8">
-          The Infrastructure Agent is now provisioning your ERPNext server on EC2. 
-          This usually takes 3-5 minutes.
-        </p>
-        
-        <div className="w-full max-w-md bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <div className="flex items-center space-x-3 mb-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="font-mono text-sm text-gray-700">Workflow: Running</span>
-            </div>
-            <p className="text-xs text-gray-400">Project ID: {project?.project_id}</p>
-        </div>
+  // State for deployment details
+  const [deploymentInfo, setDeploymentInfo] = useState<any>(null);
 
-        {/* You could add a button here to go to a "Dashboard" page */}
-      </div>
-    );
-  }
+  // Poll deployment status after successful trigger
+  useEffect(() => {
+    if (!deploySuccess) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await axios.get(`${apiUrl}/api/deployment/${project?.project_id}`);
+        if (res.data.status === 'ready') {
+          setDeploymentInfo(res.data);
+          clearInterval(interval);
+        }
+      } catch (e) {
+        console.error('Error fetching deployment state', e);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [deploySuccess, project?.project_id]);
 
   return (
     <div className="max-w-4xl mx-auto py-20 px-6">
@@ -161,6 +158,21 @@ export default function InfraPage() {
             )}
           </button>
         </div>
+        {/* Deployment Details */}
+        {deploymentInfo && (
+          <div className="mt-8 p-6 bg-green-50 rounded-xl border border-green-200">
+            <h2 className="text-xl font-semibold mb-4 text-green-800">✅ Deployment Successful!</h2>
+            <div className="space-y-3 text-gray-800">
+              <p><strong>Site URL:</strong> <a href={deploymentInfo.instanceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">{deploymentInfo.instanceUrl}</a></p>
+              <p><strong>User ID:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.userId || "Administrator"}</span></p>
+              <p><strong>Password:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.adminPassword}</span></p>
+              {deploymentInfo.api_key && (<p><strong>API Key:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.api_key}</span></p>)}
+              {deploymentInfo.api_secret && (<p><strong>API Secret:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.api_secret}</span></p>)}
+              {deploymentInfo.container_id && (<p><strong>Container ID:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.container_id}</span></p>)}
+            </div>
+            <p className="mt-4 text-sm text-green-700 font-medium">Please save these credentials securely before proceeding to the upload phase.</p>
+          </div>
+        )}
       </div>
     </div>
   );

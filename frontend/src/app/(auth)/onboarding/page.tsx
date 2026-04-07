@@ -103,6 +103,7 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: sessionUser.id,
+          email: sessionUser.email,
           full_name: formData.fullName,
           user_slug: formData.userSlug,
           role: formData.role,

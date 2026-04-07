@@ -14,17 +14,15 @@ from app.api.auth import router as auth_router
 from dotenv import load_dotenv
 load_dotenv()
 
-# Import models to ensure tables are registered for creating
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
+from shared.models.is_models import ISSession, ISFile, ISMapping, ISImportRun
 from shared.database.db import engine, Base
 from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resolver import router as resolver_router
-from app.api.config import router as config_router
 from app.api.deploy import router as deploy_router
 from app.api.agents import router as agents_router
-from app.api.config_apply import router as config_apply_router
 from app.api.migration import router as migration_router
 from app.api.ingest import router as ingest_router
 from app.api.os_command import router as os_router
@@ -43,7 +41,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-_all_models = [Base, Client, Project, ProjectStatus, Hook]
+_all_models = [Base, Client, Project, ProjectStatus, Hook, ISSession, ISFile, ISMapping, ISImportRun]
 
 if __name__ == "__main__":
     import uvicorn
@@ -75,10 +73,8 @@ app.include_router(auth_router)
 app.include_router(discovery_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
 app.include_router(resolver_router, prefix="/api")
-app.include_router(config_router, prefix="/api")
 app.include_router(deploy_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
-app.include_router(config_apply_router, prefix="/api")
 app.include_router(migration_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
 app.include_router(os_router, prefix="/api")

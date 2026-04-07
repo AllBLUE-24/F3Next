@@ -2,7 +2,7 @@
 // PATH: src/components/implementation/upload/UploadView.tsx
 
 import { useCallback, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Upload, File, X, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface FileEntry {
@@ -15,7 +15,7 @@ interface FileEntry {
 interface Props {
   projectId: string; // We need this to tell R2 and Temporal which project this is!
   getPresignedUrls: (projectId: string, fileNames: string[]) => Promise<{ urls: { file_name: string, upload_url: string, object_path: string }[] }>;
-  signalUploadComplete: (projectId: string, uploadedFiles: { file_name: string, object_path: string }[]) => Promise<any>;
+  signalUploadComplete: (projectId: string, companySlug: string, uploadedFiles: { file_name: string, object_path: string }[]) => Promise<any>;
   analyzeHref: string;
 }
 
@@ -25,6 +25,35 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
   const [isUploading, setIsUploading] = useState(false); // Swapped useTransition for reliable client-side async loading
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const params = useParams<{ companySlug: string }>();
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployTriggered, setDeployTriggered] = useState(false);
+
+  const handleDeploy = async () => {
+    setIsDeploying(true);
+    try {
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${base}/api/deploy/infra`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          company_slug: params?.companySlug || 'unknown',
+          tier: 'standard'
+        })
+      });
+      if (res.ok) {
+        setDeployTriggered(true);
+      } else {
+        setError("Instance deployment failed to trigger.");
+      }
+    } catch(err) {
+      console.error(err);
+      setError("Network error while deploying instance.");
+    } finally {
+      setIsDeploying(false);
+    }
+  };
 
   const addFiles = useCallback((incoming: FileList | null) => {
     if (!incoming) return;
@@ -85,7 +114,7 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
       );
 
       // 3. Tell FastAPI/Temporal that the files are safe in the quarantine bucket
-      await signalUploadComplete(projectId, uploadedFilesData);
+      await signalUploadComplete(projectId, params?.companySlug || 'unknown', uploadedFilesData);
 
       // 4. Move to the next stage
       router.push(`${analyzeHref}?jobId=${projectId}`);
@@ -109,10 +138,26 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-2">Step 01 of 04</p>
         <h1 className="text-3xl font-black text-white mb-3">Upload your data.</h1>
-        <p className="text-gray-500 text-base leading-relaxed">
+        <p className="text-gray-500 text-base leading-relaxed mb-6">
           Drop in any files you have — ERP backups, Excel exports, CSVs, or mixed formats.
           Our system will figure out the rest.
         </p>
+
+        {/* --- DEPLOY INSTANCE BUTTON --- */}
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5 flex items-center justify-between mb-4">
+          <div>
+             <h3 className="text-white font-bold text-sm mb-1">Provision Sandbox Instance</h3>
+             <p className="text-xs text-gray-500">Deploy the cloud container now so it's ready when analysis finishes.</p>
+          </div>
+          <button
+             type="button"
+             onClick={handleDeploy}
+             disabled={isDeploying || deployTriggered}
+             className="px-6 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 font-bold text-sm transition-all disabled:opacity-50"
+          >
+             {isDeploying ? 'Deploying...' : deployTriggered ? 'Deploy Triggered ✓' : 'Deploy Now'}
+          </button>
+        </div>
       </div>
 
       {/* Drop Zone */}

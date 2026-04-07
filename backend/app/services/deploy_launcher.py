@@ -47,3 +47,15 @@ async def trigger_infra_provisioning(project_id: str, company_slug: str, tier: s
         task_queue="erpnext-provisioning-queue",
     )
     return handle.id
+
+async def launch_infra_deployment(project_id: str, company_name: str):
+    client = await Client.connect(TEMPORAL_HOST)
+    workflow_id = f"infradeploy-{project_id}"
+    
+    await client.start_workflow(
+        "InfraDeploymentWorkflow",
+        args=[project_id, company_name],
+        id=workflow_id,
+        task_queue="infra-agent-queue"
+    )
+    return workflow_id

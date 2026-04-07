@@ -35,8 +35,13 @@ function LoginForm() {
       
       if (res.ok) {
         const data = await res.json();
-        // 3. Success: Redirect to their dynamic dashboard
-        router.push(`/${data.company_slug}/${data.user_slug}/home`);
+        // 3. Success: If slugs exist, they are fully onboarded - go home!
+        if (data.company_slug && data.user_slug) {
+          router.push(`/${data.company_slug}/${data.user_slug}/home`);
+        } else {
+          // Fallback to onboarding if records exist but slugs are missing
+          router.push('/onboarding');
+        }
       } else if (res.status === 404) {
         // 4. Not Found: They logged in but haven't onboarded yet
         router.push('/onboarding');

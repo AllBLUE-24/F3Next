@@ -34,7 +34,8 @@ export function ImplementationProvider({ session, initialDeployment, children }:
 
   const refreshDeployment = useCallback(async () => {
     try {
-      const res = await fetch(`/api/deployment/${session.instanceId}`);
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${base}/api/deployment/${session.instanceId}`);
       if (!res.ok) return;
       const data: DeploymentState = await res.json();
       setDeployment(data);

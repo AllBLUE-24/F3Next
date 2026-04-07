@@ -4,7 +4,7 @@ export type ImplementationStep = 'upload' | 'analyze' | 'validate' | 'sandbox';
 
 export type DeploymentStatus = 'pending' | 'deploying' | 'ready' | 'failed';
 
-export type AnalysisTaskStatus = 'idle' | 'running' | 'done' | 'needs_input';
+export type AnalysisTaskStatus = 'idle' | 'running' | 'done' | 'needs_input' | 'failed';
 
 export type ValidationItemType = 'missing' | 'contradiction' | 'suggestion';
 
@@ -26,6 +26,7 @@ export interface DeploymentState {
   erpSoftware: string; // e.g. "ERPNext"
   startedAt: string;
   readyAt: string | null;
+  adminPassword?: string | null;
 }
 
 export interface AnalysisTask {

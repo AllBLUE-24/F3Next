@@ -30,6 +30,9 @@ function SignupForm() {
     setError('');
     setLoading(true);
 
+    // 1. CLEAR any old session first to prevent session bleeding during onboarding
+    await supabase.auth.signOut(); 
+
     const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -52,6 +55,10 @@ function SignupForm() {
 
   const handleGoogleSignIn = async () => {
     setError('');
+    
+    // Clear old session
+    await supabase.auth.signOut();
+
     const { data, error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

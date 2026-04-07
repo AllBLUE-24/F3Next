@@ -1,109 +1,136 @@
 """
 Signals Agent — Temporal activities for F3iche inference and verification.
-Moved from: backend/app/services/implementation/signals_inference.py
-              backend/app/services/implementation/f3iche_verification.py
+Rewritten to match the new weighted signals_registry.json schema (rules-based).
+
+Reads file contents from R2 manifest URL instead of receiving raw content.
+Returns small dicts — already safe for Temporal event history.
 """
 from __future__ import annotations
 
 import json
-import re
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import boto3
+from botocore.config import Config
 from temporalio import activity
 
-KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge"
+KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common"
 
 
-# ── Embedded service logic ────────────────────────────────────────────────────
+def _get_s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
+
+
+def _load_file_contents_from_r2(r2_manifest_url: str) -> Dict[str, str]:
+    """Download the file contents manifest from R2 and return {filename: content}."""
+    if not r2_manifest_url or r2_manifest_url.startswith("error:"):
+        return {}
+    try:
+        s3 = _get_s3_client()
+        response = s3.get_object(Bucket="clean-data", Key=r2_manifest_url)
+        manifest = json.loads(response["Body"].read().decode("utf-8"))
+        return manifest.get("files", {})
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to load manifest from R2: %s", e)
+        return {}
+
 
 class _SignalsInferenceService:
     def __init__(self):
-        self._registry: Optional[Dict] = None
+        self._registry_summary: Optional[Dict] = None
 
-    def _load_registry(self) -> Dict:
-        if self._registry is None:
+    def _load_registry_summary(self) -> Dict:
+        if self._registry_summary is None:
             path = KNOWLEDGE_DIR / "signals_registry.json"
+            activity.logger.info("▶ Loading signals registry from %s", path)
             with open(path, "r", encoding="utf-8") as f:
-                self._registry = json.load(f)
-        return self._registry
-
-    def extract_signals_from_text(self, text: str) -> List[str]:
-        text_lower = text.lower()
-        signals: List[str] = []
-        registry = self._load_registry()
-        for _, config in registry.get("signals", {}).items():
-            for kw in config.get("keywords", []) + config.get("file_patterns", []) + config.get("structure_signals", []):
-                if kw.lower() in text_lower:
-                    signals.append(kw)
-        return list(set(signals))
-
-    def extract_signals_from_filename(self, filename: str) -> List[str]:
-        name_lower = filename.lower().replace("_", " ").replace("-", " ")
-        signals: List[str] = []
-        registry = self._load_registry()
-        for _, config in registry.get("signals", {}).items():
-            for token in config.get("file_patterns", []) + config.get("keywords", []):
-                if token.lower() in name_lower:
-                    signals.append(token)
-        return list(set(signals))
-
-    def score_f3iche(self, f3iche_id: str, signals: List[str]) -> float:
-        registry = self._load_registry()
-        config = registry.get("signals", {}).get(f3iche_id, {})
-        sc = registry.get("scoring", {})
-        kw_w, fp_w, ss_w = sc.get("keyword_match_weight", 2), sc.get("file_pattern_weight", 3), sc.get("structure_signal_weight", 4)
-        exclude_penalty, boost_mult = sc.get("exclude_penalty", -5), sc.get("boost_multiplier", 1.5)
-        sl = [s.lower() for s in signals]
-        score = 0.0
-        for ex in config.get("exclude_keywords", []):
-            if ex.lower() in sl:
-                score += exclude_penalty
-        for kw in config.get("keywords", []):
-            if kw.lower() in sl:
-                score += kw_w
-        for fp in config.get("file_patterns", []):
-            if fp.lower() in sl:
-                score += fp_w
-        for ss in config.get("structure_signals", []):
-            if ss.lower() in sl:
-                score += ss_w
-        for bkw in config.get("boost_keywords", []):
-            if bkw.lower() in sl:
-                score *= boost_mult
-                break
-        return max(0.0, score)
+                registry = json.load(f)
+            
+            self._registry_summary = {
+                "niche_ids": registry.get("_meta", {}).get("niche_ids", []),
+                "niche_definitions": registry.get("niche_score_to_id_map", {})
+            }
+        return self._registry_summary
 
     def infer_f3iche(
         self,
         uploaded_files: List[Dict],
         file_contents: Optional[Dict[str, str]] = None,
     ) -> Tuple[str, float, List[str]]:
-        registry = self._load_registry()
-        min_threshold = registry.get("scoring", {}).get("min_confidence_threshold", 0.3)
-        all_signals: List[str] = []
-        for f in uploaded_files:
-            name = f.get("file_name", f.get("name", ""))
-            all_signals.extend(self.extract_signals_from_filename(name))
-            if file_contents and name in file_contents:
-                all_signals.extend(self.extract_signals_from_text(file_contents[name]))
-        all_signals = list(set(all_signals))
-        scores = {}
-        for fid in registry.get("signals", {}).keys():
-            raw = self.score_f3iche(fid, all_signals)
-            scores[fid] = min(1.0, raw / 50.0)
-        best = max(scores.items(), key=lambda x: x[1])
-        if best[1] < min_threshold:
-            return ("trading", best[1], all_signals)
-        return (best[0], best[1], all_signals)
+        from containers.implementation.utils.llm_helper import generate_json
+        
+        registry_summary = self._load_registry_summary()
+        niche_ids = registry_summary.get("niche_ids", [])
+        
+        filenames = [f.get("file_name", f.get("name", "")) for f in uploaded_files]
+        
+        file_summaries = []
+        if file_contents:
+            for fname, text in file_contents.items():
+                snippet = text[:1500] if text else "(empty file)"
+                file_summaries.append(f"Filename: {fname}\nContent Snippet:\n{snippet}\n---")
+        else:
+            for fname in filenames:
+                file_summaries.append(f"Filename: {fname}\n---")
+                
+        prompt = f"""
+You are the F3Next Signals Agent. Your job is to infer the core business type (F3iche) of a company based on the files they have uploaded to our ERP generation system.
+
+You have the following possible niches:
+{json.dumps(registry_summary, indent=2)}
+
+Uploaded Files:
+{json.dumps(filenames)}
+
+Sample Data Extracted from Files:
+{"".join(file_summaries)}
+
+Analyze the filenames and content (specifically looking at column headers, data tracking structures, and terminology).
+1. Choose the SINGLE BEST MATCHING NICHE from the `niche_ids` list. Do NOT invent a new ID.
+2. Provide a confidence score between 0.0 and 1.0.
+3. List 3-5 distinct, compelling signals you found that led to this conclusion (short phrases, e.g. "Contains drawing/blueprint numbers", "No BOM structures present").
+
+Return ONLY a valid JSON object matching this schema exactly:
+{{
+  "f3iche": "the_niche_id",
+  "confidence": 0.85,
+  "collected_signals": ["signal 1", "signal 2", "signal 3"]
+}}
+"""
+        try:
+            result = generate_json(prompt, temperature=0.1, max_output_tokens=4000)
+            inferred_f3iche = result.get("f3iche", "trading")
+            
+            if inferred_f3iche not in niche_ids:
+                inferred_f3iche = "trading"
+                
+            confidence = float(result.get("confidence", 0.0))
+            signals = result.get("collected_signals", [])
+            
+            return (inferred_f3iche, confidence, signals)
+        except Exception as e:
+            activity.logger.error("LLM Inference failed: %s", e)
+            return ("trading", 0.0, [f"Failed to infer via LLM: {str(e)}"])
 
 
 class _F3icheVerificationService:
     NORMALIZE_MAP = {
-        "trading":       ["trading", "trade", "distributor", "trader"],
-        "manufacturing": ["manufacturing", "manufacture", "production", "maker"],
-        "service":       ["service", "services", "consulting"],
+        "trading":       ["trading", "trade", "distributor", "trader", "trading_fmcg_distributor",
+                          "trading_hardware_variants", "trading_autoparts_highvolume"],
+        "manufacturing": ["manufacturing", "manufacture", "production", "maker",
+                          "manufacturing_garment_variants", "manufacturing_food_batch",
+                          "manufacturing_fabrication_jobshop"],
+        "service":       ["service", "services", "consulting", "service_professional"],
     }
 
     @classmethod
@@ -137,7 +164,7 @@ class _F3icheVerificationService:
 @dataclass
 class InferF3icheInput:
     uploaded_files: List[Dict]
-    file_contents: Optional[Dict[str, str]] = None
+    r2_manifest_url: str = ""         # R2 key to file contents manifest
 
 
 @dataclass
@@ -151,23 +178,40 @@ class VerifyF3icheInput:
 
 @activity.defn(name="infer_f3iche")
 async def infer_f3iche(inp: InferF3icheInput) -> Dict:
-    """Infer F3iche from uploaded file names and content signals."""
+    """Infer F3iche from uploaded file names and content signals.
+    
+    Downloads file contents from R2 manifest URL instead of receiving them directly.
+    Returns a small dict — already safe for Temporal event history.
+    """
+    activity.logger.info("▶ infer_f3iche started | files=%d manifest=%s",
+                         len(inp.uploaded_files), inp.r2_manifest_url)
+    
+    # Load file contents from R2 manifest
+    file_contents = _load_file_contents_from_r2(inp.r2_manifest_url)
+    activity.logger.info("  Loaded %d file contents from R2 manifest", len(file_contents))
+    
     svc = _SignalsInferenceService()
-    f3iche_id, confidence, signals = svc.infer_f3iche(inp.uploaded_files, inp.file_contents)
-    return {
+    f3iche_id, confidence, signals = svc.infer_f3iche(inp.uploaded_files, file_contents)
+    result = {
         "f3iche": f3iche_id,
         "confidence": round(confidence, 2),
         "collected_signals": signals,
     }
+    activity.logger.info("✅ infer_f3iche done | inferred: %s (%.0f%%) via %d signals",
+                         f3iche_id, confidence*100, len(signals))
+    return result
 
 
 @activity.defn(name="verify_f3iche")
 async def verify_f3iche(inp: VerifyF3icheInput) -> Dict:
     """Verify user-stated F3iche against signals-inferred F3iche."""
+    activity.logger.info("▶ verify_f3iche started | user=%s signals=%s", inp.f3iche_user, inp.f3iche_signals)
     svc = _F3icheVerificationService()
     is_match, status, msg = svc.verify(inp.f3iche_user, inp.f3iche_signals, inp.confidence)
-    return {
+    result = {
         "is_match": is_match,
         "status": status,
         "clarification_message": msg,
     }
+    activity.logger.info("✅ verify_f3iche done | status=%s match=%s", status, is_match)
+    return result

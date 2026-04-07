@@ -1,0 +1,1102 @@
+{
+  "id": "manufacturing_fabrication_jobshop",
+  "display_name": "Metal Fabrication / Custom Job Shop",
+  "version": "1.0",
+  "last_updated": "2025-02-11",
+  "regulatory_criticality_level": "MEDIUM",
+  
+  "business_reality": {
+    "typical_company_profile": {
+      "size": "5-30 employees",
+      "structure": "Owner/Partner (often master welder/fabricator who started small). Works Manager/Shop Supervisor (assigns jobs to workers). 1-2 skilled fabricators (read drawings, do complex welding). 3-8 semi-skilled workers (cutting, grinding, basic welding). 1-2 helpers (material handling, cleaning). 1 office person (quotations, billing).",
+      "location": "Industrial areas, near manufacturing clusters. Examples: MIDC areas (Maharashtra), Industrial estates (Faridabad, Gurgaon, Coimbatore, Ahmedabad). Near ports (for export fabrication). Near construction sites (builder-focused job shops).",
+      "business_models": [
+        "Pure custom fabrication (100% unique jobs) — 70-80% of small job shops",
+        "Semi-custom (repeat parts with variations) — 20-25%",
+        "Maintenance + fabrication mix (annual maintenance contracts with factories + ad-hoc fabrication) — 15-20%",
+        "OEM supply (repeat parts for machine manufacturers, but treated as separate jobs per batch) — 10-15%"
+      ],
+      "typical_products": {
+        "structural": "Gates, grills, railings, staircases, mezzanine floors, sheds, canopies",
+        "industrial": "Machine guards, trolleys, racks, storage bins, hoppers, chutes, ducts",
+        "custom_machinery_parts": "Machine frames, brackets, housings, covers, tanks, vessels",
+        "architectural": "Designer railings, decorative panels, name boards, signage structures",
+        "heavy_fabrication": "Conveyor structures, platforms, crane girders (if capability exists)"
+      },
+      "typical_job_size": "Small jobs: ₹5,000-₹50,000 (gate, railing). Medium jobs: ₹50,000-₹5 lakh (machine part, shed). Large jobs: ₹5 lakh-₹50 lakh (structural fabrication, tanks). Job duration: 1 day - 6 weeks.",
+      "machines_equipment": {
+        "cutting": "Gas cutting (oxy-acetylene), Plasma cutter (if semi-automated), Angle grinder with cutting disc, Band saw, Hacksaw",
+        "bending_forming": "Press brake (manual or hydraulic), Plate rolling machine, Pipe bending machine (manual or hydraulic)",
+        "welding": "Arc welding (MMAW - Manual Metal Arc Welding), MIG/MAG (for SS, aluminum - if capable), TIG (for precision work - rare in small shops), Spot welding (for sheet metal)",
+        "machining": "Drilling machine, Tapping machine, Bench grinder, Lathe (if available)",
+        "finishing": "Angle grinder (grinding disc), Wire brush, Sand blasting (outsourced), Painting booth (or open area painting)"
+      },
+      "typical_capacity": "5-20 tons steel processed per month (small shop). 20-100 tons per month (medium shop). Highly variable based on job complexity."
+    },
+    
+    "actual_workflow": {
+      "description": "Metal fabrication job shops follow a JOB-CENTRIC workflow (NOT product-centric like garments/food). Every job is unique. Starts with customer drawing/specification, ends with job delivery. NO standard BOM, NO repeat production, NO finished goods inventory. Material is estimated (not precisely calculated), scrap is 15-30%, labor is tracked per job (if at all), costing is retroactive (known only after job completion).",
+      
+      "step_1_customer_inquiry_drawing_receipt": {
+        "business_action": "Customer approaches with requirement. Shares: (1) Drawing (hand-drawn OR CAD drawing OR sample piece), (2) Material specification (MS, SS, Aluminum, specific grade), (3) Quantity (usually 1 piece, sometimes 5-10 pieces if repeat part), (4) Delivery timeline. Owner/Works Manager reviews drawing, understands complexity.",
+        "drawing_types": [
+          "Hand-drawn sketch (most common for gates, grills — dimensions in feet/inches)",
+          "2D CAD drawing (DWG/DXF — for machine parts, accurate dimensions)",
+          "3D model (rare for SME job shops, but exists for complex parts)",
+          "Reference sample (customer brings existing part, says 'make exactly like this')",
+          "Verbal description + rough dimensions (for simple jobs like shelf bracket)"
+        ],
+        "critical_checks": [
+          "Drawing clarity — Can workers understand it? If not, clarify with customer before quoting.",
+          "Material availability — Is specified material available locally? If special grade, procurement delay.",
+          "Feasibility — Can shop's machines handle this? (Thickness too high for press brake? Length too long for cutting bed?)",
+          "Tolerance requirements — Customer expects +/- 1mm OR +/- 5mm? Affects complexity and cost."
+        ],
+        "erpnext_doctypes": ["Opportunity (optional, if CRM used)", "Sales Quotation (later stage)"],
+        "pain_points": [
+          "Drawing incomplete — Dimensions missing, material not specified, customer assumes 'you know what I want' (leads to rework disputes later)",
+          "Customer shows photo only — 'Make this' without any dimensions (impossible to quote accurately)",
+          "Drawing not retained — Quotation given verbally, no drawing copy kept, if customer returns after 2 months, no record",
+          "Verbal changes — Customer calls, says 'make it 2 inches longer', no documentation, later denies change (payment dispute)"
+        ]
+      },
+      
+      "step_2_job_estimation": {
+        "business_action": "Owner/Works Manager estimates: (1) Material required (weight-based calculation for steel sheets, length-based for pipes/angles), (2) Labour hours (based on experience — cutting 2 hours, welding 5 hours, grinding 1 hour), (3) Overheads (electricity, consumables like welding rods, gas), (4) Margin (20-40% depending on job complexity and customer).",
+        "material_estimation_methods": [
+          "Weight calculation: (Length × Width × Thickness × Density) × Safety factor 1.15-1.25 (for wastage). Example: Gate 4ft × 6ft using 1.5mm MS sheet. Area = 24 sq.ft = 2.23 sq.m. Weight = 2.23 × 0.0015m × 7850 kg/m³ = 26.2 kg. Add 20% wastage = 31.5 kg.",
+          "Linear calculation: Pipe/angle/channel — measure total running length needed, add 15-20% for cutting loss.",
+          "Thumb rule: 'This type of gate typically takes 50kg steel' (experience-based, often inaccurate).",
+          "Drawing software: Some shops use AutoCAD or Solid Edge to calculate weight from 3D model (rare for SME)."
+        ],
+        "labour_estimation": "Owner estimates based on past jobs. 'This welding will take 2 days' = 2 workers × 8 hours × ₹500/day = ₹8,000 labour cost. Often underestimated (job takes 3 days, labour cost is ₹12,000, margin erodes).",
+        "critical_checks": [
+          "Scrap factor included? — 15-30% steel becomes scrap (offcuts, edge trimming, welding spatter cleanup). If not factored in quote, loss.",
+          "Rework buffer — First-time jobs often need adjustment. If no buffer, customer expects free rework.",
+          "Material price volatility — Steel price changes daily. Quotation valid 7-15 days only. If customer confirms after 1 month, price recalculation needed."
+        ],
+        "erpnext_doctypes": ["Quotation", "BOM (optional, for estimation only — NOT enforced in production)", "Project (if major job, estimate stored in Project description)"],
+        "pain_points": [
+          "Material estimation wrong — Quoted 100kg, actually used 130kg (30kg extra cost = margin loss)",
+          "Labour estimation wrong — Thought 2 days, took 5 days (labour cost 2.5x, margin negative)",
+          "Hidden costs ignored — Grinding discs (₹200 each, used 10 = ₹2,000), gas cylinder refill (₹1,500), painting (₹5,000 outsourced). Not included in quote.",
+          "Customer comparison shopping — Gets quotes from 5 shops, picks cheapest. Your quote: ₹50,000. Competitor: ₹42,000. You reduce to ₹43,000 to win (thin margin). Later realize competitor didn't include finishing cost.",
+          "No written quotation — Verbal quote ₹30,000. Customer later claims you said ₹25,000. No proof."
+        ]
+      },
+      
+      "step_3_sales_order_job_confirmation": {
+        "business_action": "Customer accepts quotation. Sales Order created (or simple Purchase Order from customer if B2B). Advance payment collected (30-50% typical). Owner assigns job number (JOB-001, JOB-002 sequential OR customer PO number). Drawing finalized, any changes documented.",
+        "advance_payment_criticality": "WITHOUT advance, risk is high. Material procurement needs cash. If customer cancels after material is cut, total loss (can't reuse custom-cut parts).",
+        "job_numbering": "Sequential job numbers critical for tracking. Format: JOBYYYYMM### (JOB202502001 = Feb 2025, Job #1). Helps in costing, tracking, invoicing.",
+        "erpnext_doctypes": ["Sales Order", "Project (MUST create — this represents the job)", "Payment Entry (advance payment)"],
+        "pain_points": [
+          "No advance collected — Customer says 'I'm regular, pay full amount on delivery'. You start job, customer disappears mid-job (loss of material + labour).",
+          "Job number not assigned — Multiple jobs running simultaneously, confusion about which material is for which job, which worker is on which job.",
+          "Drawing changes after order — Customer visits shop, sees half-completed job, says 'change this angle, add 2 more supports'. No documentation of change = no extra billing = margin loss.",
+          "Verbal order only — No written Sales Order, no customer signature. Later disputes about specifications, price, delivery date."
+        ]
+      },
+      
+      "step_4_material_procurement": {
+        "business_action": "Purchase raw materials: MS sheets (8mm, 10mm, 12mm thickness), MS pipes (1'', 1.5'', 2'' dia), MS angles (25×25, 40×40, 50×50), MS channels, SS sheets (if SS job), Aluminum (if aluminum job). Purchase from: (1) Local steel stockist (immediate, but 10-15% costlier), (2) Steel mill direct (bulk, cheaper, but 15-30 days delivery), (3) Scrap dealer (for non-critical jobs, if acceptable to customer).",
+        "material_procurement_strategy": {
+          "job_specific_purchase": "Ideal but rare. Buy exact quantity for this job only. Problem: Minimum order quantity from supplier (1 ton minimum, but job needs only 300kg). Extra stock sits in yard.",
+          "bulk_purchase_allocation": "Buy commonly used sizes in bulk (e.g., 2 tons of 10mm MS sheet). Allocate to jobs as needed. Better pricing, but inventory tracking nightmare (which job used how much?)",
+          "scrap_reuse": "Leftover pieces from previous jobs used in new jobs if dimensions match. Good for cost, but tracking is impossible ('where did this piece come from?')"
+        },
+        "critical_checks": [
+          "Material grade verification — Ordered MS sheet IS2062 grade, supplier sends lower grade. Welding fails, job rejected.",
+          "Thickness accuracy — Ordered 8mm sheet, received 7.5mm (common malpractice). After machining, becomes 7mm, customer's engineer rejects (doesn't meet spec).",
+          "Rust/damage — Material stored in open yard, rusts. Extra grinding time = labour cost increase.",
+          "Delivery time — Local stockist: same day. Mill direct: 3-4 weeks. Customer wants delivery in 2 weeks, material arrives in week 3 (deadline missed)."
+        ],
+        "erpnext_doctypes": ["Material Request", "Purchase Order", "Purchase Receipt", "Landed Cost Voucher (freight, loading charges)"],
+        "erpnext_warehouses": "Raw Material Yard / Warehouse (segregated by material type: Sheets, Pipes, Angles, Consumables)",
+        "pain_points": [
+          "Over-purchase — Bought 500kg, job used 350kg, 150kg leftover. No other job needs this size immediately. Money blocked in inventory.",
+          "Under-purchase — Bought 300kg, job needs 320kg. Additional 20kg procurement = small quantity, supplier charges premium + delivery extra = cost overrun.",
+          "Material not issued to job — Material received, kept in yard, but not allocated to Job ID. When costing done, don't know which material went to which job.",
+          "Supplier quality issues — Supplier sends substandard material, discovered only during welding (cracks form). Return process takes 2 weeks, customer deadline missed.",
+          "Cash flow squeeze — Advance from customer: ₹20,000. Material cost: ₹35,000. Owner funds ₹15,000 from pocket. If 3 jobs run simultaneously, cash flow crisis."
+        ]
+      },
+      
+      "step_5_material_issue_to_job": {
+        "business_action": "Material issued from yard/warehouse to shop floor for specific job. Cutting list prepared (which pieces to cut from which sheet/pipe). Workers take material to cutting area.",
+        "cutting_list": "Critical document. Example: From 1 sheet of 8'×4' MS 10mm, cut: (2 pieces 3'×2'), (4 pieces 1'×2'), (8 pieces 6'×6'). Cutting list ensures efficient material usage (minimize scrap). But most SMEs don't prepare formal cutting list (cut as per worker's judgment = high scrap).",
+        "erpnext_doctypes": ["Stock Entry (Material Issue for Manufacture)", "Job Card (created at this stage, linked to Project)"],
+        "erpnext_warehouses": "Raw Material Yard → Work In Progress (Shop Floor)",
+        "pain_points": [
+          "No material issue tracking — Material taken from yard, but no entry in system. At month-end, material stock doesn't match physical count (pilferage or untracked usage).",
+          "Material mixed between jobs — Job A and Job B both use 12mm MS sheet. Workers cut for both jobs from same sheet, no segregation. Can't calculate cost per job.",
+          "Cutting without plan — Worker cuts pieces as per drawing, but no optimization. 40% sheet becomes scrap (could have been 20% with proper nesting).",
+          "Wrong material issued — Job needs SS304, worker takes MS by mistake (looks similar). Welding done, discovered at final stage, entire job rework."
+        ]
+      },
+      
+      "step_6_fabrication_execution": {
+        "business_action": "Actual fabrication work: Cutting → Bending/Forming → Welding → Machining (drilling, tapping) → Grinding → Finishing. Multiple workers, multiple operations, multiple days. Job moves station to station.",
+        "operation_sequence": {
+          "cutting": "Gas cutting (for thick plates), Plasma cutting (faster, cleaner for thin sheets), Angle grinder (small cuts, trimming). Accuracy ±2-5mm (manual cutting). Time: 10-30% of total job time.",
+          "bending_forming": "Press brake (for sheet metal bends — angles, channels, boxes). Plate rolling (for cylinders, cones). Pipe bending (for handrails, curved structures). Accuracy ±2-3°. Time: 5-15% of job time.",
+          "welding": "Arc welding (most common, MS welding). MIG (for SS, aluminum — cleaner weld). TIG (precision welding, thin materials — rare in job shops). Weld quality critical (strength, appearance). Time: 40-60% of total job time (most labor-intensive).",
+          "machining": "Drilling holes (for bolting, assembly). Tapping threads (for screws). Turning/facing (if lathe available). Time: 5-10% of job time.",
+          "grinding_finishing": "Remove weld spatter, sharp edges. Smooth surfaces. Create radius on corners. Prep for painting. Time: 10-20% of job time."
+        },
+        "quality_during_fabrication": [
+          "Dimensional check (after cutting) — Verify cut pieces match drawing dimensions. If wrong, re-cut (if possible) or adjust design.",
+          "Fit-up check (before welding) — Dry-assemble parts, check alignment. If misaligned, correct now (easy), not after welding (hard).",
+          "Weld quality check (visual) — Check for cracks, porosity, undercut, spatter. Good weld = smooth, uniform. Bad weld = brittle, will crack under load.",
+          "Load test (if structural) — For critical jobs (crane girder, mezzanine floor), load test before delivery (apply design load, check deflection)."
+        ],
+        "erpnext_doctypes": ["Job Card (one per operation OR one per day of work)", "Timesheet (optional — tracks labor hours per job)", "Stock Entry (for consumables — welding rods, gas, grinding discs)"],
+        "pain_points": [
+          "No job tracking — Multiple jobs in shop. Worker welding, but supervisor doesn't know if he's on Job 101 or Job 105. Time allocation impossible.",
+          "Dimensional errors discovered late — Part cut 2'short. Discovered after welding. Can't fix (would need re-welding, weakens structure). Customer rejects job.",
+          "Welding defects — Welder in hurry, poor weld quality. Discovered by customer's engineer on site. Job sent back for re-welding (transport cost + rework time = loss).",
+          "Material substitution — Drawing says SS304. Shop has SS316 (costlier). Worker uses SS316 without asking (cost overrun, but can't charge customer extra).",
+          "Bottleneck operations — 3 jobs need welding, but only 1 skilled welder. Jobs delayed. Customer cancels, penalty clause activated.",
+          "Consumable cost invisible — Welding rods (₹200/kg), grinding discs (₹200 each), gas cylinder (₹1,500 refill). Used 15kg rods, 20 discs, 2 cylinders = ₹7,000 consumable cost. Not tracked per job. Total cost unknown."
+        ]
+      },
+      
+      "step_7_scrap_generation_tracking": {
+        "business_action": "Scrap generated at every stage: Cutting offcuts (edge pieces, corner pieces), Grinding waste (metal filings), Welding spatter (drops, splatter on floor), Rejected pieces (wrong cut, weld crack). Scrap collected in bins/drums. Periodically sold to scrap dealer (₹30-45/kg depending on steel prices).",
+        "scrap_percentage": "Small jobs (gates, grills): 15-20% scrap. Medium jobs (machine parts): 20-25% scrap. Large structural jobs (if good planning): 10-15% scrap. Poor cutting optimization: 30-40% scrap (disaster).",
+        "scrap_value_realization": "Scrap is NOT waste (has value). Scrap dealer pays ₹35/kg (when new steel costs ₹65/kg). So scrap has 50% of material value. If job used 500kg steel, generated 100kg scrap (20%), scrap value = ₹3,500. Should be credited to job cost.",
+        "erpnext_doctypes": ["Stock Entry (Scrap generation during manufacturing)", "Item (Scrap Steel — to track scrap inventory)", "Sales Invoice (when scrap sold to dealer)"],
+        "erpnext_warehouses": "Scrap Yard / Scrap Warehouse",
+        "pain_points": [
+          "Scrap not tracked per job — All scrap mixed in one bin. At month-end, 2 tons scrap collected. But which jobs generated how much? Can't tell. Job costing inaccurate.",
+          "Scrap value not credited to job — Scrap sold for ₹70,000. But not allocated back to jobs. P&L shows ₹70,000 'other income', jobs show full material cost (inflated cost, wrong margin calculation).",
+          "Scrap theft — Workers take scrap home, sell privately. Owner doesn't notice (scrap bin always has 'some' scrap). Actual loss ₹50,000/year.",
+          "High scrap % undetected — Job used 500kg, produced 350kg finished weight. Scrap should be 150kg (30%). But scrap bin has only 80kg (16%). Where did 70kg (14%) go? Unaccounted loss.",
+          "No scrap optimization — Same gate design can be cut with 15% scrap OR 35% scrap depending on cutting plan. No one optimizes (no software, no training)."
+        ]
+      },
+      
+      "step_8_finishing_painting": {
+        "business_action": "Final finishing: Thorough grinding (remove all sharp edges, weld marks), Surface preparation (wire brushing, degreasing), Primer coat (rust prevention), Top coat (color as per customer). Drying time: 24-48 hours. Quality check: No runs, no sags, uniform coating, no rust spots.",
+        "finishing_options": [
+          "Painting (most common) — Primer + enamel paint OR epoxy paint. Done in-shop (open area or small booth) OR outsourced (better quality, costlier).",
+          "Powder coating (better finish, costlier) — Usually outsourced. ₹80-150 per kg of item. Customer pays extra.",
+          "Galvanizing (rust protection for outdoor) — Hot-dip galvanizing, always outsourced. ₹60-100 per kg. Adds 2-3 weeks (send to galvanizer, wait, collect).",
+          "No finish (industrial jobs) — Some customers (factories) prefer bare steel (they'll paint themselves or rust OK for indoor use)."
+        ],
+        "erpnext_doctypes": ["Job Card (Painting operation)", "Purchase Order (if painting outsourced)", "Stock Entry (for paint, primer consumed)"],
+        "pain_points": [
+          "Painting quality poor — Amateur painting, brush marks visible, uneven coating. Customer complains, wants re-painting (extra cost).",
+          "Rust appears within 1 month — Surface prep poor (didn't remove oil/rust before painting). Paint peels off. Customer blames fabricator.",
+          "Drying time underestimated — Painted on Saturday, customer wants delivery Monday. Paint not fully dry, gets damaged during transport (re-do).",
+          "Color mismatch — Customer asked for 'blue'. You painted standard blue. Customer says 'I wanted navy blue' (no sample shared upfront). Re-painting needed.",
+          "Outsourcing delay — Sent for powder coating, vendor promised 1 week, takes 3 weeks. Customer delivery missed, penalty clause invoked."
+        ]
+      },
+      
+      "step_9_final_inspection_job_completion": {
+        "business_action": "Owner/Works Manager inspects completed job: Dimensional accuracy (measure key dimensions vs drawing), Weld quality (visual + tap test), Functionality (if moving parts, test operation), Finish quality (paint, grinding). If OK, job marked complete. If issues, sent for rework.",
+        "inspection_criteria": [
+          "Dimensional tolerance: ±2-5mm acceptable for most structural jobs. ±1mm for machine parts. Customer drawing specifies tolerance if critical.",
+          "Weld quality: No visible cracks, porosity, undercut. Uniform bead. Tap test (lightly hit weld with hammer, sound should be clear, not dull).",
+          "Squareness check: For frames, boxes. Use carpenter's square or measure diagonals (should be equal if rectangular).",
+          "Finish: No sharp edges (safety), no rust spots, paint smooth, color uniform."
+        ],
+        "erpnext_doctypes": ["Quality Inspection (optional, formal)", "Job Card (mark as 'Completed')", "Project (update % completion to 100%)"],
+        "pain_points": [
+          "No final inspection — Job completed, directly sent to customer. Customer engineer inspects on site, finds 5 defects. Job rejected, sent back (transport both ways + rework = huge cost).",
+          "Inspection by untrained person — Helper does final check (not skilled). Misses weld crack. Crack propagates under load, structure fails (liability issue).",
+          "Drawing deviation not documented — Job doesn't exactly match drawing (customer asked for verbal change during work). No written approval. Customer now claims 'not as per drawing' (payment dispute).",
+          "Load test skipped — Structural job, should test with design load. Skipped (no test setup). Installed, fails during use (serious safety + legal issue)."
+        ]
+      },
+      
+      "step_10_delivery": {
+        "business_action": "Job delivered to customer site. Transport arranged: Small jobs (owner's pickup truck), Large jobs (hired truck). Delivered, installed (if required), customer sign-off collected.",
+        "delivery_challenges": [
+          "Size constraints: Gate/structure too large for standard truck. Need special vehicle (higher transport cost).",
+          "Site access: Customer site has narrow entrance, crane required for unloading (extra cost, not quoted initially).",
+          "Installation required: Structural jobs need on-site welding (to fix to building/floor). Customer expects fabricator to do it (extra labor, not quoted).",
+          "Damage during transport: Paint scratched, corner bent. Customer refuses delivery until fixed (re-work on site or bring back)."
+        ],
+        "erpnext_doctypes": ["Delivery Note", "Stock Entry (if treating finished job as stock item, which is NOT recommended for custom jobs)", "Installation Note (custom doctype if installation service tracked)"],
+        "pain_points": [
+          "No delivery challan — Goods sent, but no paperwork. Customer claims non-delivery OR claims different quantity delivered.",
+          "Damage liability unclear — Transported by fabricator's truck, damaged in transit. Customer expects free repair. No insurance, loss absorbed.",
+          "Installation scope unclear — Customer says 'deliver and fix'. Fixing takes 2 days, 2 workers. Cost ₹8,000. Not in quote. Customer refuses to pay extra.",
+          "Customer unavailable at delivery — Goods reach site, no one to receive. Unload and leave? (theft risk). Wait 4 hours? (labor cost). Take back? (double transport cost)."
+        ]
+      },
+      
+      "step_11_invoicing_payment": {
+        "business_action": "Invoice raised after delivery. Invoice = Total quoted amount - Advance paid + Extra work charges (if any). Payment terms: Balance on delivery (cash/NEFT) OR 15-30 days credit (for regular customers). GST applied (18% on fabrication services).",
+        "payment_reality": "Quoted price: ₹50,000. Advance: ₹20,000. Balance: ₹30,000. Customer pays ₹25,000 on delivery, says 'small defect, deducting ₹5,000' OR 'pay ₹5,000 after you fix that issue'. Owner often accepts (wants cash flow).",
+        "erpnext_doctypes": ["Sales Invoice", "Payment Entry", "e-Way Bill (if interstate, value >₹50,000)"],
+        "pain_points": [
+          "Payment withheld for minor issues — Customer finds tiny paint scratch, withholds ₹10,000 (20% of balance) for ₹500 repair. Refuses to release till fixed.",
+          "Credit period extended — Agreed 30 days credit. Customer pays after 60-90 days. No interest charged (can't enforce with small customers).",
+          "Deductions without discussion — Invoice ₹50,000. Customer pays ₹47,000, says 'transport cost deducted' (though transport was included in quote). SMS says 'full payment done'.",
+          "GST confusion — Customer is not registered, can't claim ITC. Asks for invoice without GST (illegal). Owner either refuses (loses customer) OR does it (tax evasion risk).",
+          "No invoice — Customer says 'I paid advance 4 months ago, balance ₹25,000 now, we're even'. No formal invoice raised. Books don't match bank statement."
+        ]
+      }
+    },
+    
+    "key_pain_points": {
+      "job_costing_visibility": [
+        "NO idea of job profitability until after completion (sometimes never) — Quoted ₹50,000, thought 30% margin (₹15,000 profit). After job: Material ₹28,000 + Labour ₹18,000 + Overheads ₹6,000 = ₹52,000 cost. Loss ₹2,000. Owner realizes only at month-end (or never, if costing not done).",
+        "Material cost per job unknown — 5 jobs running simultaneously, all using 10mm MS sheet. Material issued to shop floor, but not allocated to specific jobs. Can't calculate which job consumed how much.",
+        "Labour cost allocation nightmare — 3 workers on Job A for 2 days. But they also worked on Job B for half a day. Timesheet not maintained. Labour cost split = wild guess.",
+        "Scrap value not credited to jobs — Job generated ₹3,500 scrap value. But this ₹3,500 not reduced from job cost. Job shows ₹28,000 material cost (should be ₹24,500 net after scrap credit).",
+        "Hidden costs invisible — Grinding discs, welding rods, gas, electricity, machine maintenance, transport to supplier for material pickup. Not tracked per job. Allocated as 'general overhead' OR not allocated at all."
+      ],
+      
+      "estimation_accuracy": [
+        "Material estimation wrong 60% of the time — Estimated 400kg, used 550kg (37% overage). Margin erodes but no data to improve estimation for future jobs.",
+        "Labour estimation wrong 70% of the time — Thought 3 days, took 7 days (2.3x overage). Daily wage workers idle on other days (cost continues), margin negative.",
+        "Complexity underestimated — Drawing looked simple, actual fabrication had 15 different piece sizes, 200 weld joints (thought 50 joints). Time explodes.",
+        "Rework not budgeted — First-time job, trial-and-error needed. Owner quotes as if perfect execution. Reality: 2 rework cycles, each taking 1 day (labour cost doubles)."
+      ],
+      
+      "material_management": [
+        "Material wastage 20-40% per job (industry average: 10-15%) — Poor cutting planning. No nesting software. Worker cuts 'as per his mind'. Result: 1 sheet yields 60% usable parts, 40% scrap.",
+        "Leftover pieces pile up — Every job leaves offcuts (1ft piece, 8' piece, oddly shaped pieces). Piled in corner of yard. No cataloging. Can't reuse for future jobs (don't know what's available). Scrap value only (lost 50% material value).",
+        "Material quality issues discovered late — Supplier sent poor quality steel (brittle). Welding causes cracks. Discovered after 2 days of work. Return to supplier takes 1 week negotiation. Job delayed, customer angry.",
+        "Inventory mismatch — System says 2 tons of 12mm sheet in stock. Physical count = 1.2 tons. Missing 800kg. Where? Used in jobs but not issued formally, stolen, or rusted away and scrapped (no documentation)."
+      ],
+      
+      "drawing_management": [
+        "Drawings lost — Customer gave drawing 3 months ago. Job started. Need drawing for final check. Can't find drawing (lost in office clutter). Call customer, customer also lost copy. Complete from memory (errors likely).",
+        "Drawing changes undocumented — Customer called, said 'increase height by 6 inches'. Worker told verbally, changed. No drawing update. Delivery time, customer says 'why is this 6 inches extra?' (doesn't remember his own change). Dispute.",
+        "Version confusion — Customer sent Drawing v1. Then sent Drawing v2 (revised). Workers have both printouts, use v1 by mistake. Job as per v1, customer expects v2. Complete mismatch.",
+        "Hand-drawn interpretation errors — Customer's hand drawing has messy dimensions. '3' looks like '8'. Worker interprets 8 feet, should be 3 feet. Part cut 8ft (5ft excess, can't use)."
+      ],
+      
+      "customer_scope_creep": [
+        "Mid-job design changes — Job 50% complete. Customer visits, says 'add 2 more supports here, change this angle to 90°'. If agreed verbally (no extra quote), extra work = margin loss.",
+        "'Small changes' become big — Customer says 'just add one cross-member' (sounds small). Requires re-welding, grinding, re-painting entire section. 3 hours extra work, ₹2,000 cost. Customer refuses to pay extra ('it's just one piece').",
+        "Feature creep — Original job: Plain railing. Customer says 'add some design' (during work). Workers add decorative twists. Takes 2 extra days. Customer doesn't pay extra ('I expected good design').",
+        "Unclear initial scope — Customer said 'make a storage rack'. Didn't specify: height, load capacity, number of shelves, finish. Owner assumes basic rack. Customer expects heavy-duty industrial rack with specific load rating. Job as per owner's assumption, customer rejects (under-spec)."
+      ],
+      
+      "quality_consistency": [
+        "Weld quality varies worker-to-worker — Skilled welder: Perfect weld. Semi-skilled welder: 20% weld cracks under stress test. But both assigned to different jobs randomly. Quality is lottery.",
+        "Dimensional errors — Worker cuts 3 pieces, should be identical. Piece 1: 24', Piece 2: 24.5', Piece 3: 23.5' (1' variance). During assembly, doesn't fit properly, grinding adjustments needed (time loss).",
+        "Finishing quality inconsistent — Job 1: Perfect paint finish (took time, used good painter). Job 2: Poor paint (rushed, used apprentice). Both charged same price, but customer perception very different.",
+        "No SOP (Standard Operating Procedure) — Every worker does job 'his way'. No standard method. Result: Quality depends on worker mood/skill/availability."
+      ],
+      
+      "cash_flow_working_capital": [
+        "Advance insufficient for material — Customer paid ₹20,000 advance. Material cost ₹35,000. Owner funds ₹15,000 from pocket. If 5 jobs running (₹75,000 blocked), cash flow crisis.",
+        "Customer payment delay — Agreed 30 days credit. Customer pays after 90 days. But supplier needs payment in 15 days (credit not available). Owner takes personal loan/uses credit card (interest cost = hidden cost, margin erosion).",
+        "Working capital stuck in WIP — 10 jobs in progress, total value ₹5 lakh. All at 60-80% completion stage. But can't bill till delivered. Cash stuck in incomplete jobs.",
+        "Scrap realization delay — 2 tons scrap accumulated (value ₹70,000). But scrap dealer visits only quarterly. Cash locked in scrap pile for 3 months."
+      ]
+    },
+    
+    "pricing_logic": {
+      "model": "Material cost + Labour cost + Overhead + Margin. BUT reality: Material weight-based OR labour hour-based OR per-kg rate.",
+      "method_1_weight_based_pricing": {
+        "formula": "Total steel weight (kg) × Rate per kg. Rate = (Raw steel price + Fabrication charge + Margin) per kg.",
+        "example": "Job requires 500kg steel. Raw steel ₹60/kg = ₹30,000. Fabrication (cutting, welding, grinding, finishing) ₹25/kg = ₹12,500. Overheads ₹10/kg = ₹5,000. Margin ₹15/kg = ₹7,500. Total = ₹55,000. Quote ₹55,000 OR ₹110/kg.",
+        "reality": "Owner quotes ₹100/kg (competitive rate). Material cost ₹60/kg (leaves ₹40/kg for everything else). If actual labour + overhead + margin needed is ₹50/kg, quoting ₹100/kg = loss. But owner doesn't calculate this upfront."
+      },
+      "method_2_labour_hour_based": {
+        "formula": "Estimated labour hours × Labour rate per hour + Material cost + Margin.",
+        "example": "Job estimated: 40 man-hours. Labour rate ₹200/hour = ₹8,000. Material ₹30,000. Overheads 15% of material = ₹4,500. Margin 25% = ₹10,625. Total = ₹53,125. Quote ₹55,000.",
+        "reality": "Labour hour estimation is wild guess. Thought 40 hours, took 80 hours (2x). Labour cost ₹16,000 (not ₹8,000). Margin becomes negative."
+      },
+      "method_3_competitive_pricing": {
+        "reality": "Customer says 'I got quote for ₹42,000 from other shop'. Owner quotes ₹40,000 to win job (below cost, but doesn't realize). Completes job, realizes ₹45,000 cost. Loss ₹5,000. But job already done, can't back out."
+      },
+      "margin_reality": "Target margin: 30-40%. Actual margin (if costing done correctly): 10-18%. Many jobs are break-even or loss-making (but owner doesn't track per-job, only knows overall business is barely profitable).",
+      "payment_terms": "30-50% advance on order confirmation. Balance on delivery OR 15-30 days credit (for established customers). Export jobs: 50% advance, 50% on shipment (LC or TT)."
+    },
+    
+    "compliance_requirements": [
+      "GST registration — Mandatory if turnover >₹40 lakh (₹20 lakh in special category states). GST rate: 18% on fabrication services.",
+      "e-Invoicing — Mandatory if turnover >₹5 crore.",
+      "e-Way Bill — For inter-state transport of goods >₹50,000 value.",
+      "Shop & Establishment License — From local Municipal Corporation.",
+      "Factory License — If >10 workers with power OR >20 without power (as per Factories Act). Most small job shops exempt (5-10 workers).",
+      "Pollution Control NOC — If generating wastewater (cooling water from welding), need consent from State Pollution Control Board. Most small shops don't need this.",
+      "Fire NOC — From Fire Department (if building area >500 sq meters OR high fire risk activities).",
+      "Labor Compliance — ESI + PF registration if >10 employees.",
+      "Quality certifications (optional, for B2B):",
+      "  - ISO 9001 (Quality Management) — Needed if supplying to large OEMs (cost: ₹1-3 lakh for certification + annual audit).",
+      "  - ISO 3834 (Welding Quality) — Specialized for welding-intensive shops. Rare for SMEs.",
+      "Pressure vessel certification (if fabricating pressure vessels, boilers):",
+      "  - IBR (Indian Boiler Regulations) approval from Chief Inspector of Boilers. Very specialized, not applicable to most job shops."
+    ]
+  },
+  
+  "detection_signals": {
+    "strong_signals": {
+      "column_headers": [
+        "job no", "job number", "job id", "job card", "work order no",
+        "drawing no", "drawing number", "dwg no", "part no", "part number",
+        "material grade", "grade", "material specification", "steel grade",
+        "thickness", "thickness mm", "gauge",
+        "length", "width", "height", "dimension",
+        "weight", "weight kg", "total weight",
+        "cutting", "bending", "welding", "machining", "grinding", "finishing",
+        "labour hours", "man hours", "labour cost",
+        "ms sheet", "ss sheet", "pipe", "angle", "channel", "beam",
+        "scrap", "scrap weight", "wastage"
+      ],
+      "sheet_names": [
+        "job list", "job register", "job card", "work in progress",
+        "cutting list", "material estimate", "material requisition",
+        "labour allocation", "timesheet", "man hours",
+        "scrap register", "scrap weight",
+        "job costing", "job profitability"
+      ],
+      "file_names": [
+        "job_list", "job_register", "job_estimate",
+        "cutting_plan", "material_requirement",
+        "labour_timesheet", "job_costing",
+        "drawing_", "dwg_", ".dwg", ".dxf"
+      ],
+      "data_patterns": [
+        "Job numbers (JOB-001, JOB202502001, WO-2025-123)",
+        "Drawing references (DWG-2024-456, PART-A-001)",
+        "Material grades (MS IS2062, SS304, SS316, IS2062 GR A, EN8, EN24)",
+        "Thickness values in mm (3mm, 6mm, 8mm, 10mm, 12mm, 16mm, 20mm, 25mm common range)",
+        "Steel weight calculations (length × width × thickness × density)",
+        "Weight-based pricing (₹/kg rates: ₹80/kg, ₹110/kg, ₹150/kg)",
+        "Operation keywords (gas cutting, plasma cutting, arc welding, MIG welding, grinding, shot blasting, painting, galvanizing)",
+        "Scrap percentage (15%, 20%, 25% of total weight)",
+        "Man-hour estimates (cutting 4 hrs, welding 12 hrs, grinding 3 hrs)"
+      ],
+      "bom_structure": "NO standard BOM structure. If BOM exists, it's estimation-only: Raw material (sheets/pipes/angles) by weight + Consumables (welding rods, gas, grinding discs, paint) + Labour hours by operation. NOT enforced in production."
+    },
+    "weak_signals": {
+      "column_headers": [
+        "customer name", "po number", "delivery date",
+        "quotation", "quotation no", "estimate",
+        "advance", "payment", "balance",
+        "site", "location", "installation",
+        "transport", "delivery challan"
+      ],
+      "customer_types": [
+        "Builders", "Contractors", "Factories", "Machine manufacturers", "Architects",
+        "Government departments (PWD, Railways)", "Export houses"
+      ],
+      "supplier_types": [
+        "Steel stockists", "Steel mills (JSW, SAIL, Tata Steel)",
+        "Consumables suppliers (welding rods, gas cylinders, grinding discs)",
+        "Paint suppliers", "Hardware suppliers (nuts, bolts, fasteners)",
+        "Scrap dealers"
+      ]
+    },
+    "against_signals": {
+      "column_headers": [
+        "size", "colour", "color", "style", "variant",
+        "batch no", "batch number", "expiry date", "mfg date", "shelf life",
+        "ingredient", "recipe", "formulation",
+        "sku", "barcode", "mrp",
+        "fabric", "gsm", "yarn", "stitching",
+        "sac code", "billable hours", "timesheet",
+        "patient", "prescription", "diagnosis",
+        "room", "booking", "check-in"
+      ],
+      "keywords": [
+        "food", "snack", "spice", "bakery", "dairy", "beverage",
+        "garment", "apparel", "textile", "fabric", "clothing",
+        "software", "IT", "consulting", "digital", "app",
+        "pharma", "medicine", "drug", "tablet", "capsule"
+      ],
+      "bom_indicators": [
+        "Ingredient list (not fabrication)",
+        "Fabric consumption in meters (not fabrication)",
+        "Recipe with cooking instructions (not fabrication)",
+        "Formulation with chemical names (not fabrication unless specialized chemical industry fabrication)"
+      ]
+    }
+  },
+  
+  "absolute_profile": {
+    "mandatory_modules": [
+      "Projects (CRITICAL — represents each job)",
+      "Stock",
+      "Buying",
+      "Selling",
+      "Accounts",
+      "Manufacturing (for Job Card functionality)"
+    ],
+    "optional_modules": [
+      "CRM (for quotation tracking, opportunity management)",
+      "HR (for timesheet, labor cost allocation)",
+      "Quality Management (for structural load testing, weld quality documentation)"
+    ],
+    "compliance_modules": ["GST India", "e-Invoicing (if applicable)", "e-Way Bill"]
+  },
+  
+  "mandatory_doctypes": [
+    "Project (CRITICAL — one per job, central to job shop)",
+    "Item (raw materials only: MS Sheet, SS Sheet, Pipes, Angles, Channels, Consumables)",
+    "Item Group (Steel → MS, SS, Aluminum; Consumables → Welding, Grinding, Paint)",
+    "UOM (Kg, Meter, Piece, Sheet, Length)",
+    "Customer",
+    "Supplier",
+    "Warehouse",
+    "Stock Entry",
+    "Material Request",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Job Card (CRITICAL — tracks each operation per job)",
+    "Workstation (Cutting area, Welding bay, Grinding station, Paint booth)",
+    "Operation (Cutting, Bending, Welding, Machining, Grinding, Painting)",
+    "Sales Order",
+    "Quotation",
+    "Delivery Note",
+    "Sales Invoice",
+    "Payment Entry",
+    "Timesheet (optional but recommended for labor tracking)",
+    "BOM (optional, for estimation only, not enforced)"
+  ],
+  
+  "erpnext_masters_setup": {
+    "item_structure": {
+      "approach": "Item doctype for RAW MATERIALS ONLY. NO finished goods items. Finished output = Job completion (tracked in Project), not stock item.",
+      "raw_material_items_steel": {
+        "sheets": "MS Sheet 3mm, MS Sheet 6mm, MS Sheet 8mm, MS Sheet 10mm, MS Sheet 12mm, SS Sheet 304-3mm, SS Sheet 316-6mm. UOM: Kg OR Sheet (if tracking by sheet count).",
+        "pipes_tubes": "MS Pipe 1\" (UOM: Meter OR Kg), MS Pipe 1.5\", MS Pipe 2\", SS Pipe 304-1.5\", Square Tube 25×25. UOM: Meter OR Kg.",
+        "angles_channels": "MS Angle 25×25, MS Angle 40×40, MS Angle 50×50, MS Channel 100, MS Channel 150. UOM: Meter OR Kg.",
+        "beams_girders": "I-Beam ISMB 150, ISMB 200, ISMC 100 (if heavy fabrication). UOM: Meter OR Kg.",
+        "flats_rounds": "MS Flat 50×6, MS Round 20mm, MS Square 25mm. UOM: Meter OR Kg."
+      },
+      "consumable_items": {
+        "welding": "Welding Rod E6013-3.15mm (UOM: Kg), Welding Rod E7018-4mm, MIG Wire 0.8mm (UOM: Kg), CO2 Gas Cylinder (UOM: Cylinder), Oxygen Cylinder (UOM: Cylinder), Acetylene Cylinder (UOM: Cylinder)",
+        "grinding": "Grinding Disc 4\" (UOM: Piece), Grinding Disc 7\", Cutting Disc 14\", Flap Disc 4\"",
+        "painting": "Primer Red Oxide (UOM: Liter), Enamel Paint (UOM: Liter), Thinner (UOM: Liter), Putty (UOM: Kg)",
+        "hardware": "Nut-Bolt M10 (UOM: Piece OR Set), Washer M10 (UOM: Piece), Hinge 6\" (UOM: Piece)"
+      },
+      "scrap_item": "Scrap Steel MS (UOM: Kg), Scrap Steel SS (UOM: Kg). Separate items for different steel types (MS scrap ₹35/kg, SS scrap ₹180/kg).",
+      "finished_goods_items": "❌ DO NOT CREATE finished goods items for custom jobs. Exception: If shop makes repeat parts (e.g., 100 identical brackets), THEN can create finished goods item. But for 95% of jobs, no finished goods item."
+    },
+    
+    "project_setup": {
+      "critical_importance": "Project doctype is THE CENTRAL ENTITY for job shops. One Project = One Job. All costs (material, labor, consumables), all activities (Job Cards), all invoicing linked to Project.",
+      "project_fields": {
+        "project_name": "Job ID + Customer name. Example: 'JOB-2025-0001 - Sharma Industries Gate', 'JOB-001-Feb2025 - Tank for XYZ Ltd'",
+        "customer": "Linked to Customer doctype",
+        "expected_start_date": "When job starts",
+        "expected_end_date": "Delivery deadline",
+        "project_type": "Custom Fabrication (default), Maintenance, Repair, Modification",
+        "status": "Open, Completed, Cancelled",
+        "estimated_costing": "Quotation amount",
+        "actual_costing": "Tracked via Time Logs, Stock Entries, Expense Claims linked to Project",
+        "notes": "Store drawing details, customer requirements, special instructions"
+      },
+      "project_attachments": "Drawing files (PDF, DWG, DXF), Customer email/WhatsApp screenshots, Quotation, Delivery photos. All attached to Project doctype.",
+      "project_costing_tracking": "ERPNext Project has built-in costing: (1) Time Logs (labor hours × rate), (2) Material Cost (Stock Entries issued to Project), (3) Expense Claims (transport, outsourcing). Project Profitability Report shows: Revenue (Sales Invoice) - Total Cost = Profit."
+    },
+    
+    "job_card_setup": {
+      "critical_importance": "Job Card tracks each operation per job. Unlike garments (Job Card per batch), fabrication has Job Card per operation per job (Cutting for JOB-001, Welding for JOB-001, Grinding for JOB-001).",
+      "job_card_creation": "Manual (not auto-generated from Work Order for custom jobs). Supervisor creates Job Card for each operation as job progresses.",
+      "job_card_fields": {
+        "job_card_id": "Auto-numbered OR manual (JC-JOB001-CUTTING, JC-JOB001-WELDING)",
+        "project": "MUST link to Project (this is the job)",
+        "operation": "Select from Operation master (Cutting, Welding, Grinding, etc.)",
+        "workstation": "Cutting Bay 1, Welding Station 2, Grinding Table",
+        "employee": "Worker assigned to this operation (for labor cost tracking)",
+        "expected_start_date": "When operation should start",
+        "expected_end_date": "When operation should complete",
+        "actual_start_time": "Worker marks start",
+        "actual_end_time": "Worker marks completion",
+        "time_in_mins": "Auto-calculated OR manual entry (labor hours for costing)",
+        "completed_qty": "Not applicable for custom jobs (always '1 job'). Can use for quantity if repeat parts.",
+        "remarks": "Issues faced, material used, quality notes"
+      },
+      "job_card_workflow": "Created → Started → Paused (if interruption) → Completed. Time tracking accumulates actual labor hours."
+    },
+    
+    "bom_setup": {
+      "usage": "Optional, for ESTIMATION ONLY. NOT enforced in production. Why? Because every job is different, exact material known only during execution.",
+      "bom_type": "Template BOM (if similar jobs repeat). Example: 'Standard Gate 4ft × 6ft' BOM as reference for estimation. But actual job may vary.",
+      "bom_structure": [
+        {"item": "MS Angle 40×40", "qty": "20 Meter", "rate": "₹120/meter", "amount": "₹2,400", "notes": "Frame"},
+        {"item": "MS Flat 25×6", "qty": "15 Meter", "rate": "₹80/meter", "amount": "₹1,200", "notes": "Cross members"},
+        {"item": "MS Sheet 1.5mm", "qty": "2 Sheet", "rate": "₹3,500/sheet", "amount": "₹7,000", "notes": "Cladding"},
+        {"item": "Welding Rod E6013", "qty": "2 Kg", "rate": "₹200/kg", "amount": "₹400"},
+        {"item": "Primer Paint", "qty": "1 Liter", "rate": "₹250/liter", "amount": "₹250"},
+        {"item": "Enamel Paint", "qty": "2 Liter", "rate": "₹350/liter", "amount": "₹700"}
+      ],
+      "bom_total": "₹11,950 material cost (rough estimate). Add labor (₹8,000), overhead (₹3,000), margin (₹7,000) = Quote ₹30,000.",
+      "bom_not_used_in_production": "BOM is reference for quoting only. During actual job, material issued to Project (not against BOM). Actual consumption may be very different from BOM."
+    },
+    
+    "warehouse_setup": {
+      "required_warehouses": [
+        "Raw Material - Steel Yard (for sheets, pipes, angles — open yard or covered shed)",
+        "Raw Material - Consumables Store (for welding rods, grinding discs, paint — indoor storage)",
+        "Work In Progress - Shop Floor (material currently being worked on)",
+        "Scrap Yard (for scrap steel, offcuts, rejected pieces)",
+        "Finished Goods (NOT used for custom jobs, only if repeat parts stocked)",
+        "Subcontractor - [Name] (if sending for galvanizing, powder coating, specialized machining)"
+      ],
+      "warehouse_logic": "Raw Material → WIP (when issued to job) → Scrap (waste generated) + Finished (job completed, but usually delivered immediately, not stocked). Most fabrication shops don't have separate FG warehouse (jobs delivered same day or next day after completion)."
+    },
+    
+    "operation_workstation_setup": {
+      "operations": [
+        "Material Inspection (incoming steel quality check)",
+        "Cutting - Gas",
+        "Cutting - Plasma",
+        "Cutting - Grinder",
+        "Bending - Press Brake",
+        "Bending - Rolling",
+        "Welding - Arc (MMAW)",
+        "Welding - MIG",
+        "Welding - TIG",
+        "Welding - Spot",
+        "Machining - Drilling",
+        "Machining - Tapping",
+        "Machining - Turning (if lathe available)",
+        "Grinding - Surface Finish",
+        "Grinding - Edge Chamfering",
+        "Painting - Primer",
+        "Painting - Top Coat",
+        "Final Inspection",
+        "Packing / Crating (for large jobs)"
+      ],
+      "workstations": [
+        "Gas Cutting Bay",
+        "Plasma Cutting Table",
+        "Press Brake 1",
+        "Plate Rolling Machine",
+        "Welding Station 1-5 (one per welder)",
+        "Drilling Machine 1-2",
+        "Lathe Machine (if available)",
+        "Grinding Area 1-3",
+        "Paint Booth (or Painting Area)",
+        "Inspection Table",
+        "Assembly Area"
+      ],
+      "workstation_capacity": "Optional: Define capacity (hours per day). Helps in capacity planning if multiple jobs competing for same workstation (e.g., only 1 press brake, 3 jobs need bending)."
+    }
+  },
+  
+  "default_settings": {
+    "stock_settings": {
+      "valuation_method": "FIFO (First In First Out)",
+      "allow_negative_stock": "false — Strictly disabled (negative stock = accounting chaos)",
+      "auto_material_request": false,
+      "default_material_request_type": "Purchase",
+      "show_barcode_field": false,
+      "allow_over_delivery": false,
+      "allow_over_billing": false
+    },
+    "manufacturing_settings": {
+      "disable_capacity_planning": false,
+      "allow_production_on_holidays": true,
+      "update_bom_cost_automatically": false,
+      "material_consumption": "Manual Stock Entry (NOT backflush — each job is different, material issued manually to Project)",
+      "default_wip_warehouse": "Work In Progress - Shop Floor",
+      "default_fg_warehouse": "NOT APPLICABLE (custom jobs don't go to FG warehouse, delivered immediately)",
+      "overproduction_percentage": 0,
+      "make_serial_no_batch_from_work_order": "None (no batch, no serial)",
+      "capacity_planning_for_workstation": "Job Card based"
+    },
+    "project_settings": {
+      "default_project_type": "Custom Fabrication",
+      "ignore_employee_time_overlap": false,
+      "project_costing_method": "Actual Costing (track actual material + labor)",
+      "default_project_template": "Create templates for common job types (Gate, Railing, Tank) to speed up project setup"
+    },
+    "item_settings": {
+      "item_naming_by": "Item Code",
+      "default_uom": "Kg (for steel items)",
+      "allow_negative_stock": false,
+      "maintain_stock_for_consumables": true
+    },
+    "buying_settings": {
+      "supplier_group": "Steel Suppliers, Consumables Suppliers, Hardware Suppliers, Subcontractors",
+      "buying_price_list": "Standard Buying"
+    },
+    "selling_settings": {
+      "customer_group": "Builders, Contractors, Factories, Architects, Government",
+      "selling_price_list": "Standard Selling",
+      "allow_sales_order_without_item": true
+    },
+    "accounts_settings": {
+      "fiscal_year": "April to March (India standard)",
+      "company_default_currency": "INR",
+      "enable_perpetual_inventory": true,
+      "cost_center": "Main - [Company Abbr]"
+    }
+  },
+  
+  "workflow_processes": [
+    {
+      "process_id": "P1_custom_fabrication_job",
+      "process_name": "Custom Fabrication Job (Drawing to Delivery)",
+      "trigger": "Customer inquiry with drawing/requirement",
+      "steps": [
+        {
+          "step": 1,
+          "action": "Customer Inquiry & Drawing Receipt",
+          "doctype": "Opportunity (optional, if CRM enabled) OR direct to Quotation",
+          "details": "Customer shares drawing (hand-drawn, CAD, sample piece) + material spec + quantity + deadline. Owner/Works Manager reviews, assesses feasibility.",
+          "key_activity": "Drawing stored as attachment. Clarity check (dimensions, material, tolerances). Feasibility check (can our machines handle this?).",
+          "output": "Go/No-Go decision for quoting"
+        },
+        {
+          "step": 2,
+          "action": "Job Estimation",
+          "doctype": "Quotation + BOM (optional estimation BOM)",
+          "details": "Material estimation (weight calculation OR linear measurement). Labor estimation (hours per operation based on experience). Consumables (welding rods, gas, grinding discs, paint). Overheads (electricity, machine depreciation). Margin (20-40%).",
+          "estimation_methods": {
+            "material_weight": "(Length × Width × Thickness × Density) × 1.2 (safety factor for scrap)",
+            "labor_hours": "Sum of all operations (cutting 4h, welding 12h, grinding 3h, painting 2h = 21 man-hours × ₹200/hr = ₹4,200)",
+            "per_kg_rate": "Simple: Total weight × ₹110/kg (includes everything)"
+          },
+          "output": "Quotation sent to customer (PDF + WhatsApp)"
+        },
+        {
+          "step": 3,
+          "action": "Order Confirmation & Project Creation",
+          "doctype": "Sales Order + Project",
+          "details": "Customer accepts quotation. Sales Order created. CRITICAL: Project created (one per job). Project name = Job ID + Customer name. Drawing attached to Project. Payment Terms: 30-50% advance.",
+          "key_activity": "Advance payment collected (Payment Entry linked to Sales Order). Job number assigned (sequential OR based on customer PO).",
+          "output": "Project created, advance received, job confirmed"
+        },
+        {
+          "step": 4,
+          "action": "Material Procurement",
+          "doctype": "Material Request → Purchase Order → Purchase Receipt",
+          "details": "Material requirement determined from estimation. Material Request raised (MS Sheet 10mm - 500kg, MS Angle 40×40 - 50 meters, Welding rods - 10kg, Paint - 5 liters). Purchase Order to supplier. Purchase Receipt on material arrival. Quality check (thickness, grade, rust).",
+          "sourcing_decision": "Job-specific purchase (if special material) OR allocate from stock (if commonly used sizes in inventory).",
+          "output": "Material in Raw Material Yard/Store, allocated to Project"
+        },
+        {
+          "step": 5,
+          "action": "Material Issue to Job",
+          "doctype": "Stock Entry (Material Issue for Manufacture) linked to Project",
+          "details": "Material issued from Raw Material Yard to Shop Floor. CRITICAL: Stock Entry MUST be linked to Project (this is how cost is tracked). Cutting list prepared (which pieces to cut from which sheet). Material handed to worker.",
+          "key_activity": "Stock Entry fields: From Warehouse = Raw Material Yard, To Warehouse = WIP - Shop Floor, Project = JOB-2025-0001. Material cost now allocated to this Project.",
+          "output": "Material on shop floor, ready for fabrication"
+        },
+        {
+          "step": 6,
+          "action": "Fabrication Execution - Cutting",
+          "doctype": "Job Card (Operation: Cutting)",
+          "details": "Job Card created for Cutting operation. Linked to Project. Worker assigned. Start time recorded. Gas cutting / Plasma cutting as per cutting list. Pieces cut, marked with job number. End time recorded.",
+          "key_activity": "Job Card tracks: (1) Worker (for labor cost), (2) Time (for costing + productivity), (3) Workstation used, (4) Remarks (issues faced).",
+          "output": "Cut pieces ready for next operation. Job Card completed."
+        },
+        {
+          "step": 7,
+          "action": "Fabrication Execution - Bending/Forming",
+          "doctype": "Job Card (Operation: Bending)",
+          "details": "Job Card for Bending (if required). Press brake OR rolling machine used. Pieces bent as per drawing. Angles checked. Job Card time tracked.",
+          "output": "Formed pieces ready for welding"
+        },
+        {
+          "step": 8,
+          "action": "Fabrication Execution - Welding",
+          "doctype": "Job Card (Operation: Welding)",
+          "details": "Job Card for Welding. Welder assigned. Parts assembled, fit-up checked. Welding done (Arc/MIG/TIG as per requirement). Consumables used (welding rods, gas). Time tracked. Weld quality visually checked.",
+          "consumable_tracking": "Stock Entry (Material Issue) for welding rods, gas cylinders consumed. Linked to Project.",
+          "output": "Welded assembly"
+        },
+        {
+          "step": 9,
+          "action": "Fabrication Execution - Machining (if required)",
+          "doctype": "Job Card (Operation: Drilling/Tapping)",
+          "details": "Holes drilled, threads tapped, surfaces faced (if lathe available). Job Card tracks time.",
+          "output": "Machined assembly ready for finishing"
+        },
+        {
+          "step": 10,
+          "action": "Fabrication Execution - Grinding/Finishing",
+          "doctype": "Job Card (Operation: Grinding)",
+          "details": "Weld spatter removed, edges chamfered, sharp corners rounded. Surface smoothened. Grinding discs consumed (Stock Entry). Job Card tracks time.",
+          "output": "Finished assembly ready for painting"
+        },
+        {
+          "step": 11,
+          "action": "Scrap Collection & Accounting",
+          "doctype": "Stock Entry (Scrap generation during manufacturing)",
+          "details": "Scrap collected from cutting, grinding. Weighed. Stock Entry created: Item = Scrap Steel MS, Qty = 120 Kg, To Warehouse = Scrap Yard, Project = JOB-2025-0001. Scrap weight and value tracked per job.",
+          "scrap_value": "Scrap steel ₹35/kg. 120kg scrap = ₹4,200 value. This ₹4,200 should be credited to Project cost (material cost net of scrap recovery = actual cost).",
+          "output": "Scrap in Scrap Yard, cost allocated to Project"
+        },
+        {
+          "step": 12,
+          "action": "Painting",
+          "doctype": "Job Card (Operation: Painting) OR Purchase Order (if outsourced)",
+          "details": "In-house painting: Surface prep (wire brushing, degreasing), Primer coat, Drying, Top coat (enamel/epoxy). Paint consumed (Stock Entry). Job Card tracks time. Outsourced painting: Purchase Order to powder coating vendor, item sent and received back.",
+          "output": "Painted/finished job"
+        },
+        {
+          "step": 13,
+          "action": "Final Inspection",
+          "doctype": "Job Card (Operation: Final Inspection) OR Quality Inspection",
+          "details": "Dimensional check (measure key dimensions vs drawing). Weld quality check (visual + tap test). Functionality test (if moving parts). Paint finish check. Load test (if structural). If OK, job approved. If issues, rework Job Card created.",
+          "output": "Job approved for delivery OR sent for rework"
+        },
+        {
+          "step": 14,
+          "action": "Delivery",
+          "doctype": "Delivery Note",
+          "details": "Job loaded on vehicle (owner's truck OR hired vehicle). Delivery challan prepared. Delivered to customer site. Installation done (if required). Customer sign-off collected.",
+          "key_activity": "Delivery Note linked to Sales Order and Project. For custom jobs, Delivery Note often created WITHOUT Stock Entry (no finished goods stock, delivered directly).",
+          "output": "Job delivered, in customer's possession"
+        },
+        {
+          "step": 15,
+          "action": "Invoicing & Payment",
+          "doctype": "Sales Invoice + Payment Entry",
+          "details": "Sales Invoice raised (against Sales Order OR Delivery Note). Amount = Quoted price - Advance paid + Extra charges (if any). GST applied 18%. e-Way Bill (if applicable). Payment Entry for balance amount (cash/NEFT/cheque). Customer pays, invoice settled.",
+          "output": "Invoice raised, payment received"
+        },
+        {
+          "step": 16,
+          "action": "Job Costing Analysis",
+          "doctype": "Project Profitability Report",
+          "details": "After job completion, run Project Profitability Report for this job. Shows: Revenue (Sales Invoice), Material Cost (Stock Entries to Project), Labor Cost (Time Logs from Job Cards × hourly rate), Other Costs (consumables, outsourcing, transport). Profit = Revenue - Total Cost. Profit % = (Profit / Revenue) × 100.",
+          "key_insight": "Compare Estimated cost (from quotation) vs Actual cost. Identify gaps. If actual > estimated, analyze why (material estimation wrong? labor took longer? hidden costs?). Learn for future jobs.",
+          "output": "Job profitability known, insights for improvement"
+        }
+      ],
+      "typical_timeline": "Small job (gate, railing): 2-5 days. Medium job (machine part, tank): 1-3 weeks. Large job (structural fabrication): 3-8 weeks."
+    },
+    
+    {
+      "process_id": "P2_rework_change_request",
+      "process_name": "Customer Change Request / Rework",
+      "trigger": "Customer requests design change mid-job OR job fails final inspection",
+      "scenarios": [
+        "Scenario 1: Customer visits, sees half-done job, says 'add 2 cross-members here'",
+        "Scenario 2: Final inspection reveals weld cracks, needs re-welding",
+        "Scenario 3: Customer says dimensions are wrong (drawing interpretation error), part needs rework"
+      ],
+      "steps": [
+        {
+          "step": 1,
+          "action": "Change Request Documentation",
+          "doctype": "Project Notes OR Sales Order Amendment",
+          "details": "Customer's change request documented in writing (email, WhatsApp screenshot saved). Scope of change clearly defined (what needs to be changed, why). Drawing revised if necessary. Owner assesses: Can be done? How much extra cost? How much delay?",
+          "key_activity": "Document BEFORE starting change. If verbal change, confirm via SMS/WhatsApp ('As discussed, adding 2 cross-members, extra cost ₹2,500, delay 1 day. Reply OK to confirm'). Save customer's OK message.",
+          "output": "Change scope documented, customer acknowledged"
+        },
+        {
+          "step": 2,
+          "action": "Revised Estimation",
+          "doctype": "Quotation (Revision) OR Sales Order Amendment",
+          "details": "Extra material required? Extra labor hours? Extra consumables? Calculate additional cost. Example: 2 cross-members need 6 meters MS Angle (₹720) + 1 hour welding (₹200) + consumables (₹80) = ₹1,000 cost. Add margin 40% = ₹1,400. Quote ₹1,500 extra to customer.",
+          "decision": "Customer accepts extra cost → Proceed. Customer refuses → Negotiate (absorb part of cost OR don't do change, deliver as originally planned).",
+          "output": "Revised quotation sent/accepted"
+        },
+        {
+          "step": 3,
+          "action": "Material Procurement (if additional material needed)",
+          "doctype": "Material Request → Purchase Order → Purchase Receipt",
+          "details": "If change needs new material (original procurement didn't include this), procure now. Material cost tracked separately (so extra cost visibility maintained).",
+          "output": "Additional material available"
+        },
+        {
+          "step": 4,
+          "action": "Rework/Change Execution",
+          "doctype": "Job Card (Rework operation)",
+          "details": "New Job Card created for rework (JC-JOB001-REWORK-WELDING). Linked to Project. Worker assigned. Change implemented. Time tracked separately (so rework cost visible).",
+          "key_activity": "Rework Job Card clearly labeled 'Rework' (not mixed with original work). If customer paying extra, rework cost billed separately. If rework due to our error (free for customer), rework cost tracked but not billed (margin impact visible).",
+          "output": "Change implemented"
+        },
+        {
+          "step": 5,
+          "action": "Re-Inspection",
+          "doctype": "Quality Inspection OR Job Card (Final Inspection)",
+          "details": "Changed part re-inspected. Verified change is as per customer requirement. Dimensions, weld quality, functionality re-checked.",
+          "output": "Rework approved OR sent for further correction"
+        },
+        {
+          "step": 6,
+          "action": "Additional Billing (if change was paid)",
+          "doctype": "Sales Invoice (Additional charges) OR Sales Order Amendment → Invoice",
+          "details": "If customer agreed to pay extra ₹1,500 for change, additional invoice raised (linked to original Sales Order). Payment collected before delivery.",
+          "output": "Extra charges billed and collected"
+        },
+        {
+          "step": 7,
+          "action": "Margin Impact Analysis",
+          "doctype": "Project Profitability Report",
+          "details": "After rework, check Project profitability again. Compare: Original estimated profit vs Actual profit after rework. If rework was free (our error), margin reduced. Quantify impact. Example: Original margin ₹7,000 (30%). After free rework (cost ₹3,000), margin ₹4,000 (17%). Learn from error.",
+          "output": "Rework impact on profitability quantified"
+        }
+      ],
+      "common_failure": "Verbal changes not documented. Customer asks for change, you do it free (to keep customer happy), but cost eats margin. At job-end, realize: quoted ₹50,000, cost ₹52,000 (loss). If change was documented and charged ₹2,500 extra, revenue ₹52,500, margin preserved."
+    }
+  ],
+  
+  "questions_to_ask": [
+    {
+      "question": "Do you do only custom fabrication (unique jobs) or also repeat parts?",
+      "purpose": "Determine if BOM + Work Order workflow applicable. Custom = Project-based. Repeat parts = Can use standard manufacturing module with BOM.",
+      "options": [
+        "100% custom (every job is different)",
+        "80% custom, 20% repeat parts",
+        "50-50 (half custom, half repeat)",
+        "Mostly repeat parts with variations"
+      ]
+    },
+    {
+      "question": "How do you estimate material requirement for a new job?",
+      "purpose": "Assess estimation sophistication. Affects BOM usage and training needs.",
+      "options": [
+        "Weight calculation from drawing (length × width × thickness × density)",
+        "CAD software calculates weight automatically",
+        "Experience-based thumb rule ('this type of gate takes ~50kg')",
+        "Rough guess, adjust during job"
+      ]
+    },
+    {
+      "question": "Do customers often change design/specification mid-job?",
+      "purpose": "If yes, need strong change management workflow (documentation, re-quoting, approval).",
+      "options": [
+        "Very common (30-50% of jobs have changes)",
+        "Occasional (10-20% of jobs)",
+        "Rare (customer sticks to original drawing)",
+        "Never (B2B clients with strict specs)"
+      ]
+    },
+    {
+      "question": "Do you track labor hours per job?",
+      "purpose": "Check if Timesheet/Job Card time tracking is current practice. If not, training needed + benefit explanation.",
+      "options": [
+        "Yes - every worker fills timesheet daily",
+        "Partially - only for major jobs",
+        "No - workers on fixed daily wage, no job-wise tracking",
+        "Want to start but don't know how"
+      ]
+    },
+    {
+      "question": "How do you handle scrap (offcuts, waste steel)?",
+      "purpose": "Assess scrap tracking maturity. Need to set up scrap accounting per job.",
+      "options": [
+        "Weigh scrap per job, track in register, credit to job cost",
+        "Collect all scrap together, sell quarterly, 'other income' (no job-wise tracking)",
+        "Workers take scrap home (no tracking)",
+        "Scrap just piles up in yard (untracked)"
+      ]
+    },
+    {
+      "question": "After job completion, do you know actual profit per job?",
+      "purpose": "Assess current costing capability. If no, this is THE biggest pain point ERPNext solves.",
+      "options": [
+        "Yes - we calculate cost vs quote for every job",
+        "Sometimes - only for large jobs",
+        "No - we only know overall monthly profit, not per job",
+        "Don't track profit at all"
+      ]
+    },
+    {
+      "question": "Do you outsource any operations (galvanizing, powder coating, specialized machining)?",
+      "purpose": "If yes, need subcontracting tracking (Purchase Order, cost allocation to Project).",
+      "options": [
+        "Yes - galvanizing for outdoor jobs",
+        "Yes - powder coating for better finish",
+        "Yes - CNC machining (we don't have CNC)",
+        "No - everything done in-house"
+      ]
+    },
+    {
+      "question": "What's your biggest challenge in running the job shop?",
+      "purpose": "Prioritize pain point to address in ERPNext implementation.",
+      "options": [
+        "Don't know job-wise profitability (quoting blindly)",
+        "Material wastage too high (20-40% scrap)",
+        "Can't track which job is at what stage (no visibility)",
+        "Customer payment delays (cash flow tight)",
+        "Labor allocation chaos (don't know who's working on what)",
+        "Drawing management mess (lost drawings, version confusion)"
+      ]
+    }
+  ],
+  
+  "common_data_gaps": [
+    "No job register — Jobs done, invoiced, but no central list of all jobs (job number, customer, value, status, profitability). Can't analyze: Which types of jobs are most profitable? Which customers are best? Average job size?",
+    "No job-wise costing — Material, labor, consumables used per job not tracked. Only know overall monthly expenses. Can't calculate: Did JOB-001 make profit or loss? Which job had highest margin?",
+    "No labor timesheet — Workers paid daily wage. But how many hours each worker spent on each job? Unknown. Can't allocate labor cost to jobs. Quotation labor estimate vs actual hours worked = no comparison possible.",
+    "No material issue tracking — Material taken from yard to shop floor, but not recorded which job used which material. At month-end, material stock doesn't match books (untracked usage).",
+    "Scrap weight per job not recorded — Total scrap collected, sold to dealer, but which job generated how much scrap? Unknown. High scrap jobs not identified. Scrap value not credited to job cost.",
+    "Drawing files lost/disorganized — Drawings received via email, WhatsApp, printouts. Not stored systematically. When job starts after 2 months, can't find drawing. Customer also lost his copy. Big problem.",
+    "No estimation record — Quotation given verbally or on paper, not saved digitally. If customer returns after 1 year for similar job, can't refer to previous quotation. Re-estimate from scratch (time waste).",
+    "Consumables consumption not tracked — Welding rods, grinding discs, gas cylinders bought, but usage per job not tracked. Don't know if job used ₹500 consumables or ₹2,000 consumables.",
+    "Customer change requests not documented — Customer called, said 'make it 6 inches taller'. Worker told verbally, changed. No written record. Delivery time, dispute about who asked for change.",
+    "No quality control records — Final inspection done 'by eye'. No checklist, no measurements recorded. If customer complains later ('this dimension is wrong'), no proof that it was checked and approved."
+  ],
+  
+  "common_failures": [
+    {
+      "failure": "Treating custom jobs as stock items (creating finished goods item per job)",
+      "why_it_fails": "User creates item 'Gate for Sharma Industries' as finished goods item. Problem: (1) Item master cluttered with 1000s of one-time items. (2) Stock balance report shows 1 qty of 'Gate for Sharma' (meaningless, already delivered 2 years ago). (3) BOM created for this one-time job (BOM is never reused). System becomes maintenance nightmare.",
+      "correct_approach": "NO finished goods items for custom jobs. Job completion = Delivery Note directly (without Stock Entry for manufacture). If treating as stock entry is unavoidable (some ERPNext workflows need it), create generic item 'Custom Fabricated Item' and reuse for all jobs. But BEST: Use Project doctype as job entity, don't treat job as item."
+    },
+    {
+      "failure": "Using Work Order for custom fabrication jobs",
+      "why_it_fails": "Work Order expects: (1) Item (finished goods item, which we said NOT to create). (2) BOM (standard BOM, which doesn't exist for custom jobs). (3) Fixed quantity to produce (meaningless for 1-off job). (4) Backflush material consumption (but custom jobs have variable material usage, known only during execution). Using Work Order for custom jobs = force-fitting wrong tool.",
+      "correct_approach": "Use Project + Job Card workflow (NOT Work Order). Project represents the job. Material issued via Stock Entry (linked to Project). Each operation tracked via Job Card (linked to Project). Labor, material, consumables ALL allocated to Project. Project Profitability Report shows job costing. This is natural fit for job shops."
+    },
+    {
+      "failure": "Not tracking scrap per job",
+      "why_it_fails": "Scrap collected in bin, sold quarterly for ₹70,000. But ERPNext shows this ₹70,000 as 'other income' (not linked to jobs). Job cost shows full material cost (no scrap credit). Result: Job costing inflated. Job shows loss/low margin, but actually profitable (after scrap credit). Can't identify which jobs generated most scrap (optimization opportunity lost).",
+      "correct_approach": "During fabrication, create Stock Entry (Scrap generation): Item = Scrap Steel MS, Qty = 120kg, To Warehouse = Scrap Yard, Project = JOB-2025-0001, Valuation Rate = ₹35/kg (scrap value). This Stock Entry: (1) Adds scrap to Scrap Yard inventory. (2) Credits ₹4,200 (120kg × ₹35) to Project cost. Job costing now shows net material cost (material purchased - scrap value = actual material cost). Accurate job profitability."
+    },
+    {
+      "failure": "No labor cost allocation to jobs (daily wage workers, no timesheet)",
+      "why_it_fails": "Workers paid ₹500/day regardless of which job they work on. At month-end, total labor cost = ₹90,000 (3 workers × 30 days × ₹500). But which job consumed how much labor? Unknown. Quotation says 'labor ₹8,000', actual might be ₹12,000 (took longer), but no data to prove it. Can't improve labor estimation for future jobs.",
+      "correct_approach": "Use Job Card time tracking OR Timesheet (if Job Card too complex initially). Worker starts Job Card, marks start time. Works on job, marks end time. Job Card records: Worker, Hours spent, Project. At day-end, all Job Cards show: Worker A spent 6 hours on JOB-001, 2 hours on JOB-003. Labor cost allocated: 6h × ₹62.5/hr = ₹375 to JOB-001, 2h × ₹62.5/hr = ₹125 to JOB-003 (assuming ₹500/day = ₹62.5/hr). Project Profitability Report now includes labor cost per job."
+    },
+    {
+      "failure": "Drawings stored in WhatsApp/Email (not linked to Project/Job)",
+      "why_it_fails": "Customer sent drawing via WhatsApp 3 months ago. Now job started, need drawing. Search through 10,000 WhatsApp messages OR 5,000 emails. Can't find. Call customer ('Please send drawing again'). Customer irritated OR also lost his copy. Job delayed while re-creating drawing from memory.",
+      "correct_approach": "When job confirmed, immediately attach drawing file to Project doctype (Attachments section). Drawing formats: PDF (from CAD), DWG/DXF (if CAD file), JPG/PNG (if hand-drawn and scanned). Tag file name: 'JOB-001-Drawing-v1.pdf'. If customer sends revision, attach as 'JOB-001-Drawing-v2.pdf'. All project-related files (drawing, customer emails, quotation, delivery photos) in one place. Access anytime: Open Project → Attachments."
+    },
+    {
+      "failure": "Mixing material from multiple jobs (no segregation)",
+      "why_it_fails": "JOB-001 and JOB-002 both use 10mm MS sheet. Material issued to shop floor (1 sheet for JOB-001, 1 sheet for JOB-002). Workers cut pieces for both jobs from both sheets (mixing). At job-end, can't tell: JOB-001 used how much steel? Impossible to calculate. Both jobs allocated '1 sheet' in costing (but reality may be 0.7 sheet + 1.3 sheet). Costing wrong.",
+      "correct_approach": "Material issued to Project separately. Stock Entry 1: Issue 1 sheet to WIP, Project = JOB-001. Stock Entry 2: Issue 1 sheet to WIP, Project = JOB-002. Workers MUST use material as per job tag (physical tags on material: 'JOB-001', 'JOB-002'). If material short for JOB-001 mid-job, additional Stock Entry to issue more (captured in system). At job-end, sum of all Stock Entries for JOB-001 = actual material consumed by JOB-001. Accurate costing."
+    },
+    {
+      "failure": "No change request documentation (verbal changes, payment disputes)",
+      "why_it_fails": "Customer calls, says 'add 2 supports'. You do it free (maintain relationship). Job complete, margin = zero (extra cost absorbed). Customer returns after 1 month for another job, says 'last time you charged less, same price this time too'. You're stuck (precedent set). Also, some customers deny asking for change ('I never said add 2 supports', payment dispute).",
+      "correct_approach": "ANY change request (even small): (1) Document immediately (WhatsApp message to customer: 'As discussed, adding 2 cross-members, extra cost ₹2,500, 1 day delay. Please reply OK to confirm'). (2) Save customer's 'OK' reply. (3) Create Sales Order Amendment OR Project Note documenting change. (4) Additional quotation raised, accepted, signed. (5) Only then start change work. (6) Additional charges invoiced separately. Change management discipline = margin protection."
+    },
+    {
+      "failure": "No final inspection checklist (subjective quality check)",
+      "why_it_fails": "Final inspection done 'by eye' by supervisor. No standard. If supervisor is experienced, catches issues. If supervisor is new OR in hurry, misses issues. Customer receives job, finds 3 defects, sends back. Rework cost ₹5,000 + transport ₹2,000 = ₹7,000 loss.",
+      "correct_approach": "Create Quality Inspection Template per job type. Example: 'Structural Fabrication QC Checklist' with parameters: (1) Dimensional accuracy (measure 10 key dimensions, tolerance ±3mm), (2) Weld quality (visual check for cracks, porosity, tap test), (3) Squareness (measure diagonals, difference <5mm), (4) Paint finish (no runs, sags, brush marks), (5) Sharp edges removed (safety check). QI Template linked to Project. Before delivery, Quality Inspection record created, all checks done, signed. If any parameter fails, job sent for rework BEFORE delivery. Quality gate prevents defective delivery."
+    }
+  ],
+  
+  "implementation_timeline": {
+    "week_1_foundation": {
+      "tasks": [
+        "Company setup (name, address, GST)",
+        "Fiscal Year (April-March)",
+        "Chart of Accounts (India standard)",
+        "Enable: GST India, e-Invoicing (if applicable), e-Way Bill",
+        "Warehouse creation: Raw Material - Steel Yard, Raw Material - Consumables, WIP - Shop Floor, Scrap Yard",
+        "UOM setup: Kg, Meter, Piece, Sheet, Length, Ton",
+        "Operation master: Cutting-Gas, Cutting-Plasma, Bending-Press, Bending-Roll, Welding-Arc, Welding-MIG, Machining-Drilling, Grinding, Painting-Primer, Painting-Top, Inspection",
+        "Workstation master: Gas Cutting Bay, Plasma Table, Press Brake, Rolling Machine, Welding Station 1-5, Drilling Machine, Grinding Area, Paint Booth, Inspection Table",
+        "Project Type: Custom Fabrication, Maintenance, Repair, Modification"
+      ],
+      "deliverable": "ERPNext foundation ready for job shop"
+    },
+    
+    "week_2_masters": {
+      "tasks": [
+        "Item Group structure: Raw Material → Steel (MS, SS, Aluminum), Raw Material → Consumables (Welding, Grinding, Painting, Hardware)",
+        "Steel items: MS Sheet 3mm, 6mm, 8mm, 10mm, 12mm (UOM: Kg), MS Pipe 1\", 1.5\", 2\" (UOM: Meter OR Kg), MS Angle 25×25, 40×40, 50×50 (UOM: Meter OR Kg), SS Sheet 304-3mm, 304-6mm (UOM: Kg)",
+        "Consumable items: Welding Rod E6013-3.15mm (UOM: Kg), Grinding Disc 4\" (UOM: Piece), Cutting Disc 14\" (UOM: Piece), Primer Red Oxide (UOM: Liter), Enamel Paint (UOM: Liter), Gas-CO2 Cylinder (UOM: Cylinder), Gas-Oxygen Cylinder (UOM: Cylinder)",
+        "Scrap items: Scrap Steel MS (UOM: Kg), Scrap Steel SS (UOM: Kg)",
+        "Supplier Master: Steel stockists, Steel mills, Consumables suppliers, Scrap dealers, Subcontractors (galvanizing, powder coating)",
+        "Customer Master: Builders, Contractors, Factories, Architects, Government departments. Record: GSTIN, Credit limit (if giving credit), Payment terms (advance %, credit days)",
+        "Quality Inspection Templates: (1) Incoming Steel QC (thickness, grade, rust check), (2) Final Fabrication QC (dimensions, weld quality, finish)"
+      ],
+      "deliverable": "Master data complete. Can start test job."
+    },
+    
+    "week_3_test_job": {
+      "tasks": [
+        "Select real job (small, simple — gate or railing) for testing",
+        "Create Project: 'JOB-TEST-001 - Test Gate for ERPNext Setup'. Attach drawing PDF.",
+        "Create Sales Order: Customer = Test Customer, Item = Service (Fabrication Service, value ₹30,000). Link to Project.",
+        "Material procurement: Create Purchase Order for steel (MS Angle 40×40 - 20 meters, MS Sheet 1.5mm - 1 sheet, Welding rods - 2kg, Paint - 1L). Receive via Purchase Receipt.",
+        "Material issue: Stock Entry (Material Issue for Manufacture) — From: Raw Material Yard, To: WIP Shop Floor, Project: JOB-TEST-001, Items: MS Angle 20m, MS Sheet 1 sheet. (Material cost now allocated to Project)",
+        "Job Cards: Create 6 Job Cards: (1) Cutting, (2) Welding, (3) Grinding, (4) Painting-Primer, (5) Painting-Top, (6) Final Inspection. For each Job Card: Assign worker, record start/end time (even if just 5 minutes for testing), mark completed.",
+        "Scrap entry: Stock Entry (Scrap generation) — Item: Scrap Steel MS, Qty: 15kg, To Warehouse: Scrap Yard, Project: JOB-TEST-001, Valuation Rate: ₹35/kg. (Scrap value ₹525 credited to job cost)",
+        "Delivery: Create Delivery Note (without Stock Entry, direct delivery). Link to Sales Order.",
+        "Invoice: Create Sales Invoice (against Sales Order). Mark as Paid (Payment Entry).",
+        "Job costing: Open Project → View Project Profitability Report. Check: Material cost (steel issued - scrap credit), Labor cost (if time logs converted to cost), Revenue (invoice amount), Profit. Is calculation correct? If yes, setup validated."
+      ],
+      "deliverable": "End-to-end test job completed. Costing validated. Users understand workflow."
+    },
+    
+    "week_4_golive": {
+      "tasks": [
+        "Migrate work-in-progress jobs: Create Projects for all currently running jobs (5-10 jobs in various stages). Attach drawings. Enter material already issued (backdate Stock Entries). Enter Job Cards for work already done (estimate hours if not tracked).",
+        "Opening stock entry: All steel stock, consumables stock as on go-live date. Include scrap in Scrap Yard (if any).",
+        "Outstanding Sales Orders: Import pending orders (jobs confirmed but not started yet).",
+        "Outstanding Purchase Orders: Steel, consumables on order but not received.",
+        "First live job: Take new customer inquiry, create Project, quotation, Sales Order, material procurement, Job Cards, delivery, invoice — full cycle live in ERPNext.",
+        "User training: Owner/Works Manager (Project creation, quotation, costing review), Purchase person (PO, PR), Supervisor (Job Card creation, material issue), Workers (Job Card time logging if doing themselves), Accounts (Invoice, Payment).",
+        "Daily standup (first 2 weeks): Every morning, 15-min review: Which jobs in progress? Any blocked (waiting for material, machine breakdown)? Update Project % completion. Use ERPNext as single source of truth for job status.",
+        "Weekly costing review (first month): Every Saturday, review completed jobs' profitability. Identify: Which jobs made good profit? Which jobs were loss-making? Why? (material overrun, labor overrun, customer changes). Improve estimation for future.",
+        "Month-end: Stock valuation (verify steel stock matches physical), Scrap accounting (scrap sold to dealer, Sales Invoice raised, Scrap Yard inventory zero), Job profitability report (all jobs completed this month), Overall P&L."
+      ],
+      "deliverable": "ERPNext live for all new jobs. Old jobs being tracked. Costing visibility improving."
+    }
+  },
+  
+  "success_metrics": {
+    "must_track": [
+      "Job profitability % — (Revenue - Cost) / Revenue × 100 per job. Target: 25-35% average",
+      "Estimation accuracy — Estimated cost vs Actual cost variance %. Target: <15% variance",
+      "Material wastage % — (Scrap weight / Total steel consumed) × 100. Target: <20% (industry standard 15%)",
+      "Scrap value recovery — Total scrap value recovered / Total material cost. Should be 8-12% (if scrap is 20% by weight, value recovery is ~10% because scrap rate is 50-60% of new steel rate)",
+      "Labor productivity — Revenue per man-hour. Track trend (should increase as workers get more skilled)",
+      "Job completion time — Estimated days vs Actual days. Target: 90% of jobs completed within estimated time ±20%",
+      "Customer change requests — % of jobs with mid-job changes. Track to identify: Are we underspecifying initial requirements?",
+      "Rework rate — % of jobs needing rework (due to quality issues OR dimensional errors). Target: <10%",
+      "Cash flow — Average days between order confirmation to full payment realization. Target: <45 days",
+      "Material stock turnover — How many times per year steel stock is consumed and replenished. Higher = better cash flow (material not locked in inventory)"
+    ]
+  },
+  
+  "confidence_threshold": 0.75,
+  
+  "notes_for_ai_agent": {
+    "critical_understanding": [
+      "Metal fabrication job shop is JOB-CENTRIC, not product-centric. The JOB is the product, not an item.",
+      "Project doctype is CENTRAL (not Item, not BOM, not Work Order). One Project per job. All costs, activities, documents linked to Project.",
+      "NO standard BOM for custom jobs. BOM is estimation tool only (optional). Actual material consumption tracked via Stock Entry to Project.",
+      "Job Card is execution tracking tool. One Job Card per operation (Cutting for JOB-001, Welding for JOB-001). NOT Work Order (Work Order is for batch production, not job shop).",
+      "Scrap tracking per job is CRITICAL. Scrap has value (50% of steel cost). If scrap not credited to job, costing is wrong (inflated cost, misleading margins).",
+      "Labor cost allocation is pain point. If not tracked per job (daily wage workers, no timesheet), job costing is incomplete. Job Card time tracking OR Timesheet is solution.",
+      "Drawing management is chaos. Drawings lost, version confusion, no central storage. Solution: Attach drawings to Project doctype.",
+      "Customer change requests mid-job are common (30-50% of jobs). If changes not documented and charged, margin evaporates. Change management workflow critical.",
+      "Finished goods inventory does NOT exist for custom jobs. Job completed = delivered immediately (OR within 1-2 days). No FG warehouse stocking.",
+      "Estimation accuracy improves over time (with data). First few months, estimation errors will be high (30-50% variance). After 20-30 jobs tracked in ERPNext, patterns emerge, estimation improves to <15% variance."
+    ],
+    "data_quality_checks": [
+      "Check if uploaded file has 'Job No' OR 'Drawing No' columns → Strong signal for job shop",
+      "Check for material grade keywords (MS IS2062, SS304, SS316) → Confirm fabrication",
+      "Check for operation keywords (cutting, welding, grinding, bending) → Fabrication operations present",
+      "Check for weight-based data (kg, tons, weight calculations) → Fabrication uses weight-based costing",
+      "Check for thickness values (3mm, 6mm, 10mm, 12mm range) → Steel sheet fabrication",
+      "Check if BOM structure exists: If yes, is it estimation-only (rough quantities) OR strict BOM (exact quantities)? If rough, it's job shop. If strict, might be batch production (wrong niche).",
+      "Check if 'Batch No' OR 'Expiry Date' present → NOT fabrication (likely food/pharma)",
+      "Check if 'Size', 'Color', 'Style' present → NOT fabrication (likely garment)",
+      "Check for scrap-related data (scrap weight, scrap %, scrap value) → Good sign, shop is tracking scrap (advanced practice, leverage in ERPNext setup)"
+    ],
+    "implementation_priorities": [
+      "Priority 1: Project doctype setup (if wrong, entire system fails — job shop needs Project-centric model)",
+      "Priority 2: Material issue to Project (Stock Entry linked to Project — this is how job costing works)",
+      "Priority 3: Job Card creation + time tracking (without this, labor cost allocation impossible)",
+      "Priority 4: Scrap accounting per job (without this, job costing is inflated, margins look worse than reality)",
+      "Priority 5: Drawing attachment to Project (without this, drawing management chaos continues)",
+      "Priority 6: Change request documentation workflow (without this, margin leakage from free changes)"
+    ],
+    "red_flags": [
+      "User wants to create finished goods item per job → STOP. Explain: Custom jobs don't need finished goods items. Use Project.",
+      "User wants to use Work Order for every job → STOP. Explain: Work Order is for batch production (repeat products). Job shops use Project + Job Card.",
+      "User says 'we don't track scrap, it's just waste' → EDUCATE. Scrap has value (₹35/kg MS, ₹180/kg SS). Scrap tracking can improve job profitability visibility by 5-10%.",
+      "User says 'workers are on daily wage, no need to track hours per job' → EDUCATE. Without labor allocation, job costing is incomplete. Can't identify which jobs are labor-intensive (take longer than estimated). Can't improve labor estimation for future.",
+      "User says 'customer changes are common, we do it free to maintain relationship' → EDUCATE. Undocumented free changes = hidden cost = margin erosion. Change management (document, quote, charge) protects margin while maintaining relationship.",
+      "User has 100s of drawings in WhatsApp/email, no organization → CRITICAL TRAINING NEEDED. Teach: Attach every drawing to Project immediately after job confirmation. This prevents 'lost drawing' crisis."
+    ],
+    "success_indicators": [
+      "After 1 month: User can answer 'How much profit did JOB-045 make?' (opens Project, checks Profitability Report, knows exact number). Before ERPNext, this question was impossible to answer.",
+      "After 2 months: User compares Estimated material vs Actual material for last 10 jobs. Identifies: 'Our cutting estimation is consistently 20% low'. Adjusts estimation formula. Future jobs have better margin.",
+      "After 3 months: Scrap accounting routine established. Every job's scrap weighed, Stock Entry done. Scrap sold quarterly, ₹70,000 realized. This ₹70,000 correctly allocated to jobs (job costs reduced by scrap credit). Job profitability reports now accurate.",
+      "After 6 months: Customer requests design change. User creates Project Note documenting change, sends WhatsApp for confirmation, gets OK, raises additional quotation ₹2,500, customer pays. Change implemented, extra ₹2,500 invoiced. Margin protected. Before ERPNext, this change would be free (margin loss).",
+      "After 1 year: User reviews all jobs (200 jobs tracked). Identifies: Gates are 35% margin, Tanks are 18% margin, Railings are 28% margin. Decision: Focus more on Gates (highest margin), quote Tanks more carefully (thin margin). Data-driven business decisions."
+    ]
+  }
+}

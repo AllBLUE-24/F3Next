@@ -11,6 +11,7 @@ router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
 class OnboardingRequest(BaseModel):
     user_id: str # Passed from Firebase Auth on frontend
+    email: str   # Added explicitly to prevent unique constraint crash
     full_name: str
     user_slug: str
     role: str
@@ -50,9 +51,12 @@ async def complete_onboarding(
     user = result.scalar_one_or_none()
     
     if not user:
-        # Create if doesn't exist (just in case)
-        user = Client(id=data.user_id, email="unknown@example.com") # Email should come from token in real auth
+        # Create if doesn't exist (if Trigger missed)
+        user = Client(id=data.user_id, email=data.email)
         db.add(user)
+    else:
+        # Update email if changed or missing
+        user.email = data.email
     
     user.full_name = data.full_name
     user.user_slug = data.user_slug
