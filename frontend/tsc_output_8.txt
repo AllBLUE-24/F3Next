@@ -1,0 +1,3 @@
+﻿src/app/[companySlug]/[userSlug]/infra/page.tsx(100,40): error TS2304: Cannot find name 'apiUrl'.
+src/components/implementation/analyze/TaskStream.tsx(53,14): error TS7053: Element implicitly has an 'any' type because expression of type 'AnalysisTaskStatus' can't be used to index type '{ idle: Element; running: Element; done: Element; needs_input: Element; }'.
+  Property 'failed' does not exist on type '{ idle: Element; running: Element; done: Element; needs_input: Element; }'.

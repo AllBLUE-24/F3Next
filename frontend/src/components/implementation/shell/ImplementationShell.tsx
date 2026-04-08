@@ -1,9 +1,9 @@
 'use client';
 
 // src/components/implementation/shell/ImplementationShell.tsx
+// Full-screen shell — h-screen anchored, no overflow leaks.
 
 import { TopBar } from './TopBar';
-import { StepRail } from './StepRail';
 
 interface Props {
   children: React.ReactNode;
@@ -11,17 +11,11 @@ interface Props {
 
 export function ImplementationShell({ children }: Props) {
   return (
-    <div className="min-h-screen bg-[#09090B] flex flex-col" style={{ fontFamily: 'var(--font-syne), sans-serif' }}>
+    <div className="h-screen flex flex-col overflow-hidden bg-[#0E1117]">
       <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <StepRail />
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-10 lg:py-16">
-            {children}
-          </div>
-        </main>
-      </div>
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {children}
+      </main>
     </div>
   );
 }

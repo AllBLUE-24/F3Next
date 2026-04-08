@@ -91,9 +91,11 @@ However, you must tailor this profile based on the actual DATA they uploaded:
 2. List up to 3 'context_flags' if you notice issues like negative numbers, missing columns, or messy unstructured text.
 3. Assign a 'data_quality_score' (High, Medium, Low).
 4. Assign an 'llm_confidence' (0.0 to 1.0) indicating how confident you are that this data matches the {f3iche} business model.
+5. Provide a short, direct 'chat_message' (1-2 sentences) confirming the analysis to the user as if you are interacting with them in an IDE chat interface. Do not use markdown headers.
 
 Return EXACTLY this JSON structure:
 {{
+  "chat_message": "...",
   "business_reality": "summary of operations",
   "context_flags": ["flag1"],
   "data_quality_score": "Medium",

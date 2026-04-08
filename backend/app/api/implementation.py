@@ -6,6 +6,7 @@ No business logic lives here.
 from __future__ import annotations
 import os
 import boto3
+import uuid
 from botocore.config import Config
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -16,6 +17,8 @@ from shared.database.db import AsyncSessionLocal
 from sqlalchemy.future import select
 from shared.models.core import Project
 from app.services.is_launcher import ImplementationLauncher
+from shared.models.core import Project
+from shared.models.is_models import ISSession, ISFile
 
 router = APIRouter(prefix="/implementation", tags=["Implementation"])
 
@@ -68,7 +71,50 @@ async def generate_presigned_urls(req: PresignedUrlRequest):
 
     return {"urls": urls}
 
-    
+
+@router.post("/upload-files", summary="Proxy upload files to R2 (fallback for CORS issues)")
+async def upload_files_proxy(
+    project_id: str = None,
+    files: List[UploadFile] = File(...),
+):
+    """Server-side upload to R2 — bypasses browser CORS restrictions on presigned PUT."""
+    from uuid import UUID as _UUID
+    pid = _UUID(project_id) if project_id else None
+
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(select(Project).where(Project.id == pid))
+        proj = res.scalar_one_or_none()
+        company_slug = proj.company_slug if proj else "unknown"
+
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto"
+    )
+
+    bucket_name = "quarantine"
+    uploaded_files = []
+
+    for file in files:
+        object_key = f"{company_slug}/{str(pid)}/{file.filename}"
+        content = await file.read()
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_key,
+            Body=content,
+            ContentType=file.content_type or "application/octet-stream",
+        )
+        uploaded_files.append({
+            "file_name": file.filename,
+            "object_path": object_key,
+        })
+
+    return {"uploaded_files": uploaded_files}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Workflow lifecycle
 # ══════════════════════════════════════════════════════════════════════════════
@@ -98,17 +144,47 @@ class FilesUploadedRequest(BaseModel):
     company_slug: Optional[str] = None
 
 
-@router.post("/signal/files-uploaded", summary="Notify workflow that files have been uploaded")
+@router.post("/signal/files-uploaded", summary="Save file references to DB and update session stage")
 async def signal_files_uploaded(
     req: FilesUploadedRequest,
-    launcher: ImplementationLauncher = Depends(get_launcher),
 ):
-    await launcher.signal_files_uploaded(
-        req.project_id, 
-        req.uploaded_files, 
-        req.company_slug
-    )
-    return {"ok": True, "signal": "files_uploaded"}
+    async with AsyncSessionLocal() as session:
+        # 1. Fetch the active IS session for this project
+        res = await session.execute(
+            select(ISSession).where(ISSession.project_id == req.project_id)
+        )
+        is_session = res.scalar_one_or_none()
+        
+        # 2. THE FIX: If no session exists, create it!
+        if not is_session:
+            # Generate a fallback workflow_id if Temporal hasn't started yet
+            fallback_workflow_id = f"impl_{req.project_id}_{uuid.uuid4().hex[:8]}"
+            
+            is_session = ISSession(
+                project_id=req.project_id,
+                workflow_id=fallback_workflow_id,
+                status="analyzing_files"
+            )
+            session.add(is_session)
+            await session.flush() # Flush to get the is_session.id generated immediately
+        else:
+            # If it does exist, just update the status
+            is_session.status = "analyzing_files"
+        
+        # 3. Save the uploaded file references to your existing ISFile table
+        for file_data in req.uploaded_files:
+            new_file = ISFile(
+                session_id=is_session.id,
+                original_filename=file_data["file_name"],
+                r2_object_key=file_data["object_path"],
+                bucket_location="quarantine-data", 
+                virus_scan_status="pending"
+            )
+            session.add(new_file)
+            
+        await session.commit()
+
+    return {"ok": True, "message": "Files saved and session ensured"}
 
 
 class F3icheConfirmedRequest(BaseModel):

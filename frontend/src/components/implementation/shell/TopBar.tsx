@@ -1,6 +1,6 @@
 'use client';
 // PATH: src/components/implementation/shell/TopBar.tsx
-// ✅ No context. Reads slug from URL via useParams() — safe in static layout.
+// Thin 40px header — Electric Blue accent, no amber.
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -9,37 +9,49 @@ import { DeploymentPill } from './DeploymentPill';
 
 export function TopBar() {
   const params = useParams<{ companySlug: string; userSlug: string }>();
-
   const companySlug = params.companySlug ?? '';
   const userSlug    = params.userSlug ?? '';
 
   return (
-    <header className="h-14 flex-shrink-0 flex items-center justify-between px-6 border-b border-white/[0.06] bg-[#09090B]/80 backdrop-blur-md sticky top-0 z-40">
+    <header
+      className="flex-shrink-0 flex items-center justify-between px-4 select-none"
+      style={{
+        height: 40,
+        borderBottom: '1px solid #21262D',
+        background: '#161B22',
+      }}
+    >
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 group">
-        <div className="w-7 h-7 bg-amber-500 rounded-md flex items-center justify-center group-hover:bg-amber-400 transition-colors">
-          <Cpu className="w-3.5 h-3.5 text-black" />
+        <div
+          className="w-6 h-6 rounded flex items-center justify-center transition-colors"
+          style={{ background: '#2F81F7' }}
+        >
+          <Cpu className="w-3 h-3 text-white" />
         </div>
-        <span className="font-black text-white text-base tracking-tight">
-          F3<span className="text-amber-500">Next</span>
+        <span className="font-bold text-sm tracking-tight" style={{ color: '#E6EDF3' }}>
+          F3<span style={{ color: '#2F81F7' }}>Next</span>
         </span>
       </Link>
 
-      {/* Center: deployment status — also uses useParams internally */}
+      {/* Center: deployment */}
       <DeploymentPill />
 
-      {/* Right: company + user — derived from URL, no context needed */}
-      <div className="flex items-center gap-3">
+      {/* Right: user */}
+      <div className="flex items-center gap-2.5">
         <div className="text-right hidden sm:block">
-          <p className="text-xs font-semibold text-white leading-none capitalize">
+          <p className="text-xs font-medium leading-none capitalize" style={{ color: '#E6EDF3' }}>
             {companySlug.replace(/-/g, ' ')}
           </p>
-          <p className="text-[10px] text-gray-600 mt-0.5 capitalize">
+          <p className="text-[10px] mt-0.5 capitalize" style={{ color: '#484F58' }}>
             {userSlug.replace(/-/g, ' ')}
           </p>
         </div>
-        <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-          <span className="text-[10px] font-bold text-amber-400 uppercase">
+        <div
+          className="w-6 h-6 rounded-full flex items-center justify-center"
+          style={{ background: 'rgba(47,129,247,0.15)', border: '1px solid rgba(47,129,247,0.3)' }}
+        >
+          <span className="text-[10px] font-bold uppercase" style={{ color: '#2F81F7' }}>
             {userSlug.charAt(0)}
           </span>
         </div>

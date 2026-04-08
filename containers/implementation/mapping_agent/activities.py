@@ -78,7 +78,7 @@ class _MappingEngine:
             return None
             
         prompt += f"Based on this information, infer matching ERPNext doctype from this exact list: {available_doctypes}. "
-        prompt += 'Return JSON: {"doctype": "Exact Doctype Name"}. If there is absolutely no match, return {"doctype": null}.'
+        prompt += 'Return JSON: {"doctype": "Exact Doctype Name", "chat_message": "1 short sentence confirming the match"}. If there is absolutely no match, return {"doctype": null, "chat_message": "..."}.'
         
         try:
             res = generate_json(prompt, max_output_tokens=1000)
@@ -128,7 +128,7 @@ class _MappingEngine:
             if sample_row:
                 prompt += f"Here is a sample row showing values for context: {sample_row}\n"
             
-            prompt += 'Return JSON: { "col1": "erpnext_field1", "col2": "erpnext_field2" }. '
+            prompt += 'Return JSON: { "col1": "erpnext_field1", "col2": "erpnext_field2", "chat_message": "1 short sentence about how many fields were mapped automatically." }. '
             prompt += 'Only map a column if you are highly confident it matches semantics. Otherwise, omit it.'
             
             try:

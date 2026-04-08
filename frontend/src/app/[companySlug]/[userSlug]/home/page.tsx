@@ -40,14 +40,14 @@ export default function HomePage({ params }: PageProps) {
       name: "Data Mapper",
       description: "Import legacy data and map to new ERP schemas.",
       icon: <FileSpreadsheet className="h-6 w-6 text-green-400" />,
-      href: `/${companySlug}/${userSlug}/upload`,
+      href: `/${companySlug}/${userSlug}/window`,
       status: "Active",
     },
     {
       name: "Testing Suite",
       description: "Automated validation and quality assurance.",
       icon: <TestTube2 className="h-6 w-6 text-orange-400" />,
-      href: `/${companySlug}/${userSlug}/validate`,
+      href: `/${companySlug}/${userSlug}/window`,
       status: "Active",
     },
   ];
