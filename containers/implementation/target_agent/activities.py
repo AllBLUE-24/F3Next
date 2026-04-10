@@ -106,6 +106,9 @@ class _TargetStructureService:
 class BuildTargetStructureInput:
     f3iche: str
     industry: Optional[str] = None
+    session_id: str = ""              # v2: needed for DB persistence
+    company_slug: str = "unknown"
+    project_id: str = ""
 
 
 # ── Activity definitions ─────────────────────────────────────────────────────
@@ -114,11 +117,78 @@ class BuildTargetStructureInput:
 async def build_target_structure(inp: BuildTargetStructureInput) -> Dict[str, Any]:
     """
     Build the ordered ERPNext setup plan (doctype list, phases, validation rules)
-    for the given F3iche and industry.
+    for the given F3iche and industry. Persists to ISTargetStructure + R2.
     """
     activity.logger.info("▶ build_target_structure started | f3iche=%s industry=%s", inp.f3iche, inp.industry)
     svc = _TargetStructureService()
     result = svc.build(inp.f3iche, inp.industry)
+
+    # ── Persist to ISTargetStructure (v2 schema) ─────────────────────────────
+    if inp.session_id:
+        try:
+            import json as _json
+            import os as _os
+            import uuid
+            import boto3
+            from botocore.config import Config as BotoConfig
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.is_models import ISTargetStructure
+
+            target_id = uuid.uuid4()
+            slug = inp.company_slug or "unknown"
+            r2_key = f"{slug}/{inp.project_id}/_target/target_structure.json" if inp.project_id else None
+
+            async with AsyncSessionLocal() as session:
+                session.add(ISTargetStructure(
+                    id=target_id,
+                    session_id=uuid.UUID(inp.session_id),
+                    f3iche=inp.f3iche,
+                    total_doctypes=len(result.get("required_doctypes", [])),
+                    total_setup_steps=len(result.get("setup_steps", [])),
+                    required_doctypes=result.get("required_doctypes"),
+                    setup_steps=result.get("setup_steps"),
+                    import_phases=result.get("import_phases"),
+                    validation_rules=result.get("validation_rules"),
+                    r2_path=r2_key,
+                ))
+                await session.commit()
+                activity.logger.info("  ✅ Supabase is_target_structures inserted")
+
+            # Upload to R2
+            if r2_key and inp.project_id:
+                try:
+                    s3 = boto3.client(
+                        "s3",
+                        endpoint_url=_os.getenv("R2_ENDPOINT"),
+                        aws_access_key_id=_os.getenv("R2_ACCESS_KEY_ID"),
+                        aws_secret_access_key=_os.getenv("R2_SECRET_ACCESS_KEY"),
+                        config=BotoConfig(signature_version="s3v4"),
+                        region_name="auto",
+                    )
+                    s3.put_object(
+                        Bucket="clean-data",
+                        Key=r2_key,
+                        Body=_json.dumps(result, indent=2, default=str).encode("utf-8"),
+                        ContentType="application/json",
+                    )
+                    activity.logger.info("  ✅ R2 uploaded: clean-data/%s", r2_key)
+                except Exception as e:
+                    activity.logger.error("  ❌ R2 upload failed: %s", e)
+
+            # Audit trail
+            from containers.implementation.file_io.persist_audit import log_audit
+            await log_audit(
+                session_id=inp.session_id,
+                action="target_generated",
+                actor="system",
+                entity_type="target_structure",
+                entity_id=str(target_id),
+                details={"f3iche": inp.f3iche, "doctypes": len(result.get("required_doctypes", []))},
+                result="success",
+            )
+        except Exception as e:
+            activity.logger.error("  ❌ ISTargetStructure persistence failed: %s", e)
+
     activity.logger.info("✅ build_target_structure done | doctypes=%d steps=%d",
                          len(result.get('required_doctypes', [])), len(result.get('setup_steps', [])))
     return result

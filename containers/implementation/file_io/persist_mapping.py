@@ -1,9 +1,12 @@
 """
 File IO — persist_mapping activity.
 
-Writes mapped doctype data to R2 and upserts the is_mappings table.
-Heavy payloads (extracted rows, mapped payloads) go to R2.
-Supabase stores only metadata + R2 URLs.
+Writes mapping results to the normalised v2 schema:
+  1. is_field_mappings  — one row per column → ERPNext field mapping
+  2. is_mapped_data     — one row per doctype with R2 references
+  3. R2                 — extracted rows + mapped payloads (unchanged)
+
+Returns: "success" (tiny string for Temporal)
 """
 from __future__ import annotations
 
@@ -36,19 +39,23 @@ class PersistMappingInput:
     project_id: str
     company_slug: str
     doctype_name: str
-    field_mapping: Dict[str, str]
+    field_mapping: Dict[str, str]       # {source_col: erpnext_field, ...}
     extracted_rows: List[Dict[str, Any]]
+    source_filename: str = ""
     source_columns: List[str] = field(default_factory=list)
-    inferred_doctype: Optional[str] = None
+    mapping_methods: Optional[Dict[str, str]] = None  # {source_col: method, ...}
+    mapping_confidences: Optional[Dict[str, float]] = None  # {source_col: confidence}
+    file_id: Optional[str] = None
 
 
 @activity.defn(name="persist_mapping")
 async def persist_mapping(inp: PersistMappingInput) -> str:
     """
     Persist mapping results:
-      1. Upload extracted rows → R2 (clean_data/{slug}/{project}/mappings/extracted_rows/{doctype}.json)
-      2. Upload mapped payload → R2 (clean_data/{slug}/{project}/mappings/mapped_payloads/{doctype}.json)
-      3. Upsert is_mappings row with R2 URLs + field mapping metadata
+      1. Upload extracted rows → R2
+      2. Upload mapped payload → R2
+      3. Insert is_field_mappings rows (one per column mapping)
+      4. Insert is_mapped_data row (R2 refs + summary)
 
     Returns: "success"
     """
@@ -72,19 +79,18 @@ async def persist_mapping(inp: PersistMappingInput) -> str:
         activity.logger.info("  ✅ R2 uploaded extracted rows: clean-data/%s", rows_key)
     except Exception as e:
         activity.logger.error("  ❌ R2 upload failed for extracted rows: %s", e)
-        rows_key = None
+        rows_key = ""
 
     # ── 2. Upload mapped payload to R2 ───────────────────────────────────────
+    payload_key = f"{slug}/{inp.project_id}/mappings/mapped_payloads/{inp.doctype_name}.json"
     mapped_payload = {
         "doctype": inp.doctype_name,
         "field_mapping": inp.field_mapping,
         "source_columns": inp.source_columns,
-        "inferred_doctype": inp.inferred_doctype,
         "row_count": len(inp.extracted_rows),
         "r2_extracted_rows_key": rows_key,
         "_persisted_at": datetime.utcnow().isoformat() + "Z",
     }
-    payload_key = f"{slug}/{inp.project_id}/mappings/mapped_payloads/{inp.doctype_name}.json"
     try:
         s3.put_object(
             Bucket="clean-data",
@@ -96,54 +102,65 @@ async def persist_mapping(inp: PersistMappingInput) -> str:
     except Exception as e:
         activity.logger.error("  ❌ R2 upload failed for mapped payload: %s", e)
 
-    # ── 3. Upsert is_mappings row ────────────────────────────────────────────
+    # ── 3. Insert is_field_mappings rows ─────────────────────────────────────
     try:
         from shared.database.db import AsyncSessionLocal
-        from shared.models.is_models import ISMapping
-        from sqlalchemy import select, update
+        from shared.models.is_models import ISFieldMapping, ISMappedData
+
+        methods = inp.mapping_methods or {}
+        confidences = inp.mapping_confidences or {}
 
         async with AsyncSessionLocal() as session:
-            # Check for existing mapping for this session + doctype
-            stmt = (
-                select(ISMapping)
-                .where(ISMapping.session_id == uuid.UUID(inp.session_id))
-                .where(ISMapping.doctype_name == inp.doctype_name)
-            )
-            result = await session.execute(stmt)
-            existing = result.scalar_one_or_none()
-
-            mapping_meta = {
-                "field_mapping": inp.field_mapping,
-                "source_columns": inp.source_columns,
-                "r2_extracted_rows_key": rows_key,
-                "r2_mapped_payload_key": payload_key,
-                "row_count": len(inp.extracted_rows),
-            }
-
-            if existing:
-                await session.execute(
-                    update(ISMapping)
-                    .where(ISMapping.id == existing.id)
-                    .values(
-                        field_mapping=mapping_meta,
-                        status="draft",
-                    )
-                )
-            else:
-                new_mapping = ISMapping(
+            for src_col, tgt_field in inp.field_mapping.items():
+                session.add(ISFieldMapping(
                     id=uuid.uuid4(),
                     session_id=uuid.UUID(inp.session_id),
-                    doctype_name=inp.doctype_name,
-                    field_mapping=mapping_meta,
-                    status="draft",
-                )
-                session.add(new_mapping)
+                    file_id=uuid.UUID(inp.file_id) if inp.file_id else None,
+                    source_filename=inp.source_filename,
+                    source_column=src_col,
+                    target_doctype=inp.doctype_name,
+                    target_field=tgt_field,
+                    mapping_method=methods.get(src_col, "exact_match"),
+                    confidence=confidences.get(src_col),
+                ))
+
+            activity.logger.info("  ✅ Inserted %d is_field_mappings rows", len(inp.field_mapping))
+
+            # ── 4. Insert is_mapped_data row ─────────────────────────────────
+            session.add(ISMappedData(
+                id=uuid.uuid4(),
+                session_id=uuid.UUID(inp.session_id),
+                file_id=uuid.UUID(inp.file_id) if inp.file_id else None,
+                target_doctype=inp.doctype_name,
+                source_filename=inp.source_filename,
+                extracted_rows_r2_path=rows_key,
+                mapped_payload_r2_path=payload_key,
+                total_rows=len(inp.extracted_rows),
+                total_mapped_fields=len(inp.field_mapping),
+                validation_status="pending",
+            ))
 
             await session.commit()
-            activity.logger.info("  ✅ Supabase is_mappings upserted for %s", inp.doctype_name)
+            activity.logger.info("  ✅ Supabase is_mapped_data inserted for %s", inp.doctype_name)
 
     except Exception as e:
-        activity.logger.error("  ❌ Supabase is_mappings write failed: %s", e)
+        activity.logger.error("  ❌ Supabase write failed: %s", e)
+
+    # ── 5. Audit trail ───────────────────────────────────────────────────────
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="mapping_completed",
+        actor="system",
+        entity_type="mapping",
+        details={
+            "doctype": inp.doctype_name,
+            "source_file": inp.source_filename,
+            "fields_mapped": len(inp.field_mapping),
+            "rows": len(inp.extracted_rows),
+        },
+        result="success",
+    )
 
     activity.logger.info("✅ persist_mapping done | doctype=%s", inp.doctype_name)
     return "success"

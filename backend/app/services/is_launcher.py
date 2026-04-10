@@ -1,8 +1,8 @@
 """
 Implementation Launcher — connects the FastAPI layer to the Temporal IS workflow.
 
-Queries now rely heavily on Supabase to fetch offloaded state.
-No huge data transfers pass through Temporal history.
+v2: Queries from normalised tables (ISCompanyProfile, ISValidationResult,
+    ISImportPlan, ISImportLog) instead of old ISMapping/ISImportRun.
 """
 from __future__ import annotations
 import os
@@ -18,7 +18,12 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 from sqlalchemy.future import select
 
 from shared.database.db import AsyncSessionLocal
-from shared.models.is_models import ISSession, ISMapping, ISImportRun
+from shared.models.is_models import (
+    ISSession, ISCompanyProfile, ISTargetStructure,
+    ISMappedData, ISValidationResult, ISValidationError,
+    ISImportPlan, ISImportLog,
+)
+from shared.models.hooks import Hook
 
 from containers.implementation.is_workflow.workflow import (
     ImplementationWorkflow,
@@ -59,10 +64,19 @@ class ImplementationLauncher:
     async def start(self, project_id: str | UUID) -> Dict[str, Any]:
         client = await _get_client()
         wf_id = _wf_id(project_id)
+        
+        discovery_meta = None
+        async with AsyncSessionLocal() as session:
+            stmt = select(Hook).where(Hook.project_id == UUID(str(project_id)))
+            res = await session.execute(stmt)
+            hook = res.scalar_one_or_none()
+            if hook and hook.discovery_metadata:
+                discovery_meta = hook.discovery_metadata
+
         try:
             handle = await client.start_workflow(
                 ImplementationWorkflow.run,
-                str(project_id),
+                args=[str(project_id), discovery_meta],
                 id=wf_id,
                 task_queue=TASK_QUEUE,
             )
@@ -153,7 +167,7 @@ class ImplementationLauncher:
         handle = await self._handle(project_id)
         return await handle.query(ImplementationWorkflow.get_analysis_tasks)
 
-    # ── Supabase State Reading ────────────────────────────────────────────────
+    # ── Supabase State Reading (v2 schema) ────────────────────────────────────
 
     async def _get_session(self, project_id: str | UUID) -> Optional[ISSession]:
         async with AsyncSessionLocal() as session:
@@ -162,69 +176,149 @@ class ImplementationLauncher:
             return res.scalar_one_or_none()
 
     async def get_profile(self, project_id: str | UUID) -> Dict[str, Any]:
+        """Query latest ISCompanyProfile for this project."""
         is_session = await self._get_session(project_id)
-        return is_session.f3iche_profile if is_session and is_session.f3iche_profile else {}
+        if not is_session:
+            return {}
+        
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISCompanyProfile)
+                .where(ISCompanyProfile.session_id == is_session.id)
+                .order_by(ISCompanyProfile.version.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            profile = result.scalar_one_or_none()
+            
+            if not profile:
+                return {}
+            
+            return {
+                "version": profile.version,
+                "f3iche": profile.f3iche,
+                "industry": profile.industry,
+                "industry_sub": profile.industry_sub,
+                "company_name": profile.company_name,
+                "company_size": profile.company_size,
+                "workflows": profile.workflows,
+                "modules": profile.required_modules,
+                "required_doctypes": profile.required_doctypes,
+                "business_reality": profile.business_reality,
+                "context_flags": profile.context_flags,
+                "data_quality_score": profile.data_quality_score,
+                "llm_confidence": profile.llm_confidence,
+                "r2_path": profile.r2_path,
+            }
 
     async def get_validation_report(self, project_id: str | UUID) -> Optional[Dict]:
+        """Query ISValidationResult + ISValidationError for this project."""
         is_session = await self._get_session(project_id)
         if not is_session:
             return None
         
         async with AsyncSessionLocal() as session:
-            stmt = select(ISMapping).where(ISMapping.session_id == is_session.id)
-            mappings = (await session.execute(stmt)).scalars().all()
+            stmt = select(ISValidationResult).where(ISValidationResult.session_id == is_session.id)
+            results = (await session.execute(stmt)).scalars().all()
             
-            if not mappings:
+            if not results:
                 return None
                 
             checks = []
-            errors = []
-            warnings = []
+            all_errors = []
+            all_warnings = []
             overall = "pass"
             
-            for m in mappings:
-                if m.validation_report:
-                    checks.append(m.validation_report)
-                    errors.extend(m.validation_report.get("errors", []))
-                    warnings.extend(m.validation_report.get("warnings", []))
-                    if m.validation_report.get("status") == "fail":
-                        overall = "fail"
-                        
+            for vr in results:
+                # Get errors for this result
+                err_stmt = select(ISValidationError).where(ISValidationError.validation_result_id == vr.id)
+                errors = (await session.execute(err_stmt)).scalars().all()
+                
+                check_errors = [e.error_message for e in errors if e.severity == "error"]
+                check_warnings = [e.error_message for e in errors if e.severity == "warning"]
+                
+                checks.append({
+                    "doctype": vr.doctype,
+                    "status": vr.overall_status,
+                    "errors": check_errors,
+                    "warnings": check_warnings,
+                    "row_count": vr.row_count or 0,
+                })
+                all_errors.extend(check_errors)
+                all_warnings.extend(check_warnings)
+                if vr.overall_status == "fail":
+                    overall = "fail"
+                    
             return {
                 "overall": overall,
                 "checks": checks,
-                "errors": errors,
-                "warnings": warnings,
+                "errors": all_errors,
+                "warnings": all_warnings,
             }
 
     async def get_import_plan(self, project_id: str | UUID) -> Optional[Dict]:
+        """Query ISImportPlan for this project."""
         is_session = await self._get_session(project_id)
         if not is_session:
             return None
             
         async with AsyncSessionLocal() as session:
-            stmt = select(ISImportRun).where(ISImportRun.session_id == is_session.id)
-            runs = (await session.execute(stmt)).scalars().all()
+            stmt = (
+                select(ISImportPlan)
+                .where(ISImportPlan.session_id == is_session.id)
+                .order_by(ISImportPlan.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            plan = result.scalar_one_or_none()
             
-            if not runs:
+            if not plan:
                 return None
                 
-            phases = [run.execution_plan for run in runs if run.execution_plan]
             return {
-                "status": "ready",
-                "phases": phases,
-                "total_steps": sum(len(p.get("steps", [])) for p in phases)
+                "status": plan.status,
+                "phases": plan.phases or [],
+                "total_steps": plan.total_steps or 0,
+                "current_phase": plan.current_phase,
             }
 
     async def get_import_results(self, project_id: str | UUID) -> List[Dict]:
+        """Query ISImportLog entries for this project."""
         is_session = await self._get_session(project_id)
         if not is_session:
             return []
             
         async with AsyncSessionLocal() as session:
-            stmt = select(ISImportRun).where(ISImportRun.session_id == is_session.id)
-            runs = (await session.execute(stmt)).scalars().all()
-            return [run.results for run in runs if run.results]
+            # Get the plan first
+            plan_stmt = (
+                select(ISImportPlan)
+                .where(ISImportPlan.session_id == is_session.id)
+                .order_by(ISImportPlan.created_at.desc())
+                .limit(1)
+            )
+            plan = (await session.execute(plan_stmt)).scalar_one_or_none()
+            if not plan:
+                return []
+            
+            # Get all logs for this plan
+            log_stmt = (
+                select(ISImportLog)
+                .where(ISImportLog.import_plan_id == plan.id)
+                .order_by(ISImportLog.phase, ISImportLog.step_number)
+            )
+            logs = (await session.execute(log_stmt)).scalars().all()
+            
+            return [{
+                "phase": log.phase,
+                "step_number": log.step_number,
+                "doctype": log.doctype,
+                "action": log.action,
+                "status": log.status,
+                "records_attempted": log.records_attempted,
+                "records_succeeded": log.records_succeeded,
+                "records_failed": log.records_failed,
+                "error_message": log.error_message,
+            } for log in logs]
 
     async def get_full_state(self, project_id: str | UUID) -> Dict[str, Any]:
         """Convenience: returns everything in one round-trip batch."""

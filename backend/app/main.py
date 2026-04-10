@@ -16,7 +16,11 @@ load_dotenv()
 
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
-from shared.models.is_models import ISSession, ISFile, ISMapping, ISImportRun
+from shared.models.is_models import (
+    ISSession, ISFile, ISFileSignal, ISF3icheScore,
+    ISCompanyProfile, ISTargetStructure, ISFieldMapping, ISMappedData,
+    ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
+)
 from shared.database.db import engine, Base
 from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
@@ -41,7 +45,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-_all_models = [Base, Client, Project, ProjectStatus, Hook, ISSession, ISFile, ISMapping, ISImportRun]
+_all_models = [
+    Base, Client, Project, ProjectStatus, Hook,
+    ISSession, ISFile, ISFileSignal, ISF3icheScore,
+    ISCompanyProfile, ISTargetStructure, ISFieldMapping, ISMappedData,
+    ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
+]
 
 if __name__ == "__main__":
     import uvicorn

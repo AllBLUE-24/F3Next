@@ -298,50 +298,54 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
     except Exception as e:
         activity.logger.error("  ❌ R2 payload upload failed: %s", e)
 
-    # ── 5. Persist to Supabase is_mappings ───────────────────────────────────
+    # ── 5. Persist to Supabase (v2: is_field_mappings + is_mapped_data) ─────
     try:
         import uuid as _uuid
         from shared.database.db import AsyncSessionLocal
-        from shared.models.is_models import ISMapping
-        from sqlalchemy import select, update
+        from shared.models.is_models import ISFieldMapping, ISMappedData
 
         async with AsyncSessionLocal() as session:
-            stmt = (
-                select(ISMapping)
-                .where(ISMapping.session_id == _uuid.UUID(inp.session_id))
-                .where(ISMapping.doctype_name == doctype)
-            )
-            res = await session.execute(stmt)
-            existing = res.scalar_one_or_none()
-
-            mapping_meta = {
-                "field_mapping": field_mapping,
-                "source_columns": source_columns,
-                "r2_extracted_rows_key": rows_key,
-                "r2_mapped_payload_key": payload_key,
-                "row_count": len(rows),
-                "source_file": inp.filename,
-            }
-
-            if existing:
-                await session.execute(
-                    update(ISMapping)
-                    .where(ISMapping.id == existing.id)
-                    .values(field_mapping=mapping_meta, status="draft")
-                )
-            else:
-                session.add(ISMapping(
+            # Insert ISFieldMapping rows — one per column mapping
+            for src_col, tgt_field in field_mapping.items():
+                session.add(ISFieldMapping(
                     id=_uuid.uuid4(),
                     session_id=_uuid.UUID(inp.session_id),
-                    doctype_name=doctype,
-                    field_mapping=mapping_meta,
-                    status="draft",
+                    source_filename=inp.filename,
+                    source_column=src_col,
+                    target_doctype=doctype,
+                    target_field=tgt_field,
+                    mapping_method="exact_match",
                 ))
+
+            # Insert ISMappedData row — R2 refs + summary
+            session.add(ISMappedData(
+                id=_uuid.uuid4(),
+                session_id=_uuid.UUID(inp.session_id),
+                target_doctype=doctype,
+                source_filename=inp.filename,
+                extracted_rows_r2_path=rows_key,
+                mapped_payload_r2_path=payload_key,
+                total_rows=len(rows),
+                total_mapped_fields=len(field_mapping),
+                validation_status="pending",
+            ))
             await session.commit()
-            activity.logger.info("  ✅ is_mappings upserted for %s", doctype)
+            activity.logger.info("  ✅ is_field_mappings (%d rows) + is_mapped_data upserted for %s",
+                                 len(field_mapping), doctype)
 
     except Exception as e:
-        activity.logger.error("  ❌ Supabase is_mappings write failed: %s", e)
+        activity.logger.error("  ❌ Supabase write failed: %s", e)
+
+    # ── 6. Audit trail ───────────────────────────────────────────────────────
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="mapping_completed",
+        actor="system",
+        entity_type="mapping",
+        details={"doctype": doctype, "source_file": inp.filename, "fields_mapped": len(field_mapping), "rows": len(rows)},
+        result="success",
+    )
 
     activity.logger.info("✅ map_file_to_erpnext done | doctype=%s", doctype)
     return doctype

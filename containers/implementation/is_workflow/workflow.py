@@ -15,6 +15,7 @@ State is offloaded to Supabase/R2. Temporal only stores strings/UUIDs.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
@@ -38,6 +39,53 @@ TASK_QUEUE = "is-queue"
 _RETRY = RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=2), backoff_coefficient=2.0)
 _ACT   = {"start_to_close_timeout": timedelta(minutes=5), "retry_policy": _RETRY}
 _LONG  = {"start_to_close_timeout": timedelta(minutes=30), "retry_policy": _RETRY}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Log helpers — structured, readable step banners
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_BANNER = "═" * 72
+_DIVIDER = "─" * 72
+_DOT_LINE = "· " * 36
+
+def _step_start(logger, step_num: int, title: str, detail: str = ""):
+    logger.info("")
+    logger.info("")
+    logger.info(_BANNER)
+    logger.info("  STEP %d / 14  │  %s", step_num, title)
+    if detail:
+        logger.info("  %s", detail)
+    logger.info(_BANNER)
+    logger.info("")
+
+def _step_ok(logger, step_num: int, title: str, summary: str = ""):
+    logger.info("")
+    logger.info("  ✅  STEP %d COMPLETE  │  %s", step_num, title)
+    if summary:
+        logger.info("      → %s", summary)
+    logger.info(_DIVIDER)
+    logger.info("")
+
+def _step_fail(logger, step_num: int, title: str, error: str):
+    logger.info("")
+    logger.info("  ❌  STEP %d FAILED    │  %s", step_num, title)
+    logger.info("      ERROR: %s", error)
+    logger.info(_DIVIDER)
+    logger.info("")
+
+def _signal_banner(logger, signal_name: str, detail: str = ""):
+    logger.info("")
+    logger.info("")
+    logger.info(_DOT_LINE)
+    logger.info("  🚦  SIGNAL RECEIVED  │  %s", signal_name)
+    if detail:
+        logger.info("      %s", detail)
+    logger.info(_DOT_LINE)
+    logger.info("")
+
+def _kv(logger, key: str, value: Any):
+    logger.info("      %-24s : %s", key, value)
 
 
 # ── Signal / query payloads ───────────────────────────────────────────────────
@@ -71,7 +119,9 @@ class SandboxApprovedSignal:
     dry_run: bool = False
 
 
-# ── Workflow ──────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Workflow
+# ══════════════════════════════════════════════════════════════════════════════
 
 @workflow.defn(name="ImplementationWorkflow")
 class ImplementationWorkflow:
@@ -142,19 +192,42 @@ class ImplementationWorkflow:
     # ── Main run ─────────────────────────────────────────────────────────────
 
     @workflow.run
-    async def run(self, project_id: str) -> Dict[str, Any]:
+    async def run(self, project_id: str, discovery_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         workflow_id = workflow.info().workflow_id
-        workflow.logger.info("═══ ImplementationWorkflow STARTED | project=%s ═══", project_id)
+        L = logging.getLogger("is_workflow")
 
-        # ── 0. Create session in Supabase ────────────────────────────────────
+        L.info("")
+        L.info("╔" + "═" * 70 + "╗")
+        L.info("║   IMPLEMENTATION SYSTEM — WORKFLOW STARTED                          ║")
+        L.info("║   project : %-56s ║", project_id)
+        L.info("║   workflow: %-56s ║", workflow_id)
+        L.info("╚" + "═" * 70 + "╝")
+        L.info("")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 0 / 14  —  Session Creation
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 0, "Session Creation", "Creating is_sessions row in Supabase")
+
         try:
             self._session_id = await workflow.execute_activity(
                 persist_session,
-                PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status="awaiting_files"),
+                PersistSessionInput(
+                    project_id=project_id, 
+                    workflow_id=workflow_id, 
+                    status="awaiting_files",
+                    discovery_f3iche=discovery_meta.get("f3iche") if discovery_meta else None,
+                    discovery_industry=discovery_meta.get("industry") if discovery_meta else None,
+                    discovery_company_size=discovery_meta.get("company_size") if discovery_meta else None,
+                ),
                 **_ACT,
             )
+            _kv(L, "session_id", self._session_id)
+            _kv(L, "table", "is_sessions")
+            _kv(L, "status", "awaiting_files")
+            _step_ok(L, 0, "Session Creation", f"session_id = {self._session_id}")
         except Exception as e:
-            workflow.logger.error("❌ persist_session FAILED: %s", e)
+            _step_fail(L, 0, "Session Creation", str(e))
             return {"error": f"Failed to initialize session: {e}"}
 
         self._analysis_tasks = [
@@ -168,39 +241,55 @@ class ImplementationWorkflow:
             self._task("t8", "Generating import plan"),
         ]
 
-        # ── Stage 1: Await file upload ───────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # AWAIT SIGNAL: files_uploaded
+        # ══════════════════════════════════════════════════════════════════════
         self._stage = "awaiting_files"
-        workflow.logger.info("⏳ Stage 1 | awaiting_files — waiting for files_uploaded signal")
+        L.info("  ⏳ Waiting for files_uploaded signal ...")
+        L.info("")
         await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
-        sig = self._sig_files
-        workflow.logger.info("📥 Stage 1 | files_uploaded signal received — %d files", len(sig.uploaded_files))
 
+        sig = self._sig_files
+        _signal_banner(L, "files_uploaded", f"{len(sig.uploaded_files)} files | slug={sig.company_slug}")
         self._set_task("t1", "running")
 
-        # ---> VIRUS SCANNING (S3 Tri-Bucket Protocol) <---
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 1 / 14  —  Virus Scan
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 1, "Virus Scan (Quarantine Protocol)", f"{len(sig.uploaded_files)} files to scan")
+
         try:
             scan_result: Dict = await workflow.execute_activity(
                 virus_scan_quarantine,
                 sig.uploaded_files,
                 **_ACT,
             )
+            _kv(L, "safe", scan_result.get("safe"))
+            _kv(L, "clean_count", scan_result.get("clean_count"))
+            _kv(L, "infected_count", scan_result.get("infected_count"))
+            _kv(L, "table written", "is_files (virus_scan_status, clean/virus r2 paths)")
         except Exception as e:
-            workflow.logger.error("❌ virus_scan_quarantine FAILED: %s", e)
+            _step_fail(L, 1, "Virus Scan", str(e))
             self._stage = "error"
             return {"error": f"Virus scan failed: {e}"}
 
         if not scan_result.get("safe", False):
+            _step_fail(L, 1, "Virus Scan", "INFECTED FILES DETECTED — halting workflow")
             self._stage = "infected_halt"
             return {"error": "Implementation halted due to malicious payload."}
 
         self._company_slug = sig.company_slug or "unknown"
-        workflow.logger.info("✅ Stage 1 done | slug=%s", self._company_slug)
+        _step_ok(L, 1, "Virus Scan", f"All {scan_result.get('clean_count')} files clean | slug={self._company_slug}")
 
-        # ── Stage 1b: Fetch file text to R2 manifest ─────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 2 / 14  —  Fetch & Parse Clean Files
+        # ══════════════════════════════════════════════════════════════════════
         self._set_task("t1", "done")
         self._set_task("t2", "running")
         self._stage = "analyzing"
-        
+
+        _step_start(L, 2, "Fetch & Parse Clean Files", "Download from R2 clean-data, build manifest")
+
         try:
             fetch_results: Dict = await workflow.execute_activity(
                 fetch_clean_files,
@@ -209,55 +298,97 @@ class ImplementationWorkflow:
             )
             r2_manifest_url = fetch_results.get("manifest_url", "error")
             self._parsed_files = fetch_results.get("parsed_files", [])
+            _kv(L, "manifest_url", r2_manifest_url)
+            _kv(L, "parsed_files", self._parsed_files)
+            _kv(L, "R2 path", f"clean-data/{self._company_slug}/{project_id}/_manifest/")
+            _step_ok(L, 2, "Fetch & Parse", f"{len(self._parsed_files)} files parsed")
         except Exception as e:
-            workflow.logger.warning("⚠️ fetch_clean_files failed: %s", e)
+            _step_fail(L, 2, "Fetch & Parse", str(e))
+            L.info("      ⚠️  Continuing with empty manifest — signals inference will be limited")
             r2_manifest_url = "error"
             self._parsed_files = []
 
-        # ── Stage 2: Signals inference ───────────────────────────────────────
-        workflow.logger.info("🔬 Stage 2 | Running infer_f3iche")
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 3 / 14  —  Signals Inference (F3iche Detection)
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 3, "Signals Inference (F3iche Detection)", f"manifest={r2_manifest_url}")
+
         try:
             infer_result: Dict = await workflow.execute_activity(
                 infer_f3iche,
-                InferF3icheInput(sig.uploaded_files, r2_manifest_url),
+                InferF3icheInput(sig.uploaded_files, r2_manifest_url, session_id=self._session_id),
                 **_ACT,
             )
+            _kv(L, "inferred_f3iche", infer_result.get("f3iche"))
+            _kv(L, "confidence", f"{infer_result.get('confidence', 0) * 100:.0f}%")
+            _kv(L, "signals_count", len(infer_result.get("collected_signals", [])))
+            _kv(L, "tables written", "is_file_signals, is_f3iche_scores")
+            _step_ok(L, 3, "Signals Inference", f"f3iche={infer_result['f3iche']} ({infer_result.get('confidence', 0)*100:.0f}%)")
         except Exception as e:
-            workflow.logger.error("❌ infer_f3iche FAILED: %s", e)
+            _step_fail(L, 3, "Signals Inference", str(e))
             self._stage = "error"
             return {"error": f"F3iche inference failed: {e}"}
 
         self._set_task("t2", "done")
         self._set_task("t3", "done")
         self._set_task("t4", "done", f"Inferred: {infer_result['f3iche']}")
-        
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 4 / 14  —  Update Session Status
+        # ══════════════════════════════════════════════════════════════════════
         self._stage = "awaiting_f3iche_confirmation"
-        # Update session status
+
+        _step_start(L, 4, "Update Session Status", "→ awaiting_f3iche_confirmation")
         try:
             await workflow.execute_activity(
                 persist_session,
                 PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status=self._stage),
                 **_ACT,
             )
-        except: pass
+            _kv(L, "table", "is_sessions")
+            _kv(L, "status", self._stage)
+            _step_ok(L, 4, "Session Status Update", f"status={self._stage}")
+        except Exception as e:
+            _step_fail(L, 4, "Session Status Update", str(e))
 
-        # ── Stage 3: Await user F3iche confirmation ──────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # AWAIT SIGNAL: f3iche_confirmed
+        # ══════════════════════════════════════════════════════════════════════
+        L.info("  ⏳ Waiting for f3iche_confirmed signal ...")
+        L.info("")
         await workflow.wait_condition(lambda: self._f3iche_confirmed_event.is_set())
+
         conf = self._sig_f3iche
+        _signal_banner(L, "f3iche_confirmed",
+                       f"user={conf.f3iche_user} | industry={conf.industry} | company={conf.company_name}")
         self._stage = "building_profile"
         self._set_task("t5", "running")
 
-        # Verify user vs inferred
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 5 / 14  —  Verify F3iche (User vs Inferred)
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 5, "Verify F3iche (User vs Inferred)",
+                    f"user={conf.f3iche_user} vs inferred={infer_result['f3iche']}")
+
+        verify_result = {"status": "unknown"}
         try:
-            verify_result: Dict = await workflow.execute_activity(
+            verify_result = await workflow.execute_activity(
                 verify_f3iche,
                 VerifyF3icheInput(conf.f3iche_user, infer_result["f3iche"], infer_result["confidence"]),
                 **_ACT,
             )
+            _kv(L, "match_status", verify_result.get("status"))
+            _step_ok(L, 5, "Verify F3iche", f"status={verify_result.get('status')}")
         except Exception as e:
-            workflow.logger.error("❌ verify_f3iche FAILED: %s", e)
+            _step_fail(L, 5, "Verify F3iche", str(e))
+            L.info("      ⚠️  Non-critical — continuing with user's choice")
 
-        # Build full profile (persists to Supabase + R2 automatically)
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 6 / 14  —  Build Company Profile
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 6, "Build Company Profile",
+                    f"f3iche={conf.f3iche_user} | industry={conf.industry}")
+
         try:
             await workflow.execute_activity(
                 build_company_profile,
@@ -274,44 +405,84 @@ class ImplementationWorkflow:
                     company_size=conf.company_size,
                     f3iche_user=conf.f3iche_user,
                     f3iche_signals=infer_result["f3iche"],
-                    f3iche_match_status=verify_result["status"] if "verify_result" in locals() else "unknown",
+                    f3iche_match_status=verify_result.get("status", "unknown"),
                     uploaded_files=sig.uploaded_files,
                     r2_manifest_url=r2_manifest_url,
                     collected_signals=infer_result["collected_signals"],
                 ),
                 **_ACT,
             )
+            _kv(L, "table", "is_company_profiles (v1)")
+            _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_profile/company_context_v1.json")
+            _kv(L, "audit", "is_audit_trail → profile_built")
+            _step_ok(L, 6, "Build Company Profile", "version=1 persisted")
         except Exception as e:
-            workflow.logger.error("❌ build_company_profile FAILED: %s", e)
+            _step_fail(L, 6, "Build Company Profile", str(e))
             self._stage = "error"
             return {"error": f"Profile build failed: {e}"}
 
-        # Build target structure (persists to Supabase via persist_session)
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 7 / 14  —  Build Target Structure
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 7, "Build Target Structure",
+                    f"f3iche={conf.f3iche_user} | industry={conf.industry}")
+
         try:
             target: Dict = await workflow.execute_activity(
                 build_target_structure,
-                BuildTargetStructureInput(conf.f3iche_user, conf.industry),
+                BuildTargetStructureInput(
+                    f3iche=conf.f3iche_user,
+                    industry=conf.industry,
+                    session_id=self._session_id,
+                    company_slug=self._company_slug,
+                    project_id=project_id,
+                ),
                 **_ACT,
             )
-            await workflow.execute_activity(
-                persist_session,
-                PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status="mapping", target_structure=target),
-                **_ACT,
-            )
+            n_doctypes = len(target.get("required_doctypes", []))
+            n_steps = len(target.get("setup_steps", []))
+            _kv(L, "required_doctypes", n_doctypes)
+            _kv(L, "setup_steps", n_steps)
+            _kv(L, "table", "is_target_structures")
+            _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_target/target_structure.json")
+            _kv(L, "audit", "is_audit_trail → target_generated")
+            _step_ok(L, 7, "Build Target Structure", f"{n_doctypes} doctypes, {n_steps} steps")
         except Exception as e:
-            workflow.logger.error("❌ target_structure FAILED: %s", e)
+            _step_fail(L, 7, "Build Target Structure", str(e))
             self._stage = "error"
             return {"error": f"Target structure failed: {e}"}
 
         self._set_task("t5", "done", f"{len(target.get('required_doctypes', []))} doctypes target")
-        
-        # ── Stage 4: Automated file mapping ──────────────────────────────────
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 8 / 14  —  Update Session to Mapping
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 8, "Update Session Status", "→ mapping")
+
+        try:
+            await workflow.execute_activity(
+                persist_session,
+                PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status="mapping"),
+                **_ACT,
+            )
+            _kv(L, "table", "is_sessions")
+            _kv(L, "status", "mapping")
+            _step_ok(L, 8, "Session Status Update", "status=mapping")
+        except Exception as e:
+            _step_fail(L, 8, "Session Status Update", str(e))
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 9 / 14  —  Automated File Mapping
+        # ══════════════════════════════════════════════════════════════════════
         self._stage = "mapping_files"
         self._set_task("t6", "running")
-        workflow.logger.info("🔧 Stage 4 | Running automated map_file_to_erpnext")
-        
+
+        _step_start(L, 9, "Automated File Mapping",
+                    f"{len(self._parsed_files)} files to map")
+
         mapped_count = 0
-        for fname in self._parsed_files:
+        for i, fname in enumerate(self._parsed_files):
+            L.info("      [%d/%d] Mapping: %s", i + 1, len(self._parsed_files), fname)
             try:
                 mapped_doctype: str = await workflow.execute_activity(
                     map_file_to_erpnext,
@@ -326,78 +497,149 @@ class ImplementationWorkflow:
                 )
                 if mapped_doctype not in ["error", "unmapped"]:
                     mapped_count += 1
+                    L.info("             → ✅ %s → %s", fname, mapped_doctype)
+                else:
+                    L.info("             → ⚠️  %s → %s", fname, mapped_doctype)
             except Exception as e:
-                workflow.logger.warning("  ⚠️ map_file_to_erpnext failed: %s", e)
+                L.info("             → ❌ %s FAILED: %s", fname, e)
+
+        _kv(L, "files_mapped", f"{mapped_count}/{len(self._parsed_files)}")
+        _kv(L, "tables written", "is_field_mappings, is_mapped_data")
+        _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/mappings/")
+        _kv(L, "audit", "is_audit_trail → mapping_completed (per file)")
+        _step_ok(L, 9, "File Mapping", f"{mapped_count}/{len(self._parsed_files)} files mapped")
 
         self._set_task("t6", "done", f"{mapped_count} files mapped")
 
-        # ── Stage 5: Validate ────────────────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 10 / 14  —  Pre-Import Validation
+        # ══════════════════════════════════════════════════════════════════════
         self._set_task("t7", "running")
         self._stage = "validating"
-        workflow.logger.info("🔍 Stage 5 | Running validate_mapped_data")
-        
+
+        _step_start(L, 10, "Pre-Import Validation",
+                    "Checking mapped data vs target structure rules")
+
         try:
             v_status: str = await workflow.execute_activity(
                 validate_mapped_data,
                 ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                 **_ACT,
             )
+            _kv(L, "overall_status", v_status)
+            _kv(L, "reads from", "is_target_structures, is_mapped_data, R2 extracted rows")
+            _kv(L, "tables written", "is_validation_results, is_validation_errors")
+            _kv(L, "also updates", "is_mapped_data.validation_status, is_sessions.status")
+            _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_validation/report.json")
+            _kv(L, "audit", "is_audit_trail → validation_run")
+            _step_ok(L, 10, "Validation", f"overall={v_status}")
         except Exception as e:
-            workflow.logger.error("❌ validate_mapped_data FAILED: %s", e)
+            _step_fail(L, 10, "Validation", str(e))
             self._stage = "error"
             return {"error": f"Validation failed: {e}"}
 
         self._set_task("t7", "done", f"Status: {v_status}")
         self._stage = "awaiting_validation_submission"
 
-        # ── Stage 6: Await human validation resolution ───────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # AWAIT SIGNAL: validation_submitted
+        # ══════════════════════════════════════════════════════════════════════
+        L.info("  ⏳ Waiting for validation_submitted signal ...")
+        L.info("")
         await workflow.wait_condition(lambda: self._validation_submitted_event.is_set())
+
         vsub = self._sig_validation
-        
-        # Merge profile edits if any
+        _signal_banner(L, "validation_submitted",
+                       f"responses={len(vsub.responses)} keys | edits={len(vsub.profile_edits)} keys")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 11 / 14  —  Merge Profile Edits (conditional)
+        # ══════════════════════════════════════════════════════════════════════
         if vsub.profile_edits:
+            _step_start(L, 11, "Merge Profile Edits",
+                        f"Patching {len(vsub.profile_edits)} fields")
             try:
                 await workflow.execute_activity(
                     merge_company_profile,
                     MergeProfileInput(session_id=self._session_id, patch=vsub.profile_edits, action="user_edit"),
                     **_ACT,
                 )
+                _kv(L, "table", "is_company_profiles (new version)")
+                _kv(L, "patch_keys", list(vsub.profile_edits.keys()))
+                _kv(L, "audit", "is_audit_trail → profile_merged")
+                _step_ok(L, 11, "Merge Profile Edits", "New profile version created")
             except Exception as e:
-                workflow.logger.error("❌ merge_company_profile FAILED: %s", e)
+                _step_fail(L, 11, "Merge Profile Edits", str(e))
+        else:
+            _step_start(L, 11, "Merge Profile Edits", "No edits submitted — skipping")
+            _step_ok(L, 11, "Merge Profile Edits", "SKIPPED (no edits)")
 
-        # Build import plan
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 12 / 14  —  Build Import Plan
+        # ══════════════════════════════════════════════════════════════════════
         self._set_task("t8", "running")
+
+        _step_start(L, 12, "Build Import Plan",
+                    "3-phase plan: Config → Master Data → Transactional")
+
         try:
             plan_status: str = await workflow.execute_activity(
                 build_import_plan,
                 BuildImportPlanInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                 **_ACT,
             )
+            _kv(L, "plan_status", plan_status)
+            _kv(L, "reads from", "is_target_structures, is_mapped_data")
+            _kv(L, "table", "is_import_plans")
+            _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_import_plan/plan.json")
+            _kv(L, "audit", "is_audit_trail → import_plan_created")
+
+            if plan_status == "blocked":
+                L.info("")
+                L.info("      ⚠️  Plan is BLOCKED — validation failures must be resolved first")
+
+            _step_ok(L, 12, "Build Import Plan", f"status={plan_status}")
         except Exception as e:
-            workflow.logger.error("❌ build_import_plan FAILED: %s", e)
+            _step_fail(L, 12, "Build Import Plan", str(e))
             self._stage = "error"
             return {"error": f"Import plan build failed: {e}"}
 
-        if plan_status == "blocked":
-            workflow.logger.warning("⚠️ Import plan is blocked due to validation failures.")
-            
         self._set_task("t8", "done", f"Status: {plan_status}")
         self._stage = "awaiting_sandbox_approval"
 
-        # ── Stage 7: Await sandbox approval → live import ────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        # AWAIT SIGNAL: sandbox_approved
+        # ══════════════════════════════════════════════════════════════════════
+        L.info("  ⏳ Waiting for sandbox_approved signal ...")
+        L.info("")
         await workflow.wait_condition(lambda: self._sandbox_approved_event.is_set())
+
         sb = self._sig_sandbox
+        _signal_banner(L, "sandbox_approved",
+                       f"dry_run={sb.dry_run} | erpnext={sb.erpnext_base_url}")
+
         self._stage = "importing"
-        
-        # We know there are 3 standard phases (A, B, C)
-        phases = ["phase_a_config", "phase_b_master", "phase_c_transactional"]
-        for phase in phases:
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 13 / 14  —  Execute Import Phases (A → B → C)
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 13, "Execute Import Phases",
+                    f"dry_run={sb.dry_run} | 3 phases")
+
+        phases = [
+            ("phase_a_config",        "Phase A: Configuration Setup"),
+            ("phase_b_master",        "Phase B: Master Data"),
+            ("phase_c_transactional", "Phase C: Transactional Data"),
+        ]
+
+        for phase_id, phase_label in phases:
+            L.info("      ┌── %s ──┐", phase_label)
             try:
-                await workflow.execute_activity(
+                result = await workflow.execute_activity(
                     execute_import_phase,
                     ExecutePhaseInput(
                         session_id=self._session_id,
-                        phase_id=phase,
+                        phase_id=phase_id,
                         project_id=project_id,
                         company_slug=self._company_slug,
                         dry_run=sb.dry_run,
@@ -406,8 +648,19 @@ class ImplementationWorkflow:
                     ),
                     **_LONG,
                 )
+                L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
-                workflow.logger.error("❌ execute_import_phase FAILED for %s: %s", phase, e)
+                L.info("      └── ❌ %s FAILED: %s", phase_label, e)
+
+        _kv(L, "reads from", "is_import_plans, R2 extracted rows")
+        _kv(L, "tables written", "is_import_logs (per step), is_import_plans (status)")
+        _kv(L, "audit", "is_audit_trail → import_executed")
+        _step_ok(L, 13, "Execute Import Phases", f"3 phases executed (dry_run={sb.dry_run})")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 14 / 14  —  Complete Session
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 14, "Complete Session", "Final status update")
 
         self._stage = "complete"
         try:
@@ -416,9 +669,25 @@ class ImplementationWorkflow:
                 PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status=self._stage),
                 **_ACT,
             )
-        except: pass
+            _kv(L, "table", "is_sessions")
+            _kv(L, "status", "complete")
+            _kv(L, "completed_at", "now()")
+            _step_ok(L, 14, "Complete Session", "DONE")
+        except Exception as e:
+            _step_fail(L, 14, "Complete Session", str(e))
 
-        workflow.logger.info("═══ ImplementationWorkflow COMPLETE | project=%s ═══", project_id)
+        # ══════════════════════════════════════════════════════════════════════
+        # WORKFLOW COMPLETE
+        # ══════════════════════════════════════════════════════════════════════
+        L.info("")
+        L.info("╔" + "═" * 70 + "╗")
+        L.info("║   IMPLEMENTATION SYSTEM — WORKFLOW COMPLETE ✅                      ║")
+        L.info("║   project   : %-54s ║", project_id)
+        L.info("║   session   : %-54s ║", self._session_id)
+        L.info("║   final     : complete                                               ║")
+        L.info("╚" + "═" * 70 + "╝")
+        L.info("")
+
         return {
             "project_id": project_id,
             "session_id": self._session_id,

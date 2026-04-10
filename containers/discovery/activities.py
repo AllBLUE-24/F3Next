@@ -65,7 +65,13 @@ async def analyze_discovery_turn(data: dict) -> dict:
         response = await invoke_smart_llm([("system", system_context), ("human", formatted_prompt)], model_name="gemini-flash-latest")
         content = response.content
 
-        clean_json = content.replace("```json", "").replace("```", "").strip()
+        start_idx = content.find('{')
+        end_idx = content.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            clean_json = content[start_idx:end_idx+1]
+        else:
+            clean_json = content.replace("```json", "").replace("```", "").strip()
+
         result = json.loads(clean_json)
         result["message"] = result.get("bot_response")
         return result
@@ -106,8 +112,14 @@ async def generate_erp_recommendation(tags: list) -> dict:
     try:
         from llm_router import invoke_smart_llm
         response = await invoke_smart_llm([("human", formatted_prompt)], model_name="gemini-flash-latest")
-        
-        clean_json = response.content.replace("```json", "").replace("```", "").strip()
+        content = response.content
+        start_idx = content.find('{')
+        end_idx = content.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            clean_json = content[start_idx:end_idx+1]
+        else:
+            clean_json = content.replace("```json", "").replace("```", "").strip()
+            
         return json.loads(clean_json)
 
     except Exception as e:

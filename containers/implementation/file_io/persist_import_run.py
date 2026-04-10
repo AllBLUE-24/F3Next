@@ -1,8 +1,9 @@
 """
 File IO — persist_import_run activity.
 
-Persists each import phase's execution plan and results to the
-is_import_runs Supabase table.
+Persists import plan and execution logs to the v2 normalised schema:
+  - is_import_plans  — one per session (3-phase plan)
+  - is_import_logs   — one per step/doctype execution
 """
 from __future__ import annotations
 
@@ -15,63 +16,113 @@ from temporalio import activity
 
 
 @dataclass
-class PersistImportRunInput:
+class PersistImportPlanInput:
     session_id: str
+    phases: List[Dict[str, Any]]
+    total_steps: int = 0
+    plan_r2_path: str = ""
+    status: str = "ready"
+
+
+@dataclass
+class PersistImportLogInput:
+    import_plan_id: str
     phase: str
-    execution_plan: Dict[str, Any]
-    results: Optional[Dict[str, Any]] = None
+    step_number: int
+    doctype: str
+    action: str
+    status: str                     # success | failed | skipped | dry_run
+    records_attempted: int = 0
+    records_succeeded: int = 0
+    records_failed: int = 0
+    error_message: Optional[str] = None
+    error_details: Optional[Dict[str, Any]] = None
+    erpnext_response: Optional[Dict[str, Any]] = None
+    duration_seconds: Optional[int] = None
 
 
-@activity.defn(name="persist_import_run")
-async def persist_import_run(inp: PersistImportRunInput) -> str:
+@activity.defn(name="persist_import_plan")
+async def persist_import_plan(inp: PersistImportPlanInput) -> str:
     """
-    Upsert an is_import_runs row for the given phase.
+    Insert an is_import_plans row.
+
+    Returns: import_plan_id as string (UUID).
+    """
+    activity.logger.info(
+        "▶ persist_import_plan started | session=%s phases=%d steps=%d",
+        inp.session_id, len(inp.phases), inp.total_steps,
+    )
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISImportPlan
+
+    plan_id = uuid.uuid4()
+
+    async with AsyncSessionLocal() as session:
+        session.add(ISImportPlan(
+            id=plan_id,
+            session_id=uuid.UUID(inp.session_id),
+            total_phases=len(inp.phases),
+            total_steps=inp.total_steps,
+            plan_r2_path=inp.plan_r2_path or None,
+            phases=inp.phases,
+            status=inp.status,
+        ))
+        await session.commit()
+        activity.logger.info("  ✅ is_import_plans created %s", plan_id)
+
+    # Audit trail
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="import_plan_created",
+        actor="system",
+        entity_type="import_plan",
+        entity_id=str(plan_id),
+        details={"total_phases": len(inp.phases), "total_steps": inp.total_steps, "status": inp.status},
+        result="success",
+    )
+
+    activity.logger.info("✅ persist_import_plan done | plan_id=%s", plan_id)
+    return str(plan_id)
+
+
+@activity.defn(name="persist_import_log")
+async def persist_import_log(inp: PersistImportLogInput) -> str:
+    """
+    Insert an is_import_logs row for one execution step.
 
     Returns: "success"
     """
     activity.logger.info(
-        "▶ persist_import_run started | session=%s phase=%s",
-        inp.session_id, inp.phase,
+        "▶ persist_import_log started | plan=%s phase=%s doctype=%s status=%s",
+        inp.import_plan_id, inp.phase, inp.doctype, inp.status,
     )
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISImportRun
-    from sqlalchemy import select, update
+    from shared.models.is_models import ISImportLog
 
     async with AsyncSessionLocal() as session:
-        # Check for existing run for this session + phase
-        stmt = (
-            select(ISImportRun)
-            .where(ISImportRun.session_id == uuid.UUID(inp.session_id))
-            .where(ISImportRun.phase == inp.phase)
-        )
-        result = await session.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        if existing:
-            update_vals: Dict[str, Any] = {"execution_plan": inp.execution_plan}
-            if inp.results is not None:
-                update_vals["results"] = inp.results
-                update_vals["completed_at"] = datetime.utcnow()
-            await session.execute(
-                update(ISImportRun)
-                .where(ISImportRun.id == existing.id)
-                .values(**update_vals)
-            )
-        else:
-            new_run = ISImportRun(
-                id=uuid.uuid4(),
-                session_id=uuid.UUID(inp.session_id),
-                phase=inp.phase,
-                execution_plan=inp.execution_plan,
-                results=inp.results,
-            )
-            if inp.results is not None:
-                new_run.completed_at = datetime.utcnow()
-            session.add(new_run)
-
+        session.add(ISImportLog(
+            id=uuid.uuid4(),
+            import_plan_id=uuid.UUID(inp.import_plan_id),
+            phase=inp.phase,
+            step_number=inp.step_number,
+            doctype=inp.doctype,
+            action=inp.action,
+            status=inp.status,
+            records_attempted=inp.records_attempted,
+            records_succeeded=inp.records_succeeded,
+            records_failed=inp.records_failed,
+            error_message=inp.error_message,
+            error_details=inp.error_details,
+            erpnext_response=inp.erpnext_response,
+            started_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
+            duration_seconds=inp.duration_seconds,
+        ))
         await session.commit()
-        activity.logger.info("  ✅ is_import_runs upserted for phase %s", inp.phase)
+        activity.logger.info("  ✅ is_import_logs inserted for %s step %d", inp.phase, inp.step_number)
 
-    activity.logger.info("✅ persist_import_run done | phase=%s", inp.phase)
+    activity.logger.info("✅ persist_import_log done")
     return "success"

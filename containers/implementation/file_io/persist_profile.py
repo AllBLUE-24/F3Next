@@ -2,7 +2,7 @@
 File IO — persist_profile activity.
 
 Saves the company profile to both:
-  1. Supabase → is_sessions.f3iche_profile (JSONB column)
+  1. Supabase → is_company_profiles (versioned rows)
   2. R2       → clean-data/{company_slug}/{project_id}/_profile/company_context_v{N}.json
 
 Returns: "success" (tiny string for Temporal event history)
@@ -12,9 +12,9 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.config import Config
@@ -34,40 +34,77 @@ def _get_s3_client():
 
 @dataclass
 class PersistProfileInput:
+    session_id: str
     project_id: str
     company_slug: str
-    profile: Dict[str, Any]
     version: int = 1
-    session_id: Optional[str] = None
+    # Profile fields
+    f3iche: str = ""
+    industry: Optional[str] = None
+    industry_sub: Optional[str] = None
+    company_name: Optional[str] = None
+    company_size: Optional[str] = None
+    # F3iche-derived config
+    workflows: Optional[List] = None
+    required_modules: Optional[List] = None
+    required_doctypes: Optional[List] = None
+    # LLM enrichment
+    business_reality: Optional[str] = None
+    context_flags: Optional[List] = None
+    data_quality_score: Optional[float] = None
+    llm_confidence: Optional[float] = None
+    # Discovery comparison
+    discovery_alignment_score: Optional[float] = None
+    discovery_mismatches: Optional[Dict] = None
+    # Full profile dict for R2
+    full_profile: Optional[Dict[str, Any]] = None
+    created_by: str = "system"
 
 
 @activity.defn(name="persist_profile")
 async def persist_profile(inp: PersistProfileInput) -> str:
     """
-    Dual-write company profile to Supabase (is_sessions) and R2.
+    Insert a versioned row into is_company_profiles + upload to R2.
 
     Returns: "success"
     """
-    activity.logger.info("▶ persist_profile started | project=%s slug=%s version=%d",
-                         inp.project_id, inp.company_slug, inp.version)
+    activity.logger.info("▶ persist_profile started | session=%s slug=%s version=%d",
+                         inp.session_id, inp.company_slug, inp.version)
 
-    # ── 1. Supabase (is_sessions.f3iche_profile) ─────────────────────────────
+    profile_id = uuid.uuid4()
+
+    # ── 1. Supabase (is_company_profiles) ────────────────────────────────────
     try:
         from shared.database.db import AsyncSessionLocal
-        from shared.models.is_models import ISSession
-        from sqlalchemy import update
+        from shared.models.is_models import ISCompanyProfile
 
-        if inp.session_id:
-            async with AsyncSessionLocal() as session:
-                await session.execute(
-                    update(ISSession)
-                    .where(ISSession.id == uuid.UUID(inp.session_id))
-                    .values(f3iche_profile=inp.profile)
-                )
-                await session.commit()
-                activity.logger.info("  ✅ Supabase is_sessions.f3iche_profile updated (v%d)", inp.version)
-        else:
-            activity.logger.warning("  ⚠️ No session_id provided, skipping Supabase write")
+        slug = inp.company_slug or "unknown"
+        r2_key = f"{slug}/{inp.project_id}/_profile/company_context_v{inp.version}.json"
+
+        async with AsyncSessionLocal() as session:
+            session.add(ISCompanyProfile(
+                id=profile_id,
+                session_id=uuid.UUID(inp.session_id),
+                version=inp.version,
+                f3iche=inp.f3iche,
+                industry=inp.industry,
+                industry_sub=inp.industry_sub,
+                company_name=inp.company_name,
+                company_size=inp.company_size,
+                workflows=inp.workflows,
+                required_modules=inp.required_modules,
+                required_doctypes=inp.required_doctypes,
+                business_reality=inp.business_reality,
+                context_flags=inp.context_flags,
+                data_quality_score=inp.data_quality_score,
+                llm_confidence=inp.llm_confidence,
+                discovery_alignment_score=inp.discovery_alignment_score,
+                discovery_mismatches=inp.discovery_mismatches,
+                r2_path=r2_key,
+                created_by=inp.created_by,
+            ))
+            await session.commit()
+            activity.logger.info("  ✅ Supabase is_company_profiles inserted (v%d)", inp.version)
 
     except Exception as e:
         activity.logger.error("  ❌ Supabase write failed: %s", e)
@@ -75,16 +112,22 @@ async def persist_profile(inp: PersistProfileInput) -> str:
     # ── 2. R2 (versioned JSON backup) ────────────────────────────────────────
     try:
         s3 = _get_s3_client()
-
-        slug = inp.company_slug or "unknown"
-        r2_key = f"{slug}/{inp.project_id}/_profile/company_context_v{inp.version}.json"
-
-        # Add metadata to the profile dump
-        profile_dump = {
-            **inp.profile,
-            "_persisted_at": datetime.utcnow().isoformat() + "Z",
-            "_version": inp.version,
+        profile_dump = inp.full_profile or {
+            "f3iche": inp.f3iche,
+            "industry": inp.industry,
+            "industry_sub": inp.industry_sub,
+            "company_name": inp.company_name,
+            "company_size": inp.company_size,
+            "workflows": inp.workflows,
+            "required_modules": inp.required_modules,
+            "required_doctypes": inp.required_doctypes,
+            "business_reality": inp.business_reality,
+            "context_flags": inp.context_flags,
+            "data_quality_score": inp.data_quality_score,
+            "llm_confidence": inp.llm_confidence,
         }
+        profile_dump["_persisted_at"] = datetime.utcnow().isoformat() + "Z"
+        profile_dump["_version"] = inp.version
 
         s3.put_object(
             Bucket="clean-data",
@@ -96,6 +139,18 @@ async def persist_profile(inp: PersistProfileInput) -> str:
 
     except Exception as e:
         activity.logger.error("  ❌ R2 write failed: %s", e)
+
+    # ── 3. Audit trail ───────────────────────────────────────────────────────
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="profile_built",
+        actor=inp.created_by,
+        entity_type="profile",
+        entity_id=str(profile_id),
+        details={"version": inp.version, "f3iche": inp.f3iche},
+        result="success",
+    )
 
     activity.logger.info("✅ persist_profile done")
     return "success"

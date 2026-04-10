@@ -34,7 +34,8 @@ from containers.implementation.file_io.fetch_clean_files   import fetch_clean_fi
 from containers.implementation.file_io.persist_profile     import persist_profile
 from containers.implementation.file_io.persist_session     import persist_session
 from containers.implementation.file_io.persist_mapping     import persist_mapping
-from containers.implementation.file_io.persist_import_run  import persist_import_run
+from containers.implementation.file_io.persist_import_run  import persist_import_plan, persist_import_log
+from containers.implementation.file_io.persist_audit       import persist_audit
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,9 @@ async def main() -> None:
                         persist_profile,
                         persist_session,
                         persist_mapping,
-                        persist_import_run,
+                        persist_import_plan,
+                        persist_import_log,
+                        persist_audit,
                        ],
             activity_executor=activity_executor,
         )

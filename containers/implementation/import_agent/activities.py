@@ -1,8 +1,9 @@
 """
 Import Agent — Temporal activities for the 3-phase ERPNext import.
 
-Activities read state from Supabase/R2 and persist results back.
-Temporal only sees tiny string returns.
+v2: Uses ISImportPlan + ISImportLog (not ISImportRun).
+    Reads target structure from ISTargetStructure.
+    Reads mapped data from ISMappedData.
 """
 from __future__ import annotations
 
@@ -115,40 +116,48 @@ class ExecutePhaseInput:
 @activity.defn(name="build_import_plan")
 async def build_import_plan(inp: BuildImportPlanInput) -> str:
     """
-    Read target structure + validation status from Supabase, build the
-    3-phase import plan, persist to R2 + Supabase.
+    Read target structure from ISTargetStructure + validation status from ISMappedData,
+    build the 3-phase import plan, persist to ISImportPlan + R2.
 
     Returns: "ready" or "blocked"
     """
     activity.logger.info("▶ build_import_plan started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISSession, ISMapping, ISImportRun
-    from sqlalchemy import select, update
+    from shared.models.is_models import ISTargetStructure, ISMappedData, ISImportPlan
+    from sqlalchemy import select
 
-    # ── 1. Read from Supabase ────────────────────────────────────────────────
+    # ── 1. Read from Supabase (v2 tables) ────────────────────────────────────
     async with AsyncSessionLocal() as session:
-        stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+        # Get latest target structure
+        stmt = (
+            select(ISTargetStructure)
+            .where(ISTargetStructure.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISTargetStructure.created_at.desc())
+            .limit(1)
+        )
         result = await session.execute(stmt)
-        is_session = result.scalar_one_or_none()
+        target_row = result.scalar_one_or_none()
 
-        if not is_session:
-            activity.logger.error("  ❌ Session %s not found", inp.session_id)
-            return "error:session_not_found"
+        if not target_row:
+            activity.logger.error("  ❌ No target structure for session %s", inp.session_id)
+            return "error:no_target_structure"
 
-        target_structure = is_session.target_structure or {}
+        target_structure = {
+            "required_doctypes": target_row.required_doctypes or [],
+        }
 
-        # Get mapped doctypes
-        stmt = select(ISMapping).where(ISMapping.session_id == uuid.UUID(inp.session_id))
+        # Get mapped data
+        stmt = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
         result = await session.execute(stmt)
-        mappings = result.scalars().all()
+        mapped_data_rows = result.scalars().all()
 
-    mapped_doctypes = [m.doctype_name for m in mappings]
+    mapped_doctypes = [md.target_doctype for md in mapped_data_rows]
     
     # Check overall validation status
     validation_status = "pass"
-    for m in mappings:
-        if m.status == "failed":
+    for md in mapped_data_rows:
+        if md.validation_status == "failed":
             validation_status = "fail"
             break
 
@@ -176,19 +185,33 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
     except Exception as e:
         activity.logger.error("  ❌ R2 plan upload failed: %s", e)
 
-    # ── 4. Create import run records in Supabase ─────────────────────────────
+    # ── 4. Create ISImportPlan in Supabase ───────────────────────────────────
+    plan_id = uuid.uuid4()
     if plan_status == "ready":
         async with AsyncSessionLocal() as session:
-            for phase_def in plan.get("phases", []):
-                new_run = ISImportRun(
-                    id=uuid.uuid4(),
-                    session_id=uuid.UUID(inp.session_id),
-                    phase=phase_def["phase"],
-                    execution_plan=phase_def,
-                )
-                session.add(new_run)
+            session.add(ISImportPlan(
+                id=plan_id,
+                session_id=uuid.UUID(inp.session_id),
+                total_phases=len(plan.get("phases", [])),
+                total_steps=plan.get("total_steps", 0),
+                plan_r2_path=plan_key,
+                phases=plan.get("phases", []),
+                status="ready",
+            ))
             await session.commit()
-            activity.logger.info("  ✅ is_import_runs created for %d phases", len(plan.get("phases", [])))
+            activity.logger.info("  ✅ is_import_plans created %s", plan_id)
+
+    # ── 5. Audit trail ───────────────────────────────────────────────────────
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="import_plan_created",
+        actor="system",
+        entity_type="import_plan",
+        entity_id=str(plan_id),
+        details={"status": plan_status, "total_steps": plan.get("total_steps")},
+        result="success",
+    )
 
     activity.logger.info("✅ build_import_plan done | status=%s total_steps=%s",
                          plan_status, plan.get("total_steps"))
@@ -200,8 +223,7 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> str:
     """
     Execute (or dry-run) a single import phase.
     
-    Reads the execution plan from is_import_runs, downloads row data from R2,
-    executes against ERPNext API, then persists results back to Supabase.
+    v2: Reads from ISImportPlan. Writes ISImportLog entries per step.
 
     Returns: "success" or "error"
     """
@@ -209,37 +231,68 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> str:
                          inp.session_id, inp.phase_id, inp.dry_run)
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISImportRun, ISMapping
+    from shared.models.is_models import ISImportPlan, ISImportLog
     from sqlalchemy import select, update
 
-    # ── 1. Read execution plan from Supabase ─────────────────────────────────
+    # ── 1. Read import plan from Supabase ────────────────────────────────────
     async with AsyncSessionLocal() as session:
         stmt = (
-            select(ISImportRun)
-            .where(ISImportRun.session_id == uuid.UUID(inp.session_id))
-            .where(ISImportRun.phase == inp.phase_id)
+            select(ISImportPlan)
+            .where(ISImportPlan.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISImportPlan.created_at.desc())
+            .limit(1)
         )
         result = await session.execute(stmt)
-        import_run = result.scalar_one_or_none()
+        import_plan = result.scalar_one_or_none()
 
-    if not import_run:
-        activity.logger.error("  ❌ Import run not found for phase %s", inp.phase_id)
+    if not import_plan:
+        activity.logger.error("  ❌ Import plan not found for session %s", inp.session_id)
         return "error:not_found"
 
-    plan = import_run.execution_plan or {}
-    steps = plan.get("steps", [])
+    # Find the phase in the plan
+    phases = import_plan.phases or []
+    phase_def = next((p for p in phases if p.get("phase") == inp.phase_id), None)
+    if not phase_def:
+        activity.logger.error("  ❌ Phase %s not found in plan", inp.phase_id)
+        return "error:phase_not_found"
+
+    steps = phase_def.get("steps", [])
+
+    # Update plan status
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(ISImportPlan)
+            .where(ISImportPlan.id == import_plan.id)
+            .values(status="executing", current_phase=inp.phase_id)
+        )
+        await session.commit()
 
     # ── 2. For each step, download data from R2 if needed ────────────────────
     s3 = _get_s3_client()
     slug = inp.company_slug or "unknown"
     results = []
 
-    for step in steps:
+    for step_idx, step in enumerate(steps):
         dt = step.get("doctype", "")
         action = step.get("action", "")
+        step_start = datetime.utcnow()
 
         if action == "default_or_skip":
             results.append({"doctype": dt, "status": "skipped"})
+            # Log entry
+            async with AsyncSessionLocal() as session:
+                session.add(ISImportLog(
+                    id=uuid.uuid4(),
+                    import_plan_id=import_plan.id,
+                    phase=inp.phase_id,
+                    step_number=step_idx + 1,
+                    doctype=dt,
+                    action=action,
+                    status="skipped",
+                    started_at=step_start,
+                    completed_at=datetime.utcnow(),
+                ))
+                await session.commit()
             continue
 
         # Download extracted rows from R2
@@ -251,6 +304,20 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> str:
         except Exception:
             activity.logger.info("  No R2 data for %s — skipping", dt)
             results.append({"doctype": dt, "status": "skipped", "detail": "No data in R2"})
+            async with AsyncSessionLocal() as session:
+                session.add(ISImportLog(
+                    id=uuid.uuid4(),
+                    import_plan_id=import_plan.id,
+                    phase=inp.phase_id,
+                    step_number=step_idx + 1,
+                    doctype=dt,
+                    action=action,
+                    status="skipped",
+                    error_message="No data in R2",
+                    started_at=step_start,
+                    completed_at=datetime.utcnow(),
+                ))
+                await session.commit()
             continue
 
         if inp.dry_run or not inp.erpnext_base_url:
@@ -259,6 +326,20 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> str:
                 "status": "dry_run",
                 "would_create": len(rows),
             })
+            async with AsyncSessionLocal() as session:
+                session.add(ISImportLog(
+                    id=uuid.uuid4(),
+                    import_plan_id=import_plan.id,
+                    phase=inp.phase_id,
+                    step_number=step_idx + 1,
+                    doctype=dt,
+                    action=action,
+                    status="dry_run",
+                    records_attempted=len(rows),
+                    started_at=step_start,
+                    completed_at=datetime.utcnow(),
+                ))
+                await session.commit()
             continue
 
         # ── Live ERPNext import ──────────────────────────────────────────
@@ -272,27 +353,62 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> str:
                 )
                 resp.raise_for_status()
                 results.append({"doctype": dt, "status": "created", "count": len(rows)})
+                async with AsyncSessionLocal() as session:
+                    session.add(ISImportLog(
+                        id=uuid.uuid4(),
+                        import_plan_id=import_plan.id,
+                        phase=inp.phase_id,
+                        step_number=step_idx + 1,
+                        doctype=dt,
+                        action=action,
+                        status="success",
+                        records_attempted=len(rows),
+                        records_succeeded=len(rows),
+                        started_at=step_start,
+                        completed_at=datetime.utcnow(),
+                    ))
+                    await session.commit()
         except Exception as exc:
             results.append({"doctype": dt, "status": "error", "detail": str(exc)})
+            async with AsyncSessionLocal() as session:
+                session.add(ISImportLog(
+                    id=uuid.uuid4(),
+                    import_plan_id=import_plan.id,
+                    phase=inp.phase_id,
+                    step_number=step_idx + 1,
+                    doctype=dt,
+                    action=action,
+                    status="failed",
+                    records_attempted=len(rows),
+                    records_failed=len(rows),
+                    error_message=str(exc),
+                    started_at=step_start,
+                    completed_at=datetime.utcnow(),
+                ))
+                await session.commit()
 
-    # ── 3. Persist results back to Supabase ──────────────────────────────────
-    phase_result = {
-        "phase": inp.phase_id,
-        "results": results,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-    }
-
+    # ── 3. Update import plan status ─────────────────────────────────────────
     async with AsyncSessionLocal() as session:
         await session.execute(
-            update(ISImportRun)
-            .where(ISImportRun.id == import_run.id)
+            update(ISImportPlan)
+            .where(ISImportPlan.id == import_plan.id)
             .values(
-                results=phase_result,
-                completed_at=datetime.utcnow(),
+                current_phase=inp.phase_id,
+                current_step=len(steps),
             )
         )
         await session.commit()
-        activity.logger.info("  ✅ is_import_runs updated for phase %s", inp.phase_id)
+
+    # ── 4. Audit trail ───────────────────────────────────────────────────────
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="import_executed",
+        actor="system",
+        entity_type="import",
+        details={"phase": inp.phase_id, "steps": len(steps), "results": results},
+        result="success",
+    )
 
     activity.logger.info("✅ execute_import_phase done | phase=%s", inp.phase_id)
     return "success"

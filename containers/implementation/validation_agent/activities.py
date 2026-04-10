@@ -1,8 +1,9 @@
 """
 Validation Agent — Temporal activities for pre-import data validation.
 
-Reads mapping data from Supabase/R2 instead of receiving it via Temporal.
-Writes validation report to R2 + Supabase. Returns "success" string.
+v2: Reads from ISTargetStructure + ISMappedData (not ISSession/ISMapping).
+    Writes ISValidationResult + ISValidationError rows.
+    Returns "success" string.
 """
 from __future__ import annotations
 
@@ -121,50 +122,62 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
     """
     Run pre-import validation checks on mapped data.
     
-    1. Reads target_structure from is_sessions
-    2. Reads mapped doctypes from is_mappings
-    3. Downloads extracted rows from R2
-    4. Runs validation
-    5. Writes report to R2 + updates is_mappings.validation_report
-    6. Updates is_sessions.status
+    v2 schema:
+      1. Reads target_structure from is_target_structures
+      2. Reads mapped doctypes from is_mapped_data
+      3. Downloads extracted rows from R2
+      4. Runs validation
+      5. Writes ISValidationResult + ISValidationError rows
+      6. Updates ISMappedData.validation_status
+      7. Updates is_sessions.status
     
     Returns: "success" or "fail" (based on validation outcome)
     """
     activity.logger.info("▶ validate_mapped_data started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISSession, ISMapping
+    from shared.models.is_models import (
+        ISSession, ISTargetStructure, ISMappedData,
+        ISValidationResult, ISValidationError,
+    )
     from sqlalchemy import select, update
 
-    # ── 1. Read target_structure and mappings from Supabase ──────────────────
+    # ── 1. Read target_structure from is_target_structures ───────────────────
     async with AsyncSessionLocal() as session:
-        # Get session for target_structure
-        stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+        stmt = (
+            select(ISTargetStructure)
+            .where(ISTargetStructure.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISTargetStructure.created_at.desc())
+            .limit(1)
+        )
         result = await session.execute(stmt)
-        is_session = result.scalar_one_or_none()
+        target_row = result.scalar_one_or_none()
 
-        if not is_session:
-            activity.logger.error("  ❌ Session %s not found", inp.session_id)
-            return "error:session_not_found"
+        if not target_row:
+            activity.logger.error("  ❌ No target structure found for session %s", inp.session_id)
+            return "error:no_target_structure"
 
-        target_structure = is_session.target_structure or {}
+        target_structure = {
+            "required_doctypes": target_row.required_doctypes or [],
+            "validation_rules": target_row.validation_rules or {},
+        }
 
-        # Get all mappings for this session
-        stmt = select(ISMapping).where(ISMapping.session_id == uuid.UUID(inp.session_id))
+        # Get all mapped data for this session
+        stmt = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
         result = await session.execute(stmt)
-        mappings = result.scalars().all()
+        mapped_data_rows = result.scalars().all()
 
-    activity.logger.info("  Found %d mappings, %d required doctypes",
-                         len(mappings), len(target_structure.get("required_doctypes", [])))
+    activity.logger.info("  Found %d mapped_data rows, %d required doctypes",
+                         len(mapped_data_rows), len(target_structure.get("required_doctypes", [])))
 
-    # ── 2. Download extracted rows from R2 for each mapping ──────────────────
+    # ── 2. Download extracted rows from R2 for each mapped_data ──────────────
     s3 = _get_s3_client()
     mapped_data: Dict[str, Any] = {}
+    mapped_data_map: Dict[str, Any] = {}  # doctype → ISMappedData row
 
-    for mapping in mappings:
-        doctype = mapping.doctype_name
-        fm = mapping.field_mapping or {}
-        r2_key = fm.get("r2_extracted_rows_key", "")
+    for md_row in mapped_data_rows:
+        doctype = md_row.target_doctype
+        r2_key = md_row.extracted_rows_r2_path
 
         if not r2_key:
             activity.logger.warning("  ⚠️ No R2 key for %s, skipping", doctype)
@@ -175,8 +188,8 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
             rows = json.loads(response["Body"].read().decode("utf-8"))
             mapped_data[doctype] = {
                 "rows": rows,
-                "field_mapping": fm.get("field_mapping", {}),
             }
+            mapped_data_map[doctype] = md_row
             activity.logger.info("  ✅ Loaded %d rows for %s from R2", len(rows), doctype)
         except Exception as e:
             activity.logger.error("  ❌ Failed to load rows for %s: %s", doctype, e)
@@ -202,20 +215,54 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
     except Exception as e:
         activity.logger.error("  ❌ R2 report upload failed: %s", e)
 
-    # ── 5. Update Supabase ───────────────────────────────────────────────────
+    # ── 5. Write ISValidationResult + ISValidationError + update ISMappedData
     async with AsyncSessionLocal() as session:
-        # Update each mapping's validation_report
-        for mapping in mappings:
-            doctype = mapping.doctype_name
-            check = next((c for c in report.get("checks", []) if c.get("doctype") == doctype), None)
-            if check:
+        for check in report.get("checks", []):
+            doctype = check.get("doctype", "")
+            md_row = mapped_data_map.get(doctype)
+
+            # Create ISValidationResult
+            result_id = uuid.uuid4()
+            session.add(ISValidationResult(
+                id=result_id,
+                session_id=uuid.UUID(inp.session_id),
+                mapped_data_id=md_row.id if md_row else None,
+                doctype=doctype,
+                overall_status=check["status"],
+                report_r2_path=report_key,
+                total_errors=len(check.get("errors", [])),
+                total_warnings=len(check.get("warnings", [])),
+                row_count=check.get("row_count", 0),
+            ))
+
+            # Create ISValidationError rows for each error
+            for err_msg in check.get("errors", []):
+                session.add(ISValidationError(
+                    id=uuid.uuid4(),
+                    validation_result_id=result_id,
+                    doctype=doctype,
+                    error_type="missing_required" if "Missing required" in err_msg else "business_rule_violation",
+                    error_message=err_msg,
+                    severity="error",
+                ))
+
+            # Create ISValidationError rows for each warning
+            for warn_msg in check.get("warnings", []):
+                session.add(ISValidationError(
+                    id=uuid.uuid4(),
+                    validation_result_id=result_id,
+                    doctype=doctype,
+                    error_type="invalid_format" if "date format" in warn_msg.lower() else "invalid_type",
+                    error_message=warn_msg,
+                    severity="warning",
+                ))
+
+            # Update ISMappedData.validation_status
+            if md_row:
                 await session.execute(
-                    update(ISMapping)
-                    .where(ISMapping.id == mapping.id)
-                    .values(
-                        validation_report=check,
-                        status="validated" if check["status"] == "pass" else "failed",
-                    )
+                    update(ISMappedData)
+                    .where(ISMappedData.id == md_row.id)
+                    .values(validation_status="passed" if check["status"] == "pass" else "failed")
                 )
 
         # Update session status
@@ -225,7 +272,18 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
             .values(status="awaiting_validation_submission")
         )
         await session.commit()
-        activity.logger.info("  ✅ Supabase updated | mappings + session status")
+        activity.logger.info("  ✅ Supabase updated | validation results + session status")
+
+    # ── 6. Audit trail ───────────────────────────────────────────────────────
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="validation_run",
+        actor="system",
+        entity_type="validation",
+        details={"overall": v_status, "errors": n_errors, "doctypes_checked": len(report.get("checks", []))},
+        result="success",
+    )
 
     activity.logger.info("✅ validate_mapped_data done | overall=%s errors=%d", v_status, n_errors)
     return v_status

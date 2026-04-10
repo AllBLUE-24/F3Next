@@ -205,21 +205,41 @@ async def build_company_profile(inp: BuildProfileInput) -> str:
     )
     activity.logger.info("  Profile built | modules=%s", profile.get('modules', []))
 
-    # ── Persist to Supabase (is_sessions.f3iche_profile) ─────────────────────
+    # ── Persist to Supabase (is_company_profiles — v2 schema) ────────────────
+    profile_id = None
     if inp.session_id:
         try:
             from shared.database.db import AsyncSessionLocal
-            from shared.models.is_models import ISSession
-            from sqlalchemy import update
+            from shared.models.is_models import ISCompanyProfile
+
+            slug = inp.company_slug or "unknown"
+            r2_key = f"{slug}/{inp.project_id}/_profile/company_context_v{inp.version}.json"
+            profile_id = uuid.uuid4()
+
+            llm_enrichment = profile.get("llm_enrichment", {})
 
             async with AsyncSessionLocal() as session:
-                await session.execute(
-                    update(ISSession)
-                    .where(ISSession.id == uuid.UUID(inp.session_id))
-                    .values(f3iche_profile=profile)
-                )
+                session.add(ISCompanyProfile(
+                    id=profile_id,
+                    session_id=uuid.UUID(inp.session_id),
+                    version=inp.version,
+                    f3iche=inp.f3iche,
+                    industry=inp.industry,
+                    industry_sub=inp.industry_sub,
+                    company_name=inp.company_name,
+                    company_size=inp.company_size,
+                    workflows=profile.get("workflows"),
+                    required_modules=profile.get("modules"),
+                    required_doctypes=profile.get("required_doctypes"),
+                    business_reality=llm_enrichment.get("business_reality"),
+                    context_flags=llm_enrichment.get("context_flags"),
+                    data_quality_score=_parse_dqs(llm_enrichment.get("data_quality_score")),
+                    llm_confidence=llm_enrichment.get("llm_confidence"),
+                    r2_path=r2_key,
+                    created_by="system",
+                ))
                 await session.commit()
-                activity.logger.info("  ✅ Supabase is_sessions.f3iche_profile updated")
+                activity.logger.info("  ✅ Supabase is_company_profiles inserted (v%d)", inp.version)
         except Exception as e:
             activity.logger.error("  ❌ Supabase write failed: %s", e)
 
@@ -242,14 +262,37 @@ async def build_company_profile(inp: BuildProfileInput) -> str:
     except Exception as e:
         activity.logger.error("  ❌ R2 write failed: %s", e)
 
+    # ── Audit trail ──────────────────────────────────────────────────────────
+    if inp.session_id:
+        from containers.implementation.file_io.persist_audit import log_audit
+        await log_audit(
+            session_id=inp.session_id,
+            action="profile_built",
+            actor="system",
+            entity_type="profile",
+            entity_id=str(profile_id) if profile_id else None,
+            details={"version": inp.version, "f3iche": inp.f3iche},
+            result="success",
+        )
+
     activity.logger.info("✅ build_company_profile done")
     return "success"
+
+
+def _parse_dqs(val) -> Optional[float]:
+    """Convert data_quality_score to float (LLM may return 'High'/'Medium'/'Low')."""
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    mapping = {"high": 0.9, "medium": 0.6, "low": 0.3}
+    return mapping.get(str(val).lower(), 0.5)
 
 
 @activity.defn(name="merge_company_profile")
 async def merge_company_profile(inp: MergeProfileInput) -> str:
     """
-    Read current profile from Supabase, merge patch, persist back.
+    Read latest profile from is_company_profiles, create new version with merged patch.
     
     Returns: "success"
     """
@@ -257,36 +300,60 @@ async def merge_company_profile(inp: MergeProfileInput) -> str:
                          inp.session_id, inp.action, list(inp.patch.keys()))
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISSession
-    from sqlalchemy import select, update
+    from shared.models.is_models import ISCompanyProfile
+    from sqlalchemy import select
 
     async with AsyncSessionLocal() as session:
-        # Read current profile from Supabase
-        stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
-        result = await session.execute(stmt)
-        is_session = result.scalar_one_or_none()
-
-        if not is_session:
-            activity.logger.error("  ❌ Session %s not found", inp.session_id)
-            return "error:session_not_found"
-
-        existing = is_session.f3iche_profile or {}
-        new_version = existing.get("version", 0) + 1
-
-        # Merge: patch values override existing
-        merged = {**existing, **{k: v for k, v in inp.patch.items() if v is not None}}
-        merged["version"] = new_version
-        merged["action"] = inp.action
-        merged["timestamp"] = datetime.utcnow().isoformat() + "Z"
-
-        # Write back to Supabase
-        await session.execute(
-            update(ISSession)
-            .where(ISSession.id == uuid.UUID(inp.session_id))
-            .values(f3iche_profile=merged)
+        # Read latest profile version
+        stmt = (
+            select(ISCompanyProfile)
+            .where(ISCompanyProfile.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISCompanyProfile.version.desc())
+            .limit(1)
         )
+        result = await session.execute(stmt)
+        latest = result.scalar_one_or_none()
+
+        if not latest:
+            activity.logger.error("  ❌ No profile found for session %s", inp.session_id)
+            return "error:profile_not_found"
+
+        new_version = latest.version + 1
+
+        # Create new version with merged values
+        new_profile = ISCompanyProfile(
+            id=uuid.uuid4(),
+            session_id=uuid.UUID(inp.session_id),
+            version=new_version,
+            f3iche=inp.patch.get("f3iche", latest.f3iche),
+            industry=inp.patch.get("industry", latest.industry),
+            industry_sub=inp.patch.get("industry_sub", latest.industry_sub),
+            company_name=inp.patch.get("company_name", latest.company_name),
+            company_size=inp.patch.get("company_size", latest.company_size),
+            workflows=inp.patch.get("workflows", latest.workflows),
+            required_modules=inp.patch.get("required_modules", latest.required_modules),
+            required_doctypes=inp.patch.get("required_doctypes", latest.required_doctypes),
+            business_reality=inp.patch.get("business_reality", latest.business_reality),
+            context_flags=inp.patch.get("context_flags", latest.context_flags),
+            data_quality_score=inp.patch.get("data_quality_score", latest.data_quality_score),
+            llm_confidence=inp.patch.get("llm_confidence", latest.llm_confidence),
+            r2_path=latest.r2_path,
+            created_by="user",
+        )
+        session.add(new_profile)
         await session.commit()
         activity.logger.info("  ✅ Profile merged and persisted | version=%d", new_version)
+
+    # Audit trail
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="profile_merged",
+        actor="user",
+        entity_type="profile",
+        details={"version": new_version, "patch_keys": list(inp.patch.keys())},
+        result="success",
+    )
 
     activity.logger.info("✅ merge_company_profile done")
     return "success"

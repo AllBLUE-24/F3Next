@@ -165,6 +165,7 @@ class _F3icheVerificationService:
 class InferF3icheInput:
     uploaded_files: List[Dict]
     r2_manifest_url: str = ""         # R2 key to file contents manifest
+    session_id: str = ""              # v2: needed for DB persistence
 
 
 @dataclass
@@ -172,6 +173,7 @@ class VerifyF3icheInput:
     f3iche_user: str
     f3iche_signals: str
     confidence: float = 0.0
+    session_id: str = ""              # v2: needed for DB persistence
 
 
 # ── Activity definitions ─────────────────────────────────────────────────────
@@ -182,6 +184,7 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
     
     Downloads file contents from R2 manifest URL instead of receiving them directly.
     Returns a small dict — already safe for Temporal event history.
+    Persists ISFileSignal + ISF3icheScore rows to DB.
     """
     activity.logger.info("▶ infer_f3iche started | files=%d manifest=%s",
                          len(inp.uploaded_files), inp.r2_manifest_url)
@@ -197,6 +200,53 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
         "confidence": round(confidence, 2),
         "collected_signals": signals,
     }
+
+    # ── Persist to DB (v2 schema) ────────────────────────────────────────────
+    if inp.session_id:
+        try:
+            import uuid
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.is_models import ISFileSignal, ISF3icheScore
+
+            async with AsyncSessionLocal() as session:
+                # Write ISFileSignal rows — one per collected signal
+                for sig_text in signals:
+                    session.add(ISFileSignal(
+                        id=uuid.uuid4(),
+                        session_id=uuid.UUID(inp.session_id),
+                        signal_type="data_pattern",
+                        pattern_matched=sig_text,
+                        suggests_f3iche=f3iche_id,
+                        weight=1.0,
+                        confidence=confidence,
+                    ))
+
+                # Write ISF3icheScore row for the inferred niche
+                session.add(ISF3icheScore(
+                    id=uuid.uuid4(),
+                    session_id=uuid.UUID(inp.session_id),
+                    f3iche=f3iche_id,
+                    score=confidence,
+                    confidence=confidence,
+                    source="signals",
+                    is_selected=True,
+                ))
+
+                await session.commit()
+                activity.logger.info("  ✅ Persisted %d ISFileSignal + 1 ISF3icheScore rows", len(signals))
+
+            # Audit trail
+            from containers.implementation.file_io.persist_audit import log_audit
+            await log_audit(
+                session_id=inp.session_id,
+                action="f3iche_inferred",
+                actor="system",
+                details={"f3iche": f3iche_id, "confidence": confidence, "signal_count": len(signals)},
+                result="success",
+            )
+        except Exception as e:
+            activity.logger.error("  ❌ DB persistence failed: %s", e)
+
     activity.logger.info("✅ infer_f3iche done | inferred: %s (%.0f%%) via %d signals",
                          f3iche_id, confidence*100, len(signals))
     return result
