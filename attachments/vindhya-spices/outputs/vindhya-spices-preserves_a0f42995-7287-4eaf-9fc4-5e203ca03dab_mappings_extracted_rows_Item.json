@@ -1,0 +1,56 @@
+[
+  {
+    "item_code": "RAW-MANGOES",
+    "item_name": "Raw Mangoes",
+    "item_group": "Raw Material",
+    "stock_uom": "Kg",
+    "is_stock_item": true,
+    "has_batch_no": true,
+    "has_serial_no": false
+  },
+  {
+    "item_code": "CHILLIES",
+    "item_name": "Chillies",
+    "item_group": "Raw Material",
+    "stock_uom": "Kg",
+    "is_stock_item": true,
+    "has_batch_no": true,
+    "has_serial_no": false
+  },
+  {
+    "item_code": "COLD-PRESSED-OILS",
+    "item_name": "Cold-Pressed Oils",
+    "item_group": "Raw Material",
+    "stock_uom": "Litre",
+    "is_stock_item": true,
+    "has_batch_no": true,
+    "has_serial_no": false
+  },
+  {
+    "item_code": "EMPTY-GLASS-JARS",
+    "item_name": "Empty Glass Jars",
+    "item_group": "Packing Material",
+    "stock_uom": "Nos",
+    "is_stock_item": true,
+    "has_batch_no": false,
+    "has_serial_no": false
+  },
+  {
+    "item_code": "INDIAN-PICKLES",
+    "item_name": "Indian Pickles",
+    "item_group": "Finished Goods",
+    "stock_uom": "Nos",
+    "is_stock_item": true,
+    "has_batch_no": true,
+    "has_serial_no": false
+  },
+  {
+    "item_code": "GROUND-SPICES",
+    "item_name": "Ground Spices",
+    "item_group": "Finished Goods",
+    "stock_uom": "Nos",
+    "is_stock_item": true,
+    "has_batch_no": true,
+    "has_serial_no": false
+  }
+]

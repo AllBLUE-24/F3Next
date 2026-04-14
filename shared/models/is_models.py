@@ -87,35 +87,16 @@ class ISFile(Base):
         nullable=False,
     )
 
-    # File metadata
     original_filename = Column(String, nullable=False)
-    file_type = Column(String, nullable=True)           # xlsx, csv, json, pdf, txt, xml, tsv
-    file_size_bytes = Column(Integer, nullable=True)
-
-    # R2 storage (tri-bucket)
-    quarantine_r2_path = Column(String, nullable=False)
-    clean_r2_path = Column(String, nullable=True)       # Set after virus scan passes
-    virus_r2_path = Column(String, nullable=True)       # Set if infected
-
-    # Virus scanning
-    # pending | scanning | clean | infected | scan_failed
+    r2_object_key = Column(String, nullable=False)
+    bucket_location = Column(String, nullable=False)
     virus_scan_status = Column(String, nullable=False, default="pending")
-    virus_scan_details = Column(JSONB, nullable=True)    # Scanner output (small)
-
-    # Processing status
-    parsed = Column(Boolean, default=False)
-    included_in_manifest = Column(Boolean, default=False)
-
-    # Timestamps
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
-    scanned_at = Column(DateTime(timezone=True), nullable=True)
-    parsed_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("idx_is_files_session", "session_id"),
         Index("idx_is_files_virus_status", "virus_scan_status"),
     )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. ISFileSignal — Signal Detection Details
@@ -598,3 +579,20 @@ class ISAuditTrail(Base):
         Index("idx_audit_trail_action", "action"),
         Index("idx_audit_trail_actor", "actor"),
     )
+
+class ISFieldMappingHistory(Base):
+    """
+    Step 10: Stores conversational corrections so the LLM can learn
+    user preferences for future mappings.
+    """
+    __tablename__ = "is_field_mapping_history"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("is_sessions.id", ondelete="CASCADE"), nullable=False)
+    source_column = Column(String, nullable=False)
+    target_doctype = Column(String, nullable=False)
+    target_field = Column(String, nullable=False)
+    user_confirmed = Column(Boolean, default=True)
+    user_corrected = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    

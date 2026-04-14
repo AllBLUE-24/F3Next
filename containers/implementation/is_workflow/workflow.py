@@ -25,14 +25,14 @@ from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
     from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche, InferF3icheInput, VerifyF3icheInput
-    from containers.implementation.profile_agent.activities    import build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput
-    from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetStructureInput
-    from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput
+    from containers.implementation.profile_agent.activities    import align_discovery_and_signals, build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput, AlignDiscoverySignalsInput, RetrieveIndustryKnowledgeInput, EnrichCompanyProfileInput, retrieve_industry_knowledge, enrich_company_profile
+    from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
+    from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, BuildImportPlanInput, ExecutePhaseInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
-    from containers.implementation.file_io.persist_session     import persist_session, PersistSessionInput
+    from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
 
 TASK_QUEUE = "is-queue"
 
@@ -49,27 +49,27 @@ _BANNER = "═" * 72
 _DIVIDER = "─" * 72
 _DOT_LINE = "· " * 36
 
-def _step_start(logger, step_num: int, title: str, detail: str = ""):
+def _step_start(logger, step_num: int | str, title: str, detail: str = ""):
     logger.info("")
     logger.info("")
     logger.info(_BANNER)
-    logger.info("  STEP %d / 14  │  %s", step_num, title)
+    logger.info("  STEP %s / 14  │  %s", step_num, title)
     if detail:
         logger.info("  %s", detail)
     logger.info(_BANNER)
     logger.info("")
 
-def _step_ok(logger, step_num: int, title: str, summary: str = ""):
+def _step_ok(logger, step_num: int | str, title: str, summary: str = ""):
     logger.info("")
-    logger.info("  ✅  STEP %d COMPLETE  │  %s", step_num, title)
+    logger.info("  ✅  STEP %s COMPLETE  │  %s", step_num, title)
     if summary:
         logger.info("      → %s", summary)
     logger.info(_DIVIDER)
     logger.info("")
 
-def _step_fail(logger, step_num: int, title: str, error: str):
+def _step_fail(logger, step_num: int | str, title: str, error: str):
     logger.info("")
-    logger.info("  ❌  STEP %d FAILED    │  %s", step_num, title)
+    logger.info("  ❌  STEP %s FAILED    │  %s", step_num, title)
     logger.info("      ERROR: %s", error)
     logger.info(_DIVIDER)
     logger.info("")
@@ -113,6 +113,12 @@ class ValidationSubmittedSignal:
 
 
 @dataclass
+class MappingConfirmedSignal:
+    user_feedback: Optional[str] = None
+    approved: bool = False
+
+
+@dataclass
 class SandboxApprovedSignal:
     erpnext_base_url: str
     erpnext_api_key: str
@@ -135,12 +141,14 @@ class ImplementationWorkflow:
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
         self._f3iche_confirmed_event   = asyncio.Event()
+        self._mapping_confirmed_event  = asyncio.Event()
         self._validation_submitted_event = asyncio.Event()
         self._sandbox_approved_event   = asyncio.Event()
 
         # Signal payloads
         self._sig_files:      Optional[FilesUploadedSignal]      = None
         self._sig_f3iche:     Optional[F3icheConfirmedSignal]    = None
+        self._sig_mapping:    Optional[MappingConfirmedSignal]   = None
         self._sig_validation: Optional[ValidationSubmittedSignal] = None
         self._sig_sandbox:    Optional[SandboxApprovedSignal]    = None
 
@@ -155,6 +163,11 @@ class ImplementationWorkflow:
     async def f3iche_confirmed(self, sig: F3icheConfirmedSignal) -> None:
         self._sig_f3iche = sig
         self._f3iche_confirmed_event.set()
+
+    @workflow.signal
+    async def mapping_confirmed(self, sig: MappingConfirmedSignal) -> None:
+        self._sig_mapping = sig
+        self._mapping_confirmed_event.set()
 
     @workflow.signal
     async def validation_submitted(self, sig: ValidationSubmittedSignal) -> None:
@@ -261,7 +274,7 @@ class ImplementationWorkflow:
         try:
             scan_result: Dict = await workflow.execute_activity(
                 virus_scan_quarantine,
-                sig.uploaded_files,
+                args=[sig.uploaded_files, self._session_id],
                 **_ACT,
             )
             _kv(L, "safe", scan_result.get("safe"))
@@ -383,10 +396,30 @@ class ImplementationWorkflow:
             _step_fail(L, 5, "Verify F3iche", str(e))
             L.info("      ⚠️  Non-critical — continuing with user's choice")
 
+
+        # ══════════════════════════════════════════════════════════════════════════════
+        # STEP 6a / 14  —  Discovery-Signals Alignment
+        # ══════════════════════════════════════════════════════════════════════════════
+        _step_start(L, "6a", "Discovery-Signals Alignment", "Comparing chatbot intent with uploaded files")
+        
+        alignment_result = {}
+        try:
+            alignment_result = await workflow.execute_activity(
+                align_discovery_and_signals,
+                AlignDiscoverySignalsInput(session_id=self._session_id, project_id=project_id),
+                **_ACT,
+            )
+            _kv(L, "alignment_score", alignment_result.get("alignment_score"))
+            _kv(L, "mismatches", len(alignment_result.get("mismatches", [])))
+            _step_ok(L, "6a", "Discovery-Signals Alignment", f"score={alignment_result.get('alignment_score')}")
+        except Exception as e:
+            _step_fail(L, "6a", "Discovery-Signals Alignment", str(e))
+
+
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 6 / 14  —  Build Company Profile
+        # STEP 7 / 14  —  Build Company Profile
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 6, "Build Company Profile",
+        _step_start(L, 7, "Build Company Profile",
                     f"f3iche={conf.f3iche_user} | industry={conf.industry}")
 
         try:
@@ -409,33 +442,71 @@ class ImplementationWorkflow:
                     uploaded_files=sig.uploaded_files,
                     r2_manifest_url=r2_manifest_url,
                     collected_signals=infer_result["collected_signals"],
+                    discovery_alignment_score=alignment_result.get("alignment_score"),
                 ),
                 **_ACT,
             )
             _kv(L, "table", "is_company_profiles (v1)")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_profile/company_context_v1.json")
             _kv(L, "audit", "is_audit_trail → profile_built")
-            _step_ok(L, 6, "Build Company Profile", "version=1 persisted")
+            _step_ok(L, 7, "Build Company Profile", "version=1 persisted")
         except Exception as e:
-            _step_fail(L, 6, "Build Company Profile", str(e))
+            _step_fail(L, 7, "Build Company Profile", str(e))
             self._stage = "error"
             return {"error": f"Profile build failed: {e}"}
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 7 / 14  —  Build Target Structure
+        # STEP 7a / 14  —  Industry Knowledge Retrieval
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 7, "Build Target Structure",
+        _step_start(L, "7a", "Industry Knowledge Retrieval (LLM Node 2)", "Querying pgvector for industry best practices")
+        try:
+            insights = await workflow.execute_activity(
+                retrieve_industry_knowledge,
+                RetrieveIndustryKnowledgeInput(
+                    session_id=self._session_id,
+                    industry=conf.industry,
+                    company_size=conf.company_size,
+                    differentiators=conf.industry_sub or ""
+                ),
+                **_ACT,
+            )
+            _step_ok(L, "7a", "Industry Knowledge Retrieval", "Retrieved industry differentiators and best practices")
+        except Exception as e:
+            _step_fail(L, "7a", "Industry Knowledge Retrieval", str(e))
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 7b / 14  —  LLM Profile Generation
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, "7b", "LLM Profile Generation (LLM Node 3)", "Enriching company profile with data observations")
+        try:
+            enrichment = await workflow.execute_activity(
+                enrich_company_profile,
+                EnrichCompanyProfileInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                    r2_manifest_url=r2_manifest_url,
+                ),
+                **_ACT,
+            )
+            _step_ok(L, "7b", "LLM Profile Generation", f"Appended enrichment with quality score: {enrichment.get('data_quality_score')}")
+        except Exception as e:
+            _step_fail(L, "7b", "LLM Profile Generation", str(e))
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 8 / 14  —  Build Target Structure
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, 8, "Build Target Structure",
                     f"f3iche={conf.f3iche_user} | industry={conf.industry}")
 
         try:
             target: Dict = await workflow.execute_activity(
                 build_target_structure,
-                BuildTargetStructureInput(
-                    f3iche=conf.f3iche_user,
-                    industry=conf.industry,
+                BuildTargetInput(
                     session_id=self._session_id,
-                    company_slug=self._company_slug,
                     project_id=project_id,
+                    f3iche=conf.f3iche_user,
+                    company_slug=self._company_slug,
                 ),
                 **_ACT,
             )
@@ -481,7 +552,13 @@ class ImplementationWorkflow:
                     f"{len(self._parsed_files)} files to map")
 
         mapped_count = 0
-        for i, fname in enumerate(self._parsed_files):
+        # ── SORT: structured files first (.csv, .xlsx), then unstructured (.txt, .pdf) ──
+        structured_ext = {".csv", ".xlsx", ".xls", ".tsv"}
+        sorted_files = sorted(
+            self._parsed_files,
+            key=lambda f: (0 if any(f.lower().endswith(e) for e in structured_ext) else 1, f)
+        )
+        for i, fname in enumerate(sorted_files):
             L.info("      [%d/%d] Mapping: %s", i + 1, len(self._parsed_files), fname)
             try:
                 mapped_doctype: str = await workflow.execute_activity(
@@ -512,12 +589,62 @@ class ImplementationWorkflow:
         self._set_task("t6", "done", f"{mapped_count} files mapped")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 10 / 14  —  Pre-Import Validation
+        # AWAIT SIGNAL: mapping_confirmed
+        # ══════════════════════════════════════════════════════════════════════
+        self._stage = "awaiting_mapping_confirmation"
+        
+        while True:
+            self._mapping_confirmed_event.clear()
+            L.info("  ⏳ Waiting for mapping_confirmed signal ...")
+            L.info("")
+            await workflow.wait_condition(lambda: self._mapping_confirmed_event.is_set())
+            
+            msig = self._sig_mapping
+            _signal_banner(L, "mapping_confirmed", f"approved={msig.approved} | feedback={'present' if msig.user_feedback else 'none'}")
+            
+            if msig.approved and not msig.user_feedback:
+                _step_ok(L, 9, "Mapping Confirmation", "Mappings explicitly approved.")
+                break
+                
+            if msig.user_feedback:
+                # ══════════════════════════════════════════════════════════════════════
+                # STEP 10 / 14  —  Conversational Mapping Refinement
+                # ══════════════════════════════════════════════════════════════════════
+                _step_start(L, 10, "Conversational Mapping Refinement", "Refining mappings based on user feedback.")
+                self._stage = "refining_mapping"
+                try:
+                    ref_res = await workflow.execute_activity(
+                        refine_mapping_with_llm,
+                        RefineMappingInput(
+                            session_id=self._session_id,
+                            user_feedback=msig.user_feedback,
+                            project_id=project_id,
+                            company_slug=self._company_slug
+                        ),
+                        **_ACT,
+                    )
+                    changes = ref_res.get('changes_count', 0)
+                    _kv(L, "Updated Mappings", len(ref_res.get("updated_mappings", [])))
+                    _kv(L, "Removed Mappings", len(ref_res.get("removed_mappings", [])))
+                    _step_ok(L, 10, "Conversational Mapping Refinement", f"Processed feedback, {changes} mappings changed.")
+                    
+                    if msig.approved:
+                        break
+                    else:
+                        self._stage = "awaiting_mapping_confirmation"
+                        continue
+                except Exception as e:
+                    _step_fail(L, 10, "Conversational Mapping Refinement", str(e))
+                    # Fallback out of loop if it crashes, or keep waiting
+                    pass
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 11 / 14  —  Pre-Import Validation
         # ══════════════════════════════════════════════════════════════════════
         self._set_task("t7", "running")
         self._stage = "validating"
 
-        _step_start(L, 10, "Pre-Import Validation",
+        _step_start(L, 11, "Pre-Import Validation",
                     "Checking mapped data vs target structure rules")
 
         try:
@@ -532,9 +659,9 @@ class ImplementationWorkflow:
             _kv(L, "also updates", "is_mapped_data.validation_status, is_sessions.status")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_validation/report.json")
             _kv(L, "audit", "is_audit_trail → validation_run")
-            _step_ok(L, 10, "Validation", f"overall={v_status}")
+            _step_ok(L, 11, "Validation", f"overall={v_status}")
         except Exception as e:
-            _step_fail(L, 10, "Validation", str(e))
+            _step_fail(L, 11, "Validation", str(e))
             self._stage = "error"
             return {"error": f"Validation failed: {e}"}
 
@@ -553,10 +680,10 @@ class ImplementationWorkflow:
                        f"responses={len(vsub.responses)} keys | edits={len(vsub.profile_edits)} keys")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 11 / 14  —  Merge Profile Edits (conditional)
+        # STEP 11a / 14  —  Merge Profile Edits (conditional)
         # ══════════════════════════════════════════════════════════════════════
         if vsub.profile_edits:
-            _step_start(L, 11, "Merge Profile Edits",
+            _step_start(L, "11a", "Merge Profile Edits",
                         f"Patching {len(vsub.profile_edits)} fields")
             try:
                 await workflow.execute_activity(
@@ -567,12 +694,12 @@ class ImplementationWorkflow:
                 _kv(L, "table", "is_company_profiles (new version)")
                 _kv(L, "patch_keys", list(vsub.profile_edits.keys()))
                 _kv(L, "audit", "is_audit_trail → profile_merged")
-                _step_ok(L, 11, "Merge Profile Edits", "New profile version created")
+                _step_ok(L, "11a", "Merge Profile Edits", "New profile version created")
             except Exception as e:
-                _step_fail(L, 11, "Merge Profile Edits", str(e))
+                _step_fail(L, "11a", "Merge Profile Edits", str(e))
         else:
-            _step_start(L, 11, "Merge Profile Edits", "No edits submitted — skipping")
-            _step_ok(L, 11, "Merge Profile Edits", "SKIPPED (no edits)")
+            _step_start(L, "11a", "Merge Profile Edits", "No edits submitted — skipping")
+            _step_ok(L, "11a", "Merge Profile Edits", "SKIPPED (no edits)")
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 12 / 14  —  Build Import Plan
@@ -666,7 +793,7 @@ class ImplementationWorkflow:
         try:
             await workflow.execute_activity(
                 persist_session,
-                PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status=self._stage),
+                CompleteSessionInput(session_id=self._session_id, status=self._stage),
                 **_ACT,
             )
             _kv(L, "table", "is_sessions")

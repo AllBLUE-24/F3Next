@@ -8,6 +8,7 @@ import { AlertTriangle, Info, CheckCircle, ChevronDown, ChevronUp, ArrowRight, M
 import type { CompanyProfile, ValidationItem } from '@/types/implementation';
 
 interface Props {
+  jobId: string;
   profile: CompanyProfile;
   validationItems: ValidationItem[];
   submitAction: (formData: FormData) => Promise<void>;
@@ -21,7 +22,7 @@ const TYPE_CONFIG = {
   suggestion:    { label: 'Suggestion',    icon: Info,          color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
 };
 
-export function ValidateView({ profile, validationItems, submitAction, sandboxHref, companySlug }: Props) {
+export function ValidateView({ jobId, profile, validationItems, submitAction, sandboxHref, companySlug }: Props) {
   const [responses, setResponses]     = useState<Record<string, string>>({});
   const [profileEdits, setProfileEdits] = useState<Record<string, string>>({});
   const [note, setNote]               = useState('');
@@ -41,6 +42,7 @@ export function ValidateView({ profile, validationItems, submitAction, sandboxHr
   const handleSubmit = () => {
     startTransition(async () => {
       const formData = new FormData();
+      formData.append('jobId', jobId); // Sending workflow uuid upwards
       formData.append('companySlug', companySlug);
       formData.append('responses', JSON.stringify(responses));
       formData.append('profileEdits', JSON.stringify(profileEdits));

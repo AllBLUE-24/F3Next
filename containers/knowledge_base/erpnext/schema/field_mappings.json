@@ -507,6 +507,219 @@
             "validation": "15_character_alphanumeric"
           }
         }
+      },
+
+      "Supplier": {
+        "doctype_name": "Supplier",
+        "naming_series": "SUP-",
+        "mandatory_fields": ["supplier_name", "supplier_group"],
+        
+        "field_mappings": {
+          "supplier_name": {
+            "fieldname": "supplier_name",
+            "fieldtype": "Data",
+            "mandatory": true,
+            "user_input_synonyms": ["vendor_name", "seller_name", "entity name", "company name", "name"]
+          },
+          "supplier_group": {
+            "fieldname": "supplier_group",
+            "fieldtype": "Link",
+            "options": "Supplier Group",
+            "mandatory": true,
+            "default_value": "All Supplier Groups",
+            "user_input_synonyms": ["vendor_group", "supplier_category", "category"]
+          },
+          "supplier_type": {
+            "fieldname": "supplier_type",
+            "fieldtype": "Select",
+            "options": ["Company", "Individual"],
+            "mandatory": false,
+            "default_value": "Company",
+            "user_input_synonyms": ["vendor_type", "type"]
+          },
+          "country": {
+            "fieldname": "country",
+            "fieldtype": "Link",
+            "options": "Country",
+            "mandatory": false,
+            "default_value": "India"
+          },
+          "gstin": {
+            "fieldname": "gstin",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["gst_number", "gst", "gst_no"],
+            "validation": "15_character_alphanumeric"
+          },
+          "gst_category": {
+            "fieldname": "gst_category",
+            "fieldtype": "Select",
+            "options": ["Registered Regular", "Registered Composition", "Unregistered", "SEZ", "Overseas"],
+            "mandatory": false,
+            "default_value": "Unregistered"
+          },
+          "payment_terms": {
+            "fieldname": "payment_terms",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["payment_terms", "credit_terms", "terms"]
+          },
+          "contact_person": {
+            "fieldname": "supplier_primary_contact",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["contact", "contact_person", "contact_name", "poc"]
+          },
+          "email": {
+            "fieldname": "email_id",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["email_id", "email_address", "mail"]
+          },
+          "phone": {
+            "fieldname": "mobile_no",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["mobile", "phone_number", "contact_number", "cell"]
+          }
+        }
+      },
+
+      "Employee": {
+        "doctype_name": "Employee",
+        "naming_series": "HR-EMP-",
+        "mandatory_fields": ["employee_name", "date_of_joining"],
+        
+        "field_mappings": {
+          "employee_name": {
+            "fieldname": "employee_name",
+            "fieldtype": "Data",
+            "mandatory": true,
+            "user_input_synonyms": ["full_name", "name", "emp_name", "staff_name"]
+          },
+          "employee_id": {
+            "fieldname": "employee",
+            "fieldtype": "Data",
+            "mandatory": false,
+            "user_input_synonyms": ["emp_id", "emp_code", "employee_code", "staff_id", "id"]
+          },
+          "department": {
+            "fieldname": "department",
+            "fieldtype": "Link",
+            "options": "Department",
+            "mandatory": false,
+            "user_input_synonyms": ["dept", "division", "team"]
+          },
+          "designation": {
+            "fieldname": "designation",
+            "fieldtype": "Link",
+            "options": "Designation",
+            "mandatory": false,
+            "user_input_synonyms": ["role", "position", "title", "job_title"]
+          },
+          "date_of_joining": {
+            "fieldname": "date_of_joining",
+            "fieldtype": "Date",
+            "mandatory": true,
+            "user_input_synonyms": ["doj", "joining_date", "start_date", "hire_date", "date of joining"]
+          },
+          "date_of_birth": {
+            "fieldname": "date_of_birth",
+            "fieldtype": "Date",
+            "mandatory": false,
+            "user_input_synonyms": ["dob", "birth_date"]
+          },
+          "gender": {
+            "fieldname": "gender",
+            "fieldtype": "Select",
+            "options": ["Male", "Female", "Other"],
+            "mandatory": false
+          },
+          "company": {
+            "fieldname": "company",
+            "fieldtype": "Link",
+            "options": "Company",
+            "mandatory": false,
+            "default_value": "user_default_company_or_first_company"
+          },
+          "status": {
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "options": ["Active", "Inactive", "Suspended", "Left"],
+            "mandatory": false,
+            "default_value": "Active"
+          }
+        }
+      },
+
+      "Journal Entry": {
+        "doctype_name": "Journal Entry",
+        "naming_series": "JV-",
+        "mandatory_fields": ["posting_date", "accounts"],
+        
+        "field_mappings": {
+          "posting_date": {
+            "fieldname": "posting_date",
+            "fieldtype": "Date",
+            "mandatory": true,
+            "default_value": "today",
+            "user_input_synonyms": ["date", "entry_date", "voucher_date"]
+          },
+          "voucher_type": {
+            "fieldname": "voucher_type",
+            "fieldtype": "Select",
+            "options": ["Journal Entry", "Opening Entry", "Bank Entry", "Cash Entry", "Depreciation Entry"],
+            "mandatory": false,
+            "default_value": "Journal Entry",
+            "user_input_synonyms": ["entry_type", "type"]
+          },
+          "accounts": {
+            "fieldname": "accounts",
+            "fieldtype": "Table",
+            "child_doctype": "Journal Entry Account",
+            "mandatory": true,
+            "minimum_rows": 2,
+            "child_fields": {
+              "account": {
+                "fieldname": "account",
+                "fieldtype": "Link",
+                "options": "Account",
+                "mandatory": true,
+                "user_input_synonyms": ["account_name", "ledger", "gl_account", "account name"]
+              },
+              "debit_in_account_currency": {
+                "fieldname": "debit_in_account_currency",
+                "fieldtype": "Currency",
+                "mandatory": false,
+                "user_input_synonyms": ["debit", "dr", "debit_amount"]
+              },
+              "credit_in_account_currency": {
+                "fieldname": "credit_in_account_currency",
+                "fieldtype": "Currency",
+                "mandatory": false,
+                "user_input_synonyms": ["credit", "cr", "credit_amount"]
+              },
+              "account_type": {
+                "fieldname": "account_type",
+                "fieldtype": "Data",
+                "mandatory": false,
+                "user_input_synonyms": ["type", "account_type", "category"]
+              }
+            }
+          },
+          "remark": {
+            "fieldname": "remark",
+            "fieldtype": "Small Text",
+            "mandatory": false,
+            "user_input_synonyms": ["narration", "description", "notes", "memo"]
+          },
+          "balance": {
+            "fieldname": "total_debit",
+            "fieldtype": "Currency",
+            "mandatory": false,
+            "user_input_synonyms": ["balance", "amount", "balance (inr)", "balance_amount"]
+          }
+        }
       }
     },
   

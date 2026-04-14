@@ -1,0 +1,8 @@
+{
+  "f3iche": "manufacturing_food_batch",
+  "industry": "Unknown",
+  "required_doctypes": [],
+  "import_phases": {},
+  "setup_steps": [],
+  "validation_rules": {}
+}

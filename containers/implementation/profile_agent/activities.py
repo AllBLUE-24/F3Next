@@ -163,6 +163,7 @@ class BuildProfileInput:
     field_mappings: Optional[Dict] = None
     validation_report: Optional[Dict] = None
     import_phase: Optional[str] = None
+    discovery_alignment_score: Optional[float] = None
 
 
 @dataclass
@@ -172,6 +173,24 @@ class MergeProfileInput:
     patch: Dict[str, Any]            # only the fields that changed
     action: str = "update"
 
+@dataclass
+class AlignDiscoverySignalsInput:
+    session_id: str
+    project_id: str
+
+@dataclass
+class RetrieveIndustryKnowledgeInput:
+    session_id: str
+    industry: str
+    company_size: Optional[str] = None
+    differentiators: str = ""
+
+@dataclass
+class EnrichCompanyProfileInput:
+    session_id: str
+    project_id: str
+    company_slug: str
+    r2_manifest_url: str
 
 # ── Activity definitions ─────────────────────────────────────────────────────
 
@@ -228,6 +247,7 @@ async def build_company_profile(inp: BuildProfileInput) -> str:
                     industry_sub=inp.industry_sub,
                     company_name=inp.company_name,
                     company_size=inp.company_size,
+                    discovery_alignment_score=inp.discovery_alignment_score,
                     workflows=profile.get("workflows"),
                     required_modules=profile.get("modules"),
                     required_doctypes=profile.get("required_doctypes"),
@@ -357,3 +377,403 @@ async def merge_company_profile(inp: MergeProfileInput) -> str:
 
     activity.logger.info("✅ merge_company_profile done")
     return "success"
+
+@activity.defn(name="align_discovery_and_signals")
+async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[str, Any]:
+    """
+    Step 6a: Compare Discovery data (from hooks) with Signals data (from is_f3iche_scores)
+    using an LLM to generate an alignment score and identify mismatches.
+    """
+    activity.logger.info("▶ align_discovery_and_signals started | session=%s", inp.session_id)
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISSession, ISF3icheScore
+    from sqlalchemy import select, update, text
+    from containers.implementation.utils.llm_helper import generate_json
+    from containers.implementation.profile_agent.prompts import ALIGNMENT_PROMPT
+
+    discovery_data = {}
+    signals_data = []
+
+    async with AsyncSessionLocal() as session:
+        # 1. Fetch Discovery Data (Safely querying the 'hooks' table directly)
+        stmt_hooks = text("SELECT discovery_metadata FROM hooks WHERE project_id = :pid ORDER BY created_at DESC LIMIT 1")
+        res_hooks = await session.execute(stmt_hooks, {"pid": inp.project_id})
+        hook_row = res_hooks.fetchone()
+        if hook_row and hook_row[0]:
+            discovery_data = hook_row[0]
+
+        # 2. Fetch Signals Data
+        stmt_signals = select(ISF3icheScore).where(
+            ISF3icheScore.session_id == uuid.UUID(inp.session_id),
+            ISF3icheScore.source == "signals"
+        )
+        res_signals = await session.execute(stmt_signals)
+        for score_row in res_signals.scalars():
+            signals_data.append({
+                "f3iche": score_row.f3iche,
+                "confidence": score_row.confidence,
+                "score": score_row.score
+            })
+
+    # 3. Call the LLM
+    prompt = ALIGNMENT_PROMPT.format(
+        discovery_data=json.dumps(discovery_data, indent=2),
+        signals_data=json.dumps(signals_data, indent=2)
+    )
+
+    try:
+        alignment_result = generate_json(prompt, temperature=0.1, max_output_tokens=1000)
+    except Exception as e:
+        activity.logger.warning("  ⚠️ LLM Alignment failed: %s", e)
+        alignment_result = {
+            "alignment_score": 0.5,
+            "mismatches": [f"LLM parsing error: {e}"],
+            "recommended_f3iche": signals_data[0]["f3iche"] if signals_data else "unknown",
+            "reasoning": "Fallback applied due to LLM error."
+        }
+
+    # 4. Update Supabase & Write Audit Log
+    try:
+        async with AsyncSessionLocal() as session:
+            # Safely extract variables (they might be missing if discovery was skipped)
+            f3iche = discovery_data.get("f3iche") if isinstance(discovery_data, dict) else None
+            industry = discovery_data.get("industry") if isinstance(discovery_data, dict) else None
+            company_size = discovery_data.get("company_size") if isinstance(discovery_data, dict) else None
+
+            update_vals = {}
+            if f3iche: update_vals["discovery_f3iche"] = f3iche
+            if industry: update_vals["discovery_industry"] = industry
+            if company_size: update_vals["discovery_company_size"] = company_size
+
+            # Update is_sessions table if we have discovery data
+            if update_vals:
+                await session.execute(
+                    update(ISSession)
+                    .where(ISSession.id == uuid.UUID(inp.session_id))
+                    .values(**update_vals)
+                )
+                await session.commit()
+                activity.logger.info("  ✅ Updated is_sessions with discovery metadata.")
+            else:
+                activity.logger.info("  ⚠️ No valid discovery metadata found to update is_sessions.")
+
+        # Write the Audit Trail
+        from containers.implementation.file_io.persist_audit import log_audit
+        await log_audit(
+            session_id=inp.session_id,
+            action="discovery_signals_aligned",
+            actor="llm",
+            details={
+                "alignment_score": alignment_result.get("alignment_score"),
+                "mismatches": alignment_result.get("mismatches")
+            },
+            result="success"
+        )
+        activity.logger.info("  ✅ Audit log written for discovery_signals_aligned.")
+
+    except Exception as e:
+        activity.logger.error("  ❌ Database update failed during alignment: %s", e)
+
+    activity.logger.info("✅ align_discovery_and_signals done | score=%s", alignment_result.get("alignment_score"))
+    return alignment_result
+
+
+# -----------------------------------------------------------------------------
+# STEP 7a: RAG-Based Industry Knowledge Retrieval
+# -----------------------------------------------------------------------------
+@activity.defn(name="retrieve_industry_knowledge")
+async def retrieve_industry_knowledge(inp: RetrieveIndustryKnowledgeInput) -> Dict[str, Any]:
+    activity.logger.info("▶ retrieve_industry_knowledge (RAG) started | industry=%s", inp.industry)
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISCompanyProfile
+    from sqlalchemy import update, select, text
+    from containers.implementation.utils.llm_helper import generate_json
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+    import uuid
+
+    # 1. Build the search query
+    # 1. Build the search query
+    search_query = f"Industry: {inp.industry}. Size: {inp.company_size}. Unique aspects: {inp.differentiators}. What compliance requirements, best practices, and workflows are typical?"
+    
+    # 2. Generate Vector Embedding using the new REST API
+    try:
+        import requests
+        from llm_router import key_pool
+        
+        # Get a key from your router
+        current_key = next(key_pool)
+        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={current_key}"
+        payload = {
+            "model": "models/gemini-embedding-001",
+            "content": {"parts": [{"text": search_query}]}
+        }
+        response = requests.post(url, headers={'Content-Type': 'application/json'}, json=payload)
+        response_data = response.json()
+        
+        if "error" in response_data:
+            raise Exception(response_data["error"])
+            
+        vector = response_data['embedding']['values']
+        vector_str = "[" + ",".join(map(str, vector)) + "]"
+        
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to generate embedding: %s", e)
+        vector_str = None
+
+    # 3. Vector Similarity Search in Supabase
+    retrieved_docs = []
+    if vector_str:
+        try:
+            async with AsyncSessionLocal() as session:
+                # We use raw SQL with `<=>` which calculates cosine distance
+                # We use raw SQL with `<=>` which calculates cosine distance
+                stmt = text("""
+                    SELECT content 
+                    FROM kb_embeddings 
+                    ORDER BY embedding <=> CAST(:vector AS vector)
+                    LIMIT 5
+                """)
+
+                res = await session.execute(stmt, {"vector": vector_str})
+                
+                for row in res:
+                    retrieved_docs.append(row[0])
+                    
+            activity.logger.info("  ✅ Retrieved %d relevant chunks from pgvector", len(retrieved_docs))
+        except Exception as e:
+            activity.logger.error("  ❌ Vector search failed: %s", e)
+
+    # Fallback if no docs found
+    if not retrieved_docs:
+        retrieved_docs.append("No specific industry knowledge found in database. Rely on general ERP principles.")
+
+    # 4. Call LLM to synthesize the RAG results
+    context_str = "\n\n---\n\n".join(retrieved_docs)
+    prompt = f"""
+You are the F3Next Industry Expert AI. 
+
+Based strictly on these retrieved industry knowledge snippets:
+{context_str}
+
+Summarize the operational realities for a company in: {inp.industry} (Size: {inp.company_size}).
+1. Key compliance requirements
+2. Best practices
+3. Typical workflows
+4. Common challenges
+
+Return EXACTLY this JSON structure:
+{{
+  "industry_differentiators": [
+    "List 3-4 unique operational requirements based on the snippets"
+  ],
+  "industry_best_practices": {{
+    "compliance": ["List compliance standards"],
+    "workflows": ["List crucial ERP workflows"],
+    "challenges": ["List common challenges"]
+  }}
+}}
+"""
+
+    try:
+        industry_insights = generate_json(prompt, temperature=0.2, max_output_tokens=1500)
+    except Exception as e:
+        activity.logger.warning("  ⚠️ LLM Synthesis failed: %s", e)
+        industry_insights = {"industry_differentiators": [], "industry_best_practices": {}}
+
+    # 5. Update Supabase is_company_profiles
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISCompanyProfile)
+                .where(ISCompanyProfile.session_id == uuid.UUID(inp.session_id))
+                .order_by(ISCompanyProfile.version.desc())
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            latest_profile = res.scalar_one_or_none()
+
+            if latest_profile:
+                await session.execute(
+                    update(ISCompanyProfile)
+                    .where(ISCompanyProfile.id == latest_profile.id)
+                    .values(
+                        industry_differentiators=industry_insights.get("industry_differentiators", []),
+                        industry_best_practices=industry_insights.get("industry_best_practices", {})
+                    )
+                )
+                await session.commit()
+    except Exception as e:
+        activity.logger.error("  ❌ Database update failed: %s", e)
+
+    activity.logger.info("✅ retrieve_industry_knowledge done")
+    return industry_insights
+
+
+# -----------------------------------------------------------------------------
+# STEP 7b: Enrich Company Profile
+# -----------------------------------------------------------------------------
+@activity.defn(name="enrich_company_profile")
+async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, Any]:
+    """
+    Step 7b: Enrich the company profile with data observations and scores,
+    then save the final version to DB and R2.
+    """
+    activity.logger.info("▶ enrich_company_profile started | session=%s", inp.session_id)
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISCompanyProfile
+    from sqlalchemy import update, select
+    from containers.implementation.utils.llm_helper import generate_json
+    from containers.implementation.profile_agent.prompts import PROFILE_ENRICHMENT_PROMPT
+    import boto3
+    from botocore.config import Config
+
+    def get_s3_client():
+        return boto3.client(
+            "s3",
+            endpoint_url=os.getenv("R2_ENDPOINT"),
+            aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+
+    # 1. Fetch current profile from DB
+    profile_dict = {}
+    profile_id = None
+    profile_version = 1
+    
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(ISCompanyProfile).where(
+                ISCompanyProfile.session_id == uuid.UUID(inp.session_id)
+            ).order_by(ISCompanyProfile.version.desc()).limit(1)
+            
+            res = await session.execute(stmt)
+            latest = res.scalar_one_or_none()
+            
+            if latest:
+                profile_id = latest.id
+                profile_version = latest.version
+                profile_dict = {
+                    "f3iche": latest.f3iche,
+                    "industry": latest.industry,
+                    "required_modules": latest.required_modules,
+                    "required_doctypes": latest.required_doctypes,
+                    "industry_best_practices": latest.industry_best_practices
+                }
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to fetch profile: %s", e)
+        return {"status": "error"}
+
+    # 2. Fetch Manifest / File Snippets from R2
+    file_contents = {}
+    if inp.r2_manifest_url:
+        try:
+            s3 = get_s3_client()
+            response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
+            manifest = json.loads(response["Body"].read().decode("utf-8"))
+            file_contents = manifest.get("files", {})
+        except Exception as e:
+            activity.logger.error("  ❌ Failed to load manifest: %s", e)
+
+    snippets = []
+    for fname, txt in file_contents.items():
+        snippets.append(f"File: {fname}\nData: {str(txt)[:1000]}\n---")
+
+    # 3. Call LLM for Enrichment
+    prompt = PROFILE_ENRICHMENT_PROMPT.format(
+        current_profile=json.dumps(profile_dict, indent=2),
+        data_snippets="\n".join(snippets)
+    )
+
+    try:
+        enrichment_data = generate_json(prompt, temperature=0.2, max_output_tokens=1500)
+    except Exception as e1:
+        activity.logger.warning("  ⚠️ LLM Enrichment attempt 1 failed: %s — retrying...", e1)
+        import time
+        time.sleep(2)
+        try:
+            enrichment_data = generate_json(prompt, temperature=0.3, max_output_tokens=1500)
+        except Exception as e2:
+            activity.logger.warning("  ⚠️ LLM Enrichment attempt 2 failed: %s — using f3iche template fallback", e2)
+            enrichment_data = {
+                "data_quality_score": 0.5,
+                "completeness_score": 0.5,
+                "data_observations": ["LLM enrichment failed after 2 attempts — using template defaults"],
+                "recommended_customizations": []
+            }
+            # ── FALLBACK: populate required_modules/doctypes from f3iche template ──
+            if profile_dict.get("f3iche"):
+                from pathlib import Path
+                f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{profile_dict['f3iche']}.json"
+                if f3iche_path.exists():
+                    try:
+                        with open(f3iche_path, "r", encoding="utf-8") as f:
+                            f3iche_data = json.load(f)
+                        if not profile_dict.get("required_modules"):
+                            profile_dict["required_modules"] = f3iche_data.get("required_modules", [])
+                        if not profile_dict.get("required_doctypes"):
+                            profile_dict["required_doctypes"] = f3iche_data.get("required_doctypes", 
+                                f3iche_data.get("mandatory_doctypes", []))
+                        activity.logger.info("  📋 Loaded f3iche template defaults for %s", profile_dict["f3iche"])
+                    except Exception:
+                        pass
+
+    # 4. Save Final JSON to R2
+    r2_key = f"{inp.company_slug}/{inp.project_id}/_profile/company_context_v{profile_version}.json"
+    
+    # Merge existing profile with new enrichment data
+    final_profile = {
+        **profile_dict,
+        "version": profile_version,
+        "session_id": inp.session_id,
+        "data_quality_score": enrichment_data.get("data_quality_score"),
+        "completeness_score": enrichment_data.get("completeness_score"),
+        "data_observations": enrichment_data.get("data_observations", []),
+        "recommended_customizations": enrichment_data.get("recommended_customizations", []),
+        "_persisted_at": datetime.utcnow().isoformat() + "Z"
+    }
+
+    try:
+        s3 = get_s3_client()
+        s3.put_object(
+            Bucket="clean-data",
+            Key=r2_key,
+            Body=json.dumps(final_profile, indent=2).encode("utf-8"),
+            ContentType="application/json"
+        )
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to save final profile to R2: %s", e)
+
+    # 5. Update DB and Write Audit Log
+    if profile_id:
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    update(ISCompanyProfile)
+                    .where(ISCompanyProfile.id == profile_id)
+                    .values(
+                        data_quality_score=enrichment_data.get("data_quality_score"),
+                        completeness_score=enrichment_data.get("completeness_score"),
+                        r2_path=r2_key
+                    )
+                )
+                await session.commit()
+                
+            from containers.implementation.file_io.persist_audit import log_audit
+            await log_audit(
+                session_id=inp.session_id,
+                action="profile_built",
+                actor="llm",
+                details={"version": profile_version, "quality_score": enrichment_data.get("data_quality_score")},
+                result="success"
+            )
+        except Exception as e:
+            activity.logger.error("  ❌ DB update failed: %s", e)
+
+    activity.logger.info("✅ enrich_company_profile done")
+    return enrichment_data

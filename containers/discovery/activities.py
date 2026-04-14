@@ -20,7 +20,7 @@ def _mock_discovery_response(user_answer: str, current_step: int) -> dict:
     questions = {
         1: "What does your company manufacture or trade?",
         2: "Do you make to stock, make to order, or do job work?",
-        3: "What is your approximate annual turnover (in Cr)?",
+        3: "What is your approximate annual turnover (in Cr)?", 
         4: "What system do you use today — Excel, Tally, or an ERP?",
         5: "What is your biggest pain point — inventory, costing, or efficiency?",
     }

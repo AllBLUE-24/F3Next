@@ -30,6 +30,7 @@ from containers.implementation.is_workflow.workflow import (
     TASK_QUEUE,
     FilesUploadedSignal,
     F3icheConfirmedSignal,
+    MappingConfirmedSignal,
     ValidationSubmittedSignal,
     SandboxApprovedSignal,
 )
@@ -120,6 +121,21 @@ class ImplementationLauncher:
                 industry_sub=industry_sub,
                 company_name=company_name,
                 company_size=company_size,
+            ),
+        )
+
+    async def signal_mapping_confirmed(
+        self,
+        project_id: str | UUID,
+        user_feedback: Optional[str] = None,
+        approved: bool = False,
+    ) -> None:
+        handle = await self._handle(project_id)
+        await handle.signal(
+            ImplementationWorkflow.mapping_confirmed,
+            MappingConfirmedSignal(
+                user_feedback=user_feedback,
+                approved=approved,
             ),
         )
 

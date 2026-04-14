@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from shared.database.db import AsyncSessionLocal
 from sqlalchemy.future import select
 from shared.models.core import Project
+from shared.models.is_models import ISSession, ISFile
 from app.services.is_launcher import ImplementationLauncher
 
 router = APIRouter(prefix="/implementation", tags=["Implementation"])
@@ -103,6 +104,45 @@ async def signal_files_uploaded(
     req: FilesUploadedRequest,
     launcher: ImplementationLauncher = Depends(get_launcher),
 ):
+    import asyncio
+    is_session = None
+    
+    # Poll for the ISSession. Temporal might take a second to reach Step 0
+    # and write to the database after the workflow starts.
+    for _ in range(10):
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                select(ISSession).where(ISSession.project_id == req.project_id)
+            )
+            is_session = res.scalar_one_or_none()
+        
+        if is_session:
+            break
+        await asyncio.sleep(0.5)
+        
+    if not is_session:
+        # This usually means the workflow hasn't reached Step 0 yet (persist_session)
+        raise HTTPException(
+            status_code=404, 
+            detail="Implementation session not found. Please ensure the workflow has started."
+        )
+
+    # 2. Insert record for each file into is_files table
+    async with AsyncSessionLocal() as session:
+        for f in req.uploaded_files:
+            new_file = ISFile(
+                session_id=is_session.id,
+                original_filename=f["file_name"],
+                r2_object_key=f["object_path"],
+                bucket_location="quarantine-data",
+                virus_scan_status="pending"
+            )
+            session.add(new_file)
+        
+        # Commit to ensure rows exist before triggering Temporal activity
+        await session.commit()
+
+    # 3. Trigger the files_uploaded signal to the Temporal workflow
     await launcher.signal_files_uploaded(
         req.project_id, 
         req.uploaded_files, 
@@ -130,6 +170,24 @@ async def signal_f3iche_confirmed(
         req.industry_sub, req.company_name, req.company_size,
     )
     return {"ok": True, "signal": "f3iche_confirmed"}
+
+
+class MappingConfirmedRequest(BaseModel):
+    project_id: UUID
+    user_feedback: Optional[str] = None
+    approved: bool = False
+
+
+@router.post("/signal/mapping-confirmed", summary="User confirmed or provided feedback on automated mappings")
+async def signal_mapping_confirmed(
+    req: MappingConfirmedRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    await launcher.signal_mapping_confirmed(
+        req.project_id, req.user_feedback, req.approved
+    )
+    return {"ok": True, "signal": "mapping_confirmed"}
+
 
 
 class ValidationSubmittedRequest(BaseModel):

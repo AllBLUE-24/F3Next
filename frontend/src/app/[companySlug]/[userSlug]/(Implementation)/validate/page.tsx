@@ -86,13 +86,14 @@ async function fetchValidationData(companySlug: string): Promise<{
 async function submitValidation(formData: FormData) {
   'use server';
   const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
-  const res = await fetch(`${base}/api/implementation/validate/submit`, {
+  const res = await fetch(`${base}/api/implementation/signal/validation-submitted`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-internal-secret': process.env.INTERNAL_SECRET!,
     },
     body: JSON.stringify({
+      project_id:   formData.get('jobId'), // Maps to project_id in FastAPI
       companySlug:  formData.get('companySlug'),
       responses:    JSON.parse(formData.get('responses') as string),
       profileEdits: JSON.parse(formData.get('profileEdits') as string),
@@ -117,26 +118,30 @@ async function submitValidation(formData: FormData) {
 
 interface Props {
   params: Promise<{ companySlug: string; userSlug: string }>;
+  searchParams: Promise<{ jobId?: string }>;
 }
 
-export default async function ValidatePage({ params }: Props) {
+export default async function ValidatePage({ params, searchParams }: Props) {
   const { companySlug, userSlug } = await params;
+  const { jobId } = await searchParams;
   const isDev = process.env.NODE_ENV === 'development';
 
-  // Try real backend first; fall back to mock in dev
-  const data = !isDev
-    ? await fetchValidationData(companySlug)
-    : (await fetchValidationData(companySlug)) ?? { profile: DEV_PROFILE, items: DEV_VALIDATION_ITEMS };
+  // We should actually pass the jobId to fetch the real DB validation result !!
+  // For now we'll just fix the immediate 404 submission error:
+  const data = !isDev && jobId
+    ? await fetchValidationData(jobId) // Changing this from companySlug to jobId!
+    : (jobId ? await fetchValidationData(jobId) : null) ?? { profile: DEV_PROFILE, items: DEV_VALIDATION_ITEMS };
 
-  if (!data) redirect(`/${companySlug}/${userSlug}/analyze`);
+  if (!data || !jobId) redirect(`/${companySlug}/${userSlug}/analyze`);
 
   return (
     <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
       <ValidateView
+        jobId={jobId}
         profile={data.profile}
         validationItems={data.items}
         submitAction={submitValidation}
-        sandboxHref={`/${companySlug}/${userSlug}/sandbox`}
+        sandboxHref={`/${companySlug}/${userSlug}/sandbox?jobId=${jobId}`}
         companySlug={companySlug}
       />
     </ImplementationServerProvider>

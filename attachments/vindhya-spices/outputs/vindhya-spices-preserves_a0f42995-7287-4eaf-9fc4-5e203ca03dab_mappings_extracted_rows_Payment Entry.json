@@ -1,0 +1,47 @@
+[
+  {
+    "Entity Name": "Kisan Agro Farms",
+    "Type": "Supplier",
+    "Contact Person": "Ramesh Singh",
+    "Phone": "+91-9876543210",
+    "Email": "ramesh@kisanagro.fake",
+    "Payment Terms": "Net 15",
+    "GSTIN": "23XXXXX1111X1ZA"
+  },
+  {
+    "Entity Name": "Indore Glassworks",
+    "Type": "Supplier",
+    "Contact Person": "Amit Patel",
+    "Phone": "+91-8765432109",
+    "Email": "sales@indoreglass.fake",
+    "Payment Terms": "Net 30",
+    "GSTIN": "23YYYYY2222Y1ZB"
+  },
+  {
+    "Entity Name": "Reliance Smart Bazaar",
+    "Type": "Customer",
+    "Contact Person": "Priya Sharma",
+    "Phone": "+91-7654321098",
+    "Email": "purchase@smartbazaar.fake",
+    "Payment Terms": "Net 30",
+    "GSTIN": "27ZZZZZ3333Z1ZC"
+  },
+  {
+    "Entity Name": "Sharma Provision Stores",
+    "Type": "Client",
+    "Contact Person": "Rohan Sharma",
+    "Phone": "+91-6543210987",
+    "Email": "nil",
+    "Payment Terms": "Cash on Delivery",
+    "GSTIN": "Unregistered"
+  },
+  {
+    "Entity Name": "Spice Route Exports",
+    "Type": "Customer",
+    "Contact Person": "Vikram Mehta",
+    "Phone": "+91-5432109876",
+    "Email": "exports@spiceroute.fake",
+    "Payment Terms": "Net 45",
+    "GSTIN": "27AAAAA4444A1ZD"
+  }
+]

@@ -10,6 +10,7 @@ import csv
 import io
 import json
 import os
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -17,12 +18,19 @@ from typing import Any, Dict, List, Optional
 import boto3
 from botocore.config import Config
 from temporalio import activity
+from sqlalchemy import select, update, delete
+
+from shared.database.db import AsyncSessionLocal
+from shared.models.is_models import ISFieldMapping, ISMappedData, ISFieldMappingHistory
+from containers.implementation.utils.llm_helper import generate_json
+
+# 🚀 Importing the prompt cleanly!
+from containers.implementation.mapping_agent.prompts import REFINE_MAPPING_PROMPT
 
 FIELD_MAPPINGS_PATH = (
     Path(__file__).resolve().parent.parent.parent
     / "knowledge_base" / "erpnext" / "schema" / "field_mappings.json"
 )
-
 
 def _get_s3_client():
     return boto3.client(
@@ -33,7 +41,6 @@ def _get_s3_client():
         config=Config(signature_version="s3v4"),
         region_name="auto",
     )
-
 
 # ── Embedded service logic ────────────────────────────────────────────────────
 
@@ -48,24 +55,44 @@ class _MappingEngine:
         return self._field_mappings
 
     def infer_doctype(self, columns: List[str], sample_text: Optional[str] = None) -> Optional[str]:
+        """Infer the best-matching ERPNext doctype using weighted synonym scoring."""
         if columns and len(columns) > 1:
-            cols_lower = [c.lower() for c in columns if c is not None]
+            cols_lower = [c.lower().strip() for c in columns if c is not None]
             data = self._load_field_mappings()
             mappings = data.get("doctypes", {})
 
+            scores: Dict[str, float] = {}
             for doctype, config in mappings.items():
                 field_mappings = config.get("field_mappings", {})
-                match_count = 0
+                score = 0.0
                 for field, fconfig in field_mappings.items():
-                    synonyms = fconfig.get("user_input_synonyms", [])
+                    synonyms = list(fconfig.get("user_input_synonyms", []))
                     synonyms.append(fconfig.get("fieldname", field))
-                    if any(syn.lower() in c or c in syn.lower() for syn in synonyms for c in cols_lower):
-                        match_count += 1
-                if match_count >= 2:
-                    return doctype
+
+                    for syn in synonyms:
+                        syn_lower = syn.lower().strip()
+                        for c in cols_lower:
+                            if c == syn_lower:
+                                score += 3.0  # Exact match
+                                break
+                            elif syn_lower in c and len(syn_lower) >= 3:
+                                score += 2.0  # Column contains synonym
+                                break
+                            elif c in syn_lower and len(c) >= 4:
+                                score += 0.5  # Synonym contains column (downweighted)
+                                break
+
+                if score >= 4.0:
+                    scores[doctype] = score
+
+            if scores:
+                best = max(scores, key=scores.get)
+                activity.logger.info("  Doctype inference scores: %s → best=%s (%.1f)",
+                                     {k: round(v, 1) for k, v in sorted(scores.items(), key=lambda x: -x[1])[:5]},
+                                     best, scores[best])
+                return best
 
         # Fallback to LLM inference
-        from containers.implementation.utils.llm_helper import generate_json
         data = self._load_field_mappings()
         available_doctypes = list(data.get("doctypes", {}).keys())
         
@@ -86,6 +113,43 @@ class _MappingEngine:
         except Exception as e:
             return None
 
+    def _split_by_entity_type(self, rows: List[Dict], columns: List[str]) -> Optional[Dict[str, List[Dict]]]:
+        """
+        Detect if a file contains multiple entity types (e.g., Suppliers AND Customers)
+        and split rows by their Type column into separate groups.
+
+        Returns None if no split is needed, or {entity_type: [rows]} if split applies.
+        """
+        type_col = None
+        type_synonyms = {"type", "entity type", "entity_type", "record type", "category", "party type"}
+        for c in columns:
+            if c and c.lower().strip() in type_synonyms:
+                type_col = c
+                break
+
+        if not type_col:
+            return None
+
+        groups: Dict[str, List[Dict]] = {}
+        for row in rows:
+            raw_type = (row.get(type_col) or "").strip()
+            if not raw_type:
+                continue
+            # Normalize common synonyms: "Client" → "Customer"
+            normalized = raw_type
+            if normalized.lower() in ("client", "buyer"):
+                normalized = "Customer"
+            elif normalized.lower() in ("vendor", "seller"):
+                normalized = "Supplier"
+            groups.setdefault(normalized, []).append(row)
+
+        # Only split if we have ≥2 distinct entity types
+        if len(groups) >= 2:
+            activity.logger.info("  Multi-entity split detected: %s", {k: len(v) for k, v in groups.items()})
+            return groups
+
+        return None
+
     def map_columns(self, columns: List[str], doctype: Optional[str] = None, sample_row: Optional[Dict] = None) -> Dict[str, str]:
         if not doctype:
             doctype = self.infer_doctype(columns)
@@ -99,7 +163,6 @@ class _MappingEngine:
         result: Dict[str, str] = {}
         unmapped_cols = []
         
-        # Pass 1: Try synonym match
         for col in columns:
             if col is None:
                 continue
@@ -117,9 +180,7 @@ class _MappingEngine:
             if not matched:
                 unmapped_cols.append(col)
                 
-        # Pass 2: Smart LLM Mapping for remaining fields
         if unmapped_cols:
-            from containers.implementation.utils.llm_helper import generate_json
             schema = {k: v.get("fieldname", k) for k, v in field_mappings.items()}
             
             prompt = f"Map the following unmapped source columns to the closest matching ERPNext '{doctype}' fields.\n"
@@ -142,12 +203,10 @@ class _MappingEngine:
         return result
 
     def _extract_nlp_rows(self, content: str, doctype: str) -> List[Dict]:
-        """Extract structured rows from unstructured text using an LLM."""
         data = self._load_field_mappings()
         field_mappings = data.get("doctypes", {}).get(doctype, {}).get("field_mappings", {})
         schema = {k: v.get("fieldname", k) for k, v in field_mappings.items()}
         
-        from containers.implementation.utils.llm_helper import generate_json
         prompt = f"I have unstructured text that represents records for an ERPNext '{doctype}'.\n"
         prompt += f"Extract the data into a structured array of JSON objects.\n"
         prompt += f"Each object should ONLY contain keys from this exact schema: {list(schema.values())}\n"
@@ -161,79 +220,110 @@ class _MappingEngine:
         except Exception:
             return []
 
-    def map_file(self, content: str, filename: str, doctype_hint: Optional[str] = None) -> Dict[str, Any]:
+    def map_file(self, content: str, filename: str, doctype_hint: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Map a single file to one or more ERPNext doctypes.
+        
+        Returns a LIST of mapping results (one per doctype) to support multi-entity files.
+        Each result dict has: doctype, field_mapping, rows, inferred_doctype, source_columns.
+        """
         is_unstructured = filename.lower().endswith(".txt") or filename.lower().endswith(".pdf")
         
         if is_unstructured:
             doctype = doctype_hint or self.infer_doctype([], sample_text=content)
             if not doctype:
-                return {"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}
+                return [{"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}]
             rows = self._extract_nlp_rows(content, doctype)
             if not rows:
-                return {"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}
+                return [{"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}]
                 
             columns = list(rows[0].keys())
-            return {
+            return [{
                 "doctype": doctype,
-                "field_mapping": {c: c for c in columns}, # Pre-mapped by the LLM
+                "field_mapping": {c: c for c in columns}, 
                 "rows": rows,
                 "inferred_doctype": doctype,
                 "source_columns": columns,
-            }
+            }]
         else:
             rows = list(csv.DictReader(io.StringIO(content)))
             clean_rows = [{k: v for k, v in r.items() if k is not None} for r in rows]
             if not clean_rows:
-                return {"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}
+                return [{"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}]
                 
             columns = [c for c in list(clean_rows[0].keys()) if c is not None]
+
+            # ── CHECK FOR MULTI-ENTITY FILE ──
+            split_groups = self._split_by_entity_type(clean_rows, columns)
+            if split_groups:
+                results = []
+                for entity_type, group_rows in split_groups.items():
+                    # Infer doctype for this specific entity group
+                    group_doctype = self.infer_doctype(columns, sample_text=entity_type)
+                    # Also try matching entity_type name to a doctype directly
+                    if not group_doctype or group_doctype == "Payment Entry":
+                        data = self._load_field_mappings()
+                        for dt_name in data.get("doctypes", {}).keys():
+                            if entity_type.lower() == dt_name.lower():
+                                group_doctype = dt_name
+                                break
+                    if not group_doctype:
+                        group_doctype = entity_type  # Use entity_type as-is
+                    
+                    field_mapping = self.map_columns(columns, group_doctype, sample_row=group_rows[0])
+                    results.append({
+                        "doctype": group_doctype,
+                        "field_mapping": field_mapping,
+                        "rows": group_rows,
+                        "inferred_doctype": group_doctype,
+                        "source_columns": columns,
+                    })
+                return results
+            
+            # ── SINGLE DOCTYPE MAPPING ──
             doctype = doctype_hint or self.infer_doctype(columns)
             field_mapping = self.map_columns(columns, doctype, sample_row=clean_rows[0])
             
-            return {
+            return [{
                 "doctype": doctype,
                 "field_mapping": field_mapping,
                 "rows": clean_rows,
                 "inferred_doctype": doctype,
                 "source_columns": columns,
-            }
-
+            }]
 
 # ── Input dataclasses ────────────────────────────────────────────────────────
 
 @dataclass
 class MapFileInput:
-    """Input for map_file_to_erpnext. Uses R2 URL instead of raw content."""
-    r2_manifest_url: str       # R2 object key to the manifest JSON
+    r2_manifest_url: str 
     filename: str
     project_id: str
     company_slug: str
     session_id: str
     doctype_hint: Optional[str] = None
 
-
 @dataclass
 class MapColumnsInput:
     columns: List[str]
     doctype_hint: Optional[str] = None
 
+@dataclass
+class RefineMappingInput:
+    session_id: str
+    user_feedback: str
+    project_id: str
+    company_slug: str = "unknown"
 
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="map_file_to_erpnext")
 async def map_file_to_erpnext(inp: MapFileInput) -> str:
-    """
-    Download file from R2, map columns to ERPNext doctype, upload results
-    to R2, and persist metadata to Supabase is_mappings.
-
-    Returns: doctype name if matched, or "unmapped" if no match found.
-    """
     activity.logger.info("▶ map_file_to_erpnext started | file=%s key=%s hint=%s",
                          inp.filename, inp.r2_manifest_url, inp.doctype_hint)
 
     s3 = _get_s3_client()
 
-    # ── 1. Download manifest from R2 and extract file content ────────────────
     try:
         response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
         raw = response["Body"].read()
@@ -246,121 +336,287 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
         activity.logger.error("❌ Failed to download manifest from R2: %s", e)
         return "error"
 
-    # ── 2. Run mapping engine ────────────────────────────────────────────────
     engine = _MappingEngine()
-    result = engine.map_file(content, inp.filename, inp.doctype_hint)
+    results = engine.map_file(content, inp.filename, inp.doctype_hint)
 
-    doctype = result.get("doctype")
-    if not doctype:
-        activity.logger.info("  ⚠️ No doctype matched for %s", inp.filename)
+    # ── NLP DEDUP: check which doctypes are already mapped by structured files ──
+    already_mapped_doctypes: set = set()
+    is_unstructured = inp.filename.lower().endswith(".txt") or inp.filename.lower().endswith(".pdf")
+
+    if is_unstructured:
+        try:
+            async with AsyncSessionLocal() as session:
+                stmt = select(ISMappedData.target_doctype).where(
+                    ISMappedData.session_id == uuid.UUID(inp.session_id)
+                )
+                res = await session.execute(stmt)
+                already_mapped_doctypes = {r[0] for r in res}
+        except Exception as e:
+            activity.logger.warning("  ⚠️ Could not check existing mappings for dedup: %s", e)
+
+    mapped_doctypes = []
+    for result in results:
+        doctype = result.get("doctype")
+        if not doctype:
+            activity.logger.info("  ⚠️ No doctype matched for %s (sub-result)", inp.filename)
+            continue
+
+        # Skip NLP-mapped doctypes if a structured file already mapped them 
+        if is_unstructured and doctype in already_mapped_doctypes:
+            activity.logger.info("  ⏭️ Skipping NLP mapping for %s → %s (already mapped by structured file)",
+                                 inp.filename, doctype)
+            continue
+
+        rows = result.get("rows", [])
+        field_mapping = result.get("field_mapping", {})
+        source_columns = result.get("source_columns", [])
+
+        activity.logger.info("  Mapped %s → %s | fields=%d rows=%d",
+                             inp.filename, doctype, len(field_mapping), len(rows))
+
+        slug = inp.company_slug or "unknown"
+        rows_key = f"{slug}/{inp.project_id}/mappings/extracted_rows/{doctype}.json"
+        payload_key = f"{slug}/{inp.project_id}/mappings/mapped_payloads/{doctype}.json"
+
+        try:
+            s3.put_object(
+                Bucket="clean-data",
+                Key=rows_key,
+                Body=json.dumps(rows, indent=2, default=str).encode("utf-8"),
+                ContentType="application/json",
+            )
+            activity.logger.info("  ✅ R2 uploaded: clean-data/%s", rows_key)
+        except Exception as e:
+            activity.logger.error("  ❌ R2 rows upload failed: %s", e)
+
+        mapped_records = []
+        for row in rows:
+            mapped_row = {}
+            for src_col, val in row.items():
+                if src_col in field_mapping:
+                    mapped_row[field_mapping[src_col]] = val
+            mapped_records.append(mapped_row)
+
+        erpnext_payload = {
+            "doctype": doctype,
+            "records": mapped_records 
+        }
+        
+        try:
+            s3.put_object(
+                Bucket="clean-data",
+                Key=payload_key,
+                Body=json.dumps(erpnext_payload, indent=2, default=str).encode("utf-8"),
+                ContentType="application/json",
+            )
+            activity.logger.info("  ✅ Mapped payload uploaded to R2.")
+        except Exception as e:
+            activity.logger.error("  ❌ Failed to upload mapped payload: %s", e)
+            
+        try:
+            async with AsyncSessionLocal() as session:
+                for src_col, tgt_field in field_mapping.items():
+                    session.add(ISFieldMapping(
+                        id=uuid.uuid4(),
+                        session_id=uuid.UUID(inp.session_id),
+                        source_filename=inp.filename,
+                        source_column=src_col,
+                        target_doctype=doctype,
+                        target_field=tgt_field,
+                        mapping_method="exact_match",
+                    ))
+
+                session.add(ISMappedData(
+                    id=uuid.uuid4(),
+                    session_id=uuid.UUID(inp.session_id),
+                    target_doctype=doctype,
+                    source_filename=inp.filename,
+                    extracted_rows_r2_path=rows_key,
+                    mapped_payload_r2_path=payload_key,
+                    total_rows=len(rows),
+                    total_mapped_fields=len(field_mapping),
+                    validation_status="pending",
+                ))
+                await session.commit()
+                activity.logger.info("  ✅ is_field_mappings (%d rows) + is_mapped_data upserted for %s",
+                                     len(field_mapping), doctype)
+
+        except Exception as e:
+            activity.logger.error("  ❌ Supabase write failed: %s", e)
+
+        from containers.implementation.file_io.persist_audit import log_audit
+        await log_audit(
+            session_id=inp.session_id,
+            action="mapping_completed",
+            actor="system",
+            entity_type="mapping",
+            details={"doctype": doctype, "source_file": inp.filename, "fields_mapped": len(field_mapping), "rows": len(rows)},
+            result="success",
+        )
+        mapped_doctypes.append(doctype)
+
+    if not mapped_doctypes:
+        activity.logger.info("  ⚠️ No doctypes mapped for %s", inp.filename)
         return "unmapped"
 
-    rows = result.get("rows", [])
-    field_mapping = result.get("field_mapping", {})
-    source_columns = result.get("source_columns", [])
-
-    activity.logger.info("  Mapped %s → %s | fields=%d rows=%d",
-                         inp.filename, doctype, len(field_mapping), len(rows))
-
-    # ── 3. Upload extracted rows to R2 ───────────────────────────────────────
-    slug = inp.company_slug or "unknown"
-    rows_key = f"{slug}/{inp.project_id}/mappings/extracted_rows/{doctype}.json"
-    payload_key = f"{slug}/{inp.project_id}/mappings/mapped_payloads/{doctype}.json"
-
-    try:
-        s3.put_object(
-            Bucket="clean-data",
-            Key=rows_key,
-            Body=json.dumps(rows, indent=2, default=str).encode("utf-8"),
-            ContentType="application/json",
-        )
-        activity.logger.info("  ✅ R2 uploaded: clean-data/%s", rows_key)
-    except Exception as e:
-        activity.logger.error("  ❌ R2 rows upload failed: %s", e)
-
-    # ── 4. Upload mapped payload metadata to R2 ─────────────────────────────
-    try:
-        payload = {
-            "doctype": doctype,
-            "field_mapping": field_mapping,
-            "source_columns": source_columns,
-            "row_count": len(rows),
-            "source_file": inp.filename,
-            "r2_extracted_rows_key": rows_key,
-        }
-        s3.put_object(
-            Bucket="clean-data",
-            Key=payload_key,
-            Body=json.dumps(payload, indent=2, default=str).encode("utf-8"),
-            ContentType="application/json",
-        )
-        activity.logger.info("  ✅ R2 uploaded: clean-data/%s", payload_key)
-    except Exception as e:
-        activity.logger.error("  ❌ R2 payload upload failed: %s", e)
-
-    # ── 5. Persist to Supabase (v2: is_field_mappings + is_mapped_data) ─────
-    try:
-        import uuid as _uuid
-        from shared.database.db import AsyncSessionLocal
-        from shared.models.is_models import ISFieldMapping, ISMappedData
-
-        async with AsyncSessionLocal() as session:
-            # Insert ISFieldMapping rows — one per column mapping
-            for src_col, tgt_field in field_mapping.items():
-                session.add(ISFieldMapping(
-                    id=_uuid.uuid4(),
-                    session_id=_uuid.UUID(inp.session_id),
-                    source_filename=inp.filename,
-                    source_column=src_col,
-                    target_doctype=doctype,
-                    target_field=tgt_field,
-                    mapping_method="exact_match",
-                ))
-
-            # Insert ISMappedData row — R2 refs + summary
-            session.add(ISMappedData(
-                id=_uuid.uuid4(),
-                session_id=_uuid.UUID(inp.session_id),
-                target_doctype=doctype,
-                source_filename=inp.filename,
-                extracted_rows_r2_path=rows_key,
-                mapped_payload_r2_path=payload_key,
-                total_rows=len(rows),
-                total_mapped_fields=len(field_mapping),
-                validation_status="pending",
-            ))
-            await session.commit()
-            activity.logger.info("  ✅ is_field_mappings (%d rows) + is_mapped_data upserted for %s",
-                                 len(field_mapping), doctype)
-
-    except Exception as e:
-        activity.logger.error("  ❌ Supabase write failed: %s", e)
-
-    # ── 6. Audit trail ───────────────────────────────────────────────────────
-    from containers.implementation.file_io.persist_audit import log_audit
-    await log_audit(
-        session_id=inp.session_id,
-        action="mapping_completed",
-        actor="system",
-        entity_type="mapping",
-        details={"doctype": doctype, "source_file": inp.filename, "fields_mapped": len(field_mapping), "rows": len(rows)},
-        result="success",
-    )
-
-    activity.logger.info("✅ map_file_to_erpnext done | doctype=%s", doctype)
-    return doctype
+    activity.logger.info("✅ map_file_to_erpnext done | doctypes=%s", mapped_doctypes)
+    return ",".join(mapped_doctypes)
 
 
 @activity.defn(name="infer_doctype_from_columns")
 async def infer_doctype_from_columns(inp: MapColumnsInput) -> Dict[str, Any]:
-    """
-    Given a list of column names, infer the best-matching ERPNext doctype
-    and return the field mapping without requiring the full CSV.
-    (This activity returns a small dict — safe for Temporal.)
-    """
     activity.logger.info("▶ infer_doctype_from_columns started | columns=%s", inp.columns[:5])
     engine = _MappingEngine()
     doctype = engine.infer_doctype(inp.columns)
     field_mapping = engine.map_columns(inp.columns, doctype or inp.doctype_hint)
     activity.logger.info("✅ infer_doctype_from_columns done | doctype=%s", doctype)
     return {"doctype": doctype, "field_mapping": field_mapping}
+
+
+# ── STEP 10: CONVERSATIONAL REFINEMENT ───────────────────────────────────────
+
+@activity.defn(name="refine_mapping_with_llm")
+async def refine_mapping_with_llm(inp: RefineMappingInput) -> Dict[str, Any]:
+    activity.logger.info("▶ refine_mapping_with_llm started | session=%s feedback='%s'", inp.session_id, inp.user_feedback)
+    
+    current_mappings = []
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(ISFieldMapping).where(ISFieldMapping.session_id == uuid.UUID(inp.session_id))
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            for r in records:
+                current_mappings.append({
+                    "mapping_id": str(r.id),
+                    "source_column": r.source_column,
+                    "target_doctype": r.target_doctype,
+                    "target_field": r.target_field
+                })
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to fetch current mappings: %s", e)
+        return {"error": "DB read failed"}
+
+    if not current_mappings:
+        return {"status": "no_mappings_found"}
+
+    prompt = REFINE_MAPPING_PROMPT.format(
+        current_mappings=json.dumps(current_mappings, indent=2),
+        user_feedback=inp.user_feedback
+    )
+
+    try:
+        llm_response = generate_json(prompt, temperature=0.1, max_output_tokens=1500)
+    except Exception as e:
+        activity.logger.error("  ❌ LLM refinement failed: %s", e)
+        return {"error": "LLM failed"}
+
+    updated_mappings = llm_response.get("updated_mappings", [])
+    removed_mappings = llm_response.get("removed_mappings", [])
+    affected_doctypes = set()
+
+    try:
+        async with AsyncSessionLocal() as session:
+            for update_item in updated_mappings:
+                map_id = update_item.get("mapping_id")
+                new_field = update_item.get("new_target_field")
+                reasoning = update_item.get("reasoning")
+                
+                await session.execute(
+                    update(ISFieldMapping)
+                    .where(ISFieldMapping.id == uuid.UUID(map_id))
+                    .values(
+                        target_field=new_field,
+                        user_corrected=True,
+                        user_correction=json.dumps({"feedback": inp.user_feedback, "new_field": new_field, "reasoning": reasoning})
+                    )
+                )
+                
+                # Fetch to get doctype for R2 regen
+                res = await session.execute(select(ISFieldMapping.target_doctype, ISFieldMapping.source_column).where(ISFieldMapping.id == uuid.UUID(map_id)))
+                row = res.first()
+                if row:
+                    affected_doctypes.add(row[0])
+                    # 🚀 UNCOMMENT THIS BLOCK: Log to History Table
+                    session.add(ISFieldMappingHistory(
+                        session_id=uuid.UUID(inp.session_id),
+                        source_column=row[1],
+                        target_doctype=row[0],
+                        target_field=new_field,
+                        user_confirmed=True,
+                        user_corrected=True
+                    ))
+
+            for remove_item in removed_mappings:
+                map_id = remove_item.get("mapping_id")
+                res = await session.execute(select(ISFieldMapping.target_doctype).where(ISFieldMapping.id == uuid.UUID(map_id)))
+                row = res.first()
+                if row:
+                    affected_doctypes.add(row[0])
+
+                await session.execute(
+                    delete(ISFieldMapping).where(ISFieldMapping.id == uuid.UUID(map_id))
+                )
+            
+            await session.commit()
+    except Exception as e:
+        activity.logger.error("  ❌ DB update failed: %s", e)
+
+    s3 = _get_s3_client()
+    for doctype in affected_doctypes:
+        try:
+            async with AsyncSessionLocal() as session:
+                res = await session.execute(select(ISFieldMapping).where(
+                    ISFieldMapping.session_id == uuid.UUID(inp.session_id),
+                    ISFieldMapping.target_doctype == doctype
+                ))
+                active_mappings = {r.source_column: r.target_field for r in res.scalars().all()}
+                
+                res_meta = await session.execute(select(ISMappedData).where(
+                    ISMappedData.session_id == uuid.UUID(inp.session_id),
+                    ISMappedData.target_doctype == doctype
+                ))
+                meta = res_meta.scalars().first()
+
+            if not meta or not meta.extracted_rows_r2_path:
+                continue
+            
+            response = s3.get_object(Bucket="clean-data", Key=meta.extracted_rows_r2_path)
+            raw_rows = json.loads(response["Body"].read().decode("utf-8"))
+            
+            new_mapped_records = []
+            for row in raw_rows:
+                mapped_row = {}
+                for src_col, val in row.items():
+                    if src_col in active_mappings:
+                        mapped_row[active_mappings[src_col]] = val
+                new_mapped_records.append(mapped_row)
+                
+            erpnext_payload = {"doctype": doctype, "records": new_mapped_records}
+            
+            s3.put_object(
+                Bucket="clean-data",
+                Key=meta.mapped_payload_r2_path,
+                Body=json.dumps(erpnext_payload, indent=2, default=str).encode("utf-8"),
+                ContentType="application/json",
+            )
+            activity.logger.info("  ✅ Regenerated payload for %s", doctype)
+            
+        except Exception as e:
+            activity.logger.error("  ❌ Failed to regenerate payload for %s: %s", doctype, e)
+
+    from containers.implementation.file_io.persist_audit import log_audit
+    await log_audit(
+        session_id=inp.session_id,
+        action="mapping_refined",
+        actor="user",
+        details={"changes": len(updated_mappings) + len(removed_mappings), "feedback": inp.user_feedback},
+        result="success",
+    )
+
+    activity.logger.info("✅ refine_mapping_with_llm done | changes=%d", len(updated_mappings) + len(removed_mappings))
+    
+    return {
+        "updated_mappings": updated_mappings,
+        "removed_mappings": removed_mappings,
+        "changes_count": len(updated_mappings) + len(removed_mappings)
+    }

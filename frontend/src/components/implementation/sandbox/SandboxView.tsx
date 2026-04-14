@@ -8,6 +8,7 @@ import { ExternalLink, FlaskConical, ShieldCheck, Clock, CheckCircle, AlertTrian
 import type { SandboxInstance } from '@/types/implementation';
 
 interface Props {
+  jobId: string;
   sandbox: SandboxInstance;
   companySlug: string;
   approveAction: (formData: FormData) => Promise<void>;
@@ -34,7 +35,7 @@ function useCountdown(expiresAt: string) {
   return { hours, minutes, seconds, pct, expired: remaining === 0 };
 }
 
-export function SandboxView({ sandbox, companySlug, approveAction }: Props) {
+export function SandboxView({ jobId, sandbox, companySlug, approveAction }: Props) {
   const [showConfirm, setShowConfirm]     = useState(false);
   const [isPending, startTransition]      = useTransition();
   const [approved, setApproved]           = useState(sandbox.isApproved);
@@ -45,6 +46,7 @@ export function SandboxView({ sandbox, companySlug, approveAction }: Props) {
     startTransition(async () => {
       const formData = new FormData();
       formData.append('companySlug', companySlug);
+      formData.append('jobId', jobId);
       await approveAction(formData);
       setApproved(true);
       setShowConfirm(false);

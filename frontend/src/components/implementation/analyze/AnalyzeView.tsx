@@ -57,11 +57,11 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
 
   // Auto-advance only in real mode when analysis is fully complete
   useEffect(() => {
-    if (!devTasks && live.isComplete) {
-      const t = setTimeout(() => router.push(validateHref), 1800);
+    if (!devTasks && isDone) {
+      const t = setTimeout(() => router.push(`${validateHref}?jobId=${jobId}`), 1800);
       return () => clearTimeout(t);
     }
-  }, [devTasks, live.isComplete, router, validateHref]);
+  }, [devTasks, isDone, router, validateHref, jobId]);
 
   // ── F3iche confirmation handler ─────────────────────────────────────────
   const handleConfirmF3iche = useCallback(async () => {
@@ -118,13 +118,13 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
           <div className="flex items-center gap-2">
             {isDone ? (
               <CheckCircle className="w-4 h-4 text-green-400" />
-            ) : stage === 'awaiting_f3iche_confirmation' ? (
+            ) : (stage === 'awaiting_f3iche_confirmation' || stage === 'awaiting_mapping_confirmation') ? (
               <Sparkles className="w-4 h-4 text-amber-400" />
             ) : (
               <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
             )}
             <span className="text-xs font-mono text-gray-500">
-              {isDone ? 'Agent finished' : stage === 'awaiting_f3iche_confirmation' ? 'Waiting for your confirmation' : 'Agent is thinking…'}
+              {isDone ? 'Agent finished' : (stage === 'awaiting_f3iche_confirmation' || stage === 'awaiting_mapping_confirmation') ? 'Waiting for your confirmation' : 'Agent is thinking…'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -207,6 +207,61 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
               </>
             ) : (
               <>Confirm &amp; Continue</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MAPPING CONFIRMATION CARD
+         ══════════════════════════════════════════════════════════════════════ */}
+      {stage === 'awaiting_mapping_confirmation' && (
+        <div className="bg-gradient-to-br from-green-500/10 via-transparent to-transparent border border-green-500/20 rounded-2xl p-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-5 h-5 text-green-400" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-lg">Initial Mapping Complete</h3>
+              <p className="text-gray-400 text-sm mt-1">
+                Our agent has completed the first pass at mapping your uploaded files to the target ERPNext modules. Please confirm to proceed to final validation.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={async () => {
+              if (confirming) return;
+              setConfirming(true);
+              try {
+                const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                const res = await fetch(`${API_BASE}/api/implementation/signal/mapping-confirmed`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    project_id: jobId,
+                    approved: true,
+                    user_feedback: ""
+                  }),
+                });
+                if (!res.ok) throw new Error('Failed to confirm mapping');
+                live.refresh();
+              } catch (err) {
+                console.error(err);
+              } finally {
+                setConfirming(false);
+              }
+            }}
+            disabled={confirming}
+            className="w-full py-3 px-4 bg-green-500 hover:bg-green-400 disabled:bg-green-500/30 disabled:cursor-not-allowed text-black font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {confirming ? (
+              <>
+                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                Approving...
+              </>
+            ) : (
+              <>Approve Mappings &amp; Validate</>
             )}
           </button>
         </div>

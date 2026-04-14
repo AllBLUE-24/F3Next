@@ -1,7 +1,7 @@
 """
 Validation Agent — Temporal activities for pre-import data validation.
 
-v2: Reads from ISTargetStructure + ISMappedData (not ISSession/ISMapping).
+v2: Reads from ISTargetStructure + ISMappedData.
     Writes ISValidationResult + ISValidationError rows.
     Returns "success" string.
 """
@@ -36,10 +36,30 @@ def _get_s3_client():
 class _ValidationEngine:
     REQUIRED_FIELDS: Dict[str, List[str]] = {
         "Item":             ["item_code", "item_name", "item_group", "stock_uom"],
-        "Customer":         ["customer_name", "customer_type", "customer_group", "territory"],
-        "Supplier":         ["supplier_name", "supplier_type", "supplier_group"],
+        "Customer":         ["customer_name", "customer_group", "territory"],
+        "Supplier":         ["supplier_name", "supplier_group"],
+        "Employee":         ["employee_name", "date_of_joining"],
+        "Sales Order":      ["customer", "transaction_date", "items"],
         "Sales Invoice":    ["customer", "posting_date"],
         "Purchase Invoice": ["supplier", "bill_no", "bill_date"],
+        "Payment Entry":    ["payment_type", "party_type", "party", "paid_amount"],
+        "Journal Entry":    ["posting_date", "accounts"],
+    }
+
+    ENUM_FIELDS: Dict[str, Dict[str, List[str]]] = {
+        "Payment Entry": {
+            "payment_type": ["Receive", "Pay", "Internal Transfer"],
+            "party_type": ["Customer", "Supplier", "Employee"],
+        },
+        "Customer": {
+            "customer_type": ["Company", "Individual"],
+        },
+        "Supplier": {
+            "supplier_type": ["Company", "Individual"],
+        },
+        "Employee": {
+            "status": ["Active", "Inactive", "Suspended", "Left"],
+        },
     }
 
     def validate(self, mapped_data: Dict[str, Any], target_structure: Dict[str, Any]) -> Dict[str, Any]:
@@ -50,12 +70,11 @@ class _ValidationEngine:
             "errors": [],
             "warnings": [],
         }
+        
         required_doctypes = target_structure.get("required_doctypes", [])
         rules = target_structure.get("validation_rules", {})
 
         for dt, data in mapped_data.items():
-            if dt not in required_doctypes:
-                continue
             check = self._check_doctype(dt, data, rules)
             report["checks"].append(check)
             if check["status"] == "fail":
@@ -63,12 +82,42 @@ class _ValidationEngine:
                 report["overall"] = "fail"
             report["warnings"].extend(check["warnings"])
 
+        # ── COVERAGE CHECK: are major doctypes missing from mapped data? ──
+        if required_doctypes:
+            mapped_doctypes = set(mapped_data.keys())
+            # Core master data doctypes that should ideally be present
+            core_doctypes = {"Item", "Customer", "Supplier"}
+            missing_core = core_doctypes.intersection(set(required_doctypes)) - mapped_doctypes
+            if missing_core:
+                report["warnings"].append(
+                    f"Coverage gap: required doctypes not mapped: {sorted(missing_core)}"
+                )
+            all_missing = set(required_doctypes) - mapped_doctypes
+            if len(all_missing) > len(required_doctypes) * 0.5:
+                report["warnings"].append(
+                    f"Only {len(mapped_doctypes)}/{len(required_doctypes)} required doctypes have mapped data"
+                )
+
         return report
 
     def _check_doctype(self, doctype: str, data: Dict, rules: Dict) -> Dict:
         check: Dict[str, Any] = {"doctype": doctype, "status": "pass", "errors": [], "warnings": [], "row_count": 0}
-        rows = data.get("rows", data.get("data", []))
+        
+        # Support both 'rows' (from earlier JSON structure) and 'records' (from fixed mapped payload)
+        rows = data.get("records", data.get("rows", []))
         check["row_count"] = len(rows) if isinstance(rows, list) else 0
+
+        # ── ROW COUNT SANITY ──
+        if check["row_count"] == 0:
+            check["warnings"].append(f"{doctype}: 0 records mapped — this doctype has no data")
+        
+        # ── FIELD COUNT SANITY ──
+        if rows and isinstance(rows, list) and rows[0]:
+            fields_per_record = len([k for k, v in rows[0].items() if v is not None and v != ""])
+            if fields_per_record <= 1:
+                check["warnings"].append(
+                    f"{doctype}: records have only {fields_per_record} non-empty field(s) — critically sparse data"
+                )
 
         # Required-field check
         required = self.REQUIRED_FIELDS.get(doctype, [])
@@ -79,14 +128,26 @@ class _ValidationEngine:
                     check["errors"].append(f"Missing required field: {field}")
                     check["status"] = "fail"
 
+        # ── ENUM VALUE VALIDATION ──
+        enum_rules = self.ENUM_FIELDS.get(doctype, {})
+        if rows and enum_rules:
+            for i, row in enumerate(rows[:20]):
+                for field_name, allowed_values in enum_rules.items():
+                    val = row.get(field_name)
+                    if val and str(val) not in allowed_values:
+                        check["warnings"].append(
+                            f"Row {i+1}: invalid enum value for '{field_name}': '{val}' "
+                            f"(allowed: {allowed_values})"
+                        )
+
         # Type sanity on first 10 rows
         for i, row in enumerate(rows[:10]):
             for k, v in row.items():
                 if not v and v != 0:
                     continue
-                if "date" in k.lower() and not self._is_date(str(v)):
+                if "date" in str(k).lower() and not self._is_date(str(v)):
                     check["warnings"].append(f"Row {i+1}: Invalid date format — {k}: {v}")
-                if any(t in k.lower() for t in ("amount", "rate", "qty", "price")) and not self._is_numeric(str(v)):
+                if any(t in str(k).lower() for t in ("amount", "rate", "qty", "price")) and not self._is_numeric(str(v)):
                     check["warnings"].append(f"Row {i+1}: Non-numeric value — {k}: {v}")
 
         return check
@@ -119,20 +180,6 @@ class ValidateInput:
 
 @activity.defn(name="validate_mapped_data")
 async def validate_mapped_data(inp: ValidateInput) -> str:
-    """
-    Run pre-import validation checks on mapped data.
-    
-    v2 schema:
-      1. Reads target_structure from is_target_structures
-      2. Reads mapped doctypes from is_mapped_data
-      3. Downloads extracted rows from R2
-      4. Runs validation
-      5. Writes ISValidationResult + ISValidationError rows
-      6. Updates ISMappedData.validation_status
-      7. Updates is_sessions.status
-    
-    Returns: "success" or "fail" (based on validation outcome)
-    """
     activity.logger.info("▶ validate_mapped_data started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
@@ -153,13 +200,9 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
         result = await session.execute(stmt)
         target_row = result.scalar_one_or_none()
 
-        if not target_row:
-            activity.logger.error("  ❌ No target structure found for session %s", inp.session_id)
-            return "error:no_target_structure"
-
         target_structure = {
-            "required_doctypes": target_row.required_doctypes or [],
-            "validation_rules": target_row.validation_rules or {},
+            "required_doctypes": target_row.required_doctypes if target_row else [],
+            "validation_rules": target_row.validation_rules if target_row else {},
         }
 
         # Get all mapped data for this session
@@ -167,8 +210,7 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
         result = await session.execute(stmt)
         mapped_data_rows = result.scalars().all()
 
-    activity.logger.info("  Found %d mapped_data rows, %d required doctypes",
-                         len(mapped_data_rows), len(target_structure.get("required_doctypes", [])))
+    activity.logger.info("  Found %d mapped_data rows to validate", len(mapped_data_rows))
 
     # ── 2. Download extracted rows from R2 for each mapped_data ──────────────
     s3 = _get_s3_client()
@@ -177,29 +219,32 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
 
     for md_row in mapped_data_rows:
         doctype = md_row.target_doctype
-        r2_key = md_row.extracted_rows_r2_path
+        # We must validate the MAPPED payload, not the raw extracted rows
+        r2_key = md_row.mapped_payload_r2_path
 
         if not r2_key:
-            activity.logger.warning("  ⚠️ No R2 key for %s, skipping", doctype)
+            activity.logger.warning("  ⚠️ No mapped payload R2 key for %s, skipping", doctype)
             continue
 
         try:
             response = s3.get_object(Bucket="clean-data", Key=r2_key)
-            rows = json.loads(response["Body"].read().decode("utf-8"))
-            mapped_data[doctype] = {
-                "rows": rows,
-            }
+            payload_json = json.loads(response["Body"].read().decode("utf-8"))
+            mapped_data[doctype] = payload_json
             mapped_data_map[doctype] = md_row
-            activity.logger.info("  ✅ Loaded %d rows for %s from R2", len(rows), doctype)
+            activity.logger.info("  ✅ Loaded payload for %s from R2", doctype)
         except Exception as e:
-            activity.logger.error("  ❌ Failed to load rows for %s: %s", doctype, e)
+            activity.logger.error("  ❌ Failed to load payload for %s: %s", doctype, e)
 
     # ── 3. Run validation engine ─────────────────────────────────────────────
+    start_time = datetime.now()
     engine = _ValidationEngine()
     report = engine.validate(mapped_data, target_structure)
+    duration = (datetime.now() - start_time).total_seconds()
+    
     v_status = report.get("overall", "pass")
     n_errors = len(report.get("errors", []))
-    activity.logger.info("  Validation result: %s | %d errors", v_status, n_errors)
+    n_warnings = len(report.get("warnings", []))
+    activity.logger.info("  Validation result: %s | %d errors, %d warnings", v_status, n_errors, n_warnings)
 
     # ── 4. Upload validation report to R2 ────────────────────────────────────
     slug = inp.company_slug or "unknown"
@@ -216,74 +261,86 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
         activity.logger.error("  ❌ R2 report upload failed: %s", e)
 
     # ── 5. Write ISValidationResult + ISValidationError + update ISMappedData
-    async with AsyncSessionLocal() as session:
-        for check in report.get("checks", []):
-            doctype = check.get("doctype", "")
-            md_row = mapped_data_map.get(doctype)
+    try:
+        async with AsyncSessionLocal() as session:
+            for check in report.get("checks", []):
+                doctype = check.get("doctype", "")
+                md_row = mapped_data_map.get(doctype)
+                
+                # We need a mapped_data_id to link the result to the payload
+                mapped_data_id = md_row.id if md_row else None
+                
+                if not mapped_data_id:
+                    activity.logger.warning("  ⚠️ Cannot write validation result for %s (no mapped_data_id)", doctype)
+                    continue
 
-            # Create ISValidationResult
-            result_id = uuid.uuid4()
-            session.add(ISValidationResult(
-                id=result_id,
-                session_id=uuid.UUID(inp.session_id),
-                mapped_data_id=md_row.id if md_row else None,
-                doctype=doctype,
-                overall_status=check["status"],
-                report_r2_path=report_key,
-                total_errors=len(check.get("errors", [])),
-                total_warnings=len(check.get("warnings", [])),
-                row_count=check.get("row_count", 0),
-            ))
-
-            # Create ISValidationError rows for each error
-            for err_msg in check.get("errors", []):
-                session.add(ISValidationError(
-                    id=uuid.uuid4(),
-                    validation_result_id=result_id,
-                    doctype=doctype,
-                    error_type="missing_required" if "Missing required" in err_msg else "business_rule_violation",
-                    error_message=err_msg,
-                    severity="error",
+                # Create ISValidationResult
+                result_id = uuid.uuid4()
+                session.add(ISValidationResult(
+                    id=result_id,
+                    session_id=uuid.UUID(inp.session_id),
+                    mapped_data_id=mapped_data_id,
+                    overall_status=check["status"],
+                    report_r2_path=report_key,
+                    total_errors=len(check.get("errors", [])),
+                    total_warnings=len(check.get("warnings", [])),
+                    total_records_checked=check.get("row_count", 0)
                 ))
 
-            # Create ISValidationError rows for each warning
-            for warn_msg in check.get("warnings", []):
-                session.add(ISValidationError(
-                    id=uuid.uuid4(),
-                    validation_result_id=result_id,
-                    doctype=doctype,
-                    error_type="invalid_format" if "date format" in warn_msg.lower() else "invalid_type",
-                    error_message=warn_msg,
-                    severity="warning",
-                ))
+                # Create ISValidationError rows for each error
+                for err_msg in check.get("errors", []):
+                    session.add(ISValidationError(
+                        id=uuid.uuid4(),
+                        validation_result_id=result_id,
+                        doctype=doctype,
+                        error_type="missing_required" if "Missing required" in err_msg else "business_rule",
+                        error_message=err_msg,
+                        severity="error",
+                    ))
 
-            # Update ISMappedData.validation_status
-            if md_row:
+                # Create ISValidationError rows for each warning
+                for warn_msg in check.get("warnings", []):
+                    session.add(ISValidationError(
+                        id=uuid.uuid4(),
+                        validation_result_id=result_id,
+                        doctype=doctype,
+                        error_type="invalid_format" if "format" in warn_msg.lower() else "data_warning",
+                        error_message=warn_msg,
+                        severity="warning",
+                    ))
+
+                # Update ISMappedData.validation_status
                 await session.execute(
                     update(ISMappedData)
-                    .where(ISMappedData.id == md_row.id)
+                    .where(ISMappedData.id == mapped_data_id)
                     .values(validation_status="passed" if check["status"] == "pass" else "failed")
                 )
 
-        # Update session status
-        await session.execute(
-            update(ISSession)
-            .where(ISSession.id == uuid.UUID(inp.session_id))
-            .values(status="awaiting_validation_submission")
-        )
-        await session.commit()
-        activity.logger.info("  ✅ Supabase updated | validation results + session status")
+            # Update session status
+            await session.execute(
+                update(ISSession)
+                .where(ISSession.id == uuid.UUID(inp.session_id))
+                .values(status="awaiting_validation_submission")
+            )
+            await session.commit()
+            activity.logger.info("  ✅ Supabase updated | validation results + session status")
+            
+    except Exception as e:
+        activity.logger.error("  ❌ Supabase DB write failed during validation: %s", e)
 
     # ── 6. Audit trail ───────────────────────────────────────────────────────
-    from containers.implementation.file_io.persist_audit import log_audit
-    await log_audit(
-        session_id=inp.session_id,
-        action="validation_run",
-        actor="system",
-        entity_type="validation",
-        details={"overall": v_status, "errors": n_errors, "doctypes_checked": len(report.get("checks", []))},
-        result="success",
-    )
+    try:
+        from containers.implementation.file_io.persist_audit import log_audit
+        await log_audit(
+            session_id=inp.session_id,
+            action="validation_run",
+            actor="system",
+            entity_type="validation",
+            details={"overall": v_status, "errors": n_errors, "doctypes_checked": len(report.get("checks", []))},
+            result="success",
+        )
+    except Exception as e:
+         activity.logger.error("  ❌ Audit log failed: %s", e)
 
     activity.logger.info("✅ validate_mapped_data done | overall=%s errors=%d", v_status, n_errors)
     return v_status

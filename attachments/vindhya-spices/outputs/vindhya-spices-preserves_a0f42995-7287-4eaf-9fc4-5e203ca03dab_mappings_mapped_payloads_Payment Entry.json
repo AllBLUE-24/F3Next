@@ -1,0 +1,25 @@
+{
+  "doctype": "Payment Entry",
+  "records": [
+    {
+      "party": "Kisan Agro Farms",
+      "payment_type": "Supplier"
+    },
+    {
+      "party": "Indore Glassworks",
+      "payment_type": "Supplier"
+    },
+    {
+      "party": "Reliance Smart Bazaar",
+      "payment_type": "Customer"
+    },
+    {
+      "party": "Sharma Provision Stores",
+      "payment_type": "Client"
+    },
+    {
+      "party": "Spice Route Exports",
+      "payment_type": "Customer"
+    }
+  ]
+}

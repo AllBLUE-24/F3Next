@@ -1,193 +1,171 @@
 """
 Target Agent — Temporal activities for building the ERPNext action workflow.
-Moved from: backend/app/services/implementation/target_structure.py
 """
 from __future__ import annotations
 
 import json
+import os
+import uuid
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
+import boto3
+from botocore.config import Config
+from sqlalchemy import select
 from temporalio import activity
 
-KNOWLEDGE_BASE = Path(__file__).resolve().parent.parent.parent / "knowledge_base"
-F3ICHE_DIR    = KNOWLEDGE_BASE / "common" / "f3iches"
-ERPNEXT_DIR   = KNOWLEDGE_BASE / "erpnext"
+from shared.database.db import AsyncSessionLocal
+from shared.models.is_models import ISCompanyProfile, ISTargetStructure
+from containers.implementation.utils.llm_helper import generate_json
+
+# 🚀 Importing the prompt from your clean prompts.py file!
+from containers.implementation.target_agent.prompts import TARGET_STRUCTURE_PROMPT
 
 
-# ── Embedded service logic ────────────────────────────────────────────────────
-
-class _TargetStructureService:
-    def __init__(self):
-        self._doctypes_graph: Optional[Dict] = None
-        self._f3iche_cache: Dict[str, Dict] = {}
-
-    def _load_graph(self) -> Dict:
-        if self._doctypes_graph is None:
-            path = ERPNEXT_DIR / "erpnext_doctype_graph.json"
-            activity.logger.info("  Loading doctype graph from %s", path)
-            if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
-                    self._doctypes_graph = json.load(f)
-            else:
-                activity.logger.warning("  ⚠️ Doctype graph not found at %s — using empty graph", path)
-                self._doctypes_graph = {}
-        return self._doctypes_graph
-
-    def _load_f3iche(self, f3iche_id: str) -> Dict:
-        if f3iche_id not in self._f3iche_cache:
-            # Try exact name first, then with f3iche_ prefix
-            candidates = [
-                F3ICHE_DIR / f"{f3iche_id}.json",
-                F3ICHE_DIR / f"f3iche_{f3iche_id}.json",
-            ]
-            loaded = {}
-            for path in candidates:
-                if path.exists():
-                    activity.logger.info("  Loading f3iche from %s", path)
-                    with open(path, "r", encoding="utf-8") as f:
-                        loaded = json.load(f)
-                    break
-            if not loaded:
-                activity.logger.warning("  ⚠️ No f3iche file found for '%s' in %s", f3iche_id, F3ICHE_DIR)
-            self._f3iche_cache[f3iche_id] = loaded
-        return self._f3iche_cache[f3iche_id]
-
-    def build(self, f3iche: str, industry: Optional[str] = None) -> Dict[str, Any]:
-        f3iche_data = self._load_f3iche(f3iche)
-        graph = self._load_graph()
-
-        required_doctypes: List[str] = list(f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", [])))
-        setup_order: List[str] = f3iche_data.get("setup_order", [])
-
-        # Resolve conditional doctypes
-        for dt, rule in f3iche_data.get("conditional_doctypes", {}).items():
-            if rule == "always" and dt not in required_doctypes:
-                required_doctypes.append(dt)
-            elif rule == "never" and dt in required_doctypes:
-                required_doctypes.remove(dt)
-
-        # Order by dependency layers from the graph
-        layers = graph.get("setup_layers", {})
-        ordered_steps: List[Dict] = []
-        seen: set = set()
-
-        for layer_key, doctypes in layers.items():
-            for dt in doctypes:
-                if dt in required_doctypes and dt not in seen:
-                    ordered_steps.append({"doctype": dt, "layer": layer_key, "phase": self._get_phase(dt, graph)})
-                    seen.add(dt)
-
-        for dt in setup_order:
-            if dt not in seen and dt in required_doctypes:
-                ordered_steps.append({"doctype": dt, "layer": "custom", "phase": self._get_phase(dt, graph)})
-                seen.add(dt)
-
-        return {
-            "f3iche": f3iche,
-            "industry": industry,
-            "required_doctypes": required_doctypes,
-            "setup_steps": ordered_steps,
-            "import_phases": graph.get("import_phases", {}),
-            "validation_rules": f3iche_data.get("validation_rules", {}),
-        }
-
-    def _get_phase(self, doctype: str, graph: Dict) -> str:
-        for phase, doctypes in graph.get("import_phases", {}).items():
-            if doctype in doctypes:
-                return phase
-        return "phase_b_master"
-
-
-# ── Input dataclasses ────────────────────────────────────────────────────────
+# ─── DATACLASSES ──────────────────────────────────────────────────────────────
 
 @dataclass
-class BuildTargetStructureInput:
+class BuildTargetInput:
+    session_id: str
+    project_id: str
     f3iche: str
-    industry: Optional[str] = None
-    session_id: str = ""              # v2: needed for DB persistence
     company_slug: str = "unknown"
-    project_id: str = ""
 
 
-# ── Activity definitions ─────────────────────────────────────────────────────
+# ─── ACTIVITIES ───────────────────────────────────────────────────────────────
 
 @activity.defn(name="build_target_structure")
-async def build_target_structure(inp: BuildTargetStructureInput) -> Dict[str, Any]:
+async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
     """
-    Build the ordered ERPNext setup plan (doctype list, phases, validation rules)
-    for the given F3iche and industry. Persists to ISTargetStructure + R2.
+    Step 8: Generates the Target Structure (Blueprint) for ERPNext mapping.
+    Uses the LLM to format doctypes and establish the import phases chronologically.
     """
-    activity.logger.info("▶ build_target_structure started | f3iche=%s industry=%s", inp.f3iche, inp.industry)
-    svc = _TargetStructureService()
-    result = svc.build(inp.f3iche, inp.industry)
+    activity.logger.info("▶ build_target_structure started | session=%s f3iche=%s", inp.session_id, inp.f3iche)
 
-    # ── Persist to ISTargetStructure (v2 schema) ─────────────────────────────
-    if inp.session_id:
-        try:
-            import json as _json
-            import os as _os
-            import uuid
-            import boto3
-            from botocore.config import Config as BotoConfig
-            from shared.database.db import AsyncSessionLocal
-            from shared.models.is_models import ISTargetStructure
+    # 1. Fetch the enriched Company Profile from DB
+    profile_dict = {}
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(ISCompanyProfile).where(
+                ISCompanyProfile.session_id == uuid.UUID(inp.session_id)
+            ).order_by(ISCompanyProfile.version.desc()).limit(1)
+            
+            res = await session.execute(stmt)
+            latest = res.scalar_one_or_none()
+            
+            if latest:
+                profile_dict = {
+                    "industry": latest.industry,
+                    "required_modules": latest.required_modules,
+                    "required_doctypes": latest.required_doctypes,
+                    "industry_best_practices": latest.industry_best_practices,
+                    "data_quality_score": latest.data_quality_score,
+                    "completeness_score": latest.completeness_score
+                }
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to fetch profile from DB: %s", e)
 
-            target_id = uuid.uuid4()
-            slug = inp.company_slug or "unknown"
-            r2_key = f"{slug}/{inp.project_id}/_target/target_structure.json" if inp.project_id else None
+    # ── FALLBACK: If profile has empty required_doctypes, load from f3iche template ──
+    if not profile_dict.get("required_doctypes"):
+        from pathlib import Path
+        f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
+        if f3iche_path.exists():
+            try:
+                with open(f3iche_path, "r", encoding="utf-8") as f:
+                    f3iche_data = json.load(f)
+                template_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
+                template_modules = f3iche_data.get("required_modules", [])
+                if template_doctypes:
+                    profile_dict["required_doctypes"] = template_doctypes
+                    activity.logger.info("  📋 Loaded %d required_doctypes from f3iche template '%s'",
+                                         len(template_doctypes), inp.f3iche)
+                if template_modules and not profile_dict.get("required_modules"):
+                    profile_dict["required_modules"] = template_modules
+            except Exception as e:
+                activity.logger.warning("  ⚠️ Could not load f3iche template: %s", e)
 
-            async with AsyncSessionLocal() as session:
-                session.add(ISTargetStructure(
-                    id=target_id,
-                    session_id=uuid.UUID(inp.session_id),
-                    f3iche=inp.f3iche,
-                    total_doctypes=len(result.get("required_doctypes", [])),
-                    total_setup_steps=len(result.get("setup_steps", [])),
-                    required_doctypes=result.get("required_doctypes"),
-                    setup_steps=result.get("setup_steps"),
-                    import_phases=result.get("import_phases"),
-                    validation_rules=result.get("validation_rules"),
-                    r2_path=r2_key,
-                ))
-                await session.commit()
-                activity.logger.info("  ✅ Supabase is_target_structures inserted")
+    # 2. Call LLM to format the target architecture
+    prompt = TARGET_STRUCTURE_PROMPT.format(
+        company_profile=json.dumps(profile_dict, indent=2)
+    )
 
-            # Upload to R2
-            if r2_key and inp.project_id:
-                try:
-                    s3 = boto3.client(
-                        "s3",
-                        endpoint_url=_os.getenv("R2_ENDPOINT"),
-                        aws_access_key_id=_os.getenv("R2_ACCESS_KEY_ID"),
-                        aws_secret_access_key=_os.getenv("R2_SECRET_ACCESS_KEY"),
-                        config=BotoConfig(signature_version="s3v4"),
-                        region_name="auto",
-                    )
-                    s3.put_object(
-                        Bucket="clean-data",
-                        Key=r2_key,
-                        Body=_json.dumps(result, indent=2, default=str).encode("utf-8"),
-                        ContentType="application/json",
-                    )
-                    activity.logger.info("  ✅ R2 uploaded: clean-data/%s", r2_key)
-                except Exception as e:
-                    activity.logger.error("  ❌ R2 upload failed: %s", e)
+    try:
+        target_architecture = generate_json(prompt, temperature=0.1, max_output_tokens=2000)
+        llm_enhanced = True
+    except Exception as e:
+        activity.logger.warning("  ⚠️ LLM Target generation failed: %s", e)
+        target_architecture = {
+            "required_doctypes": profile_dict.get("required_doctypes", []),
+            "import_phases": {},
+            "setup_steps": [],
+            "llm_reasoning": "Fallback applied due to LLM error."
+        }
+        llm_enhanced = False
 
-            # Audit trail
-            from containers.implementation.file_io.persist_audit import log_audit
-            await log_audit(
-                session_id=inp.session_id,
-                action="target_generated",
-                actor="system",
-                entity_type="target_structure",
-                entity_id=str(target_id),
-                details={"f3iche": inp.f3iche, "doctypes": len(result.get("required_doctypes", []))},
-                result="success",
-            )
-        except Exception as e:
-            activity.logger.error("  ❌ ISTargetStructure persistence failed: %s", e)
+    # 3. Prepare the final result dictionary
+    result = {
+        "f3iche": inp.f3iche,
+        "industry": profile_dict.get("industry", "Unknown"),
+        "required_doctypes": target_architecture.get("required_doctypes", []),
+        "import_phases": target_architecture.get("import_phases", {}),
+        "setup_steps": target_architecture.get("setup_steps", []),
+        "validation_rules": {}
+    }
+
+    # 4. Save the full target JSON to R2
+    r2_key = f"{inp.company_slug}/{inp.project_id}/_target/target_structure.json"
+    try:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=os.getenv("R2_ENDPOINT"),
+            aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+        s3.put_object(
+            Bucket="clean-data",
+            Key=r2_key,
+            Body=json.dumps(result, indent=2, default=str).encode("utf-8"),
+            ContentType="application/json",
+        )
+        activity.logger.info("  ✅ R2 uploaded: clean-data/%s", r2_key)
+    except Exception as e:
+        activity.logger.error("  ❌ R2 upload failed: %s", e)
+
+    # 5. Save to Supabase and Log Audit Trail
+    target_id = uuid.uuid4()
+    try:
+        async with AsyncSessionLocal() as session:
+            session.add(ISTargetStructure(
+                id=target_id,
+                session_id=uuid.UUID(inp.session_id),
+                f3iche=inp.f3iche,
+                llm_enhanced=llm_enhanced,
+                llm_reasoning=target_architecture.get("llm_reasoning"),
+                total_doctypes=len(result.get("required_doctypes", [])),
+                total_setup_steps=len(result.get("setup_steps", [])),
+                required_doctypes=json.dumps(result.get("required_doctypes", [])),
+                setup_steps=json.dumps(result.get("setup_steps", [])),
+                import_phases=json.dumps(result.get("import_phases", {})),
+                r2_path=r2_key,
+                created_by="system",
+            ))
+            await session.commit()
+
+        from containers.implementation.file_io.persist_audit import log_audit
+        await log_audit(
+            session_id=inp.session_id,
+            action="target_generated",
+            actor="system",
+            entity_type="target_structure",
+            entity_id=str(target_id),
+            details={"f3iche": inp.f3iche, "doctypes": len(result.get("required_doctypes", [])), "llm_enhanced": llm_enhanced},
+            result="success",
+        )
+        activity.logger.info("  ✅ ISTargetStructure persisted.")
+    except Exception as e:
+        activity.logger.error("  ❌ ISTargetStructure persistence failed: %s", e)
 
     activity.logger.info("✅ build_target_structure done | doctypes=%d steps=%d",
                          len(result.get('required_doctypes', [])), len(result.get('setup_steps', [])))

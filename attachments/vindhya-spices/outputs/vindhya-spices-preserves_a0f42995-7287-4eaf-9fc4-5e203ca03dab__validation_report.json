@@ -1,0 +1,22 @@
+{
+  "overall": "pass",
+  "timestamp": "2026-04-12T07:41:14.036845Z",
+  "checks": [
+    {
+      "doctype": "Payment Entry",
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "row_count": 5
+    },
+    {
+      "doctype": "Item",
+      "status": "pass",
+      "errors": [],
+      "warnings": [],
+      "row_count": 6
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}

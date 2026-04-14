@@ -1,0 +1,8 @@
+Item Code,Item Name,Type,UOM,Cost Rate (INR),Selling Rate (INR),Stock Qty
+RM-001,Raw Green Mango,Raw Material,Kg,40,,500
+RM-002,Whole Red Chilli (Guntur),raw material,Kg,150,,200
+RM-003,Cold Pressed Mustard Oil,Raw Material,Ltr,180,,150
+PKG-01,Glass Jar 500g,Packaging,Nos,15,,1000
+FG-101,Spicy Mango Pickle 500g,Finished Good,Nos,85,150,300
+FG-102,Premium Garam Masala 200g,Finished,Nos,60,120,450
+FG-103,Red Chilli Powder 500g,finished good,Nos,90,180,250

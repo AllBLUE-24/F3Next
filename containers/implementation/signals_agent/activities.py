@@ -237,6 +237,16 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
 
             # Audit trail
             from containers.implementation.file_io.persist_audit import log_audit
+     # 1. Audit trail for Signal Detection (Blueprint Step 4)
+            await log_audit(
+                session_id=inp.session_id,
+                action="signals_detected",
+                actor="llm",
+                details={"total_signals": len(signals), "files_scanned": len(inp.uploaded_files)},
+                result="success",
+            )
+
+            # 2. Audit trail for F3iche Inference (Blueprint Step 5)
             await log_audit(
                 session_id=inp.session_id,
                 action="f3iche_inferred",
@@ -244,6 +254,7 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
                 details={"f3iche": f3iche_id, "confidence": confidence, "signal_count": len(signals)},
                 result="success",
             )
+
         except Exception as e:
             activity.logger.error("  ❌ DB persistence failed: %s", e)
 
@@ -256,12 +267,58 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
 async def verify_f3iche(inp: VerifyF3icheInput) -> Dict:
     """Verify user-stated F3iche against signals-inferred F3iche."""
     activity.logger.info("▶ verify_f3iche started | user=%s signals=%s", inp.f3iche_user, inp.f3iche_signals)
+    
     svc = _F3icheVerificationService()
     is_match, status, msg = svc.verify(inp.f3iche_user, inp.f3iche_signals, inp.confidence)
+    
     result = {
         "is_match": is_match,
         "status": status,
         "clarification_message": msg,
     }
+
+    # ── DB Updates (Blueprint Step 6) ─────────────────────────────────────────
+    if inp.session_id:
+        try:
+            import uuid
+            from datetime import datetime
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.is_models import ISF3icheScore
+            from sqlalchemy import update
+
+            async with AsyncSessionLocal() as session:
+                # 1. Update the existing 'signals' row
+                stmt = update(ISF3icheScore).where(
+                    ISF3icheScore.session_id == uuid.UUID(inp.session_id),
+                    ISF3icheScore.source == "signals"
+                ).values(
+                    user_confirmed=True,
+                    is_selected=True,
+                    match_status=status,
+                    clarification_message=msg,
+                    selected_at=datetime.utcnow()
+                )
+                await session.execute(stmt)
+
+                # 2. Insert the new 'user' row
+                user_score = ISF3icheScore(
+                    id=uuid.uuid4(),
+                    session_id=uuid.UUID(inp.session_id),
+                    f3iche=inp.f3iche_user,
+                    score=1.0,
+                    confidence=1.0,
+                    source="user",
+                    is_selected=True,
+                    user_confirmed=True,
+                    match_status=status,
+                    selected_at=datetime.utcnow()
+                )
+                session.add(user_score)
+
+                await session.commit()
+                activity.logger.info("  ✅ Updated signals score and inserted user F3iche score in DB.")
+        except Exception as e:
+            activity.logger.error("  ❌ Failed to update F3iche scores in DB: %s", e)
+
     activity.logger.info("✅ verify_f3iche done | status=%s match=%s", status, is_match)
     return result

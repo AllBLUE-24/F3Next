@@ -24,9 +24,9 @@ from temporalio.worker import Worker
 
 from containers.implementation.is_workflow.workflow import ImplementationWorkflow, TASK_QUEUE
 from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche
-from containers.implementation.profile_agent.activities    import build_company_profile, merge_company_profile
+from containers.implementation.profile_agent.activities    import build_company_profile, merge_company_profile, align_discovery_and_signals, retrieve_industry_knowledge, enrich_company_profile
 from containers.implementation.target_agent.activities     import build_target_structure
-from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, infer_doctype_from_columns
+from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, infer_doctype_from_columns, refine_mapping_with_llm
 from containers.implementation.validation_agent.activities import validate_mapped_data
 from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase
 from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
@@ -61,11 +61,15 @@ async def main() -> None:
                         # profile_agent
                         build_company_profile,
                         merge_company_profile,
+                        align_discovery_and_signals,
+                        retrieve_industry_knowledge,
+                        enrich_company_profile,
                         # target_agent
                         build_target_structure,
                         # mapping_agent
                         map_file_to_erpnext,
                         infer_doctype_from_columns,
+                        refine_mapping_with_llm,
                         # validation_agent
                         validate_mapped_data,
                         # import_agent

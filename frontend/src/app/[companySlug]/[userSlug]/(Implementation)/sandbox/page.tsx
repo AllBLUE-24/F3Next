@@ -34,34 +34,43 @@ async function fetchSandbox(companySlug: string): Promise<SandboxInstance | null
 async function approveForProduction(formData: FormData) {
   'use server';
   const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || "http://localhost:8000";
-  const res = await fetch(`${base}/api/implementation/approve`, {
+  const res = await fetch(`${base}/api/implementation/signal/sandbox-approved`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-internal-secret': process.env.INTERNAL_SECRET!,
     },
-    body: JSON.stringify({ companySlug: formData.get('companySlug') }),
+    body: JSON.stringify({ 
+      project_id: formData.get('jobId'), 
+      company_slug: formData.get('companySlug'),
+      erpnext_base_url: "https://sandbox-dev.erpnext.f3next.in",
+      erpnext_api_key: "dev-mock-key",
+      dry_run: false
+    }),
   });
   if (!res.ok) throw new Error('Approval failed');
 }
 
 interface Props {
   params: Promise<{ companySlug: string; userSlug: string }>;
+  searchParams: Promise<{ jobId?: string }>;
 }
 
-export default async function SandboxPage({ params }: Props) {
+export default async function SandboxPage({ params, searchParams }: Props) {
   const { companySlug, userSlug } = await params;
+  const { jobId } = await searchParams;
   const isDev = process.env.NODE_ENV === 'development';
 
   const sandbox = !isDev
     ? await fetchSandbox(companySlug)
     : (await fetchSandbox(companySlug)) ?? DEV_SANDBOX;
 
-  if (!sandbox) redirect(`/${companySlug}/${userSlug}/validate`);
+  if (!sandbox || !jobId) redirect(`/${companySlug}/${userSlug}/validate`);
 
   return (
     <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
       <SandboxView
+        jobId={jobId}
         sandbox={sandbox}
         companySlug={companySlug}
         approveAction={approveForProduction}
