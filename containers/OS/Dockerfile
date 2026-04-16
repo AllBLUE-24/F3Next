@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:latest
 WORKDIR /app
 
 # Copy this agent's specific requirements
@@ -11,4 +11,4 @@ COPY . .
 # Ensure 'shared' and other root modules resolve
 ENV PYTHONPATH=/app
 
-CMD ["python", "containers/os/os_worker.py"]
+CMD ["python", "os_worker.py"]
