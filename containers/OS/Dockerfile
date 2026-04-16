@@ -2,7 +2,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy this agent's specific requirements
-COPY containers/os/requirements.txt ./requirements.txt
+COPY containers/OS/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all project code (relies on root build context)
