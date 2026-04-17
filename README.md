@@ -39,7 +39,7 @@ Traditional ERP implementation is broken — **6 months, ₹5+ lakhs, 70% failur
 ### Prerequisites
 
 - Node.js 18+
-- Python 3.12+
+- Python 3.11+
 - Docker & Docker Compose
 - PostgreSQL (or use Supabase)
 
