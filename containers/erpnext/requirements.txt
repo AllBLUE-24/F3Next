@@ -5,3 +5,4 @@ temporalio==1.21.1
 sqlalchemy==2.0.25
 jinja2
 asyncssh
+asyncpg

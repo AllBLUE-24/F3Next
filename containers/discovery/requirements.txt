@@ -6,3 +6,4 @@ sqlalchemy==2.0.25
 langchain
 langchain-google-genai
 aiohttp
+asyncpg

@@ -6,3 +6,4 @@ aiohttp
 sqlalchemy==2.0.25
 langchain
 langchain-openai==0.0.5
+asyncpg

@@ -4,3 +4,4 @@ python-dotenv==0.21.0
 temporalio==1.21.1
 sqlalchemy==2.0.25
 requests
+asyncpg
