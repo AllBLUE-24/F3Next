@@ -11,10 +11,10 @@ alembic==1.13.1
 psycopg==3.1.17
 redis==5.0.1
 minio==7.2.3
-qdrant-client==1.15.1
+# qdrant-client==1.15.1
 
 # --- AI & Orchestration ---
-langchain==0.1.5
+langchain
 langchain-openai==0.0.5
 langgraph==0.0.10
 openai==1.11.0
