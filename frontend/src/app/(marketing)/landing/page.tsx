@@ -6,10 +6,11 @@ import Vision from '@/components/landing/Vision';
 import Contact from '@/components/landing/Contact';
 import PrivateCohort from '@/components/landing/PrivateCohort';
 import HeroBackground from '@/components/landing/HeroBackground';
-import { ArrowRight, Cpu, Terminal, MessageSquareDot, Server, FileStack } from 'lucide-react';
+import { ArrowRight, MessageSquareDot, Server, FileStack, Terminal } from 'lucide-react';
 
 export const metadata = {
-  title: "F3Next — AI-Powered ERP for Manufacturers",
+  title: "F3Next — AI-Powered ERP Implementation & Operations",
+  description: "Automate ERP implementation and operations. Replace months of consulting and lakhs of cost with minutes of AI-driven setup. No employee training needed.",
 };
 
 export default function LandingPage() {
@@ -27,7 +28,7 @@ export default function LandingPage() {
           <div className="flex justify-center mb-8">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/5 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-amber-400 backdrop-blur-sm">
               <span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-              Now accepting Tier 2 & 3 Manufacturers · India
+              Now accepting Manufacturers · India
             </div>
           </div>
 
@@ -36,7 +37,7 @@ export default function LandingPage() {
             <h1 className="text-5xl font-black tracking-tight sm:text-7xl lg:text-8xl leading-[0.95] mb-6">
               <span className="block text-white">Your ERP.</span>
               <span className="block text-white">Deployed in</span>
-              <span className="block text-amber-500">48 Hours.</span>
+              <span className="block text-amber-500">Minutes.</span>
             </h1>
 
             <p className="mt-8 text-lg leading-relaxed text-gray-400 max-w-2xl mx-auto">
@@ -60,17 +61,7 @@ export default function LandingPage() {
               href="#cohort"
               className="inline-flex items-center gap-2 rounded-xl px-8 py-4 text-sm font-bold text-gray-400 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] hover:text-white transition-all"
             >
-              Join Private Cohort — ₹4,999/mo
-            </Link>
-          </div>
-
-          {/* Dev: Test without login */}
-          <div className="mt-6">
-            <Link
-              href="/dev/test"
-              className="text-xs text-zinc-600 hover:text-zinc-500 underline"
-            >
-              Test app (no login)
+              Join Early Access Cohort
             </Link>
           </div>
 
@@ -98,7 +89,7 @@ export default function LandingPage() {
                   icon: Server,
                   step: '02',
                   title: 'Cloud Deployed',
-                  desc: 'Secure instance in 48hrs',
+                  desc: 'Secure instance in minutes',
                   color: 'text-amber-400',
                   border: 'border-amber-500/20 hover:border-amber-500/40',
                 },
@@ -185,9 +176,6 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.06] bg-[#09090B] py-12">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-amber-500 rounded-md flex items-center justify-center">
-              <Cpu className="h-3.5 w-3.5 text-black" />
-            </div>
             <span className="font-black text-white text-lg tracking-tight">
               F3<span className="text-amber-500">Next</span>
             </span>
@@ -198,6 +186,12 @@ export default function LandingPage() {
             <Link href="#how-it-works" className="hover:text-gray-400 transition-colors">How it Works</Link>
             <Link href="#comparison" className="hover:text-gray-400 transition-colors">Comparison</Link>
             <Link href="#cohort" className="hover:text-gray-400 transition-colors">Early Access</Link>
+          </div>
+
+          <div className="flex items-center gap-4 text-xs text-gray-600">
+            <a href="https://www.linkedin.com/in/parth-kulkarni-f3/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">LinkedIn</a>
+            <a href="https://github.com/AllBLUE-24/F3Next" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">GitHub</a>
+            <a href="mailto:parth.kulkarni2412@gmail.com" className="hover:text-gray-400 transition-colors">Email</a>
           </div>
 
           <div className="text-xs text-gray-700">

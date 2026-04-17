@@ -55,17 +55,19 @@ _all_models = [
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-origins = [
+_default_origins = [
     "http://localhost:3000",
     "http://localhost:8000",
     "http://127.0.0.1:3000",
-    "https://f3next.vercel.app",        # Your Vercel Project URL
-    "https://www.f3next.in",  
+    "https://f3next.vercel.app",
+    "https://www.f3next.in",
     "https://f3next.in",
     "https://f3-next-tool1-checked-git-main-parths-projects-1f4d4d4a.vercel.app",
-    "https://f3-next-tool1-checked-jv1yf8emx-parths-projects-1f4d4d4a.vercel.app"
-    
-    ]
+    "https://f3-next-tool1-checked-jv1yf8emx-parths-projects-1f4d4d4a.vercel.app",
+]
+# Extend with any extra origins from env (comma-separated)
+_extra = os.getenv("ALLOWED_ORIGINS", "")
+origins = _default_origins + [o.strip() for o in _extra.split(",") if o.strip()]
 # CORS
 app.add_middleware(
     CORSMiddleware,

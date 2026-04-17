@@ -102,7 +102,7 @@ export default function WhyUs() {
                   icon: Server,
                   step: '02',
                   title: 'Automated Cloud Deployment',
-                  desc: 'We spin up your ERPNext instance on secure cloud infrastructure. No IT team required. Done in under 48 hours.',
+                  desc: 'We spin up your ERPNext instance on secure cloud infrastructure. No IT team required. Done in minutes.',
                   color: 'text-amber-400',
                   bg: 'bg-amber-500/10',
                   border: 'border-amber-500/20',

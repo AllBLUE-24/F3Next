@@ -51,7 +51,8 @@ export default function ReportPage() {
       }
       
       try {
-        const res = await fetch(`http://localhost:8000/health_check/status/${storedProjId}`);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await fetch(`${apiUrl}/health_check/status/${storedProjId}`);
         const data = await res.json();
 
         if (data.is_ready) {

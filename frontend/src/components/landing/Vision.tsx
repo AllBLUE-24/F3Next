@@ -20,7 +20,7 @@ const steps = [
     title: 'Cloud Deployment',
     subtitle: 'Auto Setup',
     desc: 'We provision your ERPNext instance on a secure, dedicated cloud environment. Backups, SSL, access controls — all configured automatically. You just log in.',
-    tag: '< 48 hours',
+    tag: 'Minutes',
     tagColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
     accent: 'border-amber-500/40',
   },

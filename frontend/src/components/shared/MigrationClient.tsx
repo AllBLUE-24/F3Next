@@ -24,7 +24,8 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
     try {
       // A. Get Secure S3 URL
       // We use companySlug here purely for organizing the S3 Folder structure (readable names)
-      const urlRes = await fetch("http://localhost:8000/api/migration/get-upload-url", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const urlRes = await fetch(`${API_BASE}/api/migration/get-upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -45,7 +46,7 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
 
       // C. Start Workflow
       // CRITICAL: We send projectId here so the backend knows which DB entry to update
-      const startRes = await fetch("http://localhost:8000/api/migration/start-analysis", {
+      const startRes = await fetch(`${API_BASE}/api/migration/start-analysis`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -71,7 +72,8 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/migration/status/${workflowId}`);
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await fetch(`${API_BASE}/api/migration/status/${workflowId}`);
         const data = await res.json();
 
         if (data.status === "ready_for_review" && data.proposal) {
@@ -90,7 +92,8 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
 
   // 3. Confirm Logic
   const handleConfirm = async () => {
-    await fetch("http://localhost:8000/api/migration/confirm-mapping", {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    await fetch(`${API_BASE}/api/migration/confirm-mapping`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -42,24 +42,17 @@ export default function PrivateCohort() {
     }
   };
 
-  const stats = [
-    { label: 'Deployment', before: '6 Months', after: '48 Hours' },
-    { label: 'Setup Cost', before: '₹5,00,000+', after: '₹0' },
-    { label: 'Monthly SaaS', before: '₹25,000+', after: '₹4,999' },
-    { label: 'Training Time', before: 'Weeks', after: 'None' },
-  ];
-
   return (
     <section className="border-t border-white/[0.06] py-28 bg-[#09090B]" id="cohort">
       <div className="max-w-6xl mx-auto px-6">
 
         <div className="text-center mb-12">
-          <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-4">Limited Access</span>
+          <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-4">Early Access</span>
           <h2 className="text-3xl font-bold text-white sm:text-5xl mb-4">
-            Founders Cohort — Lock ₹4,999/mo for life.
+            Join the Early Access Cohort.
           </h2>
           <p className="text-gray-500 text-lg max-w-xl mx-auto">
-            First 50 manufacturers get enterprise-grade ERP at a startup price. No credit card. No catch.
+            Be among the first manufacturers to experience AI-powered ERP. Limited spots — get priority onboarding and direct founder support.
           </p>
         </div>
 
@@ -78,23 +71,23 @@ export default function PrivateCohort() {
             <div className="p-10 md:p-14 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/[0.06]">
               <div className="inline-flex items-center gap-2 text-amber-400 text-xs font-mono uppercase tracking-widest mb-6">
                 <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                Private Founders Cohort — 50 Spots
+                Early Access — Limited Spots
               </div>
 
               <h3 className="text-3xl font-black text-white mb-5 leading-tight">
-                Get the full AI-ERP suite<br />
-                at <span className="text-amber-500">₹4,999/month</span> — forever.
+                Get your ERP running<br />
+                <span className="text-amber-500">before everyone else.</span>
               </h3>
 
               <p className="text-gray-500 mb-8 leading-relaxed text-sm">
-                Includes AI consultant, cloud deployment, intelligent data migration, and prompt-to-action operations. 
-                Early members are grandfathered in at this rate — even as the product scales.
+                Includes AI consultant, cloud deployment, intelligent data migration, and prompt-to-action operations.
+                Early members get priority onboarding and direct access to the founding team.
               </p>
 
               <ul className="space-y-2 mb-10">
                 {[
                   'AI-powered ERP recommendation',
-                  'ERPNext cloud deployment (48hr)',
+                  'Cloud deployment in minutes',
                   'Intelligent data migration',
                   'Prompt-to-action ERP operations',
                   'Zero upfront cost',
@@ -111,17 +104,22 @@ export default function PrivateCohort() {
                 onClick={() => setShowModal(true)}
                 className="inline-flex items-center justify-center bg-amber-500 text-black px-7 py-3.5 rounded-xl font-bold hover:bg-amber-400 transition-colors w-fit group shadow-lg shadow-amber-500/20"
               >
-                Secure My Spot
+                Join Early Access
                 <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
               <p className="text-xs text-gray-700 mt-3">No credit card required.</p>
             </div>
 
-            {/* Right: Stats */}
+            {/* Right: What You Get */}
             <div className="p-10 md:p-14 flex flex-col justify-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-600 mb-8">Before & After</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-600 mb-8">What changes with F3Next</p>
               <div className="space-y-6">
-                {stats.map((stat, i) => (
+                {[
+                  { label: 'Setup Time', before: '3–6 Months', after: 'Minutes' },
+                  { label: 'Upfront Cost', before: '₹5,00,000+', after: '₹0' },
+                  { label: 'Employee Training', before: 'Weeks', after: 'None' },
+                  { label: 'ERP Operations', before: 'Trained staff only', after: 'Anyone — just type' },
+                ].map((stat, i) => (
                   <div key={i} className="flex justify-between items-center pb-5 border-b border-white/[0.05] last:border-0 last:pb-0">
                     <span className="text-gray-500 text-sm">{stat.label}</span>
                     <div className="text-right">
@@ -153,7 +151,7 @@ export default function PrivateCohort() {
 
             <div className="flex justify-between items-center p-6 border-b border-white/[0.08]">
               <h3 className="font-bold text-white">
-                {step === 'success' ? '🎉 Spot Secured!' : 'Secure Your Spot'}
+                {step === 'success' ? '🎉 You\'re on the list!' : 'Join Early Access'}
               </h3>
               <button onClick={() => setShowModal(false)} className="text-gray-600 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
@@ -168,7 +166,7 @@ export default function PrivateCohort() {
                   </div>
                   <h4 className="text-xl font-bold text-white mb-2">You're on the list.</h4>
                   <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-                    We've recorded your interest. Our team will reach out via WhatsApp to confirm your factory details and finalize your spot.
+                    We've recorded your interest. Our team will reach out via WhatsApp to get you onboarded.
                   </p>
                   <button
                     onClick={() => setShowModal(false)}
@@ -228,7 +226,7 @@ export default function PrivateCohort() {
                     {isSubmitting ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      'Lock in ₹4,999/mo for Life'
+                      'Join Early Access'
                     )}
                   </button>
                   <p className="text-xs text-center text-gray-600">No credit card. No commitment.</p>

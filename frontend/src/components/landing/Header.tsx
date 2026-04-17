@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Cpu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -22,12 +22,9 @@ export default function Header() {
     }`}>
       <nav className="flex items-center justify-between p-4 lg:px-10 max-w-7xl mx-auto" aria-label="Global">
 
-        {/* Logo */}
+        {/* Logo — text only */}
         <div className="flex lg:flex-1">
           <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2.5 group">
-            <div className="w-8 h-8 bg-amber-500 rounded-md flex items-center justify-center group-hover:bg-amber-400 transition-colors">
-              <Cpu className="h-4 w-4 text-black" />
-            </div>
             <span className="font-bold text-xl text-white tracking-tight">
               F3<span className="text-amber-500">Next</span>
             </span>
@@ -83,9 +80,6 @@ export default function Header() {
           <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-[#09090B] border-l border-white/[0.08] px-6 py-6 sm:max-w-sm">
             <div className="flex items-center justify-between">
               <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-amber-500 rounded-md flex items-center justify-center">
-                  <Cpu className="h-4 w-4 text-black" />
-                </div>
                 <span className="font-bold text-xl text-white">F3<span className="text-amber-500">Next</span></span>
               </Link>
               <button

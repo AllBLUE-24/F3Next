@@ -7,7 +7,7 @@ const rows = [
   {
     label: 'Setup Time',
     old: '3–6 Months',
-    new: '< 48 Hours',
+    new: 'Minutes',
     oldBad: true,
   },
   {
@@ -110,7 +110,7 @@ export default function Comparison() {
           {/* Bottom callout */}
           <div className="mt-8 grid md:grid-cols-3 gap-4">
             {[
-              { value: '48hrs', label: 'To go live vs 6 months' },
+              { value: 'Minutes', label: 'To go live vs 6 months' },
               { value: '₹0', label: 'Upfront vs ₹5,00,000+' },
               { value: '95%+', label: 'Success rate vs industry <30%' },
             ].map((stat, i) => (

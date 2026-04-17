@@ -39,6 +39,8 @@ export async function updateSession(request: NextRequest) {
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/signup') &&
+    !request.nextUrl.pathname.startsWith('/auth/callback') &&
+    !request.nextUrl.pathname.startsWith('/landing') &&
     !request.nextUrl.pathname.startsWith('/dev/test') &&
     !request.nextUrl.pathname.startsWith('/api') && // API routes might have their own auth guards
     request.nextUrl.pathname !== '/'
