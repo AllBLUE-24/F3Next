@@ -2,3 +2,10 @@ pydantic-core==2.33.2
 pydantic==2.11.7
 python-dotenv==0.21.0
 temporalio==1.21.1
+sqlalchemy==2.0.25
+langchain
+langchain-google-genai
+boto3
+pandas
+requests
+httpx
