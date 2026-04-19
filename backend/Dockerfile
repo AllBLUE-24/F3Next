@@ -5,7 +5,7 @@ WORKDIR /app
 # Ensure we have the latest pip
 RUN pip install --upgrade pip
 
-COPY requirements.txt .
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy everything into the container
