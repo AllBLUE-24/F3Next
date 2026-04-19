@@ -78,7 +78,7 @@ function HealthCheckContent() {
     };
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
       const response = await fetch(`${apiUrl}/health_check/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -32,7 +32,7 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
   const handleDeploy = async () => {
     setIsDeploying(true);
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
       const res = await fetch(`${base}/api/deploy/infra`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

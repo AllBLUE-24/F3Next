@@ -23,7 +23,7 @@ interface ProjectResolution {
 async function getProjectFromSlug(slug: string): Promise<ProjectResolution | null> {
   try {
     // This calls your FastAPI backend directly
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
     const res = await fetch(`${apiUrl}/api/resolve-slug/${slug}`, {
       method: "GET",
       cache: "no-store", // Ensure we get fresh data every time

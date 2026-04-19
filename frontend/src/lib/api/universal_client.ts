@@ -8,7 +8,7 @@ export const setGlobalProjectContext = (id: string) => {
 };
 
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+    baseURL: process.env.NEXT_PUBLIC_API_URL || "",
 });
 
 // Universal Interceptor: Automatically injects project context into every POST/PUT

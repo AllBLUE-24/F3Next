@@ -31,7 +31,7 @@ export default function InfraPage() {
       if (!companySlug) return;
       try {
         // Call your existing resolver endpoint
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
         const res = await axios.get(`${apiUrl}/api/resolve/slug/${companySlug}`);
         setProject(res.data);
       } catch (err) {
@@ -52,7 +52,7 @@ export default function InfraPage() {
 
     try {
       // Call the NEW Backend Endpoint we defined above
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
       await axios.post(`${apiUrl}/api/deploy/infra`, {
         project_id: project.project_id,
         company_slug: companySlug,
@@ -97,7 +97,7 @@ export default function InfraPage() {
     if (!deploySuccess) return;
     const interval = setInterval(async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
         const res = await axios.get(`${apiUrl}/api/deployment/${project?.project_id}`);
         if (res.data.status === 'ready') {
           setDeploymentInfo(res.data);

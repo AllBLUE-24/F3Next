@@ -36,7 +36,7 @@ export default function RecommendationPage() {
   
       const checkStatus = async () => {
         try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
           // UPDATE THIS LINE: Pointing to your discovery.py endpoint
           const res = await fetch(`${apiUrl}/api/discovery/${projectId}/recommendation`);
           

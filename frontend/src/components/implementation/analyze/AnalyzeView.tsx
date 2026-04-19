@@ -68,7 +68,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
     if (!selectedNiche || confirming) return;
     setConfirming(true);
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
       const nicheInfo = NICHE_DISPLAY[selectedNiche] || { label: selectedNiche, industry: 'trading' };
       const res = await fetch(`${API_BASE}/api/implementation/signal/f3iche-confirmed`, {
         method: 'POST',
@@ -234,7 +234,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
               if (confirming) return;
               setConfirming(true);
               try {
-                const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
                 const res = await fetch(`${API_BASE}/api/implementation/signal/mapping-confirmed`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },

@@ -40,7 +40,7 @@ export default function AuthResolvePage() {
 
       // 2. Resolve their workspace via backend
       const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${API_URL}/api/resolve/user/${user.id}`);
 
       if (res.ok) {
