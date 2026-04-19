@@ -76,16 +76,25 @@ function LoginForm() {
   };
 
   const handleGoogleSignIn = async () => {
-    setError('');
-    const { data, error: authError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      setError('');
+      setLoading(true);
+      await supabase.auth.signOut().catch(console.warn);
 
-    if (authError) {
-      setError('Google sign-in failed.');
+      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (authError) {
+        setError(authError.message || 'Google sign-in failed.');
+        setLoading(false);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred during Google sign-in.');
+      setLoading(false);
     }
   };
 

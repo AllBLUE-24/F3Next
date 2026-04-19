@@ -17,10 +17,28 @@ function SignupForm() {
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
-  const handleSuccessRedirect = () => {
+  const handleSuccessRedirect = async (user: any) => {
     if (redirectPath) {
       router.push(`${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`);
-    } else {
+      return;
+    }
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_URL}/api/resolve/user/${user.id}`);
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.company_slug && data.user_slug) {
+          router.push(`/${data.company_slug}/${data.user_slug}/home`);
+        } else {
+          router.push('/onboarding');
+        }
+      } else {
+        router.push('/onboarding');
+      }
+    } catch (err) {
+      console.error("Redirect Error:", err);
       router.push('/onboarding');
     }
   };
@@ -38,10 +56,10 @@ function SignupForm() {
       password,
     });
 
-    if (authError) {
-      if (authError.message.includes('already in use') || authError.status === 422) {
+    if (authError || !data.user) {
+      if (authError?.message.includes('already in use') || authError?.status === 422) {
         setError('This email is already in use.');
-      } else if (authError.message.includes('weak')) {
+      } else if (authError?.message.includes('weak')) {
         setError('Password should be at least 6 characters.');
       } else {
         setError('Failed to create account. Please try again.');
@@ -50,25 +68,29 @@ function SignupForm() {
       return;
     }
     
-    handleSuccessRedirect(); 
+    await handleSuccessRedirect(data.user); 
   };
 
   const handleGoogleSignIn = async () => {
-    setError('');
-    
-    // Clear old session
-    await supabase.auth.signOut();
+    try {
+      setError('');
+      setLoading(true);
+      await supabase.auth.signOut().catch(console.warn);
 
-    const { data, error: authError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    if (authError) {
-      setError('Google sign-in failed.');
-      console.error(authError);
+      if (authError) {
+        setError(authError.message || 'Google sign-in failed.');
+        setLoading(false);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred during Google sign-in.');
+      setLoading(false);
     }
   };
 

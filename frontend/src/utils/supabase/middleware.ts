@@ -34,6 +34,13 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Handle root URL redirect explicitly to bypass login redirect logic
+  if (request.nextUrl.pathname === '/') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/landing'
+    return NextResponse.redirect(url)
+  }
+
   // Protect paths
   if (
     !user &&
@@ -41,9 +48,10 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/signup') &&
     !request.nextUrl.pathname.startsWith('/auth/callback') &&
     !request.nextUrl.pathname.startsWith('/landing') &&
+    !request.nextUrl.pathname.startsWith('/landing_page') &&
     !request.nextUrl.pathname.startsWith('/dev/test') &&
     !request.nextUrl.pathname.startsWith('/api') && // API routes might have their own auth guards
-    request.nextUrl.pathname !== '/'
+    !request.nextUrl.pathname.startsWith('/onboarding') // Allow onboarding for just-signed-up users
   ) {
     // If the user is unauthenticated and they're not on the login/signup/public pages
     const url = request.nextUrl.clone()
