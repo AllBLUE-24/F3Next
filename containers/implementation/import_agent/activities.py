@@ -97,7 +97,7 @@ class ExecutePhaseInput:
     phase_id: str
     project_id: str
     company_slug: str = "unknown"
-    dry_run: bool = True
+    dry_run: bool = False  # Default to live execution — safety is via double-confirm signals
     erpnext_base_url: Optional[str] = None
     erpnext_api_key: Optional[str] = None
 
@@ -262,13 +262,41 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     steps_completed = 0
     steps_failed = 0
 
-    # Ensure clean Base URL
+    # Ensure clean Base URL — auto-resolve from Project.deployment_details if not provided
     base_url = (inp.erpnext_base_url or "").rstrip("/")
+    api_token = inp.erpnext_api_key or ""
+
+    # ── AUTO-RESOLVE: Fetch credentials from Project.deployment_details if missing ──
+    if (not base_url or not api_token) and inp.project_id:
+        try:
+            from shared.models.core import Project
+            async with AsyncSessionLocal() as db:
+                stmt = select(Project).where(Project.id == uuid.UUID(inp.project_id))
+                res = await db.execute(stmt)
+                project = res.scalar_one_or_none()
+                if project and project.deployment_details:
+                    details = project.deployment_details
+                    if not base_url:
+                        base_url = (details.get("site_url", "") or "").rstrip("/")
+                        activity.logger.info("  🔑 Auto-resolved base_url from Project.deployment_details: %s", base_url)
+                    if not api_token:
+                        dk = details.get("api_key", "")
+                        ds = details.get("api_secret", "")
+                        if dk and ds:
+                            api_token = f"{dk}:{ds}"
+                            activity.logger.info("  🔑 Auto-resolved API credentials from Project.deployment_details")
+                        else:
+                            activity.logger.warning("  ⚠️ Project.deployment_details has no api_key/api_secret")
+                else:
+                    activity.logger.warning("  ⚠️ No Project or deployment_details found for project_id=%s", inp.project_id)
+        except Exception as e:
+            activity.logger.error("  ❌ Failed to auto-resolve credentials from Project: %s", e)
+
     headers = {
-        "Authorization": f"token {inp.erpnext_api_key}",
+        "Authorization": f"token {api_token}",
         "Content-Type": "application/json",
         "Accept": "application/json"
-    } if inp.erpnext_api_key else {}
+    } if api_token else {}
 
     # Increase timeout for bulk ERPNext processing
     async with httpx.AsyncClient(base_url=base_url, timeout=60.0) as client:

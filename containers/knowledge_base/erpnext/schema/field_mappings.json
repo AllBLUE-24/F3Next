@@ -417,12 +417,14 @@
             "fieldtype": "Data",
             "mandatory": true,
             "unique": true,
+            "user_input_synonyms": ["item code", "item_id", "product_code", "sku", "code"],
             "note": "Auto-generated if item_naming_by = Naming Series in Stock Settings"
           },
           "item_name": {
             "fieldname": "item_name",
             "fieldtype": "Data",
-            "mandatory": true
+            "mandatory": true,
+            "user_input_synonyms": ["item name", "product_name", "product name", "description", "material_name"]
           },
           "item_group": {
             "fieldname": "item_group",
@@ -437,6 +439,7 @@
             "options": "UOM",
             "mandatory": true,
             "common_values": ["Nos", "Kg", "Liter", "Meter", "Box", "Piece"],
+            "user_input_synonyms": ["uom", "unit", "unit of measure", "measure"],
             "default_value": "Nos"
           },
           "is_stock_item": {
@@ -456,6 +459,24 @@
             "fieldtype": "Check",
             "default_value": 0,
             "note": "Enable for electronics, equipment"
+          },
+          "valuation_rate": {
+            "fieldname": "valuation_rate",
+            "fieldtype": "Currency",
+            "mandatory": false,
+            "user_input_synonyms": ["cost rate", "cost_rate", "cost price", "cost", "buying_rate", "purchase_rate", "cost rate (inr)"]
+          },
+          "standard_rate": {
+            "fieldname": "standard_rate",
+            "fieldtype": "Currency",
+            "mandatory": false,
+            "user_input_synonyms": ["selling rate", "selling_rate", "selling price", "mrp", "price", "selling rate (inr)"]
+          },
+          "opening_stock": {
+            "fieldname": "opening_stock",
+            "fieldtype": "Float",
+            "mandatory": false,
+            "user_input_synonyms": ["stock qty", "stock_qty", "current_stock", "qty", "quantity", "opening_qty"]
           }
         }
       },
@@ -469,7 +490,8 @@
           "customer_name": {
             "fieldname": "customer_name",
             "fieldtype": "Data",
-            "mandatory": true
+            "mandatory": true,
+            "user_input_synonyms": ["entity name", "company name", "name", "client_name", "buyer_name", "party_name"]
           },
           "customer_type": {
             "fieldname": "customer_type",
@@ -535,7 +557,7 @@
             "options": ["Company", "Individual"],
             "mandatory": false,
             "default_value": "Company",
-            "user_input_synonyms": ["vendor_type", "type"]
+            "user_input_synonyms": ["vendor_type", "supplier_type"]
           },
           "country": {
             "fieldname": "country",

@@ -1,5 +1,6 @@
 import os
 import asyncio
+import time
 from itertools import cycle
 from dotenv import load_dotenv
 
@@ -18,76 +19,92 @@ if not api_keys:
 # Create the infinite loop
 key_pool = cycle(api_keys) if api_keys else None
 
+# Model fallback chain: try primary model first, then fall back to cheaper models
+FALLBACK_MODELS = ["gemini-1.5-flash"]
+
+
 async def invoke_smart_llm(messages, model_name="gemini-flash-latest", temperature=0.1, max_output_tokens=800, **kwargs):
     """
     A drop-in replacement/wrapper for ChatGoogleGenerativeAI calls.
     Automatically rotates keys if it hits a quota limit.
+    Falls back to gemini-1.5-flash if all keys exhausted on primary model.
     """
     from langchain_google_genai import ChatGoogleGenerativeAI
     
-    max_attempts = len(api_keys) + 1 if api_keys else 1
+    models_to_try = [model_name] + [m for m in FALLBACK_MODELS if m != model_name]
     
-    for attempt in range(max_attempts):
-        current_key = next(key_pool) if key_pool else None
+    for current_model in models_to_try:
+        max_attempts = len(api_keys) + 1 if api_keys else 1
         
-        try:
-            llm = ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-                google_api_key=current_key,
-                **kwargs
-            )
+        for attempt in range(max_attempts):
+            current_key = next(key_pool) if key_pool else None
             
-            response = await llm.ainvoke(messages)
-            return response
+            try:
+                llm = ChatGoogleGenerativeAI(
+                    model=current_model,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    google_api_key=current_key,
+                    **kwargs
+                )
+                
+                response = await llm.ainvoke(messages)
+                return response
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                if "429" in error_str or "quota" in error_str or "exhausted" in error_str or "rate limit" in error_str:
+                    print(f"[Warning] Quota hit on {current_model}. Rotating key (Attempt {attempt+1}/{max_attempts})...")
+                    # Always sleep between rotations to avoid burning keys instantly
+                    await asyncio.sleep(min(2 ** attempt, 8))
+                    continue
+                
+                raise e
+        
+        # All keys exhausted for this model — try fallback
+        if current_model != models_to_try[-1]:
+            print(f"[Warning] All keys exhausted for {current_model}. Falling back to next model...")
+            await asyncio.sleep(2)
             
-        except Exception as e:
-            error_str = str(e).lower()
-            # Catch 429 quota/resource exhausted exceptions LangChain wraps
-            if "429" in error_str or "quota" in error_str or "exhausted" in error_str or "rate limit" in error_str:
-                print(f"[Warning] Quota or Rate limit hit. Rotating to next Gemini key (Attempt {attempt+1}/{max_attempts})...")
-                # Wait a bit if we only have 1 key to allow rate limit to clear
-                if len(api_keys) <= 1:
-                    await asyncio.sleep(2 ** attempt)
-                continue
-            
-            # If it's a real error (bad prompt, etc), raise it
-            raise e
-            
-    raise Exception("Critical: All Gemini API keys are out of quota or failed repeatedly!")
+    raise Exception("Critical: All Gemini API keys and fallback models are out of quota!")
 
 def invoke_smart_llm_sync(messages, model_name="gemini-flash-latest", temperature=0.1, max_output_tokens=800, **kwargs):
     """
-    Sync equivalent.
+    Sync equivalent with model fallback chain.
     """
     from langchain_google_genai import ChatGoogleGenerativeAI
     
-    max_attempts = len(api_keys) + 1 if api_keys else 1
+    models_to_try = [model_name] + [m for m in FALLBACK_MODELS if m != model_name]
     
-    for attempt in range(max_attempts):
-        current_key = next(key_pool) if key_pool else None
+    for current_model in models_to_try:
+        max_attempts = len(api_keys) + 1 if api_keys else 1
         
-        try:
-            llm = ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-                google_api_key=current_key,
-                **kwargs
-            )
+        for attempt in range(max_attempts):
+            current_key = next(key_pool) if key_pool else None
             
-            response = llm.invoke(messages)
-            return response
+            try:
+                llm = ChatGoogleGenerativeAI(
+                    model=current_model,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    google_api_key=current_key,
+                    **kwargs
+                )
+                
+                response = llm.invoke(messages)
+                return response
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                if "429" in error_str or "quota" in error_str or "exhausted" in error_str or "rate limit" in error_str:
+                    print(f"[Warning] Quota hit on {current_model}. Rotating key (Attempt {attempt+1}/{max_attempts})...")
+                    time.sleep(min(2 ** attempt, 8))
+                    continue
+                raise e
+        
+        # All keys exhausted for this model — try fallback
+        if current_model != models_to_try[-1]:
+            print(f"[Warning] All keys exhausted for {current_model}. Falling back to next model...")
+            time.sleep(2)
             
-        except Exception as e:
-            error_str = str(e).lower()
-            if "429" in error_str or "quota" in error_str or "exhausted" in error_str or "rate limit" in error_str:
-                print(f"[Warning] Quota hit. Rotating to next Gemini key (Attempt {attempt+1}/{max_attempts})...")
-                import time
-                if len(api_keys) <= 1:
-                    time.sleep(2 ** attempt)
-                continue
-            raise e
-            
-    raise Exception("Critical: All Gemini API keys are out of quota or failed repeatedly!")
+    raise Exception("Critical: All Gemini API keys and fallback models are out of quota!")

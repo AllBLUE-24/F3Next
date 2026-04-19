@@ -23,7 +23,7 @@ from temporalio import activity
 
 
 # Formats we can safely decode as UTF-8 text or parse structurally
-TEXT_EXTENSIONS = {".csv", ".json", ".xml", ".sql", ".txt", ".tsv", ".xlsx"}
+TEXT_EXTENSIONS = {".csv", ".json", ".xml", ".sql", ".txt", ".tsv", ".xlsx", ".md"}
 
 # Max file size we'll read into memory (10 MB)
 MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -151,44 +151,8 @@ async def fetch_clean_files(inp: FetchCleanFilesInput) -> Dict[str, Any]:
     activity.logger.info("✅ fetch_clean_files done | read %d/%d files → manifest=%s",
                          len(contents), len(inp.uploaded_files), manifest_key)
     
-    # ── Update is_files in Supabase ──────────────────────────────────────────
-    try:
-        from shared.database.db import AsyncSessionLocal
-        from shared.models.is_models import ISFile
-        from sqlalchemy import select, update
-        import asyncio
-
-        async def _update_db():
-            async with AsyncSessionLocal() as session:
-                for file_info in inp.uploaded_files:
-                    obj_key = file_info.get("object_path")
-                    if not obj_key:
-                        continue
-                    
-                    # Update the row where the r2_object_key matches
-                    stmt = select(ISFile).where(ISFile.r2_object_key == obj_key)
-                    result = await session.execute(stmt)
-                    file_row = result.scalar_one_or_none()
-
-                    if file_row:
-                        await session.execute(
-                            update(ISFile)
-                            .where(ISFile.id == file_row.id)
-                            .values(
-                                parsed=True, 
-                                included_in_manifest=True, 
-                                parsed_at=datetime.utcnow()
-                            )
-                        )
-                await session.commit()
-                
-        # Run DB update (if your activity is sync, use asyncio.run. If async, just await)
-        # Note: If your fetch_clean_files activity is defined as `async def`, remove `asyncio.run` 
-        # and just `await _update_db()`.
-        asyncio.run(_update_db()) 
-        activity.logger.info("  ✅ is_files updated with parsed status")
-    except Exception as e:
-        activity.logger.error("  ❌ Failed to update is_files parsed status: %s", e)
+    # Note: is_files does not have parsed/included_in_manifest/parsed_at columns.
+    # File tracking is handled by virus_scan_status and bucket_location.
     
     return {
         "manifest_url": manifest_key,

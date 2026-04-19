@@ -76,10 +76,16 @@ class _MappingEngine:
                                 score += 3.0  # Exact match
                                 break
                             elif syn_lower in c and len(syn_lower) >= 3:
-                                score += 2.0  # Column contains synonym
+                                # Synonym is substring of column: only score if it's a significant portion
+                                if len(syn_lower) / max(len(c), 1) >= 0.5:
+                                    score += 2.0
+                                else:
+                                    score += 0.3  # Very weak partial
                                 break
                             elif c in syn_lower and len(c) >= 4:
-                                score += 0.5  # Synonym contains column (downweighted)
+                                # Column is substring of synonym: only if column is significant portion
+                                if len(c) / max(len(syn_lower), 1) >= 0.5:
+                                    score += 0.5
                                 break
 
                 if score >= 4.0:
@@ -113,21 +119,43 @@ class _MappingEngine:
         except Exception as e:
             return None
 
+    # Known entity-type values that indicate a file should be split by party type
+    ENTITY_TYPE_VALUES = {"supplier", "customer", "vendor", "client", "buyer", "seller"}
+
     def _split_by_entity_type(self, rows: List[Dict], columns: List[str]) -> Optional[Dict[str, List[Dict]]]:
         """
         Detect if a file contains multiple entity types (e.g., Suppliers AND Customers)
         and split rows by their Type column into separate groups.
 
+        Only splits if the Type column actually contains party-type values
+        (Customer/Supplier/Vendor/Client), NOT item-type values (Raw Material/Finished Good).
+
         Returns None if no split is needed, or {entity_type: [rows]} if split applies.
         """
         type_col = None
-        type_synonyms = {"type", "entity type", "entity_type", "record type", "category", "party type"}
+        type_synonyms = {"type", "entity type", "entity_type", "record type", "party type"}
         for c in columns:
             if c and c.lower().strip() in type_synonyms:
                 type_col = c
                 break
 
         if not type_col:
+            return None
+
+        # Validate: check if the values in this column are actually entity types
+        unique_values = set()
+        for row in rows:
+            raw_type = (row.get(type_col) or "").strip().lower()
+            if raw_type:
+                unique_values.add(raw_type)
+
+        # Only split if at least 30% of unique values match known entity types
+        if not unique_values:
+            return None
+        entity_match_count = sum(1 for v in unique_values if v in self.ENTITY_TYPE_VALUES)
+        if entity_match_count / len(unique_values) < 0.3:
+            activity.logger.info("  Type column '%s' has non-entity values %s — skipping split",
+                                 type_col, unique_values)
             return None
 
         groups: Dict[str, List[Dict]] = {}
@@ -202,6 +230,21 @@ class _MappingEngine:
                 
         return result
 
+    @staticmethod
+    def _keyword_infer_doctype(content: str) -> Optional[str]:
+        """Keyword-based fallback doctype inference for unstructured text when LLM fails."""
+        text_lower = content.lower()
+        # Company setup signals
+        company_keywords = ["gstin", "gst", "company", "pvt", "ltd", "currency", "inr", "bank", "branch"]
+        company_score = sum(1 for kw in company_keywords if kw in text_lower)
+        if company_score >= 3:
+            return "Company"
+        # Employee signals
+        emp_keywords = ["employee", "staff", "designation", "department", "joining", "salary"]
+        if sum(1 for kw in emp_keywords if kw in text_lower) >= 3:
+            return "Employee"
+        return None
+
     def _extract_nlp_rows(self, content: str, doctype: str) -> List[Dict]:
         data = self._load_field_mappings()
         field_mappings = data.get("doctypes", {}).get(doctype, {}).get("field_mappings", {})
@@ -231,6 +274,9 @@ class _MappingEngine:
         
         if is_unstructured:
             doctype = doctype_hint or self.infer_doctype([], sample_text=content)
+            # Keyword-based fallback when LLM fails for unstructured files
+            if not doctype:
+                doctype = self._keyword_infer_doctype(content)
             if not doctype:
                 return [{"doctype": None, "field_mapping": {}, "rows": [], "inferred_doctype": None, "source_columns": []}]
             rows = self._extract_nlp_rows(content, doctype)
@@ -258,15 +304,18 @@ class _MappingEngine:
             if split_groups:
                 results = []
                 for entity_type, group_rows in split_groups.items():
-                    # Infer doctype for this specific entity group
-                    group_doctype = self.infer_doctype(columns, sample_text=entity_type)
-                    # Also try matching entity_type name to a doctype directly
-                    if not group_doctype or group_doctype == "Payment Entry":
-                        data = self._load_field_mappings()
-                        for dt_name in data.get("doctypes", {}).keys():
-                            if entity_type.lower() == dt_name.lower():
-                                group_doctype = dt_name
-                                break
+                    # FIRST: Try direct entity-name-to-doctype match (highest priority)
+                    group_doctype = None
+                    data = self._load_field_mappings()
+                    for dt_name in data.get("doctypes", {}).keys():
+                        if entity_type.lower() == dt_name.lower():
+                            group_doctype = dt_name
+                            break
+                    
+                    # SECOND: Fall back to column-based inference if no direct match
+                    if not group_doctype:
+                        group_doctype = self.infer_doctype(columns, sample_text=entity_type)
+                    
                     if not group_doctype:
                         group_doctype = entity_type  # Use entity_type as-is
                     

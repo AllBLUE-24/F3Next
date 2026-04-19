@@ -29,12 +29,12 @@
   ],
   "industry_best_practices": {},
   "version": 1,
-  "session_id": "d6b4e329-8362-4254-b51b-8123ef6eedeb",
+  "session_id": "f7782243-27d4-497c-a062-7cb60542a54b",
   "data_quality_score": 0.5,
   "completeness_score": 0.5,
   "data_observations": [
-    "LLM generation failed"
+    "LLM enrichment failed after 2 attempts \u2014 using template defaults"
   ],
   "recommended_customizations": [],
-  "_persisted_at": "2026-04-12T07:39:38.414933Z"
+  "_persisted_at": "2026-04-18T07:15:21.273077Z"
 }

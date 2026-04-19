@@ -213,3 +213,40 @@ export async function listF3iches(): Promise<{
   if (!res.ok) throw new Error('Failed to list F3iches');
   return res.json();
 }
+
+
+// ── Validate Preview ──────────────────────────────────────────────────────────
+
+export interface ValidatePreviewDoctype {
+  doctype: string;
+  source_file: string | null;
+  total_rows: number;
+  total_mapped_fields: number;
+  validation_status: string;
+  errors: Array<{ message: string; severity: string; field: string }>;
+  warnings: Array<{ message: string; severity: string; field: string }>;
+  columns: string[];
+  records: Record<string, unknown>[];
+}
+
+export interface ValidatePreviewData {
+  profile: Record<string, unknown>;
+  doctypes: ValidatePreviewDoctype[];
+  import_summary: Record<string, string[]>;
+  validation_overall: string;
+}
+
+export async function getValidatePreview(projectId: string): Promise<ValidatePreviewData> {
+  const res = await fetch(`${getBaseUrl()}/api/implementation/validate-preview/${projectId}`);
+  if (!res.ok) throw new Error('Failed to fetch validation preview');
+  return res.json();
+}
+
+export async function sendSandboxApproved(projectId: string, dryRun = false): Promise<void> {
+  const res = await fetch(`${getBaseUrl()}/api/implementation/signal/sandbox-approved`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_id: projectId, dry_run: dryRun }),
+  });
+  if (!res.ok) throw new Error('Failed to send sandbox approved signal');
+}

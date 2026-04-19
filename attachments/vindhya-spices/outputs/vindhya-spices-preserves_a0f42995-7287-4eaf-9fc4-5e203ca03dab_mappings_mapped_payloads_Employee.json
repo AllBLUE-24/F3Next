@@ -1,0 +1,33 @@
+{
+  "doctype": "Employee",
+  "records": [
+    {
+      "employee": "E001",
+      "employee_name": "Anil Kumar",
+      "department": "Production",
+      "designation": "Production Manager",
+      "date_of_joining": "2018-04-01"
+    },
+    {
+      "employee": "E002",
+      "employee_name": "Sunita Verma",
+      "department": "Quality",
+      "designation": "QA Inspector",
+      "date_of_joining": "2019-06-15"
+    },
+    {
+      "employee": "E003",
+      "employee_name": "Rajesh Tiwari",
+      "department": "Sales",
+      "designation": "Sales Executive",
+      "date_of_joining": "2021-01-10"
+    },
+    {
+      "employee": "E004",
+      "employee_name": "Meena Das",
+      "department": "Operations",
+      "designation": "Packaging Head",
+      "date_of_joining": "2020-03-05"
+    }
+  ]
+}

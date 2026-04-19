@@ -1,0 +1,30 @@
+{
+  "doctype": "Journal Entry",
+  "records": [
+    {
+      "accounts": "HDFC Bank Current A/c",
+      "voucher_type": "Bank",
+      "total_debit": "500000"
+    },
+    {
+      "accounts": "Cash in Hand",
+      "voucher_type": "Cash",
+      "total_debit": "25000"
+    },
+    {
+      "accounts": "Plant & Machinery",
+      "voucher_type": "Fixed Asset",
+      "total_debit": "1500000"
+    },
+    {
+      "accounts": "Inventory Value",
+      "voucher_type": "Current Asset",
+      "total_debit": "145000"
+    },
+    {
+      "accounts": "Retained Earnings",
+      "voucher_type": "Equity",
+      "total_debit": "2170000"
+    }
+  ]
+}

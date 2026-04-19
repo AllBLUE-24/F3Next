@@ -187,9 +187,14 @@ class ImplementationLauncher:
 
     async def _get_session(self, project_id: str | UUID) -> Optional[ISSession]:
         async with AsyncSessionLocal() as session:
-            stmt = select(ISSession).where(ISSession.project_id == UUID(str(project_id)))
+            stmt = (
+                select(ISSession)
+                .where(ISSession.project_id == UUID(str(project_id)))
+                .order_by(ISSession.created_at.desc())
+                .limit(1)
+            )
             res = await session.execute(stmt)
-            return res.scalar_one_or_none()
+            return res.scalars().first()
 
     async def get_profile(self, project_id: str | UUID) -> Dict[str, Any]:
         """Query latest ISCompanyProfile for this project."""
@@ -335,6 +340,130 @@ class ImplementationLauncher:
                 "records_failed": log.records_failed,
                 "error_message": log.error_message,
             } for log in logs]
+
+    async def get_validate_preview(self, project_id: str | UUID) -> Dict[str, Any]:
+        """
+        Fetch ALL mapped data payloads from R2 along with profile and validation results.
+        Returns the complete dataset that will be imported — for user review.
+        """
+        import json
+        import boto3
+        from botocore.config import Config
+
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            return {"error": "No implementation session found"}
+
+        # 1. Company profile
+        profile = await self.get_profile(project_id)
+
+        # 2. All mapped data rows
+        async with AsyncSessionLocal() as session:
+            mapped_stmt = (
+                select(ISMappedData)
+                .where(ISMappedData.session_id == is_session.id)
+                .order_by(ISMappedData.target_doctype)
+            )
+            mapped_rows = (await session.execute(mapped_stmt)).scalars().all()
+
+            # 3. Validation results + errors per doctype
+            val_stmt = select(ISValidationResult).where(
+                ISValidationResult.session_id == is_session.id
+            )
+            val_rows = (await session.execute(val_stmt)).scalars().all()
+
+            val_map: Dict[str, Dict] = {}
+            for vr in val_rows:
+                err_stmt = select(ISValidationError).where(
+                    ISValidationError.validation_result_id == vr.id
+                )
+                errors = (await session.execute(err_stmt)).scalars().all()
+                val_map[vr.doctype] = {
+                    "status": vr.overall_status,
+                    "row_count": vr.row_count or 0,
+                    "errors": [
+                        {"message": e.error_message, "severity": e.severity, "field": e.field_name}
+                        for e in errors
+                    ],
+                }
+
+            # 4. Import plan (target structure phases)
+            target_stmt = (
+                select(ISTargetStructure)
+                .where(ISTargetStructure.session_id == is_session.id)
+                .order_by(ISTargetStructure.created_at.desc())
+                .limit(1)
+            )
+            target_row = (await session.execute(target_stmt)).scalar_one_or_none()
+
+        # 5. Download actual payloads from R2
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=os.getenv("R2_ENDPOINT"),
+            aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+
+        doctypes = []
+        for md in mapped_rows:
+            records = []
+            columns = []
+            r2_path = md.mapped_payload_r2_path
+
+            if r2_path:
+                try:
+                    resp = s3.get_object(Bucket="clean-data", Key=r2_path)
+                    payload = json.loads(resp["Body"].read().decode("utf-8"))
+                    records = payload.get("records", [])
+                    if records:
+                        columns = list(records[0].keys())
+                except Exception as e:
+                    logger.warning("Failed to fetch R2 payload %s: %s", r2_path, e)
+
+            validation = val_map.get(md.target_doctype, {
+                "status": "pending", "row_count": 0, "errors": []
+            })
+
+            doctypes.append({
+                "doctype": md.target_doctype,
+                "source_file": md.source_filename,
+                "total_rows": md.total_rows or len(records),
+                "total_mapped_fields": md.total_mapped_fields or len(columns),
+                "validation_status": validation["status"],
+                "errors": [e for e in validation["errors"] if e["severity"] == "error"],
+                "warnings": [e for e in validation["errors"] if e["severity"] == "warning"],
+                "columns": columns,
+                "records": records,
+            })
+
+        # 6. Import summary from target structure
+        import_summary = {}
+        if target_row:
+            try:
+                phases_raw = target_row.import_phases
+                phases = json.loads(phases_raw) if isinstance(phases_raw, str) else (phases_raw or {})
+                for phase_key, phase_val in phases.items():
+                    if isinstance(phase_val, dict):
+                        import_summary[phase_key] = phase_val.get("doctypes", [])
+                    elif isinstance(phase_val, list):
+                        import_summary[phase_key] = phase_val
+            except Exception:
+                pass
+
+        validation_overall = "pass"
+        for dt in doctypes:
+            if dt["validation_status"] == "fail":
+                validation_overall = "fail"
+                break
+
+        return {
+            "profile": profile,
+            "doctypes": doctypes,
+            "import_summary": import_summary,
+            "validation_overall": validation_overall,
+        }
 
     async def get_full_state(self, project_id: str | UUID) -> Dict[str, Any]:
         """Convenience: returns everything in one round-trip batch."""

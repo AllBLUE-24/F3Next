@@ -1,11 +1,20 @@
 {
-  "overall": "pass",
-  "timestamp": "2026-04-12T07:41:14.036845Z",
+  "overall": "fail",
+  "timestamp": "2026-04-18T07:16:46.760659Z",
   "checks": [
     {
-      "doctype": "Payment Entry",
+      "doctype": "Employee",
       "status": "pass",
       "errors": [],
+      "warnings": [],
+      "row_count": 4
+    },
+    {
+      "doctype": "Journal Entry",
+      "status": "fail",
+      "errors": [
+        "Missing required field: posting_date"
+      ],
       "warnings": [],
       "row_count": 5
     },
@@ -14,9 +23,29 @@
       "status": "pass",
       "errors": [],
       "warnings": [],
-      "row_count": 6
+      "row_count": 7
+    },
+    {
+      "doctype": "Supplier",
+      "status": "fail",
+      "errors": [
+        "Missing required field: supplier_group"
+      ],
+      "warnings": [
+        "Row 1: invalid enum value for 'supplier_type': 'Customer' (allowed: ['Company', 'Individual'])",
+        "Row 2: invalid enum value for 'supplier_type': 'Client' (allowed: ['Company', 'Individual'])",
+        "Row 3: invalid enum value for 'supplier_type': 'Customer' (allowed: ['Company', 'Individual'])"
+      ],
+      "row_count": 3
     }
   ],
-  "errors": [],
-  "warnings": []
+  "errors": [
+    "Missing required field: posting_date",
+    "Missing required field: supplier_group"
+  ],
+  "warnings": [
+    "Row 1: invalid enum value for 'supplier_type': 'Customer' (allowed: ['Company', 'Individual'])",
+    "Row 2: invalid enum value for 'supplier_type': 'Client' (allowed: ['Company', 'Individual'])",
+    "Row 3: invalid enum value for 'supplier_type': 'Customer' (allowed: ['Company', 'Individual'])"
+  ]
 }

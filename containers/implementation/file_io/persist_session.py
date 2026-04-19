@@ -106,12 +106,14 @@ async def persist_session(inp: Any) -> Any:
         
         try:
             async with AsyncSessionLocal() as session:
-                stmt = select(ISSession).where(ISSession.project_id == uuid.UUID(inp.project_id))
+                stmt = select(ISSession).where(
+                    ISSession.project_id == uuid.UUID(inp.project_id)
+                ).order_by(ISSession.created_at.desc())
                 result = await session.execute(stmt)
-                existing = result.scalar_one_or_none()
+                existing = result.scalars().first()
                 
                 if existing:
-                    # Update status
+                    # Update status of the most recent session
                     session_id_str = str(existing.id)
                     existing.status = inp.status
                     existing.updated_at = datetime.utcnow()

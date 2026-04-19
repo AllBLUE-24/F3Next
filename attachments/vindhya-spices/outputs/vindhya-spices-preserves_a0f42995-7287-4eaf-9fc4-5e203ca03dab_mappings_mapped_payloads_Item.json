@@ -2,58 +2,67 @@
   "doctype": "Item",
   "records": [
     {
-      "item_code": "RAW-MANGOES",
-      "item_name": "Raw Mangoes",
+      "item_code": "RM-001",
+      "item_name": "Raw Green Mango",
       "item_group": "Raw Material",
       "stock_uom": "Kg",
-      "is_stock_item": true,
-      "has_batch_no": true,
-      "has_serial_no": false
+      "valuation_rate": "40",
+      "standard_rate": "",
+      "opening_stock": "500"
     },
     {
-      "item_code": "CHILLIES",
-      "item_name": "Chillies",
-      "item_group": "Raw Material",
+      "item_code": "RM-002",
+      "item_name": "Whole Red Chilli (Guntur)",
+      "item_group": "raw material",
       "stock_uom": "Kg",
-      "is_stock_item": true,
-      "has_batch_no": true,
-      "has_serial_no": false
+      "valuation_rate": "150",
+      "standard_rate": "",
+      "opening_stock": "200"
     },
     {
-      "item_code": "COLD-PRESSED-OILS",
-      "item_name": "Cold-Pressed Oils",
+      "item_code": "RM-003",
+      "item_name": "Cold Pressed Mustard Oil",
       "item_group": "Raw Material",
-      "stock_uom": "Litre",
-      "is_stock_item": true,
-      "has_batch_no": true,
-      "has_serial_no": false
+      "stock_uom": "Ltr",
+      "valuation_rate": "180",
+      "standard_rate": "",
+      "opening_stock": "150"
     },
     {
-      "item_code": "EMPTY-GLASS-JARS",
-      "item_name": "Empty Glass Jars",
-      "item_group": "Packing Material",
+      "item_code": "PKG-01",
+      "item_name": "Glass Jar 500g",
+      "item_group": "Packaging",
       "stock_uom": "Nos",
-      "is_stock_item": true,
-      "has_batch_no": false,
-      "has_serial_no": false
+      "valuation_rate": "15",
+      "standard_rate": "",
+      "opening_stock": "1000"
     },
     {
-      "item_code": "INDIAN-PICKLES",
-      "item_name": "Indian Pickles",
-      "item_group": "Finished Goods",
+      "item_code": "FG-101",
+      "item_name": "Spicy Mango Pickle 500g",
+      "item_group": "Finished Good",
       "stock_uom": "Nos",
-      "is_stock_item": true,
-      "has_batch_no": true,
-      "has_serial_no": false
+      "valuation_rate": "85",
+      "standard_rate": "150",
+      "opening_stock": "300"
     },
     {
-      "item_code": "GROUND-SPICES",
-      "item_name": "Ground Spices",
-      "item_group": "Finished Goods",
+      "item_code": "FG-102",
+      "item_name": "Premium Garam Masala 200g",
+      "item_group": "Finished",
       "stock_uom": "Nos",
-      "is_stock_item": true,
-      "has_batch_no": true,
-      "has_serial_no": false
+      "valuation_rate": "60",
+      "standard_rate": "120",
+      "opening_stock": "450"
+    },
+    {
+      "item_code": "FG-103",
+      "item_name": "Red Chilli Powder 500g",
+      "item_group": "finished good",
+      "stock_uom": "Nos",
+      "valuation_rate": "90",
+      "standard_rate": "180",
+      "opening_stock": "250"
     }
   ]
 }

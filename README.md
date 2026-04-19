@@ -26,8 +26,8 @@ Traditional ERP implementation is broken — **6 months, ₹5+ lakhs, 70% failur
 |-------|-----------|-------------|
 | **Frontend** | Next.js 15 (React) | Vercel |
 | **Backend API** | FastAPI (Python) | Render |
-| **Containers** | Discovery, Implementation, OS, Health Check, Knowledge Base, ERPNext agents | DigitalOcean Droplets |
-| **Workflow Engine** | Temporal (Server + Workers) | DigitalOcean Droplets |
+| **Containers** | Discovery, Implementation, OS, Health Check, Knowledge Base, ERPNext agents | DigitalOcean Droplet |
+| **Workflow Engine** | Temporal (Server + Workers) | DigitalOcean Droplet |
 | **Database** | PostgreSQL | Supabase |
 | **Auth** | Supabase Auth (Email + Google OAuth) | Supabase |
 | **File Storage** | Cloudflare R2 / AWS S3 | Cloud |
@@ -39,7 +39,7 @@ Traditional ERP implementation is broken — **6 months, ₹5+ lakhs, 70% failur
 ### Prerequisites
 
 - Node.js 18+
-- Python 3.12+
+- Python 3.11+
 - Docker & Docker Compose
 - PostgreSQL (or use Supabase)
 
@@ -80,7 +80,7 @@ npm run dev
 
 ```bash
 # Start Temporal + all agent containers
-docker compose -f docker-compose.containers.yml up --build
+docker compose up --build
 ```
 
 ---
@@ -127,7 +127,7 @@ F3Next/
 │   └── erpnext/       # ERPNext integration
 ├── shared/            # Shared models & DB config
 ├── .env               # Root environment variables
-└── docker-compose.containers.yml
+└── docker-compose.yml
 ```
 
 ---

@@ -1,0 +1,32 @@
+{
+  "doctype": "Supplier",
+  "records": [
+    {
+      "supplier_name": "Reliance Smart Bazaar",
+      "supplier_type": "Customer",
+      "supplier_primary_contact": "Priya Sharma",
+      "mobile_no": "+91-7654321098",
+      "email_id": "purchase@smartbazaar.fake",
+      "payment_terms": "Net 30",
+      "gstin": "27ZZZZZ3333Z1ZC"
+    },
+    {
+      "supplier_name": "Sharma Provision Stores",
+      "supplier_type": "Client",
+      "supplier_primary_contact": "Rohan Sharma",
+      "mobile_no": "+91-6543210987",
+      "email_id": "nil",
+      "payment_terms": "Cash on Delivery",
+      "gstin": "Unregistered"
+    },
+    {
+      "supplier_name": "Spice Route Exports",
+      "supplier_type": "Customer",
+      "supplier_primary_contact": "Vikram Mehta",
+      "mobile_no": "+91-5432109876",
+      "email_id": "exports@spiceroute.fake",
+      "payment_terms": "Net 45",
+      "gstin": "27AAAAA4444A1ZD"
+    }
+  ]
+}

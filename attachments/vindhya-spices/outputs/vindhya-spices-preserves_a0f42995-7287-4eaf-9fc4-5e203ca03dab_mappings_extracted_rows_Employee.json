@@ -1,0 +1,30 @@
+[
+  {
+    "Emp ID": "E001",
+    "Full Name": "Anil Kumar",
+    "Department": "Production",
+    "Designation": "Production Manager",
+    "Date of Joining": "2018-04-01"
+  },
+  {
+    "Emp ID": "E002",
+    "Full Name": "Sunita Verma",
+    "Department": "Quality",
+    "Designation": "QA Inspector",
+    "Date of Joining": "2019-06-15"
+  },
+  {
+    "Emp ID": "E003",
+    "Full Name": "Rajesh Tiwari",
+    "Department": "Sales",
+    "Designation": "Sales Executive",
+    "Date of Joining": "2021-01-10"
+  },
+  {
+    "Emp ID": "E004",
+    "Full Name": "Meena Das",
+    "Department": "Operations",
+    "Designation": "Packaging Head",
+    "Date of Joining": "2020-03-05"
+  }
+]

@@ -219,6 +219,7 @@ class ISCompanyProfile(Base):
     business_reality = Column(Text, nullable=True)
     context_flags = Column(JSONB, nullable=True)
     data_quality_score = Column(Float, nullable=True)     # 0.0 to 1.0
+    completeness_score = Column(Float, nullable=True)     # 0.0 to 1.0
     llm_confidence = Column(Float, nullable=True)         # 0.0 to 1.0
 
     # R2 reference

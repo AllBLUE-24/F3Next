@@ -74,7 +74,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
                 with open(f3iche_path, "r", encoding="utf-8") as f:
                     f3iche_data = json.load(f)
                 template_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
-                template_modules = f3iche_data.get("required_modules", [])
+                template_modules = f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))
                 if template_doctypes:
                     profile_dict["required_doctypes"] = template_doctypes
                     activity.logger.info("  📋 Loaded %d required_doctypes from f3iche template '%s'",
@@ -93,19 +93,51 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
         target_architecture = generate_json(prompt, temperature=0.1, max_output_tokens=2000)
         llm_enhanced = True
     except Exception as e:
-        activity.logger.warning("  ⚠️ LLM Target generation failed: %s", e)
+        activity.logger.warning("  ⚠️ LLM Target generation failed: %s — building from template", e)
+        # Build import_phases and setup_steps programmatically from required_doctypes
+        doctypes = profile_dict.get("required_doctypes", [])
+        phase_a_set = {"Company", "Fiscal Year", "UOM", "Item Group", "Warehouse", "Workstation", "Operation", "UOM (Unit of Measure)"}
+        phase_b_set = {"Item", "Customer", "Supplier", "Employee", "BOM", "BOM (Bill of Materials = Recipe)", "Batch"}
+        phase_a = [d for d in doctypes if d in phase_a_set]
+        phase_b = [d for d in doctypes if d in phase_b_set]
+        phase_c = [d for d in doctypes if d not in phase_a_set and d not in phase_b_set]
+        
+        setup_steps = []
+        step_num = 1
+        for phase_id, phase_doctypes in [("phase_a_config", phase_a), ("phase_b_master", phase_b), ("phase_c_transactional", phase_c)]:
+            for dt in phase_doctypes:
+                setup_steps.append({"step": step_num, "phase": phase_id, "doctype": dt})
+                step_num += 1
+        
         target_architecture = {
-            "required_doctypes": profile_dict.get("required_doctypes", []),
-            "import_phases": {},
-            "setup_steps": [],
-            "llm_reasoning": "Fallback applied due to LLM error."
+            "required_doctypes": doctypes,
+            "import_phases": {
+                "phase_a_config": {"doctypes": phase_a},
+                "phase_b_master": {"doctypes": phase_b},
+                "phase_c_transactional": {"doctypes": phase_c},
+            },
+            "setup_steps": setup_steps,
+            "llm_reasoning": "Fallback: phases auto-classified from f3iche template doctypes."
         }
         llm_enhanced = False
 
-    # 3. Prepare the final result dictionary
+    # Resolve industry: prefer DB profile, then f3iche template, finally "Unknown"
+    resolved_industry = profile_dict.get("industry")
+    if not resolved_industry or resolved_industry == "Unknown":
+        from pathlib import Path as _Path
+        _f_path = _Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
+        if _f_path.exists():
+            try:
+                with open(_f_path, "r", encoding="utf-8") as _f:
+                    resolved_industry = json.load(_f).get("industry", "Unknown")
+            except Exception:
+                resolved_industry = "Unknown"
+        else:
+            resolved_industry = "Unknown"
+
     result = {
         "f3iche": inp.f3iche,
-        "industry": profile_dict.get("industry", "Unknown"),
+        "industry": resolved_industry,
         "required_doctypes": target_architecture.get("required_doctypes", []),
         "import_phases": target_architecture.get("import_phases", {}),
         "setup_steps": target_architecture.get("setup_steps", []),
@@ -149,7 +181,6 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
                 setup_steps=json.dumps(result.get("setup_steps", [])),
                 import_phases=json.dumps(result.get("import_phases", {})),
                 r2_path=r2_key,
-                created_by="system",
             ))
             await session.commit()
 

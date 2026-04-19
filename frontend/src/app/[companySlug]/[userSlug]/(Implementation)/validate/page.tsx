@@ -3,78 +3,17 @@
 import { redirect } from 'next/navigation';
 import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { ValidateView } from '@/components/implementation/validate/ValidateView';
-import type { CompanyProfile, ValidationItem } from '@/types/implementation';
+import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 
 export const metadata = { title: 'Review & Validate — F3Next' };
 
-// ── Dev mock ──────────────────────────────────────────────────────────────────
-const DEV_PROFILE: CompanyProfile = {
-  name: 'Middle Ground',
-  legalName: 'Middle Ground Private Limited',
-  industry: 'Manufacturing',
-  subIndustry: 'Metal Fabrication',
-  size: 'small',
-  employeeCount: 48,
-  currency: 'INR',
-  fiscalYearStart: 'April',
-  country: 'India',
-  state: 'Maharashtra',
-  gstNumber: '27AABCU9603R1ZM',
-  modules: ['Stock', 'Purchase', 'Sales', 'Accounts', 'Manufacturing'],
-  warehouses: ['Main Warehouse', 'Finished Goods Store'],
-  costCenters: ['Production', 'Admin', 'Sales'],
-  confidence: 82,
-};
 
-const DEV_VALIDATION_ITEMS: ValidationItem[] = [
-  {
-    id: 'v1',
-    type: 'missing',
-    field: 'Opening Stock Quantities',
-    message: 'We found item master data but no opening stock quantities in any of your files. ERPNext needs these to set initial inventory levels.',
-    required: true,
-    resolved: false,
-    userResponse: null,
-  },
-  {
-    id: 'v2',
-    type: 'contradiction',
-    field: 'Fiscal Year',
-    message: 'Your SQL backup says fiscal year starts in January, but your Excel sheet shows April. Which is correct?',
-    required: true,
-    resolved: false,
-    userResponse: null,
-  },
-  {
-    id: 'v3',
-    type: 'missing',
-    field: 'Bank Account Details',
-    message: 'No bank account or payment account information was found. You can add this after setup if you prefer.',
-    required: false,
-    resolved: false,
-    userResponse: null,
-  },
-  {
-    id: 'v4',
-    type: 'suggestion',
-    field: 'Cost Center Structure',
-    message: 'We detected 3 cost centers. Would you like us to map these to the default ERPNext structure or keep your existing naming?',
-    required: false,
-    resolved: false,
-    userResponse: null,
-  },
-];
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchValidationData(companySlug: string): Promise<{
-  profile: CompanyProfile;
-  items: ValidationItem[];
-} | null> {
+async function fetchPreviewData(projectId: string): Promise<ValidatePreviewData | null> {
   try {
     const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
     const res = await fetch(
-      `${base}/api/implementation/validate/${companySlug}`,
-      { cache: 'no-store', headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! } }
+      `${base}/api/implementation/validate-preview/${projectId}`,
+      { cache: 'no-store' }
     );
     if (!res.ok) return null;
     return res.json();
@@ -88,31 +27,38 @@ async function submitValidation(formData: FormData) {
   const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
   const res = await fetch(`${base}/api/implementation/signal/validation-submitted`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-secret': process.env.INTERNAL_SECRET!,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      project_id:   formData.get('jobId'), // Maps to project_id in FastAPI
-      companySlug:  formData.get('companySlug'),
-      responses:    JSON.parse(formData.get('responses') as string),
-      profileEdits: JSON.parse(formData.get('profileEdits') as string),
-      note:         formData.get('note'),
+      project_id:   formData.get('jobId'),
+      responses:    JSON.parse(formData.get('responses') as string || '{}'),
+      profile_edits: JSON.parse(formData.get('profileEdits') as string || '{}'),
+      note:         formData.get('note') || '',
     }),
   });
   
   if (!res.ok) {
-    // 1. Try to extract the JSON error message from your backend
     const errorData = await res.json().catch(() => null); 
-    
-    // 2. Format a better error message for your console
     const backendMessage = errorData?.detail || errorData?.message || res.statusText;
-    
-    console.error(`Backend rejected the request with status: ${res.status}`);
-    console.error(`Backend error details:`, errorData);
-  
-    // 3. Throw an error containing the actual backend complaint
     throw new Error(`Validation failed: ${backendMessage}`);
+  }
+}
+
+async function submitImport(formData: FormData) {
+  'use server';
+  const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://localhost:8000';
+  const res = await fetch(`${base}/api/implementation/signal/sandbox-approved`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project_id: formData.get('jobId'),
+      dry_run: false,
+    }),
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    const backendMessage = errorData?.detail || errorData?.message || res.statusText;
+    throw new Error(`Import approval failed: ${backendMessage}`);
   }
 }
 
@@ -124,23 +70,25 @@ interface Props {
 export default async function ValidatePage({ params, searchParams }: Props) {
   const { companySlug, userSlug } = await params;
   const { jobId } = await searchParams;
-  const isDev = process.env.NODE_ENV === 'development';
 
-  // We should actually pass the jobId to fetch the real DB validation result !!
-  // For now we'll just fix the immediate 404 submission error:
-  const data = !isDev && jobId
-    ? await fetchValidationData(jobId) // Changing this from companySlug to jobId!
-    : (jobId ? await fetchValidationData(jobId) : null) ?? { profile: DEV_PROFILE, items: DEV_VALIDATION_ITEMS };
+  if (!jobId) {
+    redirect(`/${companySlug}/${userSlug}/analyze`);
+  }
 
-  if (!data || !jobId) redirect(`/${companySlug}/${userSlug}/analyze`);
+  const preview = await fetchPreviewData(jobId);
+
+  if (!preview || preview.doctypes.length === 0) {
+    // No data yet — redirect back to analyze
+    redirect(`/${companySlug}/${userSlug}/analyze?jobId=${jobId}`);
+  }
 
   return (
     <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
       <ValidateView
         jobId={jobId}
-        profile={data.profile}
-        validationItems={data.items}
-        submitAction={submitValidation}
+        preview={preview}
+        submitValidation={submitValidation}
+        submitImport={submitImport}
         sandboxHref={`/${companySlug}/${userSlug}/sandbox?jobId=${jobId}`}
         companySlug={companySlug}
       />

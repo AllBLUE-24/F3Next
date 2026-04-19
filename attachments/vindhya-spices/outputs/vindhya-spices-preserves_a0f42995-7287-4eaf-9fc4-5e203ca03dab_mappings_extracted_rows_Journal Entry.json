@@ -1,0 +1,32 @@
+[
+  {
+    "Account Name": "HDFC Bank Current A/c",
+    "Account Type": "Bank",
+    "Balance (INR)": "500000",
+    "Dr/Cr": "Dr"
+  },
+  {
+    "Account Name": "Cash in Hand",
+    "Account Type": "Cash",
+    "Balance (INR)": "25000",
+    "Dr/Cr": "Dr"
+  },
+  {
+    "Account Name": "Plant & Machinery",
+    "Account Type": "Fixed Asset",
+    "Balance (INR)": "1500000",
+    "Dr/Cr": "Dr"
+  },
+  {
+    "Account Name": "Inventory Value",
+    "Account Type": "Current Asset",
+    "Balance (INR)": "145000",
+    "Dr/Cr": "Dr"
+  },
+  {
+    "Account Name": "Retained Earnings",
+    "Account Type": "Equity",
+    "Balance (INR)": "2170000",
+    "Dr/Cr": "Cr"
+  }
+]

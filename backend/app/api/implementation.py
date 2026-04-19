@@ -112,9 +112,12 @@ async def signal_files_uploaded(
     for _ in range(10):
         async with AsyncSessionLocal() as session:
             res = await session.execute(
-                select(ISSession).where(ISSession.project_id == req.project_id)
+                select(ISSession)
+                .where(ISSession.project_id == req.project_id)
+                .order_by(ISSession.created_at.desc())
+                .limit(1)
             )
-            is_session = res.scalar_one_or_none()
+            is_session = res.scalars().first()
         
         if is_session:
             break
@@ -210,8 +213,8 @@ async def signal_validation_submitted(
 
 class SandboxApprovedRequest(BaseModel):
     project_id: UUID
-    erpnext_base_url: str
-    erpnext_api_key: str
+    erpnext_base_url: str = ""      # Optional — auto-resolved from Project.deployment_details
+    erpnext_api_key: str = ""       # Optional — auto-resolved from Project.deployment_details
     dry_run: bool = False
 
 
@@ -293,3 +296,14 @@ async def get_import_results(
     launcher: ImplementationLauncher = Depends(get_launcher),
 ):
     return {"import_results": await launcher.get_import_results(project_id)}
+
+
+@router.get("/validate-preview/{project_id}", summary="Full data preview for validation — all mapped payloads")
+async def get_validate_preview(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    preview = await launcher.get_validate_preview(project_id)
+    if "error" in preview:
+        raise HTTPException(status_code=404, detail=preview["error"])
+    return preview

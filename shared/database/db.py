@@ -15,15 +15,26 @@ if not DATABASE_URL or USE_SQLITE:
     _db_path = _root / "f3next.db"
     DATABASE_URL = f"sqlite+aiosqlite:///{_db_path}"
 
+_is_sqlite = "sqlite" in DATABASE_URL
+
+_pool_kwargs = {}
+if not _is_sqlite:
+    _pool_kwargs = {
+        "pool_recycle": 300,      # Recycle connections every 5 min (prevents stale asyncpg CancelledError)
+        "pool_size": 5,
+        "max_overflow": 10,
+        "pool_timeout": 30,
+    }
+
 engine = create_async_engine(
     DATABASE_URL,
-    echo=False, # Turn to False in production
-    pool_pre_ping=True, 
-    # UPDATE: We added the cache disable settings to the Postgres fallback
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {
+    echo=False,
+    pool_pre_ping=True,
+    connect_args={"check_same_thread": False} if _is_sqlite else {
         "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0
+        "prepared_statement_cache_size": 0,
     },
+    **_pool_kwargs,
 )
 
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)

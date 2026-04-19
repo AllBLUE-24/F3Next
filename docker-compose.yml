@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # 1. Temporal's Internal Brain (Do NOT use this for your app data)
   temporal-db:
@@ -39,66 +41,84 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_CSRF_COOKIE_INSECURE: true
 
-  # 4. Your Python Agents
-  discovery-agent:
-    build: 
+  # 4. Workers
+  discovery_worker:
+    build:
       context: .
-      dockerfile: ./containers/discovery/Dockerfile
-    container_name: f3_discovery_agent
-    restart: always
-    env_file: .env # Reads all variables natively
+      dockerfile: containers/discovery/Dockerfile
+    container_name: f3_discovery_worker
+    env_file:
+      - .env
+    restart: unless-stopped
     depends_on:
       - temporal
     environment:
       - TEMPORAL_HOST_URL=temporal:7233
 
-  health-check-agent:
-    build: 
+  erpnext_infra_worker:
+    build:
       context: .
-      dockerfile: ./containers/health_check/Dockerfile
-    container_name: f3_health_check_agent
-    restart: always
-    env_file: .env
+      dockerfile: containers/erpnext/Dockerfile
+    container_name: f3_erpnext_worker
+    env_file:
+      - .env
+    restart: unless-stopped
     depends_on:
       - temporal
     environment:
       - TEMPORAL_HOST_URL=temporal:7233
 
-  os-agent:
-    build: 
+  health_check_worker:
+    build:
       context: .
-      dockerfile: ./containers/os/Dockerfile
-    container_name: f3_os_agent
-    restart: always
-    env_file: .env
+      dockerfile: containers/health_check/Dockerfile
+    container_name: f3_health_check_worker
+    env_file:
+      - .env
+    restart: unless-stopped
     depends_on:
       - temporal
     environment:
       - TEMPORAL_HOST_URL=temporal:7233
 
-  implementation-agent:
-    build: 
+  implementation_worker:
+    build:
       context: .
-      dockerfile: ./containers/implementation/Dockerfile
-    container_name: f3_implementation_agent
-    restart: always
-    env_file: .env
+      dockerfile: containers/implementation/Dockerfile
+    container_name: f3_implementation_worker
+    env_file:
+      - .env
+    restart: unless-stopped
     depends_on:
       - temporal
     environment:
       - TEMPORAL_HOST_URL=temporal:7233
 
-  erpnext-agent:
-    build: 
+  os_worker:
+    build:
       context: .
-      dockerfile: ./containers/erpnext/Dockerfile
-    container_name: f3_erpnext_agent
-    restart: always
-    env_file: .env
+      dockerfile: containers/os/Dockerfile
+    container_name: f3_os_worker
+    env_file:
+      - .env
+    restart: unless-stopped
     depends_on:
       - temporal
     environment:
       - TEMPORAL_HOST_URL=temporal:7233
+
+  knowledge_base_seeder:
+    build:
+      context: .
+      dockerfile: containers/knowledge_base/Dockerfile
+    container_name: f3_kb_seeder
+    env_file:
+      - .env
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_HOST_URL=temporal:7233
+    # No restart policy here so it only runs once per deployment to seed the DB
 
 volumes:
   temporal_postgres_data:

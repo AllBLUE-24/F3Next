@@ -1,8 +1,184 @@
 {
   "f3iche": "manufacturing_food_batch",
   "industry": "Unknown",
-  "required_doctypes": [],
-  "import_phases": {},
-  "setup_steps": [],
+  "required_doctypes": [
+    "Item",
+    "Item Group",
+    "UOM (Unit of Measure)",
+    "Batch",
+    "BOM (Bill of Materials = Recipe)",
+    "Work Order",
+    "Job Card",
+    "Operation",
+    "Workstation",
+    "Customer",
+    "Supplier",
+    "Warehouse",
+    "Stock Entry",
+    "Material Request",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Quality Inspection",
+    "Quality Inspection Template",
+    "Sales Order",
+    "Delivery Note",
+    "Sales Invoice",
+    "Payment Entry",
+    "Landed Cost Voucher"
+  ],
+  "import_phases": {
+    "phase_a_config": {
+      "doctypes": [
+        "Item Group",
+        "UOM (Unit of Measure)",
+        "Operation",
+        "Workstation",
+        "Warehouse"
+      ]
+    },
+    "phase_b_master": {
+      "doctypes": [
+        "Item",
+        "Batch",
+        "BOM (Bill of Materials = Recipe)",
+        "Customer",
+        "Supplier"
+      ]
+    },
+    "phase_c_transactional": {
+      "doctypes": [
+        "Work Order",
+        "Job Card",
+        "Stock Entry",
+        "Material Request",
+        "Purchase Order",
+        "Purchase Receipt",
+        "Quality Inspection",
+        "Quality Inspection Template",
+        "Sales Order",
+        "Delivery Note",
+        "Sales Invoice",
+        "Payment Entry",
+        "Landed Cost Voucher"
+      ]
+    }
+  },
+  "setup_steps": [
+    {
+      "step": 1,
+      "phase": "phase_a_config",
+      "doctype": "Item Group"
+    },
+    {
+      "step": 2,
+      "phase": "phase_a_config",
+      "doctype": "UOM (Unit of Measure)"
+    },
+    {
+      "step": 3,
+      "phase": "phase_a_config",
+      "doctype": "Operation"
+    },
+    {
+      "step": 4,
+      "phase": "phase_a_config",
+      "doctype": "Workstation"
+    },
+    {
+      "step": 5,
+      "phase": "phase_a_config",
+      "doctype": "Warehouse"
+    },
+    {
+      "step": 6,
+      "phase": "phase_b_master",
+      "doctype": "Item"
+    },
+    {
+      "step": 7,
+      "phase": "phase_b_master",
+      "doctype": "Batch"
+    },
+    {
+      "step": 8,
+      "phase": "phase_b_master",
+      "doctype": "BOM (Bill of Materials = Recipe)"
+    },
+    {
+      "step": 9,
+      "phase": "phase_b_master",
+      "doctype": "Customer"
+    },
+    {
+      "step": 10,
+      "phase": "phase_b_master",
+      "doctype": "Supplier"
+    },
+    {
+      "step": 11,
+      "phase": "phase_c_transactional",
+      "doctype": "Work Order"
+    },
+    {
+      "step": 12,
+      "phase": "phase_c_transactional",
+      "doctype": "Job Card"
+    },
+    {
+      "step": 13,
+      "phase": "phase_c_transactional",
+      "doctype": "Stock Entry"
+    },
+    {
+      "step": 14,
+      "phase": "phase_c_transactional",
+      "doctype": "Material Request"
+    },
+    {
+      "step": 15,
+      "phase": "phase_c_transactional",
+      "doctype": "Purchase Order"
+    },
+    {
+      "step": 16,
+      "phase": "phase_c_transactional",
+      "doctype": "Purchase Receipt"
+    },
+    {
+      "step": 17,
+      "phase": "phase_c_transactional",
+      "doctype": "Quality Inspection"
+    },
+    {
+      "step": 18,
+      "phase": "phase_c_transactional",
+      "doctype": "Quality Inspection Template"
+    },
+    {
+      "step": 19,
+      "phase": "phase_c_transactional",
+      "doctype": "Sales Order"
+    },
+    {
+      "step": 20,
+      "phase": "phase_c_transactional",
+      "doctype": "Delivery Note"
+    },
+    {
+      "step": 21,
+      "phase": "phase_c_transactional",
+      "doctype": "Sales Invoice"
+    },
+    {
+      "step": 22,
+      "phase": "phase_c_transactional",
+      "doctype": "Payment Entry"
+    },
+    {
+      "step": 23,
+      "phase": "phase_c_transactional",
+      "doctype": "Landed Cost Voucher"
+    }
+  ],
   "validation_rules": {}
 }

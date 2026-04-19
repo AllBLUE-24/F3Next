@@ -120,8 +120,8 @@ class MappingConfirmedSignal:
 
 @dataclass
 class SandboxApprovedSignal:
-    erpnext_base_url: str
-    erpnext_api_key: str
+    erpnext_base_url: str = ""      # Optional — auto-resolved from Project.deployment_details if empty
+    erpnext_api_key: str = ""       # Optional — auto-resolved from Project.deployment_details if empty
     dry_run: bool = False
 
 

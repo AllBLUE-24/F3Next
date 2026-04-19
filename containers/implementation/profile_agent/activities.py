@@ -82,7 +82,7 @@ You are the F3Next Profile Agent. Assemble a context profile for a company named
 Their target business niche/f3iche model is: {f3iche} (Industry: {industry}).
 
 Based on the standard template for this niche, it includes:
-Required Modules: {f3iche_data.get("required_modules", [])}
+Required Modules: {f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))}
 
 However, you must tailor this profile based on the actual DATA they uploaded:
 {"".join(file_summaries)}
@@ -124,7 +124,7 @@ Return EXACTLY this JSON structure:
             "company_size":        kwargs.get("company_size"),
             "company_name":        kwargs.get("company_name"),
             "workflows":           [w.get("name", "") for w in f3iche_data.get("workflows", [])],
-            "modules":             f3iche_data.get("required_modules", []),
+            "modules":             f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", [])),
             "required_doctypes":   f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", [])),
             "f3iche_user":         kwargs.get("f3iche_user"),
             "f3iche_signals":      kwargs.get("f3iche_signals"),
@@ -663,7 +663,13 @@ async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, An
                     "industry": latest.industry,
                     "required_modules": latest.required_modules,
                     "required_doctypes": latest.required_doctypes,
-                    "industry_best_practices": latest.industry_best_practices
+                    "industry_best_practices": latest.industry_best_practices,
+                    "industry_differentiators": getattr(latest, 'industry_differentiators', None),
+                    "business_reality": latest.business_reality,
+                    "context_flags": latest.context_flags,
+                    "company_name": latest.company_name,
+                    "company_size": latest.company_size,
+                    "industry_sub": latest.industry_sub,
                 }
     except Exception as e:
         activity.logger.error("  ❌ Failed to fetch profile: %s", e)
