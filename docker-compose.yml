@@ -120,5 +120,40 @@ services:
       - TEMPORAL_HOST_URL=temporal:7233
     # No restart policy here so it only runs once per deployment to seed the DB
 
+  # 5. Application Servers (Backend API & Frontend Web)
+  backend_api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: f3_backend_api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      - temporal
+
+  frontend_web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID}
+    container_name: f3_frontend_web
+    env_file:
+      - ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend_api
+
 volumes:
   temporal_postgres_data:
