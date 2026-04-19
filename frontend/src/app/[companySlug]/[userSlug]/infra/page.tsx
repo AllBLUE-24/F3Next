@@ -97,6 +97,7 @@ export default function InfraPage() {
     if (!deploySuccess) return;
     const interval = setInterval(async () => {
       try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         const res = await axios.get(`${apiUrl}/api/deployment/${project?.project_id}`);
         if (res.data.status === 'ready') {
           setDeploymentInfo(res.data);

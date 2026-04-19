@@ -10,7 +10,7 @@ interface Props {
   tasks: AnalysisTask[];
 }
 
-const STATUS_ICON = {
+const STATUS_ICON: Record<string, any> = {
   idle:        <Circle className="w-3.5 h-3.5 text-gray-700 flex-shrink-0" />,
   running:     <Loader className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 animate-spin" />,
   done:        <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />,
