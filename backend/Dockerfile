@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # IMPORTANT: Set PYTHONPATH so app can find sibling directories like 'agents'
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/backend:/app
 
 EXPOSE 8000
 

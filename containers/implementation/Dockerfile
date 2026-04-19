@@ -9,6 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Ensure 'shared' and other root modules resolve
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/backend:/app
 
 CMD ["python", "containers/implementation/is_worker.py"]
