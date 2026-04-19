@@ -80,12 +80,41 @@ export async function updateSession(request: NextRequest) {
     return createRedirectWithCookies(url, supabaseResponse)
   }
 
-  // 2. Authenticated user on an auth page → send to /auth/resolve
-  if (user && isAuthRoute(pathname)) {
-    console.log(`[Middleware] Authed user on ${pathname} → /auth/resolve`)
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/resolve'
-    return createRedirectWithCookies(url, supabaseResponse)
+  // 2. Authenticated user on an auth page or onboarding → SSR check
+  if (user && (isAuthRoute(pathname) || pathname === '/onboarding' || pathname === '/auth/resolve')) {
+    console.log(`[Middleware] Authed user on ${pathname} → checking onboarding status`)
+    
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    try {
+      const res = await fetch(`${API_URL}/api/resolve/user/${user.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.company_slug && data.user_slug) {
+          // Fully onboarded → redirect to home SSR
+          const homeUrl = request.nextUrl.clone()
+          homeUrl.pathname = `/${data.company_slug}/${data.user_slug}/home`
+          return createRedirectWithCookies(homeUrl, supabaseResponse)
+        }
+      }
+      
+      // Not onboarded (or missing slugs) → redirect to onboarding
+      if (pathname !== '/onboarding') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/onboarding'
+        return createRedirectWithCookies(url, supabaseResponse)
+      }
+      
+      // If already on /onboarding, just let them pass through
+      return supabaseResponse
+    } catch (e) {
+      console.error('[Middleware] Backend fetch error:', e)
+      // Fallback behavior if the backend is unreachable
+      if (pathname !== '/auth/resolve' && pathname !== '/onboarding') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/auth/resolve'
+        return createRedirectWithCookies(url, supabaseResponse)
+      }
+    }
   }
 
   // 3. Unauthenticated user on a protected page → send to /login
