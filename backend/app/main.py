@@ -65,9 +65,12 @@ _default_origins = [
     "https://f3-next-tool1-checked-git-main-parths-projects-1f4d4d4a.vercel.app",
     "https://f3-next-tool1-checked-jv1yf8emx-parths-projects-1f4d4d4a.vercel.app",
 ]
-# Extend with any extra origins from env (comma-separated)
+# Extend with any extra origins from env (comma-separated), as well as FRONTEND_URL
 _extra = os.getenv("ALLOWED_ORIGINS", "")
+_frontend_url = os.getenv("FRONTEND_URL", os.getenv("NEXT_PUBLIC_SITE_URL", ""))
 origins = _default_origins + [o.strip() for o in _extra.split(",") if o.strip()]
+if _frontend_url:
+    origins.append(_frontend_url.strip())
 # CORS
 app.add_middleware(
     CORSMiddleware,

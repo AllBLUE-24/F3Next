@@ -34,7 +34,8 @@ async def main():
     )
 
     print(f"✅ Workflow Submitted! ID: {handle.id}")
-    print("Check the terminal running the infra worker and the UI at http://localhost:8233")
+    ui_url = os.getenv("TEMPORAL_UI_URL", "http://localhost:8080")
+    print(f"Check the terminal running the infra worker and the UI at {ui_url}")
 
     # Optional: Wait for the result (blocks until finished)
     # result = await handle.result()
