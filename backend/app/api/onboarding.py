@@ -1,17 +1,16 @@
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from shared.database.db import get_shared_db
 from shared.models.core import Client, Project, ProjectStatus
-# Assuming you have an auth dependency. If not, we can use a simple header for now.
-# from app.core.auth import get_current_user  -----> app.core hata diya gaya hai !
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
 class OnboardingRequest(BaseModel):
-    user_id: str # Passed from Firebase Auth on frontend
-    email: str   # Added explicitly to prevent unique constraint crash
+    user_id: str
+    email: Optional[str] = ""   # Optional — some OAuth providers don't expose email
     full_name: str
     user_slug: str
     role: str

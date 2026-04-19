@@ -96,6 +96,19 @@ export default function OnboardingPage() {
     try {
       if (!sessionUser) return;
 
+      // Client-side validation: ensure no empty fields
+      const validationErrors: Record<string, string> = {};
+      if (!formData.fullName.trim()) validationErrors.fullName = "Full name is required";
+      if (!formData.userSlug.trim()) validationErrors.userSlug = "User handle is required";
+      if (!formData.role.trim()) validationErrors.role = "Role is required";
+      if (!formData.companyName.trim()) validationErrors.companyName = "Company name is required";
+      if (!formData.companySlug.trim()) validationErrors.companySlug = "Company slug is required";
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        setIsSubmitting(false);
+        return;
+      }
+
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
       
       const res = await fetch(`${API_URL}/api/onboarding/complete`, {
@@ -103,19 +116,26 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: sessionUser.id,
-          email: sessionUser.email,
-          full_name: formData.fullName,
-          user_slug: formData.userSlug,
-          role: formData.role,
-          company_name: formData.companyName,
-          company_slug: formData.companySlug,
+          email: sessionUser.email || "",
+          full_name: formData.fullName.trim(),
+          user_slug: formData.userSlug.trim(),
+          role: formData.role.trim(),
+          company_name: formData.companyName.trim(),
+          company_slug: formData.companySlug.trim(),
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.detail || "Something went wrong");
+        // Pydantic v2 returns detail as an array of error objects
+        let message = "Something went wrong";
+        if (typeof data.detail === "string") {
+          message = data.detail;
+        } else if (Array.isArray(data.detail)) {
+          message = data.detail.map((err: any) => `${err.loc?.join(".") || "field"}: ${err.msg}`).join("; ");
+        }
+        throw new Error(message);
       }
 
       // Success! Redirect to the dynamic URL
