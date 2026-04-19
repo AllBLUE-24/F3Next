@@ -5,7 +5,8 @@ import { cookies } from 'next/headers'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/login'
+  // After OAuth, route to /auth/resolve which handles slug lookup + routing
+  const next = searchParams.get('next') ?? '/auth/resolve'
 
   if (code) {
     const cookieStore = await cookies()
@@ -23,8 +24,7 @@ export async function GET(request: Request) {
                 cookieStore.set(name, value, options)
               )
             } catch {
-              // The `setAll` method was called from a Server Component.
-              // This can be ignored if you have middleware refreshing sessions.
+              // Ignored in Server Components — middleware refreshes sessions
             }
           },
         },
@@ -33,12 +33,12 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // Redirect to /login which handles the resolve + redirect to correct dashboard
-      const forwardUrl = `${origin}${next}`
-      return NextResponse.redirect(forwardUrl)
+      console.log('[Callback] Code exchanged successfully, redirecting to', next)
+      return NextResponse.redirect(`${origin}${next}`)
     }
+    console.error('[Callback] Code exchange failed:', error)
   }
 
-  // Return the user to an error page if code exchange fails
+  // Code exchange failed — redirect to login with error
   return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
 }

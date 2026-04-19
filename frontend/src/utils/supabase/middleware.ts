@@ -1,10 +1,48 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/login',
+  '/signup',
+  '/auth/callback',
+  '/auth/resolve',
+  '/landing',
+  '/landing_page',
+  '/onboarding',
+  '/dev/test',
+  '/api',
+]
+
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
+}
+
+// Auth routes that authenticated users should NOT see
+const AUTH_ROUTES = ['/login', '/signup']
+
+function isAuthRoute(pathname: string): boolean {
+  return AUTH_ROUTES.some((route) => pathname.startsWith(route))
+}
+
+/**
+ * Create a redirect response that preserves Supabase session cookies.
+ * This is CRITICAL — without this, session cookies set during getUser()
+ * token refresh are lost on redirect, causing the infinite loop.
+ */
+function createRedirectWithCookies(
+  url: URL,
+  supabaseResponse: NextResponse
+): NextResponse {
+  const redirectResponse = NextResponse.redirect(url)
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie)
   })
+  return redirectResponse
+}
+
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,10 +53,10 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -27,39 +65,37 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with cross-site tracking in your architecture.
+  // IMPORTANT: Do not add logic between createServerClient and getUser().
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Handle root URL redirect explicitly to bypass login redirect logic
-  if (request.nextUrl.pathname === '/') {
+  const pathname = request.nextUrl.pathname
+  console.log(`[Middleware] path=${pathname} user=${user?.id ?? 'null'}`)
+
+  // 1. Root URL → always redirect to /landing
+  if (pathname === '/') {
     const url = request.nextUrl.clone()
     url.pathname = '/landing'
-    return NextResponse.redirect(url)
+    return createRedirectWithCookies(url, supabaseResponse)
   }
 
-  // Protect paths
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/signup') &&
-    !request.nextUrl.pathname.startsWith('/auth/callback') &&
-    !request.nextUrl.pathname.startsWith('/landing') &&
-    !request.nextUrl.pathname.startsWith('/landing_page') &&
-    !request.nextUrl.pathname.startsWith('/dev/test') &&
-    !request.nextUrl.pathname.startsWith('/api') && // API routes might have their own auth guards
-    !request.nextUrl.pathname.startsWith('/onboarding') // Allow onboarding for just-signed-up users
-  ) {
-    // If the user is unauthenticated and they're not on the login/signup/public pages
+  // 2. Authenticated user on an auth page → send to /auth/resolve
+  if (user && isAuthRoute(pathname)) {
+    console.log(`[Middleware] Authed user on ${pathname} → /auth/resolve`)
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/resolve'
+    return createRedirectWithCookies(url, supabaseResponse)
+  }
+
+  // 3. Unauthenticated user on a protected page → send to /login
+  if (!user && !isPublicRoute(pathname) && pathname !== '/') {
+    console.log(`[Middleware] Unauthed access to ${pathname} → /login`)
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return createRedirectWithCookies(url, supabaseResponse)
   }
 
-
-
+  // 4. Everything else → pass through with refreshed cookies
   return supabaseResponse
 }

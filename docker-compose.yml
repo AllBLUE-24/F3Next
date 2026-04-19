@@ -51,7 +51,7 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_HOST_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
 
   erpnext_infra_worker:
     build:
@@ -64,7 +64,7 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_HOST_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
 
   health_check_worker:
     build:
@@ -77,7 +77,7 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_HOST_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
 
   implementation_worker:
     build:
@@ -90,7 +90,7 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_HOST_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
 
   os_worker:
     build:
@@ -103,7 +103,7 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_HOST_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
 
   knowledge_base_seeder:
     build:
@@ -115,7 +115,7 @@ services:
     depends_on:
       - temporal
     environment:
-      - TEMPORAL_HOST_URL=temporal:7233
+      - TEMPORAL_HOST=temporal:7233
     # No restart policy here so it only runs once per deployment to seed the DB
 
     # 5. Application Servers (Backend API & Frontend Web)
@@ -131,6 +131,8 @@ services:
     restart: unless-stopped
     depends_on:
       - temporal
+    environment:
+      - TEMPORAL_HOST=temporal:7233
 
   frontend_web:
     build:
