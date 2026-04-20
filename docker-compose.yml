@@ -126,8 +126,7 @@ services:
     container_name: f3_backend_api
     env_file:
       - .env
-    ports:
-      - "8000:8000"
+    # Port NOT exposed publicly — Caddy proxies /api/* to this container
     restart: unless-stopped
     depends_on:
       - temporal
@@ -139,18 +138,36 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://www.f3next.in}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://www.f3next.in}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
     container_name: f3_frontend_web
     env_file:
       - .env
-    ports:
-      - "3000:3000"
+    # Port NOT exposed publicly — Caddy proxies to this container
     restart: unless-stopped
     depends_on:
       - backend_api
 
+  # 6. Reverse Proxy (single public entrypoint)
+  caddy:
+    image: caddy:2-alpine
+    container_name: f3_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend_web
+      - backend_api
+
 volumes:
   temporal_postgres_data:
+  caddy_data:
+  caddy_config:

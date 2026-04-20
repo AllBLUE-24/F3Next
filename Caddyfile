@@ -1,0 +1,32 @@
+# ─── F3Next Reverse Proxy ──────────────────────────────────────────────
+# Caddy listens on port 80/443. Cloudflare handles public-facing HTTPS.
+#
+# If Cloudflare is in "Flexible" mode → origin is HTTP-only (:80 block).
+# If you want Caddy to handle SSL directly (no Cloudflare), uncomment
+# the domain block below and comment out the :80 block.
+# ─────────────────────────────────────────────────────────────────────────
+
+# ── Option 1: Cloudflare handles HTTPS (default) ────────────────────────
+:80 {
+    # API routes → backend container
+    handle /api/* {
+        reverse_proxy backend_api:8000
+    }
+
+    # Everything else → Next.js frontend
+    handle {
+        reverse_proxy frontend_web:3000
+    }
+}
+
+# ── Option 2: Caddy handles HTTPS directly (no Cloudflare proxy) ────────
+# Uncomment below and comment out the :80 block above.
+#
+# www.f3next.in, f3next.in {
+#     handle /api/* {
+#         reverse_proxy backend_api:8000
+#     }
+#     handle {
+#         reverse_proxy frontend_web:3000
+#     }
+# }
