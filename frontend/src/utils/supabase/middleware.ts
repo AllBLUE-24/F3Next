@@ -15,7 +15,11 @@ const PUBLIC_ROUTES = [
 ]
 
 function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route))
+  return PUBLIC_ROUTES.some((route) => {
+    // Exact match for /auth/callback — don't let /auth/callback/home slip through
+    if (route === '/auth/callback') return pathname === '/auth/callback'
+    return pathname.startsWith(route)
+  })
 }
 
 // Auth routes that authenticated users should NOT see
@@ -23,6 +27,21 @@ const AUTH_ROUTES = ['/login', '/signup']
 
 function isAuthRoute(pathname: string): boolean {
   return AUTH_ROUTES.some((route) => pathname.startsWith(route))
+}
+
+// Known top-level routes that are NOT [companySlug]/[userSlug] workspaces
+const KNOWN_TOP_ROUTES = [
+  'login', 'signup', 'auth', 'landing', 'landing_page',
+  'onboarding', 'dev', 'api', '_next', 'favicon.ico',
+]
+
+/**
+ * Check if a path looks like a workspace route: /[companySlug]/[userSlug]/...
+ */
+function isWorkspaceRoute(pathname: string): boolean {
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length < 2) return false
+  return !KNOWN_TOP_ROUTES.includes(segments[0])
 }
 
 /**
@@ -125,6 +144,29 @@ export async function updateSession(request: NextRequest) {
     return createRedirectWithCookies(url, supabaseResponse)
   }
 
-  // 4. Everything else → pass through with refreshed cookies
+  // 4. Workspace route validation: /[companySlug]/[userSlug]/...
+  //    Verify that the slugs actually exist in the database
+  if (user && isWorkspaceRoute(pathname)) {
+    const segments = pathname.split('/').filter(Boolean)
+    const companySlug = segments[0]
+    const userSlug = segments[1]
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://backend_api:8000'
+    try {
+      const res = await fetch(`${API_URL}/api/resolve/slug/${companySlug}`)
+      if (!res.ok) {
+        // Company slug doesn't exist → redirect to auth/resolve to find correct workspace
+        console.log(`[Middleware] Invalid companySlug '${companySlug}' → /auth/resolve`)
+        const url = request.nextUrl.clone()
+        url.pathname = '/auth/resolve'
+        return createRedirectWithCookies(url, supabaseResponse)
+      }
+    } catch (e) {
+      // Backend unreachable — let it pass through, page will handle the error
+      console.error('[Middleware] Workspace validation fetch error:', e)
+    }
+  }
+
+  // 5. Everything else → pass through with refreshed cookies
   return supabaseResponse
 }

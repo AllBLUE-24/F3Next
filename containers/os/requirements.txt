@@ -5,5 +5,7 @@ temporalio==1.21.1
 aiohttp
 sqlalchemy==2.0.25
 langchain
-langchain-openai==0.0.5
+langchain-core
+langchain-google-genai
+google-generativeai
 asyncpg

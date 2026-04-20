@@ -35,6 +35,13 @@ _RETRY_2 = RetryPolicy(
     backoff_coefficient = 2.0,
 )
 
+# LLM activities (Clarity, Result Formatter) — Gemini cold starts can exceed 60s
+_RETRY_LLM = RetryPolicy(
+    maximum_attempts    = 3,
+    initial_interval    = timedelta(seconds=3),
+    backoff_coefficient = 2.0,
+)
+
 _RETRY_3 = RetryPolicy(
     maximum_attempts    = 3,
     initial_interval    = timedelta(seconds=3),
@@ -120,8 +127,8 @@ class ERPOSCommandWorkflow:
                 "clarifications":  [],
             }],
             task_queue             = OS_QUEUE,
-            start_to_close_timeout = timedelta(seconds=60),
-            retry_policy           = _RETRY_2,
+            start_to_close_timeout = timedelta(seconds=90),
+            retry_policy           = _RETRY_LLM,
         )
 
         workflow.logger.info(
@@ -176,8 +183,8 @@ class ERPOSCommandWorkflow:
                     "clarification_qa": clarification_qa,
                 }],
                 task_queue             = OS_QUEUE,
-                start_to_close_timeout = timedelta(seconds=60),
-                retry_policy           = _RETRY_2,
+                start_to_close_timeout = timedelta(seconds=90),
+                retry_policy           = _RETRY_LLM,
             )
 
         # ══════════════════════════════════════════════════════════════════════
@@ -439,8 +446,8 @@ class ERPOSCommandWorkflow:
             "format_result",
             args=[execution_result, intent_dict, inp.prompt],
             task_queue             = OS_QUEUE,
-            start_to_close_timeout = timedelta(seconds=25),
-            retry_policy           = _RETRY_2,
+            start_to_close_timeout = timedelta(seconds=60),
+            retry_policy           = _RETRY_LLM,
         )
 
         self._status         = "done"

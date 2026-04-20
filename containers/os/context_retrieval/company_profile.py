@@ -176,7 +176,21 @@ async def fetch_profile_from_db(
             return None
 
         deployment = row["deployment_details"] or {}
-        if not deployment.get("erp_url") or not deployment.get("api_key"):
+
+        # Derive erp_url if missing — prefer site_url (full domain), fall back to container_id
+        if not deployment.get("erp_url"):
+            if deployment.get("site_url"):
+                deployment["erp_url"] = deployment["site_url"]
+            elif deployment.get("container_id"):
+                container_host = deployment["container_id"].replace("cnt_", "", 1)
+                deployment["erp_url"] = f"https://{container_host}"
+            if deployment.get("erp_url"):
+                logger.info(
+                    "Derived erp_url=%s for project %s",
+                    deployment["erp_url"], project_id,
+                )
+
+        if not deployment.get("api_key"):
             # IS hasn't deployed ERPNext yet — no credentials available
             logger.info(
                 "Project %s has no deployment_details yet — IS not complete", project_id
