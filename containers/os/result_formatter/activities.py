@@ -101,6 +101,7 @@ def _translate_erp_error(raw_error: str) -> tuple[str, str]:
 
     # ── MandatoryError ───────────────────────────────────────────────────────
     # Pattern: "[DocType] field_name is mandatory"  OR  "field_name is mandatory for DocType"
+    # Example: "frappe.exceptions.MandatoryError: [Customer, guruji idli]: customer_group is mandatory"
     if "mandatoryerror" in raw_lower or "is mandatory" in raw_lower:
         field_match = re.search(
             r'([a-zA-Z0-9_]+)\s+is mandatory',
