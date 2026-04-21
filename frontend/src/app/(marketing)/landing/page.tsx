@@ -50,7 +50,7 @@ export default function LandingPage() {
           {/* CTAs */}
           <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/landing_page"
+              href="/onboarding"
               className="group inline-flex items-center gap-2 rounded-xl bg-amber-500 px-8 py-4 text-sm font-black text-black hover:bg-amber-400 transition-colors shadow-2xl shadow-amber-500/20"
             >
               Start Free ERP Discovery

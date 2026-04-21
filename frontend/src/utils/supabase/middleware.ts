@@ -8,7 +8,6 @@ const PUBLIC_ROUTES = [
   '/auth/callback',
   '/auth/resolve',
   '/landing',
-  '/landing_page',
   '/onboarding',
   '/dev/test',
   '/api',
@@ -31,7 +30,7 @@ function isAuthRoute(pathname: string): boolean {
 
 // Known top-level routes that are NOT [companySlug]/[userSlug] workspaces
 const KNOWN_TOP_ROUTES = [
-  'login', 'signup', 'auth', 'landing', 'landing_page',
+  'login', 'signup', 'auth', 'landing',
   'onboarding', 'dev', 'api', '_next', 'favicon.ico',
 ]
 

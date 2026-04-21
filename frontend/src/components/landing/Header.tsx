@@ -65,7 +65,7 @@ export default function Header() {
             Sign in
           </Link>
           <Link
-            href="/landing_page"
+            href="/onboarding"
             className="rounded-md bg-amber-500 px-5 py-2.5 text-sm font-bold text-black hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
           >
             Free ERP Discovery →
@@ -113,7 +113,7 @@ export default function Header() {
                 ))}
                 <div className="pt-4 border-t border-white/[0.08] mt-4 space-y-3">
                   <Link
-                    href="/landing_page"
+                    href="/onboarding"
                     className="block rounded-md bg-amber-500 px-4 py-3 text-base font-bold text-black text-center"
                   >
                     Free ERP Discovery →
