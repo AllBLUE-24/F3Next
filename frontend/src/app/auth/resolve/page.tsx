@@ -39,13 +39,9 @@ export default function AuthResolvePage() {
       }
 
       // 2. Resolve their workspace via backend
-      // In client components, fallback to an empty string so requests are relative (handled by Next.js rewrites) 
-      // or to the actual origin if Caddy is proxying it.
-      const API_URL =
-        (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
-      
-      const endpoint = API_URL ? `${API_URL}/api/resolve/user/${user.id}` : `/api/resolve/user/${user.id}`;
-      const res = await fetch(endpoint);
+      // Always use a relative path so the browser fetches from the same origin 
+      // (e.g. https://www.f3next.in/api/...) which Caddy then proxies to the backend.
+      const res = await fetch(`/api/resolve/user/${user.id}`);
 
       if (res.ok) {
         const data = await res.json();
