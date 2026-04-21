@@ -91,9 +91,14 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   console.log(`[Middleware] path=${pathname} user=${user?.id ?? 'null'}`)
 
-  // 1. Root URL → always redirect to /landing
+  // 1. Root URL → catch auth callbacks or redirect to /landing
   if (pathname === '/') {
     const url = request.nextUrl.clone()
+    // If Supabase fell back to Site URL for a callback, route it to the proper handler
+    if (url.searchParams.has('code')) {
+      url.pathname = '/auth/callback'
+      return createRedirectWithCookies(url, supabaseResponse)
+    }
     url.pathname = '/landing'
     return createRedirectWithCookies(url, supabaseResponse)
   }
