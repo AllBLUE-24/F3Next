@@ -20,7 +20,7 @@ export default function Contact() {
             Answer 5 questions. Get your ERP recommendation in under 10 minutes. No commitment.
           </p>
           <Link
-            href="/landing_page"
+            href="/onboarding"
             className="inline-block bg-amber-500 text-black px-10 py-4 rounded-xl font-black text-lg hover:bg-amber-400 transition-colors shadow-2xl shadow-amber-500/20"
           >
             Start Free ERP Discovery →
