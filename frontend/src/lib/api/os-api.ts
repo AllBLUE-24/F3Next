@@ -4,7 +4,7 @@
 
 declare const process: { env: Record<string, string | undefined> };
 
-const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
