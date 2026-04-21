@@ -60,7 +60,7 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
   useEffect(() => {
     const checkInvite = async () => {
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+        const API_URL = "";
         
         // Mocking the validation API call
         // In real backend, check if code exists and matches companySlug
@@ -102,7 +102,7 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
     setIsSubmitting(true);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+      const API_URL = "";
       
       const res = await fetch(`${API_URL}/api/invites/accept`, {
         method: "POST",

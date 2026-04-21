@@ -24,7 +24,7 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
     try {
       // A. Get Secure S3 URL
       // We use companySlug here purely for organizing the S3 Folder structure (readable names)
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+      const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
       const urlRes = await fetch(`${API_BASE}/api/migration/get-upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,7 +72,7 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
 
     const interval = setInterval(async () => {
       try {
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+        const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
         const res = await fetch(`${API_BASE}/api/migration/status/${workflowId}`);
         const data = await res.json();
 
@@ -92,7 +92,7 @@ export default function MigrationClient({ projectId, companySlug }: MigrationCli
 
   // 3. Confirm Logic
   const handleConfirm = async () => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+    const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
     await fetch(`${API_BASE}/api/migration/confirm-mapping`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

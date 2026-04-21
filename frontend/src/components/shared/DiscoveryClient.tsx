@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"; // <-- IMPORT ROUTER
 import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
 import { sendMessageToDiscoveryAgent } from "@/lib/api/hooks_api";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE_URL = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 90_000; // 90s then show helpful message

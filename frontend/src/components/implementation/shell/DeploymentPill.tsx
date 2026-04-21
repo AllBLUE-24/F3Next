@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { DeploymentState } from '@/types/implementation';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
 
 const STATUS_CONFIG = {
   pending:   { label: 'Initializing',       dot: 'bg-gray-500',                text: 'text-gray-500',  ring: 'bg-gray-500/10 border-gray-500/20' },

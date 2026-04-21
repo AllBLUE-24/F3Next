@@ -16,7 +16,7 @@ export async function getProjectContext(slug: string): Promise<ProjectContextDat
 
   try {
     // 2. Call the Universal Backend Endpoint
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
     const res = await fetch(`${apiUrl}/api/resolve/slug/${slug}`, {
       method: "GET",
       cache: "no-store", // Always fetch fresh data

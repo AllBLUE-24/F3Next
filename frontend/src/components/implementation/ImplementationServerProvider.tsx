@@ -6,7 +6,7 @@ import type { ImplementationSession, DeploymentState } from '@/types/implementat
 import { getProjectContext } from '@/lib/context/project-context';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'http://backend_api:8000';
+const API_BASE = 'http://backend_api:8000';
 
 function mockDeployment(): DeploymentState {
   return {

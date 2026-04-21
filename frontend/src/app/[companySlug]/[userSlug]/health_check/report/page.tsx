@@ -51,7 +51,7 @@ export default function ReportPage() {
       }
       
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+        const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
         const res = await fetch(`${apiUrl}/health_check/status/${storedProjId}`);
         const data = await res.json();
 
