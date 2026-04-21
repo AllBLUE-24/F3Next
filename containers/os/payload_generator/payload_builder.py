@@ -206,26 +206,26 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
 
     # Customer master
     if doctype == "Customer":
-        payload["customer_name"]  = entities.get("customer_name") or entities.get("customer", "")
-        payload["customer_type"]  = entities.get("customer_type", "Company")
-        payload["customer_group"] = entities.get("customer_group", "Commercial")
-        payload["territory"]      = entities.get("territory", "All Territories")
+        payload["customer_name"]  = entities.get("customer_name") or entities.get("customer") or ""
+        payload["customer_type"]  = entities.get("customer_type") or "Company"
+        payload["customer_group"] = entities.get("customer_group") or "Commercial"
+        payload["territory"]      = entities.get("territory") or "All Territories"
         if entities.get("gstin"):
             payload["gstin"] = entities["gstin"]
             payload["gst_category"] = "Registered Regular"
 
     # Supplier master
     if doctype == "Supplier":
-        payload["supplier_name"]  = entities.get("supplier_name") or entities.get("supplier", "")
-        payload["supplier_type"]  = entities.get("supplier_type", "Company")
-        payload["supplier_group"] = entities.get("supplier_group", "All Supplier Groups")
+        payload["supplier_name"]  = entities.get("supplier_name") or entities.get("supplier") or ""
+        payload["supplier_type"]  = entities.get("supplier_type") or "Company"
+        payload["supplier_group"] = entities.get("supplier_group") or "All Supplier Groups"
 
     # Item master
     if doctype == "Item":
-        payload["item_code"]  = entities.get("item_code", "")
-        payload["item_name"]  = entities.get("item_name") or entities.get("item_code", "")
-        payload["item_group"] = entities.get("item_group", "All Item Groups")
-        payload["stock_uom"]  = kb.resolve_uom(entities.get("uom", "Nos"))
+        payload["item_code"]  = entities.get("item_code") or ""
+        payload["item_name"]  = entities.get("item_name") or entities.get("item_code") or ""
+        payload["item_group"] = entities.get("item_group") or "All Item Groups"
+        payload["stock_uom"]  = kb.resolve_uom(entities.get("uom") or "Nos")
         if entities.get("is_stock_item") is not None:
             payload["is_stock_item"] = int(bool(entities["is_stock_item"]))
 
