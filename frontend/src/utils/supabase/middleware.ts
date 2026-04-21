@@ -107,7 +107,7 @@ export async function updateSession(request: NextRequest) {
   if (user && (isAuthRoute(pathname) || pathname === '/onboarding' || pathname === '/auth/resolve')) {
     console.log(`[Middleware] Authed user on ${pathname} → checking onboarding status`)
     
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://backend_api:8000'
+    const API_URL = request.nextUrl.origin
     try {
       const res = await fetch(`${API_URL}/api/resolve/user/${user.id}`)
       if (res.ok) {
@@ -155,7 +155,7 @@ export async function updateSession(request: NextRequest) {
     const companySlug = segments[0]
     const userSlug = segments[1]
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://backend_api:8000'
+    const API_URL = request.nextUrl.origin
     try {
       const res = await fetch(`${API_URL}/api/resolve/slug/${companySlug}`)
       if (!res.ok) {

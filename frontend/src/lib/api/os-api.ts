@@ -4,7 +4,7 @@
 
 declare const process: { env: Record<string, string | undefined> };
 
-const BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const BASE = ""; // Force relative path so Next.js/Caddy handles routing
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

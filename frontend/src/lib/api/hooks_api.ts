@@ -1,5 +1,5 @@
 // src/lib/api/hooks_api.ts
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE_URL = "";
 
 // 1. Define the Input Interface (What frontend sends)
 interface ChatPayload {

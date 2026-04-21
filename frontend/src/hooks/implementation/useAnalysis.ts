@@ -47,7 +47,7 @@ export function useAnalysis(jobId: string | null) {
   const poll = useCallback(async () => {
     if (!jobId) return;
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+      const API_BASE = '';
       const res = await fetch(`${API_BASE}/api/implementation/state/${jobId}`);
 
       if (!res.ok) throw new Error('Failed to fetch analysis status');

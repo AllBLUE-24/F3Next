@@ -3,8 +3,7 @@
  * F3iche, signals, profile, target structure, mapping, validation, import
  */
 
-const getBaseUrl = () =>
-  process.env.NEXT_PUBLIC_API_URL || '';
+const getBaseUrl = () => '';
 
 export interface SignalsInferResult {
   f3iche: string;
