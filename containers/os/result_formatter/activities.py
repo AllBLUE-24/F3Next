@@ -103,7 +103,7 @@ def _translate_erp_error(raw_error: str) -> tuple[str, str]:
     # Pattern: "[DocType] field_name is mandatory"  OR  "field_name is mandatory for DocType"
     if "mandatoryerror" in raw_lower or "is mandatory" in raw_lower:
         field_match = re.search(
-            r'\[?[^\]]*\]?\s*([a-z_]+)\s+is mandatory',
+            r'([a-zA-Z0-9_]+)\s+is mandatory',
             raw, re.IGNORECASE
         )
         field_name = field_match.group(1).replace("_", " ").title() if field_match else "a required field"
