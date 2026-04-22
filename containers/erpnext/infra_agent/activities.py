@@ -14,10 +14,9 @@ from shared.models.core import Project, ProjectStatus
 from shared.database.db import AsyncSessionLocal as async_session
 
 # --- CONFIGURATION ---
-EC2_HOST = "65.2.125.86"
-EC2_USER = "ubuntu"
-# Using raw string (r"...") to handle Windows backslashes correctly
-SSH_KEY_PATH = r"C:\dev\secrets\F3Next\f3.pem"
+EC2_HOST = os.environ.get("EC2_HOST", "65.2.125.86")
+EC2_USER = os.environ.get("EC2_USER", "ubuntu")
+SSH_KEY_PATH = os.environ.get("SSH_KEY_PATH", "/app/secrets/f3.pem")
 
 TIERS = {
     "standard": {"db_mem": "1G", "app_mem": "1G", "cpu": "1.0"},

@@ -65,6 +65,8 @@ services:
       - temporal
     environment:
       - TEMPORAL_HOST=temporal:7233
+    volumes:
+      - ./secrets:/app/secrets
 
   health_check_worker:
     build:
