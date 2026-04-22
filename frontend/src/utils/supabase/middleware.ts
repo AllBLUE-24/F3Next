@@ -21,13 +21,6 @@ function isPublicRoute(pathname: string): boolean {
   })
 }
 
-// Auth routes that authenticated users should NOT see
-const AUTH_ROUTES = ['/login', '/signup']
-
-function isAuthRoute(pathname: string): boolean {
-  return AUTH_ROUTES.some((route) => pathname.startsWith(route))
-}
-
 // Known top-level routes that are NOT [companySlug]/[userSlug] workspaces
 const KNOWN_TOP_ROUTES = [
   'login', 'signup', 'auth', 'landing',
@@ -41,6 +34,18 @@ function isWorkspaceRoute(pathname: string): boolean {
   const segments = pathname.split('/').filter(Boolean)
   if (segments.length < 2) return false
   return !KNOWN_TOP_ROUTES.includes(segments[0])
+}
+
+/**
+ * Get a reliable base URL using headers to prevent Next.js standalone
+ * from resolving to 0.0.0.0:3000 when behind a reverse proxy.
+ */
+function getRedirectUrl(request: NextRequest, targetPath: string): URL {
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || request.nextUrl.host
+  const protocol = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https'
+  
+  const baseUrl = `${protocol}://${host}`
+  return new URL(targetPath, baseUrl)
 }
 
 /**
@@ -93,18 +98,23 @@ export async function updateSession(request: NextRequest) {
 
   // 1. Root URL → catch auth callbacks or redirect to /landing
   if (pathname === '/') {
-    const url = request.nextUrl.clone()
     // If Supabase fell back to Site URL for a callback, route it to the proper handler
-    if (url.searchParams.has('code')) {
-      url.pathname = '/auth/callback'
+    if (request.nextUrl.searchParams.has('code')) {
+      const url = getRedirectUrl(request, '/auth/callback')
+      // Preserve the search params (like code)
+      request.nextUrl.searchParams.forEach((value, key) => {
+        url.searchParams.set(key, value)
+      })
       return createRedirectWithCookies(url, supabaseResponse)
     }
-    url.pathname = '/landing'
+    const url = getRedirectUrl(request, '/landing')
     return createRedirectWithCookies(url, supabaseResponse)
   }
 
-  // 2. Authenticated user on an auth page or onboarding → SSR check
-  if (user && (isAuthRoute(pathname) || pathname === '/onboarding' || pathname === '/auth/resolve')) {
+  // 2. Authenticated user on onboarding or auth/resolve → SSR check
+  // Note: We removed /login and /signup from this auto-redirect so users can
+  // intentionally re-login or switch accounts without being forced to onboarding.
+  if (user && (pathname === '/onboarding' || pathname === '/auth/resolve')) {
     console.log(`[Middleware] Authed user on ${pathname} → checking onboarding status`)
     
     const API_URL = 'http://backend_api:8000'
@@ -114,16 +124,14 @@ export async function updateSession(request: NextRequest) {
         const data = await res.json()
         if (data.company_slug && data.user_slug) {
           // Fully onboarded → redirect to home SSR
-          const homeUrl = request.nextUrl.clone()
-          homeUrl.pathname = `/${data.company_slug}/${data.user_slug}/home`
+          const homeUrl = getRedirectUrl(request, `/${data.company_slug}/${data.user_slug}/home`)
           return createRedirectWithCookies(homeUrl, supabaseResponse)
         }
       }
       
       // Not onboarded (or missing slugs) → redirect to onboarding
       if (pathname !== '/onboarding') {
-        const url = request.nextUrl.clone()
-        url.pathname = '/onboarding'
+        const url = getRedirectUrl(request, '/onboarding')
         return createRedirectWithCookies(url, supabaseResponse)
       }
       
@@ -133,8 +141,7 @@ export async function updateSession(request: NextRequest) {
       console.error('[Middleware] Backend fetch error:', e)
       // Fallback behavior if the backend is unreachable
       if (pathname !== '/auth/resolve' && pathname !== '/onboarding') {
-        const url = request.nextUrl.clone()
-        url.pathname = '/auth/resolve'
+        const url = getRedirectUrl(request, '/auth/resolve')
         return createRedirectWithCookies(url, supabaseResponse)
       }
     }
@@ -143,8 +150,7 @@ export async function updateSession(request: NextRequest) {
   // 3. Unauthenticated user on a protected page → send to /login
   if (!user && !isPublicRoute(pathname) && pathname !== '/') {
     console.log(`[Middleware] Unauthed access to ${pathname} → /login`)
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    const url = getRedirectUrl(request, '/login')
     return createRedirectWithCookies(url, supabaseResponse)
   }
 
@@ -161,8 +167,7 @@ export async function updateSession(request: NextRequest) {
       if (!res.ok) {
         // Company slug doesn't exist → redirect to auth/resolve to find correct workspace
         console.log(`[Middleware] Invalid companySlug '${companySlug}' → /auth/resolve`)
-        const url = request.nextUrl.clone()
-        url.pathname = '/auth/resolve'
+        const url = getRedirectUrl(request, '/auth/resolve')
         return createRedirectWithCookies(url, supabaseResponse)
       }
     } catch (e) {
