@@ -205,7 +205,7 @@ async def deploy_inventory_container(input_data: dict) -> dict:
     activity.logger.info(f"🔌 CONNECTING TO REMOTE SERVER: {EC2_HOST}")
     activity.logger.info("=" * 70)
     
-    async with asyncssh.connect(EC2_HOST, username=EC2_USER, client_keys=[SSH_KEY_PATH]) as conn:
+    async with asyncssh.connect(EC2_HOST, username=EC2_USER, client_keys=[SSH_KEY_PATH], known_hosts=None) as conn:
         base_dir = f"/opt/erp/clients/{slug}"
         
         # A. Clean Slate
@@ -402,7 +402,7 @@ async def generate_erpnext_keys(input_data: dict) -> dict:
     activity.logger.info(f"🔑 STARTING KEY GENERATION: {site_url}")
     activity.logger.info("=" * 70)
 
-    async with asyncssh.connect(EC2_HOST, username=EC2_USER, client_keys=[SSH_KEY_PATH]) as conn:
+    async with asyncssh.connect(EC2_HOST, username=EC2_USER, client_keys=[SSH_KEY_PATH], known_hosts=None) as conn:
         
         # A. Fix Permissions
         await run_logged(conn, f"sudo chown -R 1000:1000 {base_dir}/sites", check=True, description="Fix Sites Permissions")
