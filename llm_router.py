@@ -49,6 +49,15 @@ async def invoke_smart_llm(messages, model_name="gemini-flash-latest", temperatu
                 )
                 
                 response = await llm.ainvoke(messages)
+                if isinstance(response.content, list):
+                    content_str = " ".join(p.get("text", "") for p in response.content if isinstance(p, dict) and "text" in p)
+                    try:
+                        response.content = content_str
+                    except Exception:
+                        class DummyResponse:
+                            def __init__(self, c):
+                                self.content = c
+                        return DummyResponse(content_str)
                 return response
                 
             except Exception as e:
@@ -92,6 +101,15 @@ def invoke_smart_llm_sync(messages, model_name="gemini-flash-latest", temperatur
                 )
                 
                 response = llm.invoke(messages)
+                if isinstance(response.content, list):
+                    content_str = " ".join(p.get("text", "") for p in response.content if isinstance(p, dict) and "text" in p)
+                    try:
+                        response.content = content_str
+                    except Exception:
+                        class DummyResponse:
+                            def __init__(self, c):
+                                self.content = c
+                        return DummyResponse(content_str)
                 return response
                 
             except Exception as e:

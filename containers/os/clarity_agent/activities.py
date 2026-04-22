@@ -363,6 +363,12 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
     if m_named:
         party_name = m_named.group(1).strip()
 
+    # "customer , X" → master data name
+    if not party_name and intent_id in ('create_customer', 'create_supplier'):
+        m_comma = re.search(r'(?:customer|supplier)\s*,\s*([A-Za-z0-9 &\.\-]+?)(?:' + _PARTY_STOP + r')', prompt, re.IGNORECASE)
+        if m_comma:
+            party_name = m_comma.group(1).strip()
+
     # "for X" or "from X" → party in transactional docs
     # Skip role words like "customer"/"supplier"/"the" before the actual name
     if not party_name:
