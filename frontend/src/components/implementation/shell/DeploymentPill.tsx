@@ -101,7 +101,7 @@ export function DeploymentPill() {
           {(deployment as any).adminPassword && (
             <>
               <span className="text-white/20">·</span>
-              <span className="text-gray-400">Admin / <span className="text-white font-mono select-all font-bold">{(deployment as any).adminPassword}</span></span>
+              <span className="text-gray-400">Administrator / <span className="text-white font-mono select-all font-bold">{(deployment as any).adminPassword}</span></span>
             </>
           )}
         </>
