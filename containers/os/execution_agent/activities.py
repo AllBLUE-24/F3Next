@@ -136,6 +136,114 @@ def _is_ssl_verification_error(exc: Exception) -> bool:
     return "CERTIFICATE_VERIFY_FAILED" in message or "self-signed certificate" in message
 
 
+async def _list_master_names(
+    session: aiohttp.ClientSession,
+    base_url: str,
+    doctype: str,
+    headers: dict,
+    limit: int = 100,
+) -> list[str]:
+    url = _erp_url(base_url, f"/api/resource/{quote(doctype, safe='')}")
+
+    try:
+        async with session.get(
+            url,
+            headers=headers,
+            params={
+                "fields": '["name"]',
+                "limit_page_length": str(limit),
+            },
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as resp:
+            if resp.status != 200:
+                return []
+            body = await resp.json(content_type=None)
+    except Exception:
+        return []
+
+    rows = body.get("data", []) if isinstance(body, dict) else []
+    return [str(row.get("name", "")).strip() for row in rows if isinstance(row, dict) and row.get("name")]
+
+
+async def _resolve_link_value(
+    session: aiohttp.ClientSession,
+    base_url: str,
+    link_doctype: str,
+    desired: str,
+    headers: dict,
+    fallbacks: list[str] | None = None,
+) -> str:
+    options = await _list_master_names(session, base_url, link_doctype, headers)
+    if not options:
+        return desired
+
+    normalized = {name.casefold(): name for name in options}
+
+    for candidate in [desired, *(fallbacks or [])]:
+        if not candidate:
+            continue
+        match = normalized.get(candidate.strip().casefold())
+        if match:
+            return match
+
+    return options[0]
+
+
+async def _heal_master_payload_links(
+    session: aiohttp.ClientSession,
+    base_url: str,
+    doctype: str,
+    payload: dict,
+    headers: dict,
+) -> dict:
+    link_rules: dict[str, tuple[str, list[str]]] = {}
+
+    if doctype == "Customer":
+        link_rules = {
+            "customer_group": ("Customer Group", ["Commercial", "All Customer Groups"]),
+            "territory": ("Territory", ["All Territories", "India"]),
+        }
+    elif doctype == "Supplier":
+        link_rules = {
+            "supplier_group": ("Supplier Group", ["All Supplier Groups"]),
+        }
+    elif doctype == "Item":
+        link_rules = {
+            "item_group": ("Item Group", ["All Item Groups"]),
+            "stock_uom": ("UOM", ["Nos", "Unit"]),
+        }
+
+    if not link_rules:
+        return payload
+
+    for field_name, (link_doctype, fallback_values) in link_rules.items():
+        current = str(payload.get(field_name, "") or "").strip()
+        if not current:
+            continue
+
+        resolved = await _resolve_link_value(
+            session=session,
+            base_url=base_url,
+            link_doctype=link_doctype,
+            desired=current,
+            headers=headers,
+            fallbacks=fallback_values,
+        )
+
+        if resolved and resolved != current:
+            activity.logger.warning(
+                "  ↪️  resolved %s '%s' to existing %s '%s' for %s",
+                field_name,
+                current,
+                link_doctype,
+                resolved,
+                doctype,
+            )
+            payload[field_name] = resolved
+
+    return payload
+
+
 # ── Pre-flight duplicate check for master data ───────────────────────────────
 
 async def _check_master_exists(
@@ -263,21 +371,30 @@ async def _execute_step(
                 if doc_name:
                     url = f"{url}/{quote(str(doc_name), safe='')}"
 
-            if step_action == "create" and step_doctype in _MASTER_DATA_DOCTYPES:
-                existing = await _check_master_exists(
-                    session, erp_url, step_doctype, step_payload, headers,
+            if step_action == "create":
+                step_payload = await _heal_master_payload_links(
+                    session=session,
+                    base_url=erp_url,
+                    doctype=step_doctype,
+                    payload=step_payload,
+                    headers=headers,
                 )
-                if existing:
-                    name_field = _MASTER_NAME_FIELD.get(step_doctype, "name")
-                    candidate = step_payload.get(name_field) or step_payload.get("name", "")
-                    activity.logger.warning(
-                        "  ⚠️  step %d: duplicate check — %s '%s' already exists as '%s'",
-                        step_num, step_doctype, candidate, existing,
+
+                if step_doctype in _MASTER_DATA_DOCTYPES:
+                    existing = await _check_master_exists(
+                        session, erp_url, step_doctype, step_payload, headers,
                     )
-                    raise ValueError(
-                        f"DuplicateEntryError: '{candidate}' already exists as '{existing}' "
-                        f"in {step_doctype}. Open the existing record or use a different name."
-                    )
+                    if existing:
+                        name_field = _MASTER_NAME_FIELD.get(step_doctype, "name")
+                        candidate = step_payload.get(name_field) or step_payload.get("name", "")
+                        activity.logger.warning(
+                            "  ⚠️  step %d: duplicate check — %s '%s' already exists as '%s'",
+                            step_num, step_doctype, candidate, existing,
+                        )
+                        raise ValueError(
+                            f"DuplicateEntryError: '{candidate}' already exists as '{existing}' "
+                            f"in {step_doctype}. Open the existing record or use a different name."
+                        )
 
             return await _call_erpnext(
                 session, http_method, url, headers, step_payload, step_num,
