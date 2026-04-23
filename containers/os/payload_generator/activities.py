@@ -92,9 +92,13 @@ async def generate_payload(data: dict) -> dict:
         # Log each step summary
         for s in bundle.get("steps", []):
             activity.logger.info(
-                "  step %d: %s %s → %s %s  (%d payload keys)",
-                s["step_number"], s["action"], s["doctype"],
-                s["http_method"], s["endpoint"],
+                "  step %d [%s]: %s %s → %s %s  (%d payload keys)",
+                s["step_number"],
+                s.get("step_role", "main"),
+                s["action"],
+                s["doctype"],
+                s["http_method"],
+                s["endpoint"],
                 len(s.get("payload", {})),
             )
 

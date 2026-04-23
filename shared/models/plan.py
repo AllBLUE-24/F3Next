@@ -71,6 +71,12 @@ class PlanStep(BaseModel):
     description:         str                 = ""
     rollback_note:       str                 = ""
 
+    # Planner metadata for prerequisite-aware execution
+    step_role:           str                 = "main"   # main / prerequisite
+    prerequisite_for:    Optional[str]       = None
+    resolution_source:   Optional[str]       = None
+    payload_template:    dict[str, Any]      = Field(default_factory=dict)
+
 
 # ─── ExecutionPlan ────────────────────────────────────────────────────────────
 

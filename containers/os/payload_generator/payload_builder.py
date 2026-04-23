@@ -13,6 +13,7 @@ FIXES vs previous version:
 
 from __future__ import annotations
 
+import copy
 import logging
 from datetime import date
 from typing import Any
@@ -347,7 +348,11 @@ def build_payload_bundle(plan: dict, context: dict, intent_dict: dict) -> dict:
         source_step = step.get("source_step")
         step_ref    = f"__step_{source_step}_result__" if source_step else ""
 
-        if action == "create":
+        if step.get("payload_template"):
+            payload = copy.deepcopy(step.get("payload_template", {}))
+            notes = step.get("description") or f"Prebuilt payload for {doctype}"
+
+        elif action == "create":
             payload = _build_create_payload(step, step_entities, context, kb)
             notes   = f"Create new {doctype}"
 
@@ -407,8 +412,14 @@ def build_payload_bundle(plan: dict, context: dict, intent_dict: dict) -> dict:
         })
 
         logger.info(
-            "  step %d: %s %s → %s %s  (%d payload keys)",
-            step_num, action, doctype, http_method, endpoint, len(payload),
+            "  step %d [%s]: %s %s → %s %s  (%d payload keys)",
+            step_num,
+            step.get("step_role", "main"),
+            action,
+            doctype,
+            http_method,
+            endpoint,
+            len(payload),
         )
 
     return {"steps": built_steps}

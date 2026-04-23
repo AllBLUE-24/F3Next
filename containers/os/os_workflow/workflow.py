@@ -232,11 +232,12 @@ class ERPOSCommandWorkflow:
         )
 
         workflow.logger.info(
-            "\n✅ [4] PLAN — steps=%d  risk=%s  confirm=%s  pattern=%s\n",
+            "\n✅ [4] PLAN — steps=%d  risk=%s  confirm=%s  pattern=%s\n%s\n",
             len(plan.get("steps", [])),
             plan.get("risk_level", "?"),
             plan.get("requires_confirmation", False),
             plan.get("pattern_id") or "single-step",
+            json.dumps(plan, indent=2, default=str),
         )
 
         # ══════════════════════════════════════════════════════════════════════

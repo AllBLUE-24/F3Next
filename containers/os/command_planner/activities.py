@@ -18,12 +18,14 @@ Design rules applied:
 
 from __future__ import annotations
 
+import json
 import logging
 
 from temporalio import activity
 
 from containers.os.command_planner.kb_plans import plans_kb
 from containers.os.command_planner.plan_builder import build_plan
+from containers.os.command_planner.prereq_resolver import enrich_plan_with_prerequisites
 from shared.models.plan import ExecutionPlan, PlanStep
 
 logger = logging.getLogger(__name__)
@@ -90,21 +92,28 @@ async def plan_command(data: dict) -> dict:
 
     try:
         plan = build_plan(intent_dict, context)
+        activity.heartbeat("Resolving prerequisites")
+        plan = await enrich_plan_with_prerequisites(plan, context)
+
+        plan_dump = plan.model_dump()
+        prereq_count = sum(1 for step in plan.steps if step.step_role == "prerequisite")
 
         logger.info(
-            "plan_command: intent=%s → pattern=%s steps=%d risk=%s confirm=%s",
+            "plan_command: intent=%s → pattern=%s steps=%d prereqs=%d risk=%s confirm=%s",
             intent_id,
             plan.pattern_id or "single-step",
             len(plan.steps),
+            prereq_count,
             plan.risk_level,
             plan.requires_confirmation,
         )
+        logger.info("plan_command detail:\n%s", json.dumps(plan_dump, indent=2, default=str))
 
         activity.heartbeat(
-            f"Plan ready: {len(plan.steps)} step(s), risk={plan.risk_level}"
+            f"Plan ready: {len(plan.steps)} step(s), prereqs={prereq_count}, risk={plan.risk_level}"
         )
 
-        return plan.model_dump()
+        return plan_dump
 
     except Exception as e:
         logger.exception(
