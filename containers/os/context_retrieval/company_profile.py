@@ -55,6 +55,13 @@ logger = logging.getLogger(__name__)
 PROFILE_CACHE_TTL_SECONDS = 3600   # 1 hour — after this, re-fetch from DB
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # ── Dummy profile (env-configurable) ──────────────────────────────────────────
 
 def _build_dummy_profile(company_id: str) -> dict:
@@ -78,6 +85,8 @@ def _build_dummy_profile(company_id: str) -> dict:
     warehouse   = os.getenv("ERP_DEFAULT_WAREHOUSE", f"Stores - {company[:2].upper()}")
     price_list  = os.getenv("ERP_DEFAULT_PRICE_LIST", "Standard Selling")
     fiscal_year = os.getenv("ERP_FISCAL_YEAR", "2024-2025")
+    verify_ssl = _env_bool("ERP_VERIFY_SSL", True)
+    allow_insecure_ssl = _env_bool("ERP_ALLOW_INSECURE_SSL", True)
 
     return {
         # Identity
@@ -91,6 +100,8 @@ def _build_dummy_profile(company_id: str) -> dict:
         "erp_url":            erp_url,
         "api_key":            api_key,
         "api_secret":         api_secret,
+        "verify_ssl":         verify_ssl,
+        "allow_insecure_ssl": allow_insecure_ssl,
 
         # ERPNext defaults — used by Payload Generator
         "default_company":    company,
@@ -198,6 +209,13 @@ async def fetch_profile_from_db(
             return None
 
         company = row["company_name"] or deployment.get("company", "Unknown Company")
+        verify_ssl = deployment.get("verify_ssl")
+        if verify_ssl is None:
+            verify_ssl = _env_bool("ERP_VERIFY_SSL", True)
+
+        allow_insecure_ssl = deployment.get("allow_insecure_ssl")
+        if allow_insecure_ssl is None:
+            allow_insecure_ssl = _env_bool("ERP_ALLOW_INSECURE_SSL", True)
 
         return {
             "company_id":         str(row["project_id"]),
@@ -210,6 +228,8 @@ async def fetch_profile_from_db(
             "erp_url":            deployment["erp_url"],
             "api_key":            deployment["api_key"],
             "api_secret":         deployment.get("api_secret", ""),
+            "verify_ssl":         verify_ssl,
+            "allow_insecure_ssl": allow_insecure_ssl,
 
             # Defaults
             "default_company":    deployment.get("company", company),

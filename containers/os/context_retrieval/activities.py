@@ -104,9 +104,11 @@ async def retrieve_context(data: dict) -> dict:
 
     # ── Step 4: Extract credentials + defaults (separate from schema) ─────────
     erp_credentials = {
-        "erp_url":    company_profile.get("erp_url", ""),
-        "api_key":    company_profile.get("api_key", ""),
-        "api_secret": company_profile.get("api_secret", ""),
+        "erp_url":            company_profile.get("erp_url", ""),
+        "api_key":            company_profile.get("api_key", ""),
+        "api_secret":         company_profile.get("api_secret", ""),
+        "verify_ssl":         company_profile.get("verify_ssl", True),
+        "allow_insecure_ssl": company_profile.get("allow_insecure_ssl", True),
     }
 
     defaults = {
