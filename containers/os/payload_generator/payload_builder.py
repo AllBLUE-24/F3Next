@@ -208,7 +208,7 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
     if doctype == "Customer":
         payload["customer_name"]  = entities.get("customer_name") or entities.get("customer") or ""
         payload["customer_type"]  = entities.get("customer_type") or "Company"
-        payload["customer_group"] = entities.get("customer_group") or "Commercial"
+        payload["customer_group"] = entities.get("customer_group") or "All Customer Groups"
         payload["territory"]      = entities.get("territory") or "All Territories"
         if entities.get("gstin"):
             payload["gstin"] = entities["gstin"]

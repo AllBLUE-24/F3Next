@@ -150,19 +150,29 @@ async def _list_master_names(
             url,
             headers=headers,
             params={
-                "fields": '["name"]',
                 "limit_page_length": str(limit),
             },
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
             if resp.status != 200:
+                body_text = await resp.text()
+                activity.logger.warning(
+                    "  ⚠️  unable to list %s from %s → HTTP %s: %s",
+                    doctype,
+                    url,
+                    resp.status,
+                    body_text[:200],
+                )
                 return []
             body = await resp.json(content_type=None)
-    except Exception:
+    except Exception as exc:
+        activity.logger.warning("  ⚠️  master list fetch failed for %s: %s", doctype, exc)
         return []
 
     rows = body.get("data", []) if isinstance(body, dict) else []
-    return [str(row.get("name", "")).strip() for row in rows if isinstance(row, dict) and row.get("name")]
+    names = [str(row.get("name", "")).strip() for row in rows if isinstance(row, dict) and row.get("name")]
+    activity.logger.info("  ℹ️  loaded %d %s option(s)", len(names), doctype)
+    return names
 
 
 async def _resolve_link_value(
@@ -242,6 +252,44 @@ async def _heal_master_payload_links(
             payload[field_name] = resolved
 
     return payload
+
+
+def _is_link_validation_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "LinkValidationError" in text or "Could not find" in text
+
+
+async def _retry_after_link_validation_error(
+    session: aiohttp.ClientSession,
+    base_url: str,
+    doctype: str,
+    payload: dict,
+    headers: dict,
+    exc: Exception,
+) -> dict | None:
+    if not _is_link_validation_error(exc):
+        return None
+
+    healed_payload = await _heal_master_payload_links(
+        session=session,
+        base_url=base_url,
+        doctype=doctype,
+        payload=dict(payload),
+        headers=headers,
+    )
+
+    if healed_payload == payload:
+        activity.logger.warning(
+            "  ⚠️  link-validation retry skipped for %s — no alternative linked master values found",
+            doctype,
+        )
+        return None
+
+    activity.logger.warning(
+        "  ↻ retrying %s create after resolving linked master values from ERPNext",
+        doctype,
+    )
+    return healed_payload
 
 
 # ── Pre-flight duplicate check for master data ───────────────────────────────
@@ -396,9 +444,28 @@ async def _execute_step(
                             f"in {step_doctype}. Open the existing record or use a different name."
                         )
 
-            return await _call_erpnext(
-                session, http_method, url, headers, step_payload, step_num,
-            )
+            try:
+                return await _call_erpnext(
+                    session, http_method, url, headers, step_payload, step_num,
+                )
+            except ValueError as exc:
+                if step_action != "create":
+                    raise
+
+                retry_payload = await _retry_after_link_validation_error(
+                    session=session,
+                    base_url=erp_url,
+                    doctype=step_doctype,
+                    payload=step_payload,
+                    headers=headers,
+                    exc=exc,
+                )
+                if retry_payload is None:
+                    raise
+
+                return await _call_erpnext(
+                    session, http_method, url, headers, retry_payload, step_num,
+                )
 
     try:
         return await _run_once(verify_ssl)
