@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
@@ -11,29 +11,34 @@ function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [awaitingEmailConfirmation, setAwaitingEmailConfirmation] = useState(false);
   const supabase = createClient();
-
-  // No useEffect session check — middleware handles redirecting
-  // authenticated users away from /signup automatically.
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
+    setAwaitingEmailConfirmation(false);
     setLoading(true);
 
     const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      },
     });
 
     if (authError || !data.user) {
       console.error('[Signup] Error:', authError);
+
       if (
         authError?.message?.includes('already in use') ||
         authError?.status === 422
@@ -46,20 +51,20 @@ function SignupForm() {
           authError?.message || 'Failed to create account. Please try again.'
         );
       }
+
       setLoading(false);
       return;
     }
 
-    // If there's no session, email confirmation is required
     if (!data.session) {
+      setAwaitingEmailConfirmation(true);
       setSuccessMessage(
-        'Account created! Please check your email to verify your account before logging in.'
+        'Account created, but email confirmation is still enabled for this Supabase project. Use the verification email or disable Confirm email in Supabase Auth settings for local testing.'
       );
       setLoading(false);
       return;
     }
 
-    // Session exists → user is immediately active. Route to resolve.
     if (redirectPath) {
       router.push(
         `${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`
@@ -69,11 +74,40 @@ function SignupForm() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError('Enter your email address first.');
+      return;
+    }
+
     setError('');
+    setSuccessMessage('');
     setLoading(true);
 
-    // No signOut() before OAuth — unnecessary and destructive.
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      },
+    });
+
+    if (resendError) {
+      console.error('[Signup] Resend verification error:', resendError);
+      setError(resendError.message || 'Failed to resend verification email.');
+    } else {
+      setSuccessMessage('Verification email sent. Use the newest email only.');
+    }
+
+    setLoading(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setSuccessMessage('');
+    setAwaitingEmailConfirmation(false);
+    setLoading(true);
+
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -168,14 +202,23 @@ function SignupForm() {
             <label className="block text-sm font-medium text-gray-700">
               Password
             </label>
-            <input
-              type="password"
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 bg-white"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                className="block w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 bg-white"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute inset-y-0 right-0 px-3 text-sm font-medium text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           <button
@@ -186,6 +229,17 @@ function SignupForm() {
             {loading ? 'Creating...' : 'Create Account'}
           </button>
         </form>
+
+        {awaitingEmailConfirmation && (
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={loading}
+            className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-70 disabled:cursor-wait"
+          >
+            {loading ? 'Sending...' : 'Resend verification email'}
+          </button>
+        )}
 
         <p className="text-center text-sm text-gray-600">
           Already have an account?{' '}

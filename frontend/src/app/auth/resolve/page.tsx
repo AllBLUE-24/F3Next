@@ -4,6 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 
+interface ResolveUserResponse {
+  company_slug?: string;
+  user_slug?: string;
+}
+
 /**
  * /auth/resolve — The single source of truth for post-authentication routing.
  *
@@ -26,7 +31,6 @@ export default function AuthResolvePage() {
     setRetrying(true);
 
     try {
-      // 1. Get the authenticated user
       const {
         data: { user },
         error: authError,
@@ -38,30 +42,27 @@ export default function AuthResolvePage() {
         return;
       }
 
-      // 2. Resolve their workspace via backend
-      // Always use a relative path so the browser fetches from the same origin 
-      // (e.g. https://www.f3next.in/api/...) which Caddy then proxies to the backend.
       const res = await fetch(`/api/resolve/user/${user.id}`);
 
       if (res.ok) {
-        const data = await res.json();
+        const data: ResolveUserResponse = await res.json();
+
         if (data.company_slug && data.user_slug) {
-          // 3a. Fully onboarded → go to their home
           router.replace(`/${data.company_slug}/${data.user_slug}/home`);
         } else {
-          // 3b. Partially onboarded → go to onboarding
           router.replace('/onboarding');
         }
       } else if (res.status === 404) {
-        // 3c. Not onboarded yet
         router.replace('/onboarding');
       } else {
         throw new Error(`Backend returned ${res.status}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Resolve] Error:', err);
       setError(
-        err.message || 'Failed to load your workspace. Please try again.'
+        err instanceof Error
+          ? err.message
+          : 'Failed to load your workspace. Please try again.'
       );
       setRetrying(false);
     }
@@ -97,9 +98,7 @@ export default function AuthResolvePage() {
         ) : (
           <div className="space-y-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
-            <p className="text-sm text-gray-500">
-              Loading your workspace...
-            </p>
+            <p className="text-sm text-gray-500">Loading your workspace...</p>
           </div>
         )}
       </div>

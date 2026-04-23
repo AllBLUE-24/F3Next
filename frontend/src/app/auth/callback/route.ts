@@ -2,17 +2,36 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
+function getBaseUrl(request: Request) {
+  const url = new URL(request.url)
+  const host =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    url.host
+
+  const isLocalHost =
+    host.startsWith('localhost') || host.startsWith('127.0.0.1')
+
+  const protocol =
+    request.headers.get('x-forwarded-proto') ||
+    (isLocalHost ? 'http' : 'https')
+
+  return `${protocol}://${host}`
+}
+
+function normalizeNextPath(next: string | null, fallback = '/auth/resolve') {
+  if (next && next.startsWith('/')) {
+    return next
+  }
+
+  return fallback
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  // After OAuth, route to /auth/resolve which handles slug lookup + routing
-  const next = searchParams.get('next') ?? '/auth/resolve'
-
-  // Get a reliable base URL using headers to prevent Next.js standalone
-  // from resolving to 0.0.0.0:3000 when behind a reverse proxy.
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
-  const protocol = request.headers.get('x-forwarded-proto') || 'https'
-  const baseUrl = host ? `${protocol}://${host}` : new URL(request.url).origin
+  const next = normalizeNextPath(searchParams.get('next'))
+  const baseUrl = getBaseUrl(request)
 
   if (code) {
     const cookieStore = await cookies()
@@ -38,13 +57,13 @@ export async function GET(request: Request) {
     )
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+
     if (!error) {
-      console.log('[Callback] Code exchanged successfully, redirecting to', next)
       return NextResponse.redirect(`${baseUrl}${next}`)
     }
+
     console.error('[Callback] Code exchange failed:', error)
   }
 
-  // Code exchange failed — redirect to login with error
   return NextResponse.redirect(`${baseUrl}/login?error=auth_callback_failed`)
 }

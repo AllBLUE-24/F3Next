@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
@@ -11,18 +11,34 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect');
+  const callbackError = searchParams.get('error');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const supabase = createClient();
 
-  // No useEffect session check — middleware handles redirecting
-  // authenticated users away from /login automatically.
+  const callbackErrorMessage = useMemo(() => {
+    if (callbackError === 'auth_callback_failed') {
+      return 'Authentication callback failed. Please try again.';
+    }
+
+    if (callbackError === 'email_confirmation_failed') {
+      return 'Email confirmation failed. Request a new verification email and try again.';
+    }
+
+    return '';
+  }, [callbackError]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfoMessage('');
+    setNeedsEmailConfirmation(false);
     setLoading(true);
 
     const { data, error: authError } = await supabase.auth.signInWithPassword({
@@ -32,17 +48,18 @@ function LoginForm() {
 
     if (authError || !data.user) {
       console.error('[Login] Error:', authError);
+
       if (authError?.message?.includes('Email not confirmed')) {
-        setError('Please verify your email address before logging in.');
+        setNeedsEmailConfirmation(true);
+        setError('Your email is not verified yet.');
       } else {
         setError('Invalid email or password.');
       }
+
       setLoading(false);
       return;
     }
 
-    // Auth succeeded. Route to the resolve page which handles
-    // backend slug lookup + dashboard routing.
     if (redirectPath) {
       router.push(
         `${redirectPath}${redirectPath.includes('?') ? '&' : '?'}return=true`
@@ -52,11 +69,40 @@ function LoginForm() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError('Enter your email address first.');
+      return;
+    }
+
     setError('');
+    setInfoMessage('');
     setLoading(true);
 
-    // No signOut() before OAuth — it's unnecessary and destructive.
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      },
+    });
+
+    if (resendError) {
+      console.error('[Login] Resend verification error:', resendError);
+      setError(resendError.message || 'Failed to resend verification email.');
+    } else {
+      setInfoMessage('Verification email sent. Use the newest email only.');
+    }
+
+    setLoading(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setInfoMessage('');
+    setNeedsEmailConfirmation(false);
+    setLoading(true);
+
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -69,9 +115,9 @@ function LoginForm() {
       setError(authError.message || 'Google sign-in failed.');
       setLoading(false);
     }
-    // If no error, Supabase will redirect the browser to Google.
-    // Loading state stays true (page will unload).
   };
+
+  const displayError = error || callbackErrorMessage;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -85,9 +131,15 @@ function LoginForm() {
           </p>
         </div>
 
-        {error && (
+        {displayError && (
           <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-            {error}
+            {displayError}
+          </div>
+        )}
+
+        {infoMessage && (
+          <div className="p-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md">
+            {infoMessage}
           </div>
         )}
 
@@ -147,14 +199,23 @@ function LoginForm() {
             <label className="block text-sm font-medium text-gray-700">
               Password
             </label>
-            <input
-              type="password"
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 bg-white"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                className="block w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 bg-white"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute inset-y-0 right-0 px-3 text-sm font-medium text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           <button
@@ -165,6 +226,17 @@ function LoginForm() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        {needsEmailConfirmation && (
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={loading}
+            className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-70 disabled:cursor-wait"
+          >
+            {loading ? 'Sending...' : 'Resend verification email'}
+          </button>
+        )}
 
         <p className="text-center text-sm text-gray-600">
           Don&apos;t have an account?{' '}
