@@ -175,6 +175,71 @@ async def _list_master_names(
     return names
 
 
+_BOOTSTRAP_MASTER_PAYLOADS: dict[str, list[dict]] = {
+    "Customer Group": [
+        {"customer_group_name": "All Customer Groups", "is_group": 1},
+    ],
+    "Territory": [
+        {"territory_name": "All Territories", "is_group": 1},
+    ],
+}
+
+
+async def _create_master_record(
+    session: aiohttp.ClientSession,
+    base_url: str,
+    doctype: str,
+    headers: dict,
+    payload: dict,
+) -> bool:
+    url = _erp_url(base_url, f"/api/resource/{quote(doctype, safe='')}")
+
+    try:
+        async with session.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=20),
+        ) as resp:
+            if resp.status in (200, 201):
+                activity.logger.warning("  🛠️  bootstrapped missing %s via %s", doctype, payload)
+                return True
+
+            body_text = await resp.text()
+            activity.logger.warning(
+                "  ⚠️  failed to bootstrap %s → HTTP %s: %s",
+                doctype,
+                resp.status,
+                body_text[:300],
+            )
+            return False
+    except Exception as exc:
+        activity.logger.warning("  ⚠️  bootstrap create failed for %s: %s", doctype, exc)
+        return False
+
+
+async def _bootstrap_master_options(
+    session: aiohttp.ClientSession,
+    base_url: str,
+    doctype: str,
+    headers: dict,
+) -> list[str]:
+    payloads = _BOOTSTRAP_MASTER_PAYLOADS.get(doctype, [])
+    if not payloads:
+        return []
+
+    activity.logger.warning("  ⚠️  no %s records found — attempting bootstrap", doctype)
+    created_any = False
+    for payload in payloads:
+        created = await _create_master_record(session, base_url, doctype, headers, payload)
+        created_any = created_any or created
+
+    if not created_any:
+        return []
+
+    return await _list_master_names(session, base_url, doctype, headers)
+
+
 async def _resolve_link_value(
     session: aiohttp.ClientSession,
     base_url: str,
@@ -184,6 +249,8 @@ async def _resolve_link_value(
     fallbacks: list[str] | None = None,
 ) -> str:
     options = await _list_master_names(session, base_url, link_doctype, headers)
+    if not options:
+        options = await _bootstrap_master_options(session, base_url, link_doctype, headers)
     if not options:
         return desired
 

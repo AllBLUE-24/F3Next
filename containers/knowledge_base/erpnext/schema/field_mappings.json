@@ -505,7 +505,7 @@
             "fieldtype": "Link",
             "options": "Customer Group",
             "mandatory": true,
-            "default_value": "Commercial"
+            "default_value": "All Customer Groups"
           },
           "territory": {
             "fieldname": "territory",

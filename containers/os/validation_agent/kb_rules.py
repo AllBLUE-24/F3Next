@@ -48,7 +48,7 @@ class ValidationKnowledgeBase:
     """
 
     def __init__(self) -> None:
-        raw_kb06 = _load(_ERPNEXT / "docs" / "validation_rules.json")
+        raw_kb06 = _load(_ERPNEXT / "schema" / "validation_rules.json")
         if not raw_kb06:
             # Try alternate location
             raw_kb06 = _load(_KB_ROOT / "common" / "validation_rules.json")
