@@ -4,9 +4,9 @@ import { notFound } from 'next/navigation';
 import { ImplementationProvider } from '@/contexts/ImplementationContext';
 import type { ImplementationSession, DeploymentState } from '@/types/implementation';
 import { getProjectContext } from '@/lib/context/project-context';
+import { getBaseApiUrl } from '@/lib/config';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
-const API_BASE = 'http://backend_api:8000';
 
 function mockDeployment(): DeploymentState {
   return {
@@ -23,7 +23,7 @@ function mockDeployment(): DeploymentState {
 async function fetchDeploymentState(instanceId: string): Promise<DeploymentState> {
   try {
     const res = await fetch(
-      `${API_BASE}/api/deployment/${instanceId}`,
+      `${getBaseApiUrl()}/api/deployment/${instanceId}`,
       {
         cache: 'no-store',
         headers: { 'x-internal-secret': process.env.INTERNAL_SECRET || '' },

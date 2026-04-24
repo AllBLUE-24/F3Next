@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { useRouter } from 'next/navigation';
 import EarlyAccess from './early-access'; 
 import { Printer, Download, Share2, AlertTriangle, TrendingDown, FileText } from 'lucide-react';
+import { getBaseApiUrl } from '@/lib/config';
 
 export default function ReportPage() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function ReportPage() {
       }
       
       try {
-        const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+        const apiUrl = getBaseApiUrl();
         const res = await fetch(`${apiUrl}/health_check/status/${storedProjId}`);
         const data = await res.json();
 

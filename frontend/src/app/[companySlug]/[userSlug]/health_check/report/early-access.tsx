@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getBaseApiUrl } from '@/lib/config';
 
 interface EarlyAccessProps {
   annualBleed: string;
@@ -21,7 +22,7 @@ export default function EarlyAccess({ annualBleed, projectId, onSuccess }: Early
   const handleSecureSpot = async () => {
     if (!projectId) return;
     try {
-const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const apiUrl = getBaseApiUrl();
       fetch(`${apiUrl}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,7 +36,7 @@ const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
     if (!projectId) return;
     setIsSubmitting(true);
     try {
-      const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const apiUrl = getBaseApiUrl();
       const response = await fetch(`${apiUrl}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

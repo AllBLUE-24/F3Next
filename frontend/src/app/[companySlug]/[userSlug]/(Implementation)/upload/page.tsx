@@ -1,12 +1,13 @@
 import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { UploadView } from '@/components/implementation/upload/UploadView';
+import { getBaseApiUrl } from '@/lib/config';
 
 export const metadata = { title: 'Upload Files — F3Next' };
 
 // Action 1: Ask FastAPI for secure R2 upload URLs
 export async function getPresignedUrls(projectId: string, fileNames: string[]) {
   'use server';
-  const base = 'http://backend_api:8000';
+  const base = getBaseApiUrl();
   
   const res = await fetch(`${base}/api/implementation/presigned-urls`, {
     method: 'POST',
@@ -25,7 +26,7 @@ export async function getPresignedUrls(projectId: string, fileNames: string[]) {
 // Action 2: Tell FastAPI/Temporal the files are in R2
 export async function signalUploadComplete(projectId: string, companySlug: string, uploadedFiles: { file_name: string, object_path: string }[]) {
   'use server';
-  const base = 'http://backend_api:8000';
+  const base = getBaseApiUrl();
   
   // 👇 1. WE ADDED THIS: Tell FastAPI to start the Temporal workflow first! 👇
   const startRes = await fetch(`${base}/api/implementation/start/${projectId}`, {

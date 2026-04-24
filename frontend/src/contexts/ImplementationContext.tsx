@@ -3,6 +3,7 @@
 // src/contexts/ImplementationContext.tsx
 
 import { createContext, useContext, useCallback, useEffect, useState } from 'react';
+import { getBaseApiUrl } from '@/lib/config';
 import type {
   ImplementationContextValue,
   ImplementationSession,
@@ -34,7 +35,7 @@ export function ImplementationProvider({ session, initialDeployment, children }:
 
   const refreshDeployment = useCallback(async () => {
     try {
-      const base = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const base = getBaseApiUrl();
       const res = await fetch(`${base}/api/deployment/${session.instanceId}`);
       if (!res.ok) return;
       const data: DeploymentState = await res.json();

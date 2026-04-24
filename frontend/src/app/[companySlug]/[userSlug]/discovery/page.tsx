@@ -3,6 +3,7 @@
 import DiscoveryClient from "@/components/shared/DiscoveryClient";
 import { notFound } from "next/navigation";
 import { getProjectContext } from "@/lib/context/project-context";
+import { getBaseApiUrl } from "@/lib/config";
 
 // 1. Define params to match your folder structure EXACTLY
 interface PageProps {
@@ -23,7 +24,7 @@ interface ProjectResolution {
 async function getProjectFromSlug(slug: string): Promise<ProjectResolution | null> {
   try {
     // This calls your FastAPI backend directly
-    const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+    const apiUrl = getBaseApiUrl();
     const res = await fetch(`${apiUrl}/api/resolve-slug/${slug}`, {
       method: "GET",
       cache: "no-store", // Ensure we get fresh data every time

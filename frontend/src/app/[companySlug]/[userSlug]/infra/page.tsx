@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useParams, useRouter } from "next/navigation";
+import { getBaseApiUrl } from "@/lib/config";
 
 // Define response types
 interface ProjectContext {
@@ -31,7 +32,7 @@ export default function InfraPage() {
       if (!companySlug) return;
       try {
         // Call your existing resolver endpoint
-        const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+        const apiUrl = getBaseApiUrl();
         const res = await axios.get(`${apiUrl}/api/resolve/slug/${companySlug}`);
         setProject(res.data);
       } catch (err) {
@@ -52,7 +53,7 @@ export default function InfraPage() {
 
     try {
       // Call the NEW Backend Endpoint we defined above
-      const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const apiUrl = getBaseApiUrl();
       await axios.post(`${apiUrl}/api/deploy/infra`, {
         project_id: project.project_id,
         company_slug: companySlug,
@@ -97,7 +98,7 @@ export default function InfraPage() {
     if (!deploySuccess) return;
     const interval = setInterval(async () => {
       try {
-        const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+        const apiUrl = getBaseApiUrl();
         const res = await axios.get(`${apiUrl}/api/deployment/${project?.project_id}`);
         if (res.data.status === 'ready') {
           setDeploymentInfo(res.data);

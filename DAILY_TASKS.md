@@ -28,3 +28,8 @@ A fully autonomous platform where a user can sign up, chat with the Discovery Ag
 ### Low Priority
 - [ ] **Email Templates:** Customize Supabase email templates to match the new dark-mode premium branding.
 - [ ] **Analytics:** Add posthog or similar tracking to see where users drop off during the Discovery phase.
+
+
+
+REMEMBER BANTAI:
+1. APNEKO TLS CERTIFICATE LENEKE BAAD then remove insecure fallback later !

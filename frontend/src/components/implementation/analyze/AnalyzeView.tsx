@@ -8,6 +8,7 @@ import { useAnalysis } from '@/hooks/implementation/useAnalysis';
 import { BrainVisualizer } from './BrainVisualizer';
 import { TaskStream } from './TaskStream';
 import type { AnalysisTask } from '@/types/implementation';
+import { getBaseApiUrl } from '@/lib/config';
 
 // ── Niche display lookup ────────────────────────────────────────────────────
 const NICHE_DISPLAY: Record<string, { label: string; industry: string }> = {
@@ -68,7 +69,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
     if (!selectedNiche || confirming) return;
     setConfirming(true);
     try {
-      const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const API_BASE = getBaseApiUrl();
       const nicheInfo = NICHE_DISPLAY[selectedNiche] || { label: selectedNiche, industry: 'trading' };
       const res = await fetch(`${API_BASE}/api/implementation/signal/f3iche-confirmed`, {
         method: 'POST',
@@ -234,7 +235,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
               if (confirming) return;
               setConfirming(true);
               try {
-                const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+                const API_BASE = getBaseApiUrl();
                 const res = await fetch(`${API_BASE}/api/implementation/signal/mapping-confirmed`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },

@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation"; // <-- IMPORT ROUTER
 import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
 import { sendMessageToDiscoveryAgent } from "@/lib/api/hooks_api";
+import { getBaseApiUrl } from "@/lib/config";
 
-const API_BASE_URL = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 90_000; // 90s then show helpful message
@@ -72,7 +72,7 @@ export default function DiscoveryClient({
 
     intervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/discovery/status/${projectId}`);
+        const res = await fetch(`${getBaseApiUrl()}/api/discovery/status/${projectId}`);
         if (!res.ok) {
           if (res.status === 404) {
             stopPolling();

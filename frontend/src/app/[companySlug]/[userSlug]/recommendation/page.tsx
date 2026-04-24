@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBaseApiUrl } from "@/lib/config";
 
 // Define the shape of the data based on your Temporal workflow output
 interface RecommendationData {
@@ -36,7 +37,7 @@ export default function RecommendationPage() {
   
       const checkStatus = async () => {
         try {
-          const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+          const apiUrl = getBaseApiUrl();
           // UPDATE THIS LINE: Pointing to your discovery.py endpoint
           const res = await fetch(`${apiUrl}/api/discovery/${projectId}/recommendation`);
           

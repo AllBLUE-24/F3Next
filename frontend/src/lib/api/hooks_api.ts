@@ -1,5 +1,6 @@
 // src/lib/api/hooks_api.ts
-const API_BASE_URL = "";
+import { getBaseApiUrl } from "@/lib/config";
+const API_BASE_URL = getBaseApiUrl();
 
 // 1. Define the Input Interface (What frontend sends)
 interface ChatPayload {

@@ -4,6 +4,7 @@
 import { useCallback, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Upload, File, X, AlertCircle, ArrowRight } from 'lucide-react';
+import { getBaseApiUrl } from '@/lib/config';
 
 interface FileEntry {
   id: string;
@@ -32,7 +33,7 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
   const handleDeploy = async () => {
     setIsDeploying(true);
     try {
-      const base = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const base = getBaseApiUrl();
       const res = await fetch(`${base}/api/deploy/infra`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

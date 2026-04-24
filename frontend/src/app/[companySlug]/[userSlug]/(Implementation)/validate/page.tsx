@@ -4,13 +4,14 @@ import { redirect } from 'next/navigation';
 import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { ValidateView } from '@/components/implementation/validate/ValidateView';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
+import { getBaseApiUrl } from '@/lib/config';
 
 export const metadata = { title: 'Review & Validate — F3Next' };
 
 
 async function fetchPreviewData(projectId: string): Promise<ValidatePreviewData | null> {
   try {
-    const base = 'http://backend_api:8000';
+    const base = getBaseApiUrl();
     const res = await fetch(
       `${base}/api/implementation/validate-preview/${projectId}`,
       { cache: 'no-store' }
@@ -24,7 +25,7 @@ async function fetchPreviewData(projectId: string): Promise<ValidatePreviewData 
 
 async function submitValidation(formData: FormData) {
   'use server';
-  const base = 'http://backend_api:8000';
+  const base = getBaseApiUrl();
   const res = await fetch(`${base}/api/implementation/signal/validation-submitted`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -45,7 +46,7 @@ async function submitValidation(formData: FormData) {
 
 async function submitImport(formData: FormData) {
   'use server';
-  const base = 'http://backend_api:8000';
+  const base = getBaseApiUrl();
   const res = await fetch(`${base}/api/implementation/signal/sandbox-approved`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

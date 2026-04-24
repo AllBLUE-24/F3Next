@@ -1,5 +1,6 @@
 // lib/context/project-context.ts
 import { notFound } from "next/navigation";
+import { getBaseApiUrl } from "@/lib/config";
 
 export interface ProjectContextData {
   project_id: string;
@@ -16,7 +17,7 @@ export async function getProjectContext(slug: string): Promise<ProjectContextDat
 
   try {
     // 2. Call the Universal Backend Endpoint
-    const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+    const apiUrl = getBaseApiUrl();
     const res = await fetch(`${apiUrl}/api/resolve/slug/${slug}`, {
       method: "GET",
       cache: "no-store", // Always fetch fresh data

@@ -5,8 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { DeploymentState } from '@/types/implementation';
-
-const API_BASE = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+import { getBaseApiUrl } from '@/lib/config';
 
 const STATUS_CONFIG = {
   pending:   { label: 'Initializing',       dot: 'bg-gray-500',                text: 'text-gray-500',  ring: 'bg-gray-500/10 border-gray-500/20' },
@@ -37,7 +36,7 @@ export function DeploymentPill() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/deployment/slug/${companySlug}`);
+        const res = await fetch(`${getBaseApiUrl()}/api/deployment/slug/${companySlug}`);
         if (!res.ok) throw new Error('not ok');
         const data: DeploymentState = await res.json();
         if (!stopped) setDeployment(data);

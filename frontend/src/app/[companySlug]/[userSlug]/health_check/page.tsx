@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import QuestionsList, { QUESTIONS_DATA } from './questions';
 import { ChevronRight, FileBarChart, Loader2, ArrowRight } from 'lucide-react';
+import { getBaseApiUrl } from '@/lib/config';
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ function HealthCheckContent() {
     };
 
     try {
-      const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const apiUrl = getBaseApiUrl();
       const response = await fetch(`${apiUrl}/health_check/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

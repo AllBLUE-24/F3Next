@@ -3,7 +3,7 @@
  * F3iche, signals, profile, target structure, mapping, validation, import
  */
 
-const getBaseUrl = () => '';
+import { getBaseApiUrl } from "@/lib/config";
 
 export interface SignalsInferResult {
   f3iche: string;
@@ -58,7 +58,7 @@ export async function inferF3icheFromFiles(
   uploadedFiles: Array<{ file_name: string; object_path?: string }>,
   fileContents?: Record<string, string>
 ): Promise<SignalsInferResult> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/signals/infer`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/signals/infer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -78,7 +78,7 @@ export async function verifyF3icheMatch(
   f3icheSignals: string,
   confidence = 0
 ): Promise<F3icheVerifyResult> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/f3iche/verify`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/f3iche/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -98,7 +98,7 @@ export async function buildTargetStructure(
   f3iche: string,
   industry?: string
 ): Promise<{ target_structure: TargetStructure }> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/target-structure`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/target-structure`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -116,7 +116,7 @@ export async function mapFileToErpNext(
   filename: string,
   doctypeHint?: string
 ): Promise<MapFileResult> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/map-file`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/map-file`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -134,7 +134,7 @@ export async function validateMappedData(
   mappedData: Record<string, unknown>,
   targetStructure: Record<string, unknown>
 ): Promise<{ validation_report: ValidationReport }> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/validate`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/validate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -153,7 +153,7 @@ export async function buildImportPlan(
   mappedData: Record<string, unknown>,
   validationReport: Record<string, unknown>
 ): Promise<{ import_plan: ImportPlan }> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/import/plan`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/import/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -171,7 +171,7 @@ export async function getCompanyProfile(projectId: string): Promise<{
   profile: Record<string, unknown>;
   project_id: string;
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/profile/${projectId}`);
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/profile/${projectId}`);
   if (!res.ok) throw new Error('Failed to get profile');
   return res.json();
 }
@@ -196,7 +196,7 @@ export async function updateCompanyProfile(
     action?: string;
   }
 ): Promise<{ profile: Record<string, unknown>; version: number }> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/profile/update`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/profile/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -208,7 +208,7 @@ export async function updateCompanyProfile(
 export async function listF3iches(): Promise<{
   f3iches: Array<{ id: string; name: string; description: string }>;
 }> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/f3iche/list`);
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/f3iche/list`);
   if (!res.ok) throw new Error('Failed to list F3iches');
   return res.json();
 }
@@ -236,13 +236,13 @@ export interface ValidatePreviewData {
 }
 
 export async function getValidatePreview(projectId: string): Promise<ValidatePreviewData> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/validate-preview/${projectId}`);
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/validate-preview/${projectId}`);
   if (!res.ok) throw new Error('Failed to fetch validation preview');
   return res.json();
 }
 
 export async function sendSandboxApproved(projectId: string, dryRun = false): Promise<void> {
-  const res = await fetch(`${getBaseUrl()}/api/implementation/signal/sandbox-approved`, {
+  const res = await fetch(`${getBaseApiUrl()}/api/implementation/signal/sandbox-approved`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ project_id: projectId, dry_run: dryRun }),

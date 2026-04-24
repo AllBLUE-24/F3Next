@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getBaseApiUrl } from '@/lib/config';
 
 // This holds the ID once resolved, acting as the "Universal" reference for the UI
 let currentProjectId: string | null = null;
@@ -8,7 +9,7 @@ export const setGlobalProjectContext = (id: string) => {
 };
 
 const api = axios.create({
-    baseURL: "",
+    baseURL: getBaseApiUrl(),
 });
 
 // Universal Interceptor: Automatically injects project context into every POST/PUT

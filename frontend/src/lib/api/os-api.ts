@@ -2,9 +2,8 @@
  * lib/api/os-api.ts
  */
 
-declare const process: { env: Record<string, string | undefined> };
+import { getBaseApiUrl } from "@/lib/config";
 
-const BASE = ""; // Force relative path so Next.js/Caddy handles routing
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +78,7 @@ export interface HistorySession {
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
 
 async function call<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${getBaseApiUrl()}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });

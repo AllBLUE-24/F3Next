@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ArrowRight, Check, X, Loader2 } from 'lucide-react';
+import { getBaseApiUrl } from '@/lib/config';
 
 export default function PrivateCohort() {
   const [showModal, setShowModal] = useState(false);
@@ -20,7 +21,7 @@ export default function PrivateCohort() {
   const handleFinalListMe = async () => {
     setIsSubmitting(true);
     try {
-      const apiUrl = (typeof window !== "undefined" ? "" : "http://backend_api:8000");
+      const apiUrl = getBaseApiUrl();
       const response = await fetch(`${apiUrl}/health_check/capture-interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

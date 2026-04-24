@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { SandboxView } from '@/components/implementation/sandbox/SandboxView';
 import type { SandboxInstance } from '@/types/implementation';
+import { getBaseApiUrl } from '@/lib/config';
 
 export const metadata = { title: 'Sandbox — F3Next' };
 
@@ -19,7 +20,7 @@ const DEV_SANDBOX: SandboxInstance = {
 
 async function fetchSandbox(companySlug: string): Promise<SandboxInstance | null> {
   try {
-    const base = 'http://backend_api:8000';
+    const base = getBaseApiUrl();
     const res = await fetch(
       `${base}/api/implementation/sandbox/${companySlug}`,
       { cache: 'no-store', headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! } }
@@ -33,7 +34,7 @@ async function fetchSandbox(companySlug: string): Promise<SandboxInstance | null
 
 async function approveForProduction(formData: FormData) {
   'use server';
-  const base = 'http://backend_api:8000';
+  const base = getBaseApiUrl();
   const res = await fetch(`${base}/api/implementation/signal/sandbox-approved`, {
     method: 'POST',
     headers: {
