@@ -241,7 +241,7 @@ class ImplementationWorkflow:
             _step_ok(L, 0, "Session Creation", f"session_id = {self._session_id}")
         except Exception as e:
             _step_fail(L, 0, "Session Creation", str(e))
-            return {"error": f"Failed to initialize session: {e}"}
+            raise workflow.ApplicationError(f"Failed to initialize session: {e}")
 
         self._analysis_tasks = [
             self._task("t1", "Parsing uploaded files"),
@@ -284,12 +284,12 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 1, "Virus Scan", str(e))
             self._stage = "error"
-            return {"error": f"Virus scan failed: {e}"}
+            raise workflow.ApplicationError(f"Virus scan failed: {e}")
 
         if not scan_result.get("safe", False):
             _step_fail(L, 1, "Virus Scan", "INFECTED FILES DETECTED — halting workflow")
             self._stage = "infected_halt"
-            return {"error": "Implementation halted due to malicious payload."}
+            raise workflow.ApplicationError("Implementation halted due to malicious payload.")
 
         self._company_slug = sig.company_slug or "unknown"
         _step_ok(L, 1, "Virus Scan", f"All {scan_result.get('clean_count')} files clean | slug={self._company_slug}")
@@ -340,7 +340,7 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 3, "Signals Inference", str(e))
             self._stage = "error"
-            return {"error": f"F3iche inference failed: {e}"}
+            raise workflow.ApplicationError(f"F3iche inference failed: {e}")
 
         self._set_task("t2", "done")
         self._set_task("t3", "done")
@@ -453,7 +453,7 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 7, "Build Company Profile", str(e))
             self._stage = "error"
-            return {"error": f"Profile build failed: {e}"}
+            raise workflow.ApplicationError(f"Profile build failed: {e}")
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 7a / 14  —  Industry Knowledge Retrieval
@@ -521,7 +521,7 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 7, "Build Target Structure", str(e))
             self._stage = "error"
-            return {"error": f"Target structure failed: {e}"}
+            raise workflow.ApplicationError(f"Target structure failed: {e}")
 
         self._set_task("t5", "done", f"{len(target.get('required_doctypes', []))} doctypes target")
 
@@ -663,7 +663,7 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 11, "Validation", str(e))
             self._stage = "error"
-            return {"error": f"Validation failed: {e}"}
+            raise workflow.ApplicationError(f"Validation failed: {e}")
 
         self._set_task("t7", "done", f"Status: {v_status}")
         self._stage = "awaiting_validation_submission"
@@ -729,7 +729,7 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 12, "Build Import Plan", str(e))
             self._stage = "error"
-            return {"error": f"Import plan build failed: {e}"}
+            raise workflow.ApplicationError(f"Import plan build failed: {e}")
 
         self._set_task("t8", "done", f"Status: {plan_status}")
         self._stage = "awaiting_sandbox_approval"
@@ -778,6 +778,7 @@ class ImplementationWorkflow:
                 L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)
+                raise workflow.ApplicationError(f"Import phase {phase_label} failed: {e}")
 
         _kv(L, "reads from", "is_import_plans, R2 extracted rows")
         _kv(L, "tables written", "is_import_logs (per step), is_import_plans (status)")

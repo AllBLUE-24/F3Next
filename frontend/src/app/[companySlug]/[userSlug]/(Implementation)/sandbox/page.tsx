@@ -44,8 +44,8 @@ async function approveForProduction(formData: FormData) {
     body: JSON.stringify({ 
       project_id: formData.get('jobId'), 
       company_slug: formData.get('companySlug'),
-      erpnext_base_url: "https://sandbox-dev.erpnext.f3next.in",
-      erpnext_api_key: "dev-mock-key",
+      erpnext_base_url: "",
+      erpnext_api_key: "",
       dry_run: false
     }),
   });

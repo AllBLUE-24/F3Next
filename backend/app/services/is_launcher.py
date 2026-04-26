@@ -163,15 +163,19 @@ class ImplementationLauncher:
         erpnext_api_key: str,
         dry_run: bool = False,
     ) -> None:
+        from temporalio.service import RPCError
         handle = await self._handle(project_id)
-        await handle.signal(
-            ImplementationWorkflow.sandbox_approved,
-            SandboxApprovedSignal(
-                erpnext_base_url=erpnext_base_url,
-                erpnext_api_key=erpnext_api_key,
-                dry_run=dry_run,
-            ),
-        )
+        try:
+            await handle.signal(
+                ImplementationWorkflow.sandbox_approved,
+                SandboxApprovedSignal(
+                    erpnext_base_url=erpnext_base_url,
+                    erpnext_api_key=erpnext_api_key,
+                    dry_run=dry_run,
+                ),
+            )
+        except RPCError as e:
+            logger.warning(f"Failed to signal sandbox approved (likely completed/failed): {e}")
 
     # ── Queries ───────────────────────────────────────────────────────────────
 
