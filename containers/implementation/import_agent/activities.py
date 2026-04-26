@@ -265,9 +265,11 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     # Ensure clean Base URL — auto-resolve from Project.deployment_details if not provided
     base_url = (inp.erpnext_base_url or "").rstrip("/")
     api_token = inp.erpnext_api_key or ""
+    verify_ssl = True
+    allow_insecure_ssl = True
 
     # ── AUTO-RESOLVE: Fetch credentials from Project.deployment_details if missing ──
-    if (not base_url or not api_token) and inp.project_id:
+    if inp.project_id:
         try:
             from shared.models.core import Project
             async with AsyncSessionLocal() as db:
@@ -287,6 +289,13 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                             activity.logger.info("  🔑 Auto-resolved API credentials from Project.deployment_details")
                         else:
                             activity.logger.warning("  ⚠️ Project.deployment_details has no api_key/api_secret")
+                            
+                    v_ssl = details.get("verify_ssl")
+                    if v_ssl is not None:
+                        verify_ssl = str(v_ssl).lower() not in ("false", "0", "no")
+                    a_ssl = details.get("allow_insecure_ssl")
+                    if a_ssl is not None:
+                        allow_insecure_ssl = str(a_ssl).lower() not in ("false", "0", "no")
                 else:
                     activity.logger.warning("  ⚠️ No Project or deployment_details found for project_id=%s", inp.project_id)
         except Exception as e:
@@ -299,7 +308,9 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     } if api_token else {}
 
     # Increase timeout for bulk ERPNext processing
-    async with httpx.AsyncClient(base_url=base_url, timeout=60.0) as client:
+    async with httpx.AsyncClient(base_url=base_url, timeout=60.0, verify=verify_ssl) as default_client:
+        client = default_client
+        unverified_client = None
         
         for step_idx, step in enumerate(steps):
             dt = step.get("doctype", "")
@@ -337,12 +348,28 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                 # 🚀 LIVE IMPORT: Row-by-Row Frappe API Posting
                 for row_idx, row in enumerate(rows):
                     try:
-                        # Frappe API wants {"customer_name": "ABC"}, NOT {"data": [...]}
-                        resp = await client.post(
-                            f"/api/resource/{dt}",
-                            json=row,
-                            headers=headers,
-                        )
+                        try:
+                            # Frappe API wants {"customer_name": "ABC"}, NOT {"data": [...]}
+                            resp = await client.post(
+                                f"/api/resource/{dt}",
+                                json=row,
+                                headers=headers,
+                            )
+                        except Exception as client_exc:
+                            if verify_ssl and allow_insecure_ssl and "CERTIFICATE_VERIFY_FAILED" in str(client_exc):
+                                activity.logger.warning("  ⚠️ SSL verify failed, switching to unverified client for remaining rows")
+                                if not unverified_client:
+                                    unverified_client = httpx.AsyncClient(base_url=base_url, timeout=60.0, verify=False)
+                                client = unverified_client
+                                verify_ssl = False  # only switch once
+                                resp = await client.post(
+                                    f"/api/resource/{dt}",
+                                    json=row,
+                                    headers=headers,
+                                )
+                            else:
+                                raise client_exc
+
                         resp.raise_for_status()
                         
                         records_succeeded += 1
@@ -406,6 +433,9 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                     duration_seconds=int(duration_sec)
                 ))
                 await db_session.commit()
+
+        if unverified_client:
+            await unverified_client.aclose()
 
     # ── 3. Update import plan status ─────────────────────────────────────────
     async with AsyncSessionLocal() as session:
