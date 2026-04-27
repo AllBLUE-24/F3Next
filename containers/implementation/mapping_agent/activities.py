@@ -446,6 +446,42 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
                     mapped_row[field_mapping[src_col]] = val
             mapped_records.append(mapped_row)
 
+        # ✨ Apply Baseline Defaults via LLM ✨
+        baseline_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "erpnext_deafaults_baseline.json"
+        if baseline_path.exists() and mapped_records:
+            try:
+                with open(baseline_path, "r", encoding="utf-8") as bf:
+                    baseline_data = json.load(bf)
+                
+                # Process in chunks to respect token output limits
+                CHUNK_SIZE = 50
+                cleaned_records = []
+                for i in range(0, len(mapped_records), CHUNK_SIZE):
+                    chunk = mapped_records[i:i+CHUNK_SIZE]
+                    prompt = (
+                        "You are an ERP data cleaning agent.\n"
+                        f"Here are the allowed ERPNext baseline defaults: {json.dumps(baseline_data)}\n"
+                        f"We are importing records for the doctype '{doctype}'.\n"
+                        "Please review the following array of records. You must:\n"
+                        "1. Normalize any categorical fields (e.g., 'Customer Group', 'Supplier Group', 'Territory', 'Payment Terms Template', etc.) "
+                        "to exactly match an allowed value from the baseline if it's close. If it's completely invalid or missing, pick the safest default (e.g., 'All Customer Groups', 'All Supplier Groups', etc.).\n"
+                        "2. Specifically ensure that 'Customer Type' is strictly one of 'Company', 'Individual', or 'Partnership'. If missing or invalid, default to 'Company'.\n"
+                        "3. Ensure any required standard ERP fields are present and valid based on the baseline.\n"
+                        "4. Do not invent new records. Only modify existing values and add required default keys to existing objects.\n"
+                        f"Records:\n{json.dumps(chunk)}\n\n"
+                        'Return JSON strictly in this format: { "records": [ {<record1>}, {<record2>} ] }. Ensure the returned array length matches the input length exactly.'
+                    )
+                    res = generate_json(prompt, max_output_tokens=8000)
+                    cleaned_chunk = res.get("records", chunk)
+                    if isinstance(cleaned_chunk, list) and len(cleaned_chunk) == len(chunk):
+                        cleaned_records.extend(cleaned_chunk)
+                    else:
+                        cleaned_records.extend(chunk)
+                mapped_records = cleaned_records
+                activity.logger.info("  ✨ Applied baseline defaults via LLM for %s", doctype)
+            except Exception as e:
+                activity.logger.warning("  ⚠️ LLM baseline cleaning failed: %s", e)
+
         erpnext_payload = {
             "doctype": doctype,
             "records": mapped_records 
