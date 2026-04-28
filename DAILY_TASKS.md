@@ -33,3 +33,4 @@ A fully autonomous platform where a user can sign up, chat with the Discovery Ag
 
 REMEMBER BANTAI:
 1. APNEKO TLS CERTIFICATE LENEKE BAAD then remove insecure fallback later !
+2. Context file versioning on every update/action into database service !

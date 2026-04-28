@@ -1,5 +1,13 @@
 """
 Target Agent — Temporal activities for building the ERPNext action workflow.
+
+This agent is the PREREQUISITE PLANNER for the implementation workflow.
+After loading seed doctypes from the company profile or f3iche template, it:
+  1. Walks erpnext_doctype_graph.json to resolve ALL transitive prerequisites
+  2. Orders every doctype by graph layer (layer 0 → layer 7)
+  3. Cross-checks each against erpnext_deafaults_baseline.json
+  4. Logs a full human-readable plan with actions (MUST CREATE / USE DEFAULT / AUTO)
+  5. Produces setup_steps driven by the graph — not by LLM guesswork
 """
 from __future__ import annotations
 
@@ -7,7 +15,8 @@ import json
 import os
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 import boto3
 from botocore.config import Config
@@ -20,6 +29,284 @@ from containers.implementation.utils.llm_helper import generate_json
 
 # 🚀 Importing the prompt from your clean prompts.py file!
 from containers.implementation.target_agent.prompts import TARGET_STRUCTURE_PROMPT
+
+
+# ─── KNOWLEDGE BASE PATHS ─────────────────────────────────────────────────────
+
+_KB_ERP = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext"
+_DOCTYPE_GRAPH_PATH   = _KB_ERP / "erpnext_doctype_graph.json"
+_DEFAULTS_BASELINE_PATH = _KB_ERP / "erpnext_deafaults_baseline.json"
+
+
+# ─── PREREQUISITE PLANNER ─────────────────────────────────────────────────────
+
+def _load_doctype_graph() -> Dict[str, Any]:
+    if _DOCTYPE_GRAPH_PATH.exists():
+        with open(_DOCTYPE_GRAPH_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def _load_defaults_baseline() -> Dict[str, List]:
+    if _DEFAULTS_BASELINE_PATH.exists():
+        with open(_DEFAULTS_BASELINE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+_LAYER_ORDER = [
+    "layer_0_system",
+    "layer_1_config",
+    "layer_2_masters",
+    "layer_3_parties",
+    "layer_4_pricing",
+    "layer_5_transactions",
+    "layer_6_fulfillment",
+    "layer_7_finance",
+]
+
+_LAYER_TO_PHASE = {
+    "layer_0_system":       "phase_a_config",
+    "layer_1_config":       "phase_a_config",
+    "layer_2_masters":      "phase_a_config",
+    "layer_3_parties":      "phase_b_master",
+    "layer_4_pricing":      "phase_b_master",
+    "layer_5_transactions": "phase_c_transactional",
+    "layer_6_fulfillment":  "phase_c_transactional",
+    "layer_7_finance":      "phase_c_transactional",
+    "layer_unknown":        "phase_c_transactional",
+}
+
+
+def _resolve_prerequisites(seed_doctypes: List[str], graph: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    BFS over the doctype dependency graph starting from the seed doctypes.
+    Returns every doctype needed (including transitive prereqs) ordered by layer.
+    """
+    graph_dts   = graph.get("doctypes", {})
+    setup_layers = graph.get("setup_layers", {})
+
+    all_required: Set[str] = set(seed_doctypes)
+    queue = list(seed_doctypes)
+    dependency_map: Dict[str, List[str]] = {}
+
+    while queue:
+        dt = queue.pop(0)
+        dt_info = graph_dts.get(dt, {})
+        raw_deps = dt_info.get("depends_on", [])
+        # Strip parenthetical notes e.g. "Item (template)" → "Item"
+        deps = [d.split(" (")[0].strip() for d in raw_deps
+                if d and not d.startswith("all ")]
+        dependency_map[dt] = deps
+        for dep in deps:
+            if dep not in all_required:
+                all_required.add(dep)
+                queue.append(dep)
+
+    # Order by layer
+    ordered_layers: List[Dict] = []
+    seen: Set[str] = set()
+    for layer_key in _LAYER_ORDER:
+        layer_dts = setup_layers.get(layer_key, [])
+        in_layer = [dt for dt in layer_dts if dt in all_required and dt not in seen]
+        if in_layer:
+            ordered_layers.append({"layer": layer_key, "doctypes": in_layer})
+            seen.update(in_layer)
+
+    unlayered = [dt for dt in all_required if dt not in seen]
+    if unlayered:
+        ordered_layers.append({"layer": "layer_unknown", "doctypes": sorted(unlayered)})
+
+    return {
+        "ordered_layers": ordered_layers,
+        "dependency_map": dependency_map,
+        "all_required": sorted(all_required),
+    }
+
+
+def _classify_against_baseline(
+    all_required: List[str],
+    baseline: Dict[str, List],
+    graph_dts: Dict[str, Any],
+) -> Dict[str, Any]:
+    classifications = []
+    for dt in all_required:
+        bv = baseline.get(dt, [])
+        has_baseline = len(bv) > 0
+        dt_info = graph_dts.get(dt, {})
+        layer = dt_info.get("layer", -1)
+
+        if layer in (0, 1) and not has_baseline:
+            action = "auto_created_by_erpnext"
+        elif has_baseline:
+            action = "use_default"
+        else:
+            action = "must_create"
+
+        classifications.append({
+            "doctype":         dt,
+            "layer":           layer,
+            "action":          action,
+            "baseline_count":  len(bv),
+            "baseline_sample": bv[:3],
+            "required_fields": dt_info.get("required_fields", []),
+        })
+
+    classifications.sort(key=lambda x: (x["layer"] if x["layer"] >= 0 else 99, x["doctype"]))
+    return {
+        "must_create":    [c for c in classifications if c["action"] == "must_create"],
+        "use_default":    [c for c in classifications if c["action"] == "use_default"],
+        "auto_by_erpnext":[c for c in classifications if c["action"] == "auto_created_by_erpnext"],
+        "all":            classifications,
+    }
+
+
+def _build_graph_setup_steps(
+    ordered_layers: List[Dict],
+    classified_lookup: Dict[str, Dict],
+    seed_doctypes: List[str],
+) -> tuple[List[Dict], Dict[str, Any]]:
+    """
+    Build the authoritative setup_steps list from graph layer order.
+    Returns (setup_steps, import_phases).
+    """
+    setup_steps: List[Dict] = []
+    import_phases: Dict[str, Any] = {
+        "phase_a_config":        {"name": "Configuration Setup",  "doctypes": []},
+        "phase_b_master":        {"name": "Master Data",           "doctypes": []},
+        "phase_c_transactional": {"name": "Transactional Data",    "doctypes": []},
+    }
+    step_num = 1
+
+    for layer_entry in ordered_layers:
+        layer_key = layer_entry["layer"]
+        phase_id  = _LAYER_TO_PHASE.get(layer_key, "phase_c_transactional")
+        for dt in layer_entry["doctypes"]:
+            info   = classified_lookup.get(dt, {})
+            action = info.get("action", "must_create")
+            setup_steps.append({
+                "step":    step_num,
+                "phase":   phase_id,
+                "doctype": dt,
+                "action":  action,          # must_create | use_default | auto_created_by_erpnext
+                "is_seed": dt in seed_doctypes,
+                "required_fields": info.get("required_fields", []),
+            })
+            import_phases[phase_id]["doctypes"].append(dt)
+            step_num += 1
+
+    return setup_steps, import_phases
+
+
+def _log_prerequisite_plan(
+    seed_doctypes: List[str],
+    resolution: Dict[str, Any],
+    classified: Dict[str, Any],
+    dependency_map: Dict[str, List[str]],
+) -> None:
+    """Write the full prerequisite plan to activity logs."""
+    L   = activity.logger
+    BAR = "═" * 72
+    DIV = "─" * 72
+    DOT = "· " * 36
+
+    ordered_layers = resolution["ordered_layers"]
+    all_required   = resolution["all_required"]
+    classified_lookup = {c["doctype"]: c for c in classified["all"]}
+
+    L.info("")
+    L.info(DOT)
+    L.info("  📋  TARGET STRUCTURE — PREREQUISITE PLAN")
+    L.info("        Resolving full dependency graph before building setup_steps")
+    L.info(DOT)
+    L.info("")
+
+    L.info("  Seed Doctypes (from f3iche / company profile):")
+    for dt in seed_doctypes:
+        L.info("      → %s", dt)
+    L.info("")
+
+    # ── Layer-by-layer creation order ────────────────────────────────────────
+    L.info(BAR)
+    L.info("  STEP-BY-STEP PREREQUISITE CREATION ORDER  (graph-authoritative)")
+    L.info(BAR)
+    L.info("")
+
+    step_num = 1
+    for layer_entry in ordered_layers:
+        layer_key   = layer_entry["layer"]
+        layer_label = layer_key.replace("_", " ").title()
+        phase_id    = _LAYER_TO_PHASE.get(layer_key, "phase_c_transactional")
+
+        L.info("  ┌── %s  [→ %s] ──┐", layer_label, phase_id)
+        for dt in layer_entry["doctypes"]:
+            info   = classified_lookup.get(dt, {})
+            action = info.get("action", "unknown")
+            deps   = dependency_map.get(dt, [])
+            is_seed = dt in seed_doctypes
+
+            if action == "use_default":
+                icon   = "🟢"
+                alabel = f"USE DEFAULT  ({info.get('baseline_count', 0)} baseline values)"
+            elif action == "auto_created_by_erpnext":
+                icon   = "🔵"
+                alabel = "AUTO-CREATED by ERPNext on Company setup"
+            elif action == "must_create":
+                icon   = "🔴"
+                alabel = "MUST CREATE  ← needs data or seed record"
+            else:
+                icon   = "⚪"
+                alabel = action
+
+            tag = " [SEED]" if is_seed else " [PREREQ]"
+            L.info("  │  Step %-3d  %s  %-28s %s%s", step_num, icon, dt, alabel, tag)
+
+            if deps:
+                L.info("  │            depends_on     : %s", ", ".join(deps))
+            req_fields = info.get("required_fields", [])
+            if req_fields and action == "must_create":
+                L.info("  │            required_fields: %s", ", ".join(req_fields))
+            if action == "use_default" and info.get("baseline_sample"):
+                L.info("  │            baseline_sample: %s", info["baseline_sample"])
+
+            step_num += 1
+
+        L.info("  └%s", "─" * 60)
+        L.info("")
+
+    # ── Summary ──────────────────────────────────────────────────────────────
+    L.info(BAR)
+    L.info("  PREREQUISITE PLAN SUMMARY")
+    L.info(BAR)
+    L.info("")
+    L.info("  %-38s : %d", "Seed doctypes (f3iche / profile)", len(seed_doctypes))
+    L.info("  %-38s : %d", "Total required (incl. prereqs)", len(all_required))
+    L.info("  %-38s : %d", "🔴 Must be explicitly created", len(classified["must_create"]))
+    L.info("  %-38s : %d", "🟢 Already exist as ERPNext defaults", len(classified["use_default"]))
+    L.info("  %-38s : %d", "🔵 Auto-created by ERPNext on setup", len(classified["auto_by_erpnext"]))
+    L.info("")
+
+    if classified["must_create"]:
+        L.info("  🔴 MUST CREATE — need explicit records before import:")
+        for c in classified["must_create"]:
+            tag = " ← import file" if c["doctype"] in seed_doctypes else " ← create seed/default"
+            L.info("      %-28s  required: %s%s",
+                   c["doctype"],
+                   ", ".join(c["required_fields"]) or "(see ERPNext docs)",
+                   tag)
+        L.info("")
+
+    if classified["use_default"]:
+        L.info("  🟢 USE DEFAULT — already in erpnext_deafaults_baseline.json:")
+        for c in classified["use_default"]:
+            L.info("      %-28s  %d values  e.g. %s",
+                   c["doctype"], c["baseline_count"], c["baseline_sample"])
+        L.info("")
+
+    L.info(DOT)
+    L.info("  📋  PREREQUISITE PLAN COMPLETE — setup_steps built from graph")
+    L.info(DOT)
+    L.info("")
 
 
 # ─── DATACLASSES ──────────────────────────────────────────────────────────────
@@ -38,7 +325,14 @@ class BuildTargetInput:
 async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
     """
     Step 8: Generates the Target Structure (Blueprint) for ERPNext mapping.
-    Uses the LLM to format doctypes and establish the import phases chronologically.
+
+    Now graph-driven:
+      1. Loads seed doctypes from company profile or f3iche template
+      2. Walks erpnext_doctype_graph.json — resolves ALL transitive prerequisites
+      3. Cross-checks against erpnext_deafaults_baseline.json
+      4. Logs the full prerequisite plan (Step 8 is the PLANNER)
+      5. Produces setup_steps / import_phases ordered by graph layer — not LLM
+      6. LLM is still called for reasoning notes only
     """
     activity.logger.info("▶ build_target_structure started | session=%s f3iche=%s", inp.session_id, inp.f3iche)
 
@@ -49,32 +343,31 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
             stmt = select(ISCompanyProfile).where(
                 ISCompanyProfile.session_id == uuid.UUID(inp.session_id)
             ).order_by(ISCompanyProfile.version.desc()).limit(1)
-            
+
             res = await session.execute(stmt)
             latest = res.scalar_one_or_none()
-            
+
             if latest:
                 profile_dict = {
-                    "industry": latest.industry,
-                    "required_modules": latest.required_modules,
-                    "required_doctypes": latest.required_doctypes,
+                    "industry":                latest.industry,
+                    "required_modules":        latest.required_modules,
+                    "required_doctypes":       latest.required_doctypes,
                     "industry_best_practices": latest.industry_best_practices,
-                    "data_quality_score": latest.data_quality_score,
-                    "completeness_score": latest.completeness_score
+                    "data_quality_score":      latest.data_quality_score,
+                    "completeness_score":      latest.completeness_score,
                 }
     except Exception as e:
         activity.logger.error("  ❌ Failed to fetch profile from DB: %s", e)
 
-    # ── FALLBACK: If profile has empty required_doctypes, load from f3iche template ──
+    # ── FALLBACK: load seed doctypes from f3iche template if profile is empty ──
     if not profile_dict.get("required_doctypes"):
-        from pathlib import Path
         f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
         if f3iche_path.exists():
             try:
                 with open(f3iche_path, "r", encoding="utf-8") as f:
                     f3iche_data = json.load(f)
                 template_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
-                template_modules = f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))
+                template_modules  = f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))
                 if template_doctypes:
                     profile_dict["required_doctypes"] = template_doctypes
                     activity.logger.info("  📋 Loaded %d required_doctypes from f3iche template '%s'",
@@ -84,48 +377,70 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
             except Exception as e:
                 activity.logger.warning("  ⚠️ Could not load f3iche template: %s", e)
 
-    # 2. Call LLM to format the target architecture
-    prompt = TARGET_STRUCTURE_PROMPT.format(
-        company_profile=json.dumps(profile_dict, indent=2)
-    )
+    seed_doctypes: List[str] = profile_dict.get("required_doctypes") or []
 
+    # ── 2. GRAPH RESOLUTION ───────────────────────────────────────────────────
+    graph    = _load_doctype_graph()
+    baseline = _load_defaults_baseline()
+
+    graph_driven          = False
+    setup_steps: List[Dict]    = []
+    import_phases: Dict[str, Any] = {}
+    all_required_doctypes: List[str] = list(seed_doctypes)
+
+    if graph and seed_doctypes:
+        graph_driven      = True
+        graph_dts         = graph.get("doctypes", {})
+        resolution        = _resolve_prerequisites(seed_doctypes, graph)
+        classified        = _classify_against_baseline(resolution["all_required"], baseline, graph_dts)
+        classified_lookup = {c["doctype"]: c for c in classified["all"]}
+
+        # ── 3. LOG THE FULL PREREQUISITE PLAN ────────────────────────────────
+        try:
+            _log_prerequisite_plan(
+                seed_doctypes=seed_doctypes,
+                resolution=resolution,
+                classified=classified,
+                dependency_map=resolution["dependency_map"],
+            )
+        except Exception as log_err:
+            activity.logger.warning("  ⚠️ Prerequisite plan logging failed (non-fatal): %s", log_err)
+
+        # ── 4. BUILD GRAPH-AUTHORITATIVE setup_steps & import_phases ─────────
+        setup_steps, import_phases = _build_graph_setup_steps(
+            ordered_layers=resolution["ordered_layers"],
+            classified_lookup=classified_lookup,
+            seed_doctypes=seed_doctypes,
+        )
+        all_required_doctypes = resolution["all_required"]
+        activity.logger.info("  ✅ Graph resolution complete | total=%d steps=%d",
+                             len(all_required_doctypes), len(setup_steps))
+    else:
+        activity.logger.warning("  ⚠️ Graph not available — falling back to seed doctypes only")
+
+    # ── 5. LLM — reasoning annotation only, does NOT change step order ───────
+    llm_reasoning = "Graph-driven: setup_steps produced from erpnext_doctype_graph.json"
+    llm_enhanced  = False
     try:
-        target_architecture = generate_json(prompt, temperature=0.1, max_output_tokens=2000)
-        llm_enhanced = True
+        prompt  = TARGET_STRUCTURE_PROMPT.format(company_profile=json.dumps(profile_dict, indent=2))
+        llm_out = generate_json(prompt, temperature=0.1, max_output_tokens=2000)
+        llm_reasoning = llm_out.get("llm_reasoning") or llm_reasoning
+        llm_enhanced  = True
+        activity.logger.info("  💬 LLM reasoning appended")
     except Exception as e:
-        activity.logger.warning("  ⚠️ LLM Target generation failed: %s — building from template", e)
-        # Build import_phases and setup_steps programmatically from required_doctypes
-        doctypes = profile_dict.get("required_doctypes", [])
-        phase_a_set = {"Company", "Fiscal Year", "UOM", "Item Group", "Warehouse", "Workstation", "Operation", "UOM (Unit of Measure)"}
-        phase_b_set = {"Item", "Customer", "Supplier", "Employee", "BOM", "BOM (Bill of Materials = Recipe)", "Batch"}
-        phase_a = [d for d in doctypes if d in phase_a_set]
-        phase_b = [d for d in doctypes if d in phase_b_set]
-        phase_c = [d for d in doctypes if d not in phase_a_set and d not in phase_b_set]
-        
-        setup_steps = []
-        step_num = 1
-        for phase_id, phase_doctypes in [("phase_a_config", phase_a), ("phase_b_master", phase_b), ("phase_c_transactional", phase_c)]:
-            for dt in phase_doctypes:
-                setup_steps.append({"step": step_num, "phase": phase_id, "doctype": dt})
-                step_num += 1
-        
-        target_architecture = {
-            "required_doctypes": doctypes,
-            "import_phases": {
-                "phase_a_config": {"doctypes": phase_a},
-                "phase_b_master": {"doctypes": phase_b},
-                "phase_c_transactional": {"doctypes": phase_c},
-            },
-            "setup_steps": setup_steps,
-            "llm_reasoning": "Fallback: phases auto-classified from f3iche template doctypes."
-        }
-        llm_enhanced = False
+        activity.logger.warning("  ⚠️ LLM call failed (non-fatal, graph steps already built): %s", e)
 
-    # Resolve industry: prefer DB profile, then f3iche template, finally "Unknown"
+    # ── Bare fallback if graph produced nothing ───────────────────────────────
+    if not setup_steps:
+        activity.logger.warning("  ⚠️ No setup_steps from graph — using seed list directly")
+        for i, dt in enumerate(seed_doctypes, 1):
+            setup_steps.append({"step": i, "phase": "phase_a_config", "doctype": dt})
+        import_phases = {"phase_a_config": {"name": "Configuration Setup", "doctypes": seed_doctypes}}
+
+    # ── Resolve industry label ────────────────────────────────────────────────
     resolved_industry = profile_dict.get("industry")
     if not resolved_industry or resolved_industry == "Unknown":
-        from pathlib import Path as _Path
-        _f_path = _Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
+        _f_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
         if _f_path.exists():
             try:
                 with open(_f_path, "r", encoding="utf-8") as _f:
@@ -136,15 +451,16 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
             resolved_industry = "Unknown"
 
     result = {
-        "f3iche": inp.f3iche,
-        "industry": resolved_industry,
-        "required_doctypes": target_architecture.get("required_doctypes", []),
-        "import_phases": target_architecture.get("import_phases", {}),
-        "setup_steps": target_architecture.get("setup_steps", []),
-        "validation_rules": {}
+        "f3iche":            inp.f3iche,
+        "industry":          resolved_industry,
+        "required_doctypes": all_required_doctypes,   # full graph-resolved list (incl. prereqs)
+        "import_phases":     import_phases,
+        "setup_steps":       setup_steps,             # graph-authoritative, layer-ordered
+        "graph_driven":      graph_driven,
+        "validation_rules":  {}
     }
 
-    # 4. Save the full target JSON to R2
+    # 6. Save to R2
     r2_key = f"{inp.company_slug}/{inp.project_id}/_target/target_structure.json"
     try:
         s3 = boto3.client(
@@ -165,7 +481,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
     except Exception as e:
         activity.logger.error("  ❌ R2 upload failed: %s", e)
 
-    # 5. Save to Supabase and Log Audit Trail
+    # 7. Save to Supabase + audit
     target_id = uuid.uuid4()
     try:
         async with AsyncSessionLocal() as session:
@@ -174,7 +490,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
                 session_id=uuid.UUID(inp.session_id),
                 f3iche=inp.f3iche,
                 llm_enhanced=llm_enhanced,
-                llm_reasoning=target_architecture.get("llm_reasoning"),
+                llm_reasoning=llm_reasoning,
                 total_doctypes=len(result.get("required_doctypes", [])),
                 total_setup_steps=len(result.get("setup_steps", [])),
                 required_doctypes=json.dumps(result.get("required_doctypes", [])),
@@ -191,13 +507,20 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
             actor="system",
             entity_type="target_structure",
             entity_id=str(target_id),
-            details={"f3iche": inp.f3iche, "doctypes": len(result.get("required_doctypes", [])), "llm_enhanced": llm_enhanced},
+            details={
+                "f3iche":       inp.f3iche,
+                "doctypes":     len(result.get("required_doctypes", [])),
+                "setup_steps":  len(result.get("setup_steps", [])),
+                "graph_driven": graph_driven,
+                "llm_enhanced": llm_enhanced,
+            },
             result="success",
         )
         activity.logger.info("  ✅ ISTargetStructure persisted.")
     except Exception as e:
         activity.logger.error("  ❌ ISTargetStructure persistence failed: %s", e)
 
-    activity.logger.info("✅ build_target_structure done | doctypes=%d steps=%d",
-                         len(result.get('required_doctypes', [])), len(result.get('setup_steps', [])))
+    activity.logger.info("✅ build_target_structure done | doctypes=%d steps=%d graph_driven=%s",
+                         len(result.get("required_doctypes", [])), len(result.get("setup_steps", [])), graph_driven)
     return result
+

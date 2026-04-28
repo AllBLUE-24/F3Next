@@ -1,8 +1,9 @@
 """
 Import Agent — Temporal activities for the 3-phase ERPNext import.
 
-v4: Flawless Frappe API execution. Handles row-by-row imports, 
-    tracks partial successes, and matches the Step 13 Blueprint exactly.
+Prerequisite planning moved to target_agent (Step 8). This agent
+reads the already-resolved setup_steps from ISTargetStructure and
+generates + executes the 3-phase import plan.
 """
 from __future__ import annotations
 
@@ -107,7 +108,8 @@ class ExecutePhaseInput:
 @activity.defn(name="build_import_plan")
 async def build_import_plan(inp: BuildImportPlanInput) -> str:
     """
-    Step 12: Generates the 3-Phase execution plan combining Target Structure and Mapped Data.
+    Step 12: Generates the 3-Phase execution plan from the already-resolved
+    ISTargetStructure (setup_steps are graph-authoritative from Step 8).
     """
     activity.logger.info("▶ build_import_plan started | session=%s", inp.session_id)
 
@@ -150,6 +152,7 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         if md.validation_status == "failed":
             validation_status = "fail"
 
+    # ── BUILD THE 3-PHASE IMPORT PLAN ─────────────────────────────────────────
     engine = _ImportEngine()
     plan = engine.build_plan(setup_steps, mapped_data_dict, validation_status)
     plan_status = plan.get("status", "blocked")
