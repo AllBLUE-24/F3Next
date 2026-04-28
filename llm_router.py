@@ -9,8 +9,10 @@ Handles:
   - Sidelined keys get a 60-second cooldown window, after which they are re-eligible.
   - Tiered fallback order (override via GEMINI_MODEL_TIERS env var, comma-separated):
         Tier 1 (Primary)  : gemini-2.5-flash
-        Tier 2 (Fallback) : gemini-1.5-flash
-        Tier 3 (Last)     : gemini-flash-latest
+        Tier 2 (Fallback) : gemini-2.5-flash-lite
+        Tier 3 (Fallback) : gemini-1.5-flash-latest
+        Tier 4 (Fallback) : gemini-1.5-pro-latest
+        Tier 5 (Last)     : gemini-flash-latest
 
 Public API (all callers work unchanged):
   await invoke_smart_llm(messages, model_name=..., temperature=..., max_output_tokens=..., **kwargs)
@@ -55,7 +57,7 @@ key_pool = cycle(api_keys) if api_keys else None
 
 _tier_env = os.getenv(
     "GEMINI_MODEL_TIERS",
-    "gemini-2.5-flash,gemini-1.5-flash,gemini-flash-latest",
+    "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-1.5-flash-latest,gemini-1.5-pro-latest,gemini-flash-latest",
 )
 MODEL_TIERS: List[str] = [m.strip() for m in _tier_env.split(",") if m.strip()]
 
@@ -66,7 +68,7 @@ MODEL_TIERS: List[str] = [m.strip() for m in _tier_env.split(",") if m.strip()]
 
 _quota_sidelined: Dict[Tuple[str, str], float] = {}
 _quota_lock = Lock()
-_COOLDOWN_SECONDS = 60  # keys become re-eligible after this window
+_COOLDOWN_SECONDS = 20  # keys become re-eligible after this window
 
 
 def _is_sidelined(model: str, key: str) -> bool:
@@ -149,6 +151,7 @@ def _try_model_sync(
                 temperature=temperature,
                 max_output_tokens=max_output_tokens,
                 google_api_key=key,
+                max_retries=0,  # <-- CRITICAL: Disable Langchain's built-in sleep/retry!
                 **kwargs,
             )
             response = llm.invoke(messages)
@@ -189,6 +192,7 @@ async def _try_model_async(
                 temperature=temperature,
                 max_output_tokens=max_output_tokens,
                 google_api_key=key,
+                max_retries=0,  # <-- CRITICAL: Disable Langchain's built-in sleep/retry!
                 **kwargs,
             )
             response = await llm.ainvoke(messages)
@@ -243,7 +247,7 @@ async def invoke_smart_llm(
     Strategy (fast):
       - 1 quota error on a key → sideline that key, try next key immediately.
       - All keys dead on the requested model → switch to next model tier instantly.
-      - Sidelined keys recover after 60 s.
+      - Sidelined keys recover after 20 s.
     """
     model_queue = _build_model_queue(model_name)
 

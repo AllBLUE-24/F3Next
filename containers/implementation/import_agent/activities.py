@@ -1,9 +1,15 @@
 """
 Import Agent — Temporal activities for the 3-phase ERPNext import.
 
-Prerequisite planning moved to target_agent (Step 8). This agent
-reads the already-resolved setup_steps from ISTargetStructure and
-generates + executes the 3-phase import plan.
+Prerequisite planning is done in target_agent (Step 8). Each setup_step
+arrives here with an `action` field set by the planner:
+  - must_create          → user has a data file  → action: create
+  - use_default          → baseline values exist  → action: seed_from_baseline
+  - auto_created_by_erpnext → ERPNext handles it → action: skip
+  - must_create (no file)→ data gap              → action: data_gap
+
+The Pre-flight Seeder runs before row-level import to POST all
+`seed_from_baseline` doctypes so link-validation never fails.
 """
 from __future__ import annotations
 
@@ -12,10 +18,11 @@ import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import boto3
-import httpx  # <--- CRITICAL for the HTTP requests to ERPNext
+import httpx
 from botocore.config import Config
 from temporalio import activity
 
@@ -29,6 +36,54 @@ def _get_s3_client():
         config=Config(signature_version="s3v4"),
         region_name="auto",
     )
+
+
+# ── Knowledge base path ───────────────────────────────────────────────────────
+
+_KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext"
+_BASELINE_PATH = _KB_DIR / "erpnext_deafaults_baseline.json"
+
+
+# ── Baseline seeder helpers ───────────────────────────────────────────────────
+
+# Maps each doctype to the field name Frappe uses as the primary identifier.
+# Used when building the POST body for a baseline seed record.
+_DT_NAME_FIELD: Dict[str, str] = {
+    "UOM":              "uom_name",
+    "Item Group":       "item_group_name",
+    "Customer Group":   "customer_group_name",
+    "Supplier Group":   "supplier_group_name",
+    "Territory":        "territory_name",
+    "Price List":       "price_list_name",
+    "Currency":         "currency_name",
+    "Country":          "country_name",
+    "Department":       "department_name",
+    "Designation":      "designation_name",
+    "Sales Stage":      "stage_name",
+    "Lead Source":      "source_name",
+    "Incoterm":         "incoterm",
+    "Industry Type":    "industry",
+    "Item Attribute":   "attribute_name",
+    "Fiscal Year":      "year",
+    "Sales Person":     "sales_person_name",
+}
+
+
+def _build_baseline_record(doctype: str, value: str) -> Dict[str, Any]:
+    """
+    Build the minimal POST body required to create a baseline seed record
+    in ERPNext via the Frappe REST API.
+
+    For most simple master doctypes (UOM, Item Group, Territory, etc.) only
+    the name field is required. Special cases are handled explicitly.
+    """
+    name_field = _DT_NAME_FIELD.get(doctype)
+    if name_field:
+        return {name_field: value}
+
+    # Generic fallback: try snake_case of doctype + "_name"
+    snake = doctype.lower().replace(" ", "_")
+    return {f"{snake}_name": value}
 
 
 # ── Embedded service logic ────────────────────────────────────────────────────
@@ -58,20 +113,43 @@ class _ImportEngine:
         for step_idx, step_info in enumerate(setup_steps):
             dt = step_info.get("doctype", "Unknown")
             phase_key = step_info.get("phase", "phase_a_config")
-            
+
             if phase_key not in phases:
                 phase_key = "phase_a_config"
-                
+
             is_mapped = dt in mapped_data_dict
-            
+            # Read the planner's action from Step 8 — do NOT discard it
+            planner_action = step_info.get("action", "must_create")
+
+            if is_mapped:
+                # User has provided a data file — import it row by row
+                exec_action  = "create"
+                data_source  = mapped_data_dict[dt]["r2_path"]
+                record_count = mapped_data_dict[dt]["total_rows"]
+            elif planner_action == "use_default":
+                # Values exist in erpnext_deafaults_baseline.json — seed them
+                exec_action  = "seed_from_baseline"
+                data_source  = "baseline"
+                record_count = 0  # will be filled in at seed time
+            elif planner_action == "auto_created_by_erpnext":
+                # ERPNext creates these automatically on Company setup — skip
+                exec_action  = "skip"
+                data_source  = "auto"
+                record_count = 0
+            else:
+                # must_create but no file uploaded — flag as data gap
+                exec_action  = "data_gap"
+                data_source  = "none"
+                record_count = 0
+
             step_def = {
-                "step": step_idx + 1,
-                "doctype": dt,
-                "action": "create" if is_mapped else "default_or_skip",
-                "data_source": mapped_data_dict[dt]["r2_path"] if is_mapped else "hardcoded",
-                "records": mapped_data_dict[dt]["total_rows"] if is_mapped else 1 
+                "step":        step_idx + 1,
+                "doctype":     dt,
+                "action":      exec_action,
+                "data_source": data_source,
+                "records":     record_count,
             }
-            
+
             phases[phase_key]["steps"].append(step_def)
             total_steps += 1
 
@@ -314,13 +392,89 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     async with httpx.AsyncClient(base_url=base_url, timeout=60.0, verify=verify_ssl) as default_client:
         client = default_client
         unverified_client = None
-        
+
+        # ── PRE-FLIGHT SEEDER ─────────────────────────────────────────────────
+        # Runs BEFORE the main import loop.
+        # Seeds all `use_default` doctypes (UOM, Item Group, Territory, etc.)
+        # using values from erpnext_deafaults_baseline.json so that link-
+        # validation never fails when importing Items, Customers, etc.
+        seed_steps = [s for s in steps if s.get("action") == "seed_from_baseline"]
+
+        if seed_steps and not inp.dry_run and base_url:
+            activity.logger.info("")
+            activity.logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(seed_steps))
+
+            baseline: Dict[str, List] = {}
+            if _BASELINE_PATH.exists():
+                with open(_BASELINE_PATH, "r", encoding="utf-8") as _bf:
+                    baseline = json.load(_bf)
+            else:
+                activity.logger.warning("  ⚠️  Baseline file not found: %s", _BASELINE_PATH)
+
+            for seed_step in seed_steps:
+                dt_seed = seed_step["doctype"]
+                baseline_values: List[str] = baseline.get(dt_seed, [])
+
+                if not baseline_values:
+                    activity.logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
+                    continue
+
+                seeded = 0
+                already = 0
+                failed  = 0
+
+                for bval in baseline_values:
+                    record = _build_baseline_record(dt_seed, bval)
+                    try:
+                        _resp = await client.post(
+                            f"/api/resource/{dt_seed}",
+                            json=record,
+                            headers=headers,
+                        )
+                        if _resp.status_code in (409, 417):
+                            # 409 = already exists, 417 = duplicate name — both are OK
+                            already += 1
+                        else:
+                            _resp.raise_for_status()
+                            seeded += 1
+                    except Exception as _se:
+                        # Non-fatal: log and continue — a missing seed value will
+                        # surface as a link error on the specific row that uses it
+                        err_text = str(_se)
+                        if hasattr(_se, "response") and _se.response is not None:
+                            try:
+                                err_text = _se.response.json().get("exc_message", _se.response.text)
+                            except Exception:
+                                err_text = _se.response.text
+                        # Tolerate "already exists" style errors from Frappe
+                        if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
+                            already += 1
+                        else:
+                            failed += 1
+                            activity.logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, err_text)
+
+                activity.logger.info(
+                    "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
+                    dt_seed, seeded, already, failed
+                )
+
+        elif seed_steps and inp.dry_run:
+            activity.logger.info("  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)", len(seed_steps))
+
+        activity.logger.info("")
+        # ── END PRE-FLIGHT SEEDER ─────────────────────────────────────────────
+
         for step_idx, step in enumerate(steps):
             dt = step.get("doctype", "")
             action = step.get("action", "")
             step_start = datetime.utcnow()
 
-            if action == "default_or_skip":
+            # Skip actions that are not row-level imports
+            if action in ("default_or_skip", "skip", "seed_from_baseline", "data_gap"):
+                if action == "data_gap":
+                    activity.logger.warning(
+                        "  ⚠️  DATA GAP: %s has no mapped data file and no baseline — skipping", dt
+                    )
                 continue
 
             # Download payload from R2

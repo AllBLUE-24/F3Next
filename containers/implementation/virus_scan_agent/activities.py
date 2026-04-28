@@ -71,22 +71,24 @@ async def virus_scan_quarantine(files: List[Dict[str, Any]], session_id: str) ->
                 if not obj_key:
                     continue
 
-                # Query using the exact column name from your DB
-                stmt = select(ISFile).where(ISFile.r2_object_key == obj_key)
-                result = await session.execute(stmt)
-                file_row = result.scalar_one_or_none()
-
-                if not file_row:
-                    activity.logger.warning("  ⚠️ DB Update Skipped: No row found for %s", obj_key)
-                    continue
-
                 # Update the exact columns that exist in your DB
                 update_vals = {
                     "virus_scan_status": sr["status"],
                     "bucket_location": "clean-data" if sr["status"] == "clean" else "virus-data"
                 }
 
-                await session.execute(update(ISFile).where(ISFile.id == file_row.id).values(**update_vals))
+                # Update all rows matching the session_id and r2_object_key
+                # to handle cases where the same file might have multiple entries
+                stmt = (
+                    update(ISFile)
+                    .where(ISFile.session_id == session_id)
+                    .where(ISFile.r2_object_key == obj_key)
+                    .values(**update_vals)
+                )
+                result = await session.execute(stmt)
+
+                if result.rowcount == 0:
+                    activity.logger.warning("  ⚠️ DB Update Skipped: No row found for %s in session %s", obj_key, session_id)
             
             await session.commit()
 
