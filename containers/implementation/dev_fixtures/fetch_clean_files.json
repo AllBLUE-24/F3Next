@@ -1,0 +1,12 @@
+{
+  "_comment": "uploaded_files: file metadata from the frontend upload step. company_slug is used to key the R2 path.",
+  "uploaded_files": [
+    {
+      "file_name": "items.csv",
+      "file_id": "PASTE-FILE-ID-HERE",
+      "object_path": "uploads/acme/items.csv"
+    }
+  ],
+  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "company_slug": "acme"
+}

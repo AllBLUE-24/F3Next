@@ -1,0 +1,7 @@
+{
+  "_comment": "session_id is used to fetch the enriched company profile from Supabase. LLM is called for reasoning — use --mock-llm to skip.",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "f3iche": "trading",
+  "company_slug": "acme"
+}

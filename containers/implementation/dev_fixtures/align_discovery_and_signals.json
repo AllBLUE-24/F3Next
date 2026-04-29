@@ -1,0 +1,5 @@
+{
+  "_comment": "Reads from is_sessions + hooks table via session_id/project_id. LLM called for alignment score — use --mock-llm to skip.",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "project_id": "PASTE-REAL-PROJECT-UUID-HERE"
+}

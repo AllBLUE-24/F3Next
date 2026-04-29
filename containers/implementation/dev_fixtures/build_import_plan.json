@@ -1,0 +1,6 @@
+{
+  "_comment": "Paste a real session_id + project_id from Supabase. See dev_fixtures/README.md.",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "company_slug": "acme"
+}

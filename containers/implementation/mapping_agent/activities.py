@@ -482,10 +482,31 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
             except Exception as e:
                 activity.logger.warning("  ⚠️ LLM baseline cleaning failed: %s", e)
 
+        # ── Build link_fields metadata from schema ────────────────────────────
+        # Extract every Link field for this doctype from field_mappings.json so
+        # the import agent knows which field values need pre-flight seeding.
+        # Format: { "fieldname": "TargetDoctype", ... }
+        _link_fields: Dict[str, str] = {}
+        try:
+            _fmap_schema_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "schema" / "field_mappings.json"
+            with open(_fmap_schema_path, "r", encoding="utf-8") as _sf:
+                _schema_data = json.load(_sf)
+            _dt_fields = _schema_data.get("doctypes", {}).get(doctype, {}).get("field_mappings", {})
+            for _fn, _fc in _dt_fields.items():
+                if _fc.get("fieldtype") == "Link":
+                    _target = _fc.get("options")
+                    _fname = _fc.get("fieldname", _fn)
+                    if _target and isinstance(_target, str) and _fname:
+                        _link_fields[_fname] = _target
+        except Exception as _e:
+            activity.logger.warning("  ⚠️ Could not build link_fields metadata for %s: %s", doctype, _e)
+
         erpnext_payload = {
             "doctype": doctype,
-            "records": mapped_records 
+            "link_fields": _link_fields,   # consumed by import agent Pass 2
+            "records": mapped_records,
         }
+
         
         try:
             s3.put_object(

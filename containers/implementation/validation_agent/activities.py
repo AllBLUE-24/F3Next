@@ -280,12 +280,18 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
                     id=result_id,
                     session_id=uuid.UUID(inp.session_id),
                     mapped_data_id=mapped_data_id,
+                    doctype=doctype,
                     overall_status=check["status"],
                     report_r2_path=report_key,
                     total_errors=len(check.get("errors", [])),
                     total_warnings=len(check.get("warnings", [])),
                     total_records_checked=check.get("row_count", 0)
                 ))
+
+                # Flush the parent row into the transaction BEFORE adding children.
+                # Without this, Postgres rejects the ISValidationError FKs because
+                # the parent ISValidationResult row hasn't been sent to the DB yet.
+                await session.flush()
 
                 # Create ISValidationError rows for each error
                 for err_msg in check.get("errors", []):

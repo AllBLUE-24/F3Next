@@ -1,0 +1,12 @@
+{
+  "_comment": "uploaded_files are the file metadata objects. r2_manifest_url is the R2 key to the manifest JSON (not a full URL). LLM is called — use --mock-llm to skip.",
+  "uploaded_files": [
+    {
+      "file_name": "items.csv",
+      "file_id": "PASTE-FILE-ID-HERE",
+      "object_path": "uploads/acme/items.csv"
+    }
+  ],
+  "r2_manifest_url": "PASTE-R2-MANIFEST-KEY-HERE",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE"
+}

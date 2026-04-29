@@ -1,0 +1,10 @@
+{
+  "uploaded_files": [
+    {
+      "file_name": "items.csv",
+      "file_id": "PASTE-FILE-ID-HERE",
+      "object_path": "uploads/acme/items.csv"
+    }
+  ],
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE"
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "Reads latest profile from Supabase and enriches it with R2 file data + LLM. Use --mock-llm to skip Gemini.",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "company_slug": "acme",
+  "r2_manifest_url": "PASTE-R2-MANIFEST-KEY-HERE"
+}

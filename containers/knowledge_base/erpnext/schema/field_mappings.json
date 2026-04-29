@@ -582,9 +582,10 @@
           },
           "payment_terms": {
             "fieldname": "payment_terms",
-            "fieldtype": "Data",
+            "fieldtype": "Link",
+            "options": "Payment Terms Template",
             "mandatory": false,
-            "user_input_synonyms": ["payment_terms", "credit_terms", "terms"]
+            "user_input_synonyms": ["payment_terms", "credit_terms", "terms", "payment_terms_template", "default_payment_terms"]
           },
           "contact_person": {
             "fieldname": "supplier_primary_contact",

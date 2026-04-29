@@ -1,0 +1,9 @@
+{
+  "_comment": "Reads latest profile version from Supabase and creates a new version with the patch applied.",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "patch": {
+    "company_name": "Acme Trading Co. (edited)",
+    "industry_sub": "Wholesale Autoparts"
+  },
+  "action": "user_edit"
+}

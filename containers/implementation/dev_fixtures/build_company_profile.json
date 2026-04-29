@@ -1,0 +1,20 @@
+{
+  "_comment": "Builds a new company profile v1. LLM called for enrichment — use --mock-llm to skip. r2_manifest_url is optional.",
+  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "version": 1,
+  "f3iche": "trading",
+  "industry": "Wholesale Trade",
+  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "company_slug": "acme",
+  "action": "create",
+  "industry_sub": null,
+  "company_size": "Medium",
+  "company_name": "Acme Trading Co.",
+  "f3iche_user": "trading",
+  "f3iche_signals": "trading",
+  "f3iche_match_status": "matched",
+  "uploaded_files": [],
+  "r2_manifest_url": "",
+  "collected_signals": ["Has product catalog", "Has customer list"],
+  "discovery_alignment_score": null
+}

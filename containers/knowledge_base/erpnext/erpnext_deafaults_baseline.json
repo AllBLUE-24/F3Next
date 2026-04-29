@@ -984,5 +984,16 @@
     "Proposal Writing",
     "Execution",
     "Communication"
+  ],
+  "Payment Terms Template": [
+    "Net 7",
+    "Net 15",
+    "Net 30",
+    "Net 45",
+    "Net 60",
+    "Net 90",
+    "Immediate",
+    "COD",
+    "Advance"
   ]
 }
