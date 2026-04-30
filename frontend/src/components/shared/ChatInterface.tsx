@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, RefreshCw, MoreHorizontal } from "lucide-react";
+import { Send, Bot, User, RefreshCw } from "lucide-react";
 
 // --- Types ---
 interface Message {
@@ -15,8 +15,7 @@ export type { Message };
 
 interface ChatInterfaceProps {
   initialMessages?: Message[];
-  onSendMessage?: (message: string) => Promise<string>; // Optional handler for real API calls
-  /** Controlled mode: when provided, parent owns messages (e.g. for polling updates) */
+  onSendMessage?: (message: string) => Promise<string>;
   messages?: Message[];
   setMessages?: React.Dispatch<React.SetStateAction<Message[]>>;
 }
@@ -32,7 +31,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     {
       id: "welcome-1",
       role: "assistant",
-      content: "Hello! I am your AI assistant. How can I help you optimize your operations today?",
+      content: "Welcome to F3Next. I have loaded your project context.",
       timestamp: new Date(),
     }
   ]);
@@ -42,8 +41,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -52,7 +51,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Handle Send Logic
+  const resize = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
+
+  useEffect(() => { resize(); }, [inputValue]);
+
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
@@ -70,13 +77,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     try {
       let botResponseContent = "";
 
-      // If a parent handler is provided, use it (Real Logic)
       if (onSendMessage) {
         botResponseContent = await onSendMessage(userMsg.content);
       } else {
-        // Fallback Simulation (Mock Logic)
-        await new Promise((resolve) => setTimeout(resolve, 1500)); // Fake delay
-        botResponseContent = "I've received your query. In a real implementation, I would process this via your LangChain agent and query the vector database.";
+        await new Promise((resolve) => setTimeout(resolve, 1500)); 
+        botResponseContent = "Mock response from the AI.";
       }
 
       const botMsg: Message = {
@@ -94,123 +99,155 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  // Format time helper — use fixed locale to avoid hydration mismatch (server vs client)
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="flex flex-col h-[85vh] w-full max-w-4xl mx-auto bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-[var(--bg-void)]">
       
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-zinc-900 border-b border-zinc-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-600/20 rounded-lg">
-            <Bot className="w-6 h-6 text-blue-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-100">AI Agent</h2>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs text-zinc-400">Online & Ready</span>
-            </div>
-          </div>
-        </div>
-        <button 
-          onClick={() => setMessages([])} 
-          className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
-          title="Clear Chat"
-        >
-          <RefreshCw className="w-5 h-5" />
-        </button>
-      </div>
-
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
-        {messages.map((msg) => {
-          const isUser = msg.role === "user";
-          return (
-            <div
-              key={msg.id}
-              className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
-            >
-              <div className={`flex max-w-[80%] md:max-w-[70%] gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-                
-                {/* Avatar */}
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  isUser ? "bg-indigo-600" : "bg-zinc-700"
-                }`}>
-                  {isUser ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-zinc-300" />}
-                </div>
-
-                {/* Bubble */}
-                <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-                  <div
-                    className={`px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                      isUser
-                        ? "bg-indigo-600 text-white rounded-br-none"
-                        : "bg-zinc-800 text-zinc-100 border border-zinc-700 rounded-bl-none"
-                    }`}
-                  >
-                    {msg.content}
+      <div className="flex-1 overflow-y-auto px-6 py-6" style={{ scrollBehavior: 'smooth' }}>
+        <div className="w-full space-y-6">
+          {messages.map((msg) => {
+            const isUser = msg.role === "user";
+            return (
+              <div
+                key={msg.id}
+                className="flex w-full justify-start"
+              >
+                <div className="flex w-full gap-4 flex-row">
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 mt-0.5 w-6 h-6 rounded flex items-center justify-center ${
+                    isUser ? "bg-amber-500/10 border border-amber-500/20" : "bg-[var(--bg-shell)] border border-[var(--border-subtle)]"
+                  }`}>
+                    {isUser ? <User className="w-3.5 h-3.5 text-amber-500" /> : <Bot className="w-3.5 h-3.5 text-zinc-400" />}
                   </div>
-                  <span className="text-[10px] text-zinc-500 mt-1 px-1">
-                    {formatTime(msg.timestamp)}
-                  </span>
+
+                  {/* Bubble */}
+                  <div className="flex flex-col items-start max-w-full lg:max-w-[85%]">
+                    <div
+                      className={`text-[14px] leading-relaxed font-mono ${
+                        isUser
+                          ? "text-amber-500"
+                          : "text-zinc-300"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                    <span className="text-[9px] text-zinc-600 mt-1 font-mono">
+                      {formatTime(msg.timestamp)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Loading Indicator */}
+          {isLoading && (
+            <div className="flex w-full justify-start">
+              <div className="flex w-full gap-4 flex-row">
+                <div className="flex-shrink-0 mt-0.5 w-6 h-6 rounded bg-[var(--bg-shell)] border border-[var(--border-subtle)] flex items-center justify-center">
+                  <Bot className="w-3.5 h-3.5 text-zinc-400" />
+                </div>
+                <div className="text-[14px] leading-relaxed font-mono text-zinc-400 flex items-center gap-1">
+                  <span className="w-1 h-3 bg-zinc-600 animate-pulse"></span>
+                  Processing...
                 </div>
               </div>
             </div>
-          );
-        })}
-
-        {/* Loading Indicator */}
-        {isLoading && (
-          <div className="flex w-full justify-start">
-            <div className="flex max-w-[80%] gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center">
-                <Bot className="w-5 h-5 text-zinc-300" />
-              </div>
-              <div className="bg-zinc-800 border border-zinc-700 px-4 py-3 rounded-2xl rounded-bl-none flex items-center gap-1">
-                <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce"></span>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
+          )}
+          <div ref={messagesEndRef} className="h-4" />
+        </div>
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 bg-zinc-900 border-t border-zinc-800">
-        <div className="relative flex items-center gap-2 max-w-4xl mx-auto">
-          <input
-            type="text"
+      {/* Input Area (OS Terminal Style) */}
+      <div style={{
+        borderTop:  "1px solid #161b22",
+        background: "#0a0d14",
+        flexShrink: 0,
+        position:   "relative",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "flex-start", padding: "14px 20px", gap: "12px",
+        }}>
+          {/* Badge */}
+          <div style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "4px 8px", borderRadius: "6px", cursor: "default",
+              background: `rgba(245,158,11,0.1)`,
+              border: `1px solid rgba(245,158,11,0.2)`,
+              marginTop: "1px", flexShrink: 0,
+              userSelect: "none"
+          }}>
+            <span style={{ fontSize: "10px" }}>🔍</span>
+            <span style={{ 
+              color: "#f59e0b", fontSize: "9.5px", fontWeight: 700, 
+              letterSpacing: "1px", paddingTop: "1px" 
+            }}>
+              DISCOVERY
+            </span>
+          </div>
+
+          <textarea
+            ref={textareaRef}
             value={inputValue}
+            rows={1}
+            disabled={isLoading}
+            placeholder={
+              isLoading ? "processing..." : "What would you like to discover?..."
+            }
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            disabled={isLoading}
-            className="w-full bg-zinc-950 text-zinc-100 placeholder-zinc-500 border border-zinc-700 rounded-xl py-3.5 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all disabled:opacity-50"
+            style={{
+              flex: 1, background: "transparent", border: "none", outline: "none",
+              resize: "none", overflow: "hidden", fontFamily: "inherit",
+              fontSize: "14px", lineHeight: "24px", color: "#e6edf3",
+              caretColor: "#f59e0b", letterSpacing: "0.3px", marginTop: "1px"
+            }}
+            spellCheck={false}
           />
-          <button
-            onClick={handleSend}
-            disabled={!inputValue.trim() || isLoading}
-            className="absolute right-2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors"
+
+          {/* Loading indicator / Submit Hint */}
+          <div style={{ flexShrink: 0, marginTop: "6px" }}>
+            {isLoading ? (
+              <span style={{ color: "#f59e0b", fontSize: "10px", animation: "blink 1s step-end infinite" }}>▮</span>
+            ) : inputValue.trim() ? (
+              <span style={{ color: "#30363d", fontSize: "10px" }}>↵</span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Hint bar */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px 12px",
+          color: "#30363d", fontSize: "9.5px", letterSpacing: "0.5px",
+        }}>
+          <div>
+            <span><kbd className="bg-[#161b22] px-1 py-0.5 rounded border border-[#30363d] text-[9px] mr-1">↵</kbd> send</span>
+            <span className="ml-3"><kbd className="bg-[#161b22] px-1 py-0.5 rounded border border-[#30363d] text-[9px] mr-1">⇧↵</kbd> newline</span>
+          </div>
+          <button 
+            onClick={() => setMessages([])} 
+            className="flex items-center gap-1 hover:text-zinc-400 transition-colors"
           >
-            <Send className="w-5 h-5" />
+            <RefreshCw className="w-3 h-3" /> Clear session
           </button>
         </div>
-        <p className="text-center text-xs text-zinc-600 mt-2">
-          AI generated responses can be inaccurate.
-        </p>
+
+        <style>{`
+          @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+          textarea::placeholder { color: #30363d; }
+          textarea:disabled::placeholder { color: #21262d; }
+        `}</style>
       </div>
     </div>
   );

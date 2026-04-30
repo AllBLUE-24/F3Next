@@ -2,8 +2,15 @@
 
 // src/components/implementation/shell/ImplementationShell.tsx
 
-import { TopBar } from './TopBar';
 import { StepRail } from './StepRail';
+import { IBM_Plex_Mono } from "next/font/google";
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 interface Props {
   children: React.ReactNode;
@@ -11,17 +18,20 @@ interface Props {
 
 export function ImplementationShell({ children }: Props) {
   return (
-    <div className="min-h-screen bg-[#09090B] flex flex-col" style={{ fontFamily: 'var(--font-syne), sans-serif' }}>
-      <TopBar />
+    <div className={`flex flex-col h-full min-h-full w-full ${mono.variable}`} style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
+      
       <div className="flex flex-1 overflow-hidden">
+        {/* Secondary Sidebar (Implementation Steps) */}
         <StepRail />
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-10 lg:py-16">
+        
+        {/* Main implementation content */}
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-6 py-8 lg:py-12">
             {children}
           </div>
         </main>
       </div>
+      
     </div>
   );
 }

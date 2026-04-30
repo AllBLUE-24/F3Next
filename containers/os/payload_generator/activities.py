@@ -84,6 +84,26 @@ async def generate_payload(data: dict) -> dict:
     try:
         bundle = build_payload_bundle(plan, context, intent_dict)
 
+        # --- Date Sanitization (Bug 2 Fix) ---
+        # Ensures dates like "2026-4-3" become "2026-04-03" so ERPNext/Validation doesn't crash
+        import re
+        def _sanitize_dates(obj):
+            if isinstance(obj, dict):
+                return {k: _sanitize_dates(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [_sanitize_dates(i) for i in obj]
+            elif isinstance(obj, str):
+                match = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", obj.strip())
+                if match:
+                    y, m, d = match.groups()
+                    return f"{y}-{int(m):02d}-{int(d):02d}"
+            return obj
+
+        for s in bundle.get("steps", []):
+            if "payload" in s and isinstance(s["payload"], dict):
+                s["payload"] = _sanitize_dates(s["payload"])
+        # -------------------------------------
+
         activity.logger.info(
             "generate_payload: intent=%s doctype=%s steps=%d",
             intent_id, doctype, len(bundle.get("steps", [])),

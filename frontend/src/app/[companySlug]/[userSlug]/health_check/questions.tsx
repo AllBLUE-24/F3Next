@@ -123,18 +123,18 @@ interface QuestionsListProps {
 
 export default function QuestionsList({ answers, handleSelect }: QuestionsListProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {QUESTIONS_DATA.map((q) => (
-        <div key={q.key} className="bg-white shadow-sm rounded-lg p-6 border border-gray-100 transition-all hover:shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">{q.question}</h3>
-          <div className="space-y-2">
+        <div key={q.key} className="surface-card p-5 transition-all hover:border-[var(--border-default)]" style={{ borderRadius: 'var(--radius-lg)' }}>
+          <h3 className="text-sm font-bold text-zinc-200 mb-3">{q.question}</h3>
+          <div className="space-y-1.5">
             {q.options.map((option) => (
               <label
                 key={option}
-                className={`flex items-center p-3 rounded-md cursor-pointer border transition-colors ${
+                className={`flex items-center p-2.5 rounded-xl cursor-pointer border transition-all duration-150 ${
                   answers[q.key] === option
-                    ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'bg-amber-500/10 border-amber-500/30 ring-1 ring-amber-500/30'
+                    : 'border-transparent hover:bg-white/[0.03]'
                 }`}
               >
                 <input
@@ -143,9 +143,9 @@ export default function QuestionsList({ answers, handleSelect }: QuestionsListPr
                   value={option}
                   checked={answers[q.key] === option}
                   onChange={() => handleSelect(q.key, option)}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                  className="h-3.5 w-3.5 text-amber-500 focus:ring-amber-500/30 border-zinc-700 bg-[var(--bg-void)] accent-amber-500"
                 />
-                <span className="ml-3 block text-sm font-medium text-gray-700">
+                <span className="ml-3 block text-xs font-medium text-zinc-400">
                   {option}
                 </span>
               </label>

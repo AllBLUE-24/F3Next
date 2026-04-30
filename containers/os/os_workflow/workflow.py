@@ -125,6 +125,7 @@ class ERPOSCommandWorkflow:
                 "session_context": inp.session_context,
                 "erp_type":        inp.erp_type,
                 "clarifications":  [],
+                "project_id":      str(inp.project_id),
             }],
             task_queue             = OS_QUEUE,
             start_to_close_timeout = timedelta(seconds=90),

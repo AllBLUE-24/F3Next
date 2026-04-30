@@ -1,0 +1,39 @@
+# ── Python ──────────────────────────────────────────────────────────────────────
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Virtual environments — biggest offender (300MB+)
+**/venv
+**/.venv
+**/env
+**/.env_*
+
+# ── Node / Frontend ──────────────────────────────────────────────────────────────
+**/node_modules
+frontend/.next
+frontend/out
+frontend/.turbo
+
+# ── Git ──────────────────────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── Local dev / IDE ──────────────────────────────────────────────────────────────
+.antigravityignore
+**/.gemini
+**/.idea
+**/.vscode
+*.log
+
+# ── Test fixtures / dev data (not needed in production images) ──────────────────
+containers/implementation/dev_fixtures
+containers/knowledge_base/erpnext/schema/samples
+
+# ── Docker build artifacts ───────────────────────────────────────────────────────
+**/Dockerfile
+**/docker-compose*.yml

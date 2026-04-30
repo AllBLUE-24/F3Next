@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useParams, useRouter } from "next/navigation";
 import { getBaseApiUrl } from "@/lib/config";
+import { Loader2, Rocket, Server, Activity, ExternalLink, Copy } from "lucide-react";
 
 // Define response types
 interface ProjectContext {
@@ -75,17 +76,23 @@ export default function InfraPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="animate-pulse text-gray-400">Resolving Context...</div>
+      <div className="flex min-h-[60vh] items-center justify-center fade-in-up">
+        <div className="flex items-center gap-3 text-zinc-500">
+          <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+          <span className="text-sm font-medium">Resolving Context...</span>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !project) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-white">
-        <div className="text-red-500 text-5xl mb-4">⚠️</div>
-        <h1 className="text-xl font-bold text-gray-800">{error}</h1>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center fade-in-up">
+        <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
+          <span className="text-2xl">⚠️</span>
+        </div>
+        <h1 className="text-lg font-bold text-white mb-1">{error}</h1>
+        <p className="text-zinc-500 text-sm">Check the backend connection and try again.</p>
       </div>
     );
   }
@@ -112,67 +119,119 @@ export default function InfraPage() {
   }, [deploySuccess, project?.project_id]);
 
   return (
-    <div className="max-w-4xl mx-auto py-20 px-6">
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div className="max-w-3xl mx-auto py-8 fade-in-up">
+      <div className="surface-card overflow-hidden" style={{ borderRadius: 'var(--radius-xl)' }}>
         
         {/* Header */}
-        <div className="bg-gray-50 px-8 py-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-900">Infrastructure Launchpad</h1>
-          <p className="text-sm text-gray-500 mt-1">Ready to deploy ERPNext for <span className="font-semibold text-blue-600">{companySlug}</span></p>
+        <div className="bg-[var(--bg-shell)] px-7 py-5 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
+              <Rocket className="w-4 h-4 text-amber-400" />
+            </div>
+            <h1 className="text-lg font-bold text-white">Infrastructure Launchpad</h1>
+          </div>
+          <p className="text-xs text-zinc-500 ml-11">
+            Deploy ERPNext for <span className="font-semibold text-amber-400">{companySlug}</span>
+          </p>
         </div>
 
         {/* Content */}
-        <div className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="p-4 rounded-lg border border-blue-100 bg-blue-50">
-              <div className="text-xs uppercase tracking-wider text-blue-500 font-semibold mb-1">Server Tier</div>
-              <div className="text-lg font-bold text-gray-800">Standard (t3.medium)</div>
+        <div className="p-7">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Server className="w-3.5 h-3.5 text-zinc-500" />
+                <span className="text-[10px] uppercase tracking-wider text-zinc-600 font-bold">Server Tier</span>
+              </div>
+              <div className="text-sm font-bold text-white">Standard (t3.medium)</div>
             </div>
-            <div className="p-4 rounded-lg border border-purple-100 bg-purple-50">
-              <div className="text-xs uppercase tracking-wider text-purple-500 font-semibold mb-1">Current Status</div>
-              <div className="text-lg font-bold text-gray-800">{project?.status.replace('_', ' ')}</div>
+            <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Activity className="w-3.5 h-3.5 text-zinc-500" />
+                <span className="text-[10px] uppercase tracking-wider text-zinc-600 font-bold">Current Status</span>
+              </div>
+              <div className="text-sm font-bold text-white capitalize">{project?.status.replace('_', ' ')}</div>
             </div>
           </div>
 
-          <p className="text-gray-600 mb-8">
-            Clicking the button below will trigger the Temporal Workflow to provision EC2, configure Docker, and install ERPNext v15.
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          <p className="text-zinc-500 text-sm mb-6 leading-relaxed">
+            Clicking the button below will provision EC2, configure Docker, and install ERPNext v15 via the Temporal workflow.
           </p>
 
           <button
             onClick={handleDeploy}
-            disabled={deploying}
-            className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-lg transition-all 
-              ${deploying 
-                ? "bg-gray-400 cursor-not-allowed" 
-                : "bg-black hover:bg-gray-900 hover:shadow-xl active:scale-[0.99]"
+            disabled={deploying || deploySuccess}
+            className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2
+              ${deploying || deploySuccess
+                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-[var(--border-subtle)]" 
+                : "bg-amber-500 text-black hover:bg-amber-400 shadow-lg shadow-amber-500/10 active:scale-[0.99]"
               }`}
           >
             {deploying ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
                 Contacting Agents...
-              </span>
+              </>
+            ) : deploySuccess ? (
+              "✓ Deployment Triggered"
             ) : (
-              "🚀 Launch Infrastructure"
+              <>
+                <Rocket className="w-4 h-4" />
+                Launch Infrastructure
+              </>
             )}
           </button>
         </div>
+
         {/* Deployment Details */}
         {deploymentInfo && (
-          <div className="mt-8 p-6 bg-green-50 rounded-xl border border-green-200">
-            <h2 className="text-xl font-semibold mb-4 text-green-800">✅ Deployment Successful!</h2>
-            <div className="space-y-3 text-gray-800">
-              <p><strong>Site URL:</strong> <a href={deploymentInfo.instanceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">{deploymentInfo.instanceUrl}</a></p>
-              <p><strong>User ID:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.userId || "Administrator"}</span></p>
-              <p><strong>Password:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.adminPassword}</span></p>
-              {deploymentInfo.api_key && (<p><strong>API Key:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.api_key}</span></p>)}
-              {deploymentInfo.api_secret && (<p><strong>API Secret:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.api_secret}</span></p>)}
-              {deploymentInfo.container_id && (<p><strong>Container ID:</strong> <span className="ml-2 font-mono bg-white px-2 py-1 rounded border">{deploymentInfo.container_id}</span></p>)}
+          <div className="mx-7 mb-7 p-5 bg-green-500/8 rounded-xl border border-green-500/20">
+            <h2 className="text-sm font-bold mb-4 text-green-400 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              Deployment Successful
+            </h2>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500 text-xs font-medium w-24 flex-shrink-0">Site URL</span>
+                <a href={deploymentInfo.instanceUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 underline underline-offset-2 flex items-center gap-1">
+                  {deploymentInfo.instanceUrl}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500 text-xs font-medium w-24 flex-shrink-0">User ID</span>
+                <span className="font-mono bg-[var(--bg-void)] px-2 py-0.5 rounded text-zinc-300 text-xs border border-[var(--border-subtle)]">{deploymentInfo.userId || "Administrator"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500 text-xs font-medium w-24 flex-shrink-0">Password</span>
+                <span className="font-mono bg-[var(--bg-void)] px-2 py-0.5 rounded text-zinc-300 text-xs border border-[var(--border-subtle)] select-all">{deploymentInfo.adminPassword}</span>
+              </div>
+              {deploymentInfo.api_key && (
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-xs font-medium w-24 flex-shrink-0">API Key</span>
+                  <span className="font-mono bg-[var(--bg-void)] px-2 py-0.5 rounded text-zinc-300 text-xs border border-[var(--border-subtle)] select-all">{deploymentInfo.api_key}</span>
+                </div>
+              )}
+              {deploymentInfo.api_secret && (
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-xs font-medium w-24 flex-shrink-0">API Secret</span>
+                  <span className="font-mono bg-[var(--bg-void)] px-2 py-0.5 rounded text-zinc-300 text-xs border border-[var(--border-subtle)] select-all">{deploymentInfo.api_secret}</span>
+                </div>
+              )}
+              {deploymentInfo.container_id && (
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-xs font-medium w-24 flex-shrink-0">Container</span>
+                  <span className="font-mono bg-[var(--bg-void)] px-2 py-0.5 rounded text-zinc-300 text-xs border border-[var(--border-subtle)] select-all">{deploymentInfo.container_id}</span>
+                </div>
+              )}
             </div>
-            <p className="mt-4 text-sm text-green-700 font-medium">Please save these credentials securely before proceeding to the upload phase.</p>
+            <p className="mt-4 text-xs text-green-500/70 font-medium">Save these credentials securely before proceeding.</p>
           </div>
         )}
       </div>

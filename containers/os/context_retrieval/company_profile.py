@@ -52,7 +52,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ── Profile cache TTL ──────────────────────────────────────────────────────────
-PROFILE_CACHE_TTL_SECONDS = 3600   # 1 hour — after this, re-fetch from DB
+PROFILE_CACHE_TTL_SECONDS = 300   # 5 min — CVS keeps context fresh, so shorter TTL is fine
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -253,8 +253,82 @@ async def fetch_profile_from_db(
         logger.exception("DB profile fetch failed for project %s: %s", project_id, e)
         return None
 
+async def fetch_cvs_enrichment(project_id: str) -> dict:
+    """
+    Read the latest CVS master_data and transaction_intel snapshots from Supabase.
 
-# ── Session cache check ────────────────────────────────────────────────────────
+    Returns a dict with:
+      entity_registry     — known_customers, known_items, etc. (injected into Clarity prompt)
+      transaction_intel   — open orders, overdue invoices, pending actions
+      cvs_version         — snapshot version numbers for logging
+
+    Returns empty dicts if no CVS snapshot exists yet (IS not complete or CVS not seeded).
+    Never raises.
+    """
+    import uuid
+    try:
+        uuid.UUID(project_id)
+    except ValueError:
+        logger.debug("CVS enrichment skipped: project_id '%s' is not a valid UUID", project_id)
+        return {"entity_registry": {}, "transaction_intel": {}, "cvs_version": {}}
+
+    try:
+        from shared.database.db import AsyncSessionLocal
+        from shared.models.cvs_models import ContextSnapshot
+        from sqlalchemy import select
+
+        result_dict: dict = {
+            "entity_registry":   {},
+            "transaction_intel": {},
+            "cvs_version":       {},
+        }
+
+        async with AsyncSessionLocal() as session:
+            for layer in ["master_data", "transaction_intel"]:
+                res = await session.execute(
+                    select(ContextSnapshot)
+                    .where(
+                        ContextSnapshot.project_id == project_id,
+                        ContextSnapshot.layer      == layer,
+                    )
+                    .order_by(ContextSnapshot.version.desc())
+                    .limit(1)
+                )
+                row = res.scalars().first()
+
+                if row and row.data:
+                    result_dict["cvs_version"][layer] = row.version
+
+                    if layer == "master_data":
+                        data = row.data
+                        result_dict["entity_registry"] = {
+                            "known_customers":  data.get("known_customers", []),
+                            "known_suppliers":  data.get("known_suppliers", []),
+                            "known_items":      data.get("known_items", []),
+                            "known_warehouses": data.get("known_warehouses", []),
+                            "counts":           data.get("counts", {}),
+                        }
+
+                    elif layer == "transaction_intel":
+                        result_dict["transaction_intel"] = row.data
+
+        if result_dict["entity_registry"] or result_dict["transaction_intel"]:
+            logger.info(
+                "CVS enrichment loaded: customers=%d items=%d cvs_versions=%s project=%s",
+                len(result_dict["entity_registry"].get("known_customers", [])),
+                len(result_dict["entity_registry"].get("known_items", [])),
+                result_dict["cvs_version"],
+                project_id,
+            )
+        else:
+            logger.debug("CVS enrichment: no snapshots yet for project=%s", project_id)
+
+        return result_dict
+
+    except Exception as e:
+        logger.exception("CVS enrichment fetch failed for project=%s: %s", project_id, e)
+        return {"entity_registry": {}, "transaction_intel": {}, "cvs_version": {}}
+
 
 def _is_cache_fresh(company_context: dict) -> bool:
     """Return True if the cached profile is less than TTL seconds old."""
@@ -280,9 +354,13 @@ async def load_company_context(
     Main entry point for Context Retrieval.
 
     Resolution order:
-      1. Fresh cache from os_sessions.company_context  (0 extra DB queries)
+      1. Fresh cache from os_sessions.company_context  (5-min TTL)
       2. Live fetch from projects + hooks tables
       3. Dummy fallback (env vars)
+
+    After resolving the base profile, enriches it with CVS snapshot data:
+      - entity_registry (known customers, items, warehouses) → injected into context bundle
+      - transaction_intel (open orders, overdue invoices, pending actions)
 
     Always returns a valid profile dict — never raises.
     """
@@ -299,12 +377,20 @@ async def load_company_context(
         logger.info(
             "company_context: loaded from DB for company '%s'", profile.get("company_name")
         )
-        return profile
+    else:
+        # ── 3. Dummy fallback ────────────────────────────────────────────────
+        profile = _build_dummy_profile(project_id)
+        logger.info(
+            "company_context: using dummy profile (IS not ready) — "
+            "set ERP_URL / ERP_API_KEY / ERP_API_SECRET to test against real ERPNext"
+        )
 
-    # ── 3. Dummy fallback ────────────────────────────────────────────────────
-    dummy = _build_dummy_profile(project_id)
-    logger.info(
-        "company_context: using dummy profile (IS not ready) — "
-        "set ERP_URL / ERP_API_KEY / ERP_API_SECRET to test against real ERPNext"
-    )
-    return dummy
+    # ── CVS Enrichment: inject entity_registry + transaction_intel ────────────
+    # This runs regardless of whether we got a real or dummy profile.
+    # If no CVS snapshot exists yet, enrichment returns empty dicts (no-op).
+    cvs_data = await fetch_cvs_enrichment(project_id)
+    profile["entity_registry"]   = cvs_data.get("entity_registry", {})
+    profile["transaction_intel"] = cvs_data.get("transaction_intel", {})
+    profile["cvs_version"]       = cvs_data.get("cvs_version", {})
+
+    return profile

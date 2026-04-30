@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation"; // <-- IMPORT ROUTER
+import { useRouter } from "next/navigation"; 
 import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
 import { sendMessageToDiscoveryAgent } from "@/lib/api/hooks_api";
 import { getBaseApiUrl } from "@/lib/config";
 
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 90_000; // 90s then show helpful message
+const POLL_TIMEOUT_MS = 90_000;
 
 const INITIAL_MESSAGES: Message[] = [
   {
@@ -22,8 +22,8 @@ const INITIAL_MESSAGES: Message[] = [
 interface DiscoveryClientProps {
   projectId: string;
   initialStep: number;
-  companySlug: string; // <-- ADDED
-  userSlug: string;    // <-- ADDED
+  companySlug: string; 
+  userSlug: string;    
 }
 
 export default function DiscoveryClient({ 
@@ -32,7 +32,7 @@ export default function DiscoveryClient({
   companySlug, 
   userSlug 
 }: DiscoveryClientProps) {
-  const router = useRouter(); // <-- INITIALIZE ROUTER
+  const router = useRouter(); 
   
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
@@ -66,7 +66,7 @@ export default function DiscoveryClient({
     timeoutRef.current = setTimeout(() => {
       stopPolling();
       onBotResponse(
-        "The agent is taking longer than usual. Make sure the Discovery worker is running in a separate terminal: `python -m containers.discovery.worker` (and that Temporal is running: `temporal server start-dev`)."
+        "The agent is taking longer than usual. Make sure the Discovery worker is running."
       );
     }, POLL_TIMEOUT_MS);
 
@@ -84,14 +84,12 @@ export default function DiscoveryClient({
         
         const data = await res.json();
         
-        // --- ADDED REDIRECT LOGIC ---
         // If the workflow is done, stop everything and route to recommendation page
         if (data.is_complete || data.status === "COMPLETE") {
           stopPolling();
           router.push(`/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`);
           return;
         }
-        // -----------------------------
 
         const botText = (data.bot_response || data.message || "").trim();
         const isNewResponse =
@@ -147,21 +145,14 @@ export default function DiscoveryClient({
   };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-zinc-950/50">
-      <div className="mb-8 text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-white">
-          Discovery Agent
-        </h1>
-        <p className="text-zinc-400">
-          Project ID: <span className="font-mono text-xs bg-zinc-800 px-2 py-1 rounded">{projectId}</span>
-        </p>
+    <div className="flex flex-col h-full w-full bg-[var(--bg-void)]">
+      <div className="flex flex-1 overflow-hidden relative w-full">
+        <ChatInterface
+          messages={messages}
+          setMessages={setMessages}
+          onSendMessage={handleDiscoveryMessage}
+        />
       </div>
-
-      <ChatInterface
-        messages={messages}
-        setMessages={setMessages}
-        onSendMessage={handleDiscoveryMessage}
-      />
-    </main>
+    </div>
   );
 }

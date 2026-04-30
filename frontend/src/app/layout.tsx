@@ -1,17 +1,26 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Syne } from "next/font/google";
+import { Inter, Geist_Mono, Syne } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
 
 const syne = Syne({
   subsets: ["latin"],
   variable: "--font-syne",
   weight: ["400", "500", "600", "700", "800"],
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -33,8 +42,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${syne.variable} ${geistMono.variable}`}>
-      <body className="antialiased font-sans bg-[#09090B] text-white">
+    <html lang="en" className={`${inter.variable} ${geistMono.variable} ${syne.variable}`}>
+      <body className="antialiased font-sans bg-[var(--bg-void)] text-[var(--text-primary)]">
         {children}
       </body>
     </html>

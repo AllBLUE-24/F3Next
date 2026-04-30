@@ -69,6 +69,145 @@ async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
     except Exception as e:
         raise ValueError(f"LLM call failed: {e}")
 
+async def _call_agentic_llm(
+    prompt: str,
+    tools: list = None,
+    tool_dispatcher: dict = None,
+) -> dict:
+    """
+    Native Google GenAI manual async function-calling loop.
+
+    Rationale: `enable_automatic_function_calling=True` in the old GenAI SDK
+    dispatches tool calls SYNCHRONOUSLY via reflection — it cannot await a
+    coroutine, causing `RuntimeWarning: coroutine was never awaited`.
+
+    The correct pattern:
+      1. Disable automatic calling.
+      2. Inspect every response for FunctionCall parts manually.
+      3. Await our async tool, get the result.
+      4. Feed `Part.from_function_response(name, result)` back to the chat.
+      5. Loop until we receive a TEXT finish (max 4 iterations).
+
+    `tool_dispatcher` maps tool name → async callable:
+      {"search_cvs_master_data": search_cvs_master_data_fn}
+    """
+    import google.generativeai as genai
+    from google.generativeai import types as genai_types
+    from llm_router import api_keys, _is_sidelined
+
+    model_name = "gemini-2.5-flash"
+    available_keys = [k for k in api_keys if not _is_sidelined(model_name, k)]
+    if not available_keys:
+        available_keys = api_keys
+
+    if not available_keys:
+        raise ValueError("No Gemini API keys available")
+
+    genai.configure(api_key=available_keys[0])
+
+    has_tools = bool(tools) and bool(tool_dispatcher)
+
+    sys_inst = (
+        "You are an ERP command parser. "
+        "You have tools to search the ERP database. "
+        "YOU MUST USE the search_cvs_master_data tool to find the exact item code, "
+        "stock_uom, weight_per_unit, and weight_uom BEFORE generating your final JSON. "
+        "If the user specifies a quantity in a unit different from stock_uom (e.g. Kg vs Nos), "
+        "calculate the correct qty in stock_uom before outputting. "
+        "Return ONLY a valid JSON object when finished — no markdown fences, no explanation."
+    ) if has_tools else None
+
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        tools=tools,
+        system_instruction=sys_inst,
+        generation_config=genai_types.GenerationConfig(
+            temperature=0.1,
+            max_output_tokens=_MAX_TOKENS,
+        ),
+    )
+
+    # Disable automatic calling — we handle the loop ourselves
+    chat = model.start_chat(enable_automatic_function_calling=False)
+
+    current_message = prompt
+    max_iterations = 4
+
+    for iteration in range(max_iterations):
+        try:
+            response = await chat.send_message_async(current_message)
+        except Exception as e:
+            raise ValueError(f"GenAI send_message failed (iteration {iteration}): {e}")
+
+        # Check if the model wants to call a tool
+        function_calls = [
+            part.function_call
+            for candidate in response.candidates
+            for part in candidate.content.parts
+            if part.function_call.name  # empty name == no function call
+        ]
+
+        if not function_calls or not has_tools:
+            # Model returned a final text response — parse and return
+            try:
+                raw = response.text.strip()
+            except ValueError:
+                # response.text raises ValueError when there's no text part
+                raise ValueError("No text in final GenAI response")
+
+            cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
+            cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
+
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                sanitized = _sanitize_json(cleaned)
+                try:
+                    return json.loads(sanitized)
+                except json.JSONDecodeError:
+                    pass
+                repaired = _repair_json(sanitized)
+                if repaired:
+                    return json.loads(repaired)
+                raise ValueError(f"Could not parse GenAI JSON response: {cleaned[:200]}")
+
+        # Process all tool calls and collect responses
+        tool_response_parts = []
+        for fc in function_calls:
+            fn_name = fc.name
+            fn_args = dict(fc.args)  # proto MapComposite → plain dict
+
+            logger.info("[Clarity Agent] Tool call: %s(%s)", fn_name, fn_args)
+
+            dispatcher_fn = tool_dispatcher.get(fn_name)
+            if dispatcher_fn is None:
+                fn_result = {"error": f"Tool '{fn_name}' not found"}
+            else:
+                try:
+                    fn_result = await dispatcher_fn(**fn_args)
+                except Exception as e:
+                    logger.error("Tool '%s' raised: %s", fn_name, e)
+                    fn_result = {"error": str(e)}
+
+            logger.info(
+                "[Clarity Agent] Tool '%s' returned %d result(s)",
+                fn_name, len(fn_result) if isinstance(fn_result, list) else 1,
+            )
+
+            tool_response_parts.append({
+                "function_response": {
+                    "name": fn_name,
+                    "response": {"result": fn_result}
+                }
+            })
+
+        # Feed all tool responses back to the model
+        current_message = tool_response_parts
+
+    raise ValueError(
+        f"Agentic loop exceeded {max_iterations} iterations without a final text response"
+    )
+
 
 
 def _sanitize_json(text: str) -> str:
@@ -462,13 +601,104 @@ async def extract_intent(data: dict) -> dict:
     erp_type        = data.get("erp_type", "erpnext")
     session_context = data.get("session_context", [])
     clarifications  = data.get("clarifications", [])
+    project_id      = data.get("project_id", "")
 
-    activity.heartbeat("Parsing intent with Gemini")
+    # ── Native Tool: CVS Search (async) ────────────────────────────────────────
+    # Defined as async — the manual loop in _call_agentic_llm will await it correctly.
+    async def _search_cvs_master_data(query: str, entity_type: str = "Item") -> list:
+        """Search the company's ERP master data for Items, Customers, or Suppliers.
+
+        Returns up to 5 matching records. Each Item record includes:
+        item_code, item_name, stock_uom, weight_per_unit, weight_uom.
+        Use entity_type='Customer' or entity_type='Supplier' for parties.
+        """
+        try:
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.cvs_models import ContextSnapshot
+            from sqlalchemy import select, text
+            import uuid
+
+            async with AsyncSessionLocal() as session:
+                # 1. Resolve slug to UUID if necessary
+                try:
+                    uuid.UUID(project_id)
+                    real_uuid = project_id
+                except ValueError:
+                    # It's a slug, resolve from projects table
+                    res = await session.execute(
+                        text("SELECT id FROM projects WHERE company_slug = :slug LIMIT 1"),
+                        {"slug": project_id}
+                    )
+                    real_uuid = res.scalar()
+                    if not real_uuid:
+                        logger.warning("CVS Search: Could not resolve project slug '%s'", project_id)
+                        return []
+                    real_uuid = str(real_uuid)
+
+                # 2. Query CVS Snapshots
+                res = await session.execute(
+                    select(ContextSnapshot)
+                    .where(
+                        ContextSnapshot.project_id == real_uuid,
+                        ContextSnapshot.layer == "master_data",
+                    )
+                    .order_by(ContextSnapshot.version.desc())
+                    .limit(1)
+                )
+                row = res.scalars().first()
+                if not row or not row.data:
+                    return []
+
+            type_map = {
+                "item":     "items",
+                "customer": "customers",
+                "supplier": "suppliers",
+            }
+            key      = type_map.get(entity_type.lower(), "items")
+            data_list = row.data.get(key, [])
+
+            query_lower = query.lower()
+            matches = []
+            for record in data_list:
+                name_val  = str(record.get("name", "")).lower()
+                code_val  = str(record.get("item_code", "")).lower()
+                if query_lower in name_val or query_lower in code_val:
+                    matches.append(record)
+                    if len(matches) >= 5:
+                        break
+            return matches
+
+        except Exception as e:
+            logger.error("CVS Tool Search failed: %s", e)
+            return []
+
+    # Build the tool schema that the GenAI model will see
+    # (regular sync def — used only for schema introspection by genai)
+    def search_cvs_master_data(query: str, entity_type: str = "Item") -> list:
+        """Search the company's ERP master data for Items, Customers, or Suppliers.
+
+        Returns up to 5 matching records. Each Item record includes:
+        item_code, item_name, stock_uom, weight_per_unit, weight_uom.
+        Use entity_type='Customer' or entity_type='Supplier' for parties.
+        """
+        ...  # body never executes — genai only reads the signature + docstring
+
+    # Dispatcher maps tool name → real async implementation
+    tool_dispatcher = {
+        "search_cvs_master_data": _search_cvs_master_data,
+    }
+
+    activity.heartbeat("Parsing intent with Agentic Gemini")
 
     llm_prompt = _build_extract_prompt(prompt, erp_type, session_context, clarifications)
 
     try:
-        result = await _call_llm(llm_prompt)
+        # Pass the stub (schema) to the model, and the real async fns to the dispatcher
+        result = await _call_agentic_llm(
+            llm_prompt,
+            tools=[search_cvs_master_data],
+            tool_dispatcher=tool_dispatcher,
+        )
 
         # Normalise
         result.setdefault("erp_type", erp_type)
