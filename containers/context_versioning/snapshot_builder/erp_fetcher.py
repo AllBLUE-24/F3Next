@@ -71,17 +71,34 @@ async def _get_list(
             timeout=15.0,
         ) as client:
             resp = await client.get(url, headers=_headers(profile), params=params)
+            
+            print(f"\n[ERP_FETCHER] Request: GET {url}")
+            print(f"[ERP_FETCHER] Status Code: {resp.status_code}")
+            
+            try:
+                resp_data = resp.json()
+                print(f"[ERP_FETCHER] Raw JSON (first 300 chars): {str(resp_data)[:300]}")
+            except Exception:
+                resp_data = None
+                print(f"[ERP_FETCHER] Raw Text (first 300 chars): {resp.text[:300]}")
+                
+            if resp.status_code in [401, 403]:
+                raise RuntimeError(f"Auth Error {resp.status_code} from ERPNext for {doctype}")
+                
             resp.raise_for_status()
-            return resp.json().get("data", [])
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 403:
-            logger.warning("ERPNext 403 for %s — check API permissions", doctype)
-        else:
-            logger.warning("ERPNext %s returned %d for doctype %s", base_url, e.response.status_code, doctype)
-        return []
+            
+            if not resp_data or "data" not in resp_data:
+                raise ValueError(f"Invalid JSON format for {doctype}: missing 'data' key")
+                
+            data = resp_data.get("data", [])
+            if not data:
+                raise ValueError(f"Empty data array returned for {doctype}! Crashing fetcher.")
+                
+            return data
+            
     except Exception as e:
-        logger.error("ERPNext fetch failed for doctype=%s: %s", doctype, e)
-        return []
+        logger.error("ERPNext fetch CRASHED for doctype=%s: %s", doctype, e)
+        raise  # Re-raise to fail the gather and prevent saving empty snapshots
 
 
 # ── Layer 2: Master Data ───────────────────────────────────────────────────────
