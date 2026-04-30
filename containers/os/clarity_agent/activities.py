@@ -108,13 +108,21 @@ async def _call_agentic_llm(
     has_tools = bool(tools) and bool(tool_dispatcher)
 
     sys_inst = (
-        "You are an ERP command parser. "
-        "You have tools to search the ERP database. "
-        "YOU MUST USE the search_cvs_master_data tool to find the exact item code, "
-        "stock_uom, weight_per_unit, and weight_uom BEFORE generating your final JSON. "
-        "If the user specifies a quantity in a unit different from stock_uom (e.g. Kg vs Nos), "
-        "calculate the correct qty in stock_uom before outputting. "
-        "Return ONLY a valid JSON object when finished — no markdown fences, no explanation."
+        "You are the F3Next Clarity Agent. Your job is to parse natural language ERP commands "
+        "into a precise structured JSON intent.\n\n"
+
+        "CRITICAL TOOL USAGE RULES:\n"
+        "1. ALWAYS call search_cvs_master_data before generating your final JSON. Never guess "
+        "an item_code, customer name, or supplier name.\n"
+        "2. If your first search returns 0 results, DO NOT GIVE UP. Retry with a SHORTER or "
+        "BROADER keyword. Example: if 'spicy mango pickle' returns 0, try 'mango pickle', "
+        "then 'pickle'. Keep trying until you find results or exhaust 3 attempts.\n"
+        "3. When the tool returns a list, YOU must evaluate all results and pick the single "
+        "best match based on the user's intent. Do not ask the user to clarify — decide yourself.\n"
+        "4. If the user states a quantity in a unit that differs from the item's stock_uom "
+        "(e.g. user says '40 Kg' but stock_uom is 'Nos' and weight_per_unit is 0.5 Kg), "
+        "CALCULATE the correct qty: qty = user_qty / weight_per_unit. Use stock_uom as the uom.\n"
+        "5. Return ONLY a valid JSON object when finished — no markdown, no explanation."
     ) if has_tools else None
 
     model = genai.GenerativeModel(
@@ -608,9 +616,11 @@ async def extract_intent(data: dict) -> dict:
     async def _search_cvs_master_data(query: str, entity_type: str = "Item") -> list:
         """Search the company's ERP master data for Items, Customers, or Suppliers.
 
-        Returns up to 5 matching records. Each Item record includes:
-        item_code, item_name, stock_uom, weight_per_unit, weight_uom.
+        Returns up to 10 matching records sorted by relevance.
+        Each Item record includes: item_code, item_name, stock_uom, weight_per_unit, weight_uom.
         Use entity_type='Customer' or entity_type='Supplier' for parties.
+
+        If 0 results are returned, retry with a shorter keyword (e.g. drop adjectives).
         """
         try:
             from shared.database.db import AsyncSessionLocal
@@ -624,7 +634,6 @@ async def extract_intent(data: dict) -> dict:
                     uuid.UUID(project_id)
                     real_uuid = project_id
                 except ValueError:
-                    # It's a slug, resolve from projects table
                     res = await session.execute(
                         text("SELECT id FROM projects WHERE company_slug = :slug LIMIT 1"),
                         {"slug": project_id}
@@ -654,23 +663,49 @@ async def extract_intent(data: dict) -> dict:
                 "customer": "customers",
                 "supplier": "suppliers",
             }
-            key      = type_map.get(entity_type.lower(), "items")
+            key       = type_map.get(entity_type.lower(), "items")
             data_list = row.data.get(key, [])
 
-            query_lower = query.lower()
-            matches = []
+            # ── Token-based fuzzy scoring ────────────────────────────────────
+            # Split the query into individual words. Score each record by how
+            # many tokens it matches in any searchable field. This way:
+            #   query="spicy mango pickle" tokens=["spicy","mango","pickle"]
+            #   record item_name="Spicy Mango Pickle - 500g"
+            #   → all 3 tokens match → score=3 (top result)
+            # A record with just "Mango Pickle" would score 2 (still returned).
+            tokens = [t for t in query.lower().split() if len(t) > 2]
+            if not tokens:
+                tokens = [query.lower()]  # fallback for very short queries
+
+            scored = []
             for record in data_list:
-                name_val  = str(record.get("name", "")).lower()
-                code_val  = str(record.get("item_code", "")).lower()
-                if query_lower in name_val or query_lower in code_val:
-                    matches.append(record)
-                    if len(matches) >= 5:
-                        break
-            return matches
+                # Build a combined searchable string from all text fields
+                searchable = " ".join([
+                    str(record.get("name",       "")),
+                    str(record.get("item_code",  "")),
+                    str(record.get("item_name",  "")),   # ← KEY FIX: human-readable name
+                    str(record.get("customer_name", "")),
+                    str(record.get("supplier_name", "")),
+                ]).lower()
+
+                score = sum(1 for t in tokens if t in searchable)
+                if score > 0:
+                    scored.append((score, record))
+
+            # Sort by score descending, return top 10
+            scored.sort(key=lambda x: x[0], reverse=True)
+            results = [rec for _, rec in scored[:10]]
+
+            logger.info(
+                "CVS Tool: query='%s' entity=%s tokens=%s → %d matches",
+                query, entity_type, tokens, len(results)
+            )
+            return results
 
         except Exception as e:
             logger.error("CVS Tool Search failed: %s", e)
             return []
+
 
     # Build the tool schema that the GenAI model will see
     # (regular sync def — used only for schema introspection by genai)
