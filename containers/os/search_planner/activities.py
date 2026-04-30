@@ -25,7 +25,6 @@ from temporalio import activity
 
 logger = logging.getLogger(__name__)
 
-_MODEL      = "gemini-flash-latest"
 _MAX_TOKENS = 800
 
 async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
@@ -33,7 +32,7 @@ async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
     from llm_router import invoke_smart_llm
 
     try:
-        response = await invoke_smart_llm([HumanMessage(content=prompt)], model_name=_MODEL, temperature=0.1, max_output_tokens=_MAX_TOKENS)
+        response = await invoke_smart_llm([HumanMessage(content=prompt)], temperature=0.1, max_output_tokens=_MAX_TOKENS)
         raw = response.content.strip()
 
         cleaned = re.sub(r'^`{3}(?:json)?\s*', '', raw, flags=re.MULTILINE)

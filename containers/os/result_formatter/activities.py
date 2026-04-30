@@ -32,8 +32,6 @@ from temporalio import activity
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-flash-latest"
-
 
 # ── ERP error translator ──────────────────────────────────────────────────────
 
@@ -248,7 +246,6 @@ async def _call_gemini(prompt: str) -> str:
 
     response = await invoke_smart_llm(
         [HumanMessage(content=prompt)], 
-        model_name=_MODEL, 
         temperature=0.3, 
         max_output_tokens=500
     )

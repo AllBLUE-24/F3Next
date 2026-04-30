@@ -30,7 +30,6 @@ from temporalio import activity
 logger = logging.getLogger(__name__)
 
 # ── Model config ──────────────────────────────────────────────────────────────
-_MODEL      = "gemini-flash-latest"   # Higher quota than gemini-2.0-flash on free tier
 _MAX_TOKENS = 1200                  # Was 200 — caused truncation at char 109
 
 # ── LLM call with retry on quota ──────────────────────────────────────────────
@@ -44,7 +43,7 @@ async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
     from llm_router import invoke_smart_llm
 
     try:
-        response = await invoke_smart_llm([HumanMessage(content=prompt)], model_name=_MODEL, temperature=0.1, max_output_tokens=_MAX_TOKENS)
+        response = await invoke_smart_llm([HumanMessage(content=prompt)], temperature=0.1, max_output_tokens=_MAX_TOKENS)
         raw = response.content.strip()
 
         # Strip markdown fences

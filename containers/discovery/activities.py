@@ -62,7 +62,7 @@ async def analyze_discovery_turn(data: dict) -> dict:
 
     try:
         from llm_router import invoke_smart_llm
-        response = await invoke_smart_llm([("system", system_context), ("human", formatted_prompt)], model_name="gemini-flash-latest")
+        response = await invoke_smart_llm([("system", system_context), ("human", formatted_prompt)])
         content = response.content
 
         start_idx = content.find('{')
@@ -111,7 +111,7 @@ async def generate_erp_recommendation(tags: list) -> dict:
 
     try:
         from llm_router import invoke_smart_llm
-        response = await invoke_smart_llm([("human", formatted_prompt)], model_name="gemini-flash-latest")
+        response = await invoke_smart_llm([("human", formatted_prompt)])
         content = response.content
         start_idx = content.find('{')
         end_idx = content.rfind('}')

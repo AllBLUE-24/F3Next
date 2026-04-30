@@ -68,7 +68,7 @@ async def generate_health_report(analysis_results: dict) -> str:
         monthly_interest_loss=analysis_results["monthly_interest_loss"]
     )
     
-    response = await invoke_smart_llm(formatted_prompt, model_name="gemini-flash-latest")
+    response = await invoke_smart_llm(formatted_prompt)
     return str(response.content)
 
 
