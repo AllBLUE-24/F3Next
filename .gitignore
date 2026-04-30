@@ -61,6 +61,13 @@ kubeconfig.yml
 
 
 #############################
+# LOCAL TEST / REFERENCE
+#############################
+attachments/
+scripts/
+
+
+#############################
 # SYSTEM / EDITORS
 #############################
 .DS_Store

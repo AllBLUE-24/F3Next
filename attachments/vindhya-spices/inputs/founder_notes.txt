@@ -1,9 +1,0 @@
-Welcome to the digital setup for Vindhya Spices & Preserves Pvt. Ltd. 
-We are based out of Plot No 45, Sanwer Road Industrial Area, Indore, MP 452015. 
-Our GSTIN is 23AABCV1234E1Z5. 
-
-We deal exclusively in INR (Indian Rupee). 
-Our main banking is done through HDFC Bank, Palasia Branch. 
-
-We have been manufacturing authentic Indian pickles and ground spices since 2010. 
-Please set up the system so we can track our raw mangoes, chillies, cold-pressed oils, and empty glass jars, along with our finished retail products. We need to strictly track our payables to local farmers and receivables from supermarkets.
