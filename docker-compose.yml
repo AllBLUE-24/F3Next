@@ -67,6 +67,10 @@ services:
       - TEMPORAL_HOST=temporal:7233
     volumes:
       - ./secrets:/app/secrets
+    # Explicit DNS — same fix as cvs_worker. This worker SSHes into customer ERPNext instances.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   health_check_worker:
     build:
@@ -119,6 +123,11 @@ services:
       - temporal
     environment:
       - TEMPORAL_HOST=temporal:7233
+    # Explicit DNS — fixes systemd-resolved loopback (127.0.0.53) issue on DO/Ubuntu hosts.
+    # This container must reach external ERPNext instances (e.g. f3.f3next.in) to build CVS snapshots.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   knowledge_base_seeder:
     build:
