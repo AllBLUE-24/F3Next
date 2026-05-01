@@ -297,7 +297,22 @@ async def _call_agentic_llm(
     if not raw:
         raise ValueError("Phase 2 returned empty response")
 
-    return json.loads(raw.strip())
+    # Strip any stray markdown fences (even with MIME enforcement, models sometimes leak them)
+    cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
+    cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        sanitized = _sanitize_json(cleaned)
+        try:
+            return json.loads(sanitized)
+        except json.JSONDecodeError:
+            pass
+        repaired = _repair_json(sanitized)
+        if repaired:
+            return json.loads(repaired)
+        raise ValueError(f"Could not parse JSON from Phase 2 extraction: {cleaned[:200]}")
 
 
 def _sanitize_json(text: str) -> str:
