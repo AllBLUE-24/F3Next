@@ -20,6 +20,7 @@ Functions:
 """
 
 import asyncio
+import json
 import logging
 from datetime import date, timedelta
 from typing import Any, Optional
@@ -88,12 +89,12 @@ async def _get_list(
 
         while page < _MAX_PAGES:
             params: dict[str, Any] = {
-                "fields":           str(fields),
+                "fields":            json.dumps(fields),   # double-quotes required by Frappe
                 "limit_page_length": page_size,
                 "limit_start":       page * page_size,
             }
             if filters:
-                params["filters"] = str(filters)
+                params["filters"] = json.dumps(filters)   # double-quotes required by Frappe
 
             logger.debug(
                 "[ERP_FETCHER] GET %s  page=%d  limit_start=%d",
