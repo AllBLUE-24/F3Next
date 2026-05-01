@@ -141,30 +141,36 @@ async def _call_agentic_llm(
     # ── Robust Generation Helper (Handles Quotas & Temporal Sandboxing) ─────
     async def _generate_with_retry(contents, config):
         last_err = None
-        for key in available_keys:
-            client = genai.Client(api_key=key)
-            try:
-                resp = await client.aio.models.generate_content(
-                    model=model_name, contents=contents, config=config,
-                )
-                return resp
-            except Exception as e:
-                err_str = str(e)
-                if "429" in err_str or "Quota" in err_str or "exhausted" in err_str.lower():
-                    logger.warning(f"[Clarity Agent] Key rotated due to quota limit: {err_str[:150]}")
-                    last_err = e
-                    continue
-                # If it's a different error, raise immediately
-                raise ValueError(f"Generation failed: {e}")
-            finally:
-                # CRITICAL: explicitly close the async client to prevent Temporal's
-                # RestrictedWorkflowAccessError (which triggers if garbage collection 
-                # happens later during workflow execution).
-                if hasattr(client.aio, "aclose"):
-                    try:
-                        await client.aio.aclose()
-                    except Exception:
-                        pass
+        for attempt in range(2):  # Try the whole key pool twice
+            for key in available_keys:
+                client = genai.Client(api_key=key)
+                try:
+                    resp = await client.aio.models.generate_content(
+                        model=model_name, contents=contents, config=config,
+                    )
+                    return resp
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "Quota" in err_str or "exhausted" in err_str.lower():
+                        logger.warning(f"[Clarity Agent] Key rotated due to quota limit: {err_str[:150]}")
+                        last_err = e
+                        continue
+                    # If it's a different error, raise immediately
+                    raise ValueError(f"Generation failed: {e}")
+                finally:
+                    # CRITICAL: explicitly close the async client to prevent Temporal's
+                    # RestrictedWorkflowAccessError (which triggers if garbage collection 
+                    # happens later during workflow execution).
+                    if hasattr(client.aio, "aclose"):
+                        try:
+                            await client.aio.aclose()
+                        except Exception:
+                            pass
+            
+            # If we get here, all keys hit 429
+            if attempt == 0:
+                logger.warning("[Clarity Agent] All keys exhausted! Sleeping 10s to wait for token bucket...")
+                await asyncio.sleep(10)
         
         raise ValueError(f"All keys exhausted or failed. Last error: {last_err}")
 
@@ -211,7 +217,7 @@ async def _call_agentic_llm(
         max_output_tokens = _MAX_TOKENS,
     )
 
-    for _iter in range(5):
+    for _iter in range(3):
         try:
             resp = await _generate_with_retry(contents=contents, config=tool_cfg)
         except Exception as e:
@@ -320,7 +326,7 @@ async def _call_agentic_llm(
         raise ValueError(f"Phase 2 structured extraction failed: {e}")
 
     # Natively use the parsed Pydantic object from the google-genai SDK
-    if ext_resp.parsed:
+    if getattr(ext_resp, "parsed", None):
         return ext_resp.parsed.model_dump()
 
     # Fallback to loading text if the SDK didn't parse it natively for some reason
@@ -328,8 +334,25 @@ async def _call_agentic_llm(
     if not raw:
         raise ValueError("Phase 2 returned empty response and no parsed schema")
     
-    return json.loads(raw.strip())
+    # ── Indestructible Parser Pipeline ──────────────────────────────────────────
+    cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
+    cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
 
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        sanitized = _sanitize_json(cleaned)
+        try:
+            return json.loads(sanitized)
+        except json.JSONDecodeError:
+            pass
+        repaired = _repair_json(sanitized)
+        if repaired:
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+        raise ValueError(f"Could not parse JSON from Phase 2 extraction: {cleaned[:200]}")
 
 def _sanitize_json(text: str) -> str:
     """
