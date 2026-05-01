@@ -29,7 +29,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from temporalio import activity
 
 logger = logging.getLogger(__name__)
@@ -67,8 +67,8 @@ class _IntentSchema(BaseModel):
     risk_level:           str           = "low"
     requires_confirmation: bool         = False
     has_ambiguities:      bool          = False
-    ambiguities:          List[str]     = []
-    entities:             _Entities     = _Entities()
+    ambiguities:          List[str]     = Field(default_factory=list)
+    entities:             _Entities     = Field(default_factory=_Entities)
 
 # ── Model config ──────────────────────────────────────────────────────────────
 _MAX_TOKENS = 1200
@@ -293,26 +293,16 @@ async def _call_agentic_llm(
     except Exception as e:
         raise ValueError(f"Phase 2 structured extraction failed: {e}")
 
+    # Natively use the parsed Pydantic object from the google-genai SDK
+    if ext_resp.parsed:
+        return ext_resp.parsed.model_dump()
+
+    # Fallback to loading text if the SDK didn't parse it natively for some reason
     raw = ext_resp.text
     if not raw:
-        raise ValueError("Phase 2 returned empty response")
-
-    # Strip any stray markdown fences (even with MIME enforcement, models sometimes leak them)
-    cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
-    cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
-
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        sanitized = _sanitize_json(cleaned)
-        try:
-            return json.loads(sanitized)
-        except json.JSONDecodeError:
-            pass
-        repaired = _repair_json(sanitized)
-        if repaired:
-            return json.loads(repaired)
-        raise ValueError(f"Could not parse JSON from Phase 2 extraction: {cleaned[:200]}")
+        raise ValueError("Phase 2 returned empty response and no parsed schema")
+    
+    return json.loads(raw.strip())
 
 
 def _sanitize_json(text: str) -> str:
