@@ -24,16 +24,54 @@ import logging
 import os
 import re
 from datetime import date, timedelta
+from typing import List, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
 
+from pydantic import BaseModel
 from temporalio import activity
 
 logger = logging.getLogger(__name__)
 
+# ── Intent Pydantic schema (used for response_schema in Phase 2) ──────────────
+
+class _Item(BaseModel):
+    item_code: str
+    qty: float
+    uom: Optional[str] = None
+    rate: Optional[float] = None
+    warehouse: Optional[str] = None
+
+class _Entities(BaseModel):
+    customer:        Optional[str]        = None
+    supplier:        Optional[str]        = None
+    items:           List[_Item]          = []
+    transaction_date: Optional[str]       = None
+    delivery_date:   Optional[str]        = None
+    due_date:        Optional[str]        = None
+    posting_date:    Optional[str]        = None
+    amount:          Optional[float]      = None
+    currency:        Optional[str]        = None
+    payment_type:    Optional[str]        = None
+    mode_of_payment: Optional[str]        = None
+    from_warehouse:  Optional[str]        = None
+    to_warehouse:    Optional[str]        = None
+    stock_entry_type: Optional[str]       = None
+
+class _IntentSchema(BaseModel):
+    intent_id:            str
+    action:               str
+    target_doctype:       str
+    confidence:           float         = 0.9
+    risk_level:           str           = "low"
+    requires_confirmation: bool         = False
+    has_ambiguities:      bool          = False
+    ambiguities:          List[str]     = []
+    entities:             _Entities     = _Entities()
+
 # ── Model config ──────────────────────────────────────────────────────────────
-_MAX_TOKENS = 1200                  # Was 200 — caused truncation at char 109
+_MAX_TOKENS = 1200
 
 # ── LLM call with retry on quota ──────────────────────────────────────────────
 
@@ -78,22 +116,19 @@ async def _call_agentic_llm(
     tool_dispatcher: dict = None,
 ) -> dict:
     """
-    Native Google GenAI manual async function-calling loop.
-    Uses the new google-genai SDK (google.genai), NOT the deprecated
-    google-generativeai package.
+    Two-phase agentic loop using google-genai SDK.
 
-    Pattern:
-      1. Build explicit FunctionDeclaration tools — no stub Python functions.
-      2. Send the prompt; check every response for FunctionCall parts.
-      3. Await our async tool implementation, collect result.
-      4. Append model turn + FunctionResponse Part to the contents list.
-      5. On the FINAL text-only response, enforce JSON via response_mime_type.
-      6. Loop until text response (max 5 iterations).
+    Phase 1 — Tool Loop:
+      Run freely with function calling. No response_mime_type (avoids conflicts
+      with tool calling). Collect all search results into `collected_results`.
 
-    `tool_dispatcher` maps tool name → async callable.
+    Phase 2 — Structured Extraction:
+      Dedicated call with NO tools, response_mime_type='application/json',
+      and response_schema=_IntentSchema. The API guarantees a perfectly
+      formatted JSON object — the fallback parser is never needed.
     """
     from google import genai
-    from google.genai import types as genai_types
+    from google.genai import types as gt
     from llm_router import api_keys, _is_sidelined
 
     model_name = "gemini-2.5-flash"
@@ -104,177 +139,165 @@ async def _call_agentic_llm(
         raise ValueError("No Gemini API keys available")
 
     client = genai.Client(api_key=available_keys[0])
-
     has_tools = bool(tool_dispatcher)
 
-    sys_inst = (
-        "You are the F3Next Clarity Agent. Your job is to parse natural language ERP commands "
-        "into a precise structured JSON intent.\n\n"
-
-        "CRITICAL TOOL USAGE RULES:\n"
-        "1. ALWAYS call search_cvs_master_data before generating your final JSON. Never guess "
-        "an item_code, customer name, or supplier name.\n"
-        "2. If your first search returns 0 results, DO NOT GIVE UP. Retry with a SHORTER or "
-        "BROADER keyword. Example: if 'spicy mango pickle' returns 0, try 'mango pickle', "
-        "then 'pickle'. Keep trying until you find results or exhaust 3 attempts.\n"
-        "3. When the tool returns a list, YOU must evaluate all results and pick the single "
-        "best match based on the user's intent. Do not ask the user to clarify — decide yourself.\n"
-        "4. If the user states a quantity in a unit that differs from the item's stock_uom "
-        "(e.g. user says '40 Kg' but stock_uom is 'Nos' and weight_per_unit is 0.5 Kg), "
-        "CALCULATE the correct qty: qty = user_qty / weight_per_unit. Use stock_uom as the uom.\n"
-        "5. YOUR FINAL RESPONSE MUST BE PURE JSON ONLY. "
-        "No markdown fences, no backticks, no explanation text whatsoever. "
-        "Start your response with {{ and end with }}."
-    ) if has_tools else None
-
-    # ── Build typed tool declarations ──────────────────────────────────────
-    # The new SDK requires explicit FunctionDeclaration objects.
-    # We do NOT pass stub Python functions — we declare the schema manually.
+    # ── Tool declaration ───────────────────────────────────────────────────────
     genai_tools = None
     if has_tools:
-        search_fn = genai_types.FunctionDeclaration(
-            name="search_cvs_master_data",
-            description=(
-                "Search the company's ERP master data for Items, Customers, or Suppliers. "
-                "Returns up to 10 matching records sorted by relevance. "
-                "Each Item record includes: item_code, item_name, stock_uom, "
-                "weight_per_unit, weight_uom. "
-                "Use entity_type='Customer' or entity_type='Supplier' for parties. "
-                "If 0 results are returned, retry with a shorter keyword."
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The search term, e.g. 'mango pickle' or 'guruji'",
+        genai_tools = [gt.Tool(function_declarations=[
+            gt.FunctionDeclaration(
+                name="search_cvs_master_data",
+                description=(
+                    "Search ERP master data for Items, Customers, or Suppliers. "
+                    "Returns up to 10 records. Each Item includes: item_code, "
+                    "item_name, stock_uom, weight_per_unit, weight_uom. "
+                    "Retry with a shorter keyword if 0 results are returned."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query":       {"type": "string"},
+                        "entity_type": {"type": "string", "enum": ["Item", "Customer", "Supplier"]},
                     },
-                    "entity_type": {
-                        "type": "string",
-                        "enum": ["Item", "Customer", "Supplier"],
-                        "description": "The type of master data to search",
-                    },
+                    "required": ["query"],
                 },
-                "required": ["query"],
-            },
-        )
-        genai_tools = [genai_types.Tool(function_declarations=[search_fn])]
+            )
+        ])]
 
-    # ── Initialise conversation contents list ───────────────────────────────
-    contents = [
-        genai_types.Content(
-            role="user",
-            parts=[genai_types.Part(text=prompt)],
-        )
-    ]
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 1 — Tool Loop (no JSON enforcement, no MIME type)
+    # ═══════════════════════════════════════════════════════════════════════════
+    contents = [gt.Content(role="user", parts=[gt.Part(text=prompt)])]
+    collected_results: list[dict] = []   # accumulated for Phase 2 context
 
-    max_iterations = 5
+    tool_cfg = gt.GenerateContentConfig(
+        system_instruction = (
+            "You are the F3Next Clarity Agent. Search ERP master data using "
+            "search_cvs_master_data before forming any intent. "
+            "Retry with shorter keywords if 0 results. "
+            "Never guess an item_code or customer name."
+        ),
+        tools             = genai_tools,
+        temperature       = 0.1,
+        max_output_tokens = _MAX_TOKENS,
+    )
 
-    for iteration in range(max_iterations):
-        # On the last tool-free iteration, force JSON output via MIME type
-        is_final_attempt = (iteration == max_iterations - 1)
-
-        config = genai_types.GenerateContentConfig(
-            system_instruction = sys_inst,
-            tools              = genai_tools,
-            temperature        = 0.1,
-            max_output_tokens  = _MAX_TOKENS,
-            # Enforce JSON on every non-tool call turn
-            response_mime_type = "application/json" if (not genai_tools or is_final_attempt) else None,
-        )
-
+    for _iter in range(5):
         try:
-            response = await client.aio.models.generate_content(
-                model    = model_name,
-                contents = contents,
-                config   = config,
+            resp = await client.aio.models.generate_content(
+                model=model_name, contents=contents, config=tool_cfg,
             )
         except Exception as e:
-            raise ValueError(f"google-genai generate_content failed (iteration {iteration}): {e}")
+            raise ValueError(f"Phase 1 generate_content failed (iter {_iter}): {e}")
 
-        # ── Check for function calls ───────────────────────────────────────────
-        candidate = response.candidates[0] if response.candidates else None
+        candidate = resp.candidates[0] if resp.candidates else None
         if not candidate:
-            raise ValueError("No candidates in google-genai response")
+            raise ValueError("No candidates in Phase 1 response")
 
-        function_calls = [
-            part.function_call
-            for part in candidate.content.parts
-            if part.function_call is not None
+        fn_calls = [
+            p.function_call
+            for p in candidate.content.parts
+            if p.function_call is not None
         ]
 
-        if not function_calls or not has_tools:
-            # ── Final text response ───────────────────────────────────────
-            raw = response.text
-            if raw is None:
-                raise ValueError("No text in final google-genai response")
-            raw = raw.strip()
+        if not fn_calls or not has_tools:
+            break   # model is done calling tools — proceed to Phase 2
 
-            # Strip any stray markdown fences (shouldn't appear with MIME enforcement)
-            cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
-            cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
-
-            try:
-                return json.loads(cleaned)
-            except json.JSONDecodeError:
-                sanitized = _sanitize_json(cleaned)
-                try:
-                    return json.loads(sanitized)
-                except json.JSONDecodeError:
-                    pass
-                repaired = _repair_json(sanitized)
-                if repaired:
-                    return json.loads(repaired)
-                raise ValueError(f"Could not parse JSON from google-genai response: {cleaned[:200]}")
-
-        # ── Process tool calls ─────────────────────────────────────────────
-        # Append the model's turn (with function_call parts) to contents
+        # Execute tool calls
         contents.append(candidate.content)
-
-        # Execute all tool calls and collect typed FunctionResponse Parts
-        function_response_parts = []
-        for fc in function_calls:
+        response_parts = []
+        for fc in fn_calls:
             fn_name = fc.name
-            fn_args = dict(fc.args)  # proto MapComposite → plain dict
-
+            fn_args = dict(fc.args)
             logger.info("[Clarity Agent] Tool call: %s(%s)", fn_name, fn_args)
 
             dispatcher_fn = tool_dispatcher.get(fn_name)
-            if dispatcher_fn is None:
-                fn_result = {"error": f"Tool '{fn_name}' not found"}
-            else:
+            if dispatcher_fn:
                 try:
                     fn_result = await dispatcher_fn(**fn_args)
                 except Exception as e:
                     logger.error("Tool '%s' raised: %s", fn_name, e)
                     fn_result = {"error": str(e)}
+            else:
+                fn_result = {"error": f"Tool '{fn_name}' not found"}
 
             logger.info(
                 "[Clarity Agent] Tool '%s' returned %d result(s)",
                 fn_name, len(fn_result) if isinstance(fn_result, list) else 1,
             )
-
-            # New SDK: build typed FunctionResponse Part
-            function_response_parts.append(
-                genai_types.Part(
-                    function_response=genai_types.FunctionResponse(
-                        name     = fn_name,
-                        response = {"result": fn_result},
-                    )
+            collected_results.append({
+                "tool": fn_name, "query": fn_args, "results": fn_result,
+            })
+            response_parts.append(gt.Part(
+                function_response=gt.FunctionResponse(
+                    name=fn_name, response={"result": fn_result},
                 )
-            )
+            ))
 
-        # Append the tool results as a "tool" role turn
-        contents.append(
-            genai_types.Content(
-                role  = "tool",
-                parts = function_response_parts,
-            )
-        )
+        contents.append(gt.Content(role="tool", parts=response_parts))
 
-    raise ValueError(
-        f"Agentic loop exceeded {max_iterations} iterations without a final text response"
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 2 — Structured JSON Extraction (guaranteed output)
+    # Separate call: no tools, response_mime_type + response_schema enforced.
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Build a compact summary of what the tools found
+    if collected_results:
+        lines = []
+        for tr in collected_results:
+            res = tr["results"]
+            lines.append(f"Searched: {tr['query']}")
+            if isinstance(res, list):
+                for r in res[:5]:
+                    lines.append(
+                        f"  item_code={r.get('item_code','?')}  "
+                        f"item_name={r.get('item_name','?')}  "
+                        f"stock_uom={r.get('stock_uom','?')}  "
+                        f"weight_per_unit={r.get('weight_per_unit','?')}"
+                    )
+            else:
+                lines.append(f"  {res}")
+        tool_context = "\n".join(lines)
+    else:
+        tool_context = "No master data was searched."
+
+    extraction_prompt = (
+        f"ERP SEARCH RESULTS:\n{tool_context}\n\n"
+        f"ORIGINAL USER COMMAND: {prompt}\n\n"
+        "RULES:\n"
+        "- item_code MUST be the exact code from the search results. Never invent one.\n"
+        "- If the user said '40 kg' but stock_uom is 'Nos' and weight_per_unit is 0.5, "
+        "set qty = 40 / 0.5 = 80.\n"
+        "- Set confidence >= 0.95 when item_code confirmed by search.\n"
+        "- Produce the structured intent JSON now."
     )
+
+    extraction_sys = (
+        "You are an ERP intent extraction engine. "
+        "Given search results and a user command, produce the structured intent. "
+        "Output ONLY the JSON object matching the required schema."
+    )
+
+    try:
+        ext_resp = await client.aio.models.generate_content(
+            model    = model_name,
+            contents = [gt.Content(role="user", parts=[gt.Part(text=extraction_prompt)])],
+            config   = gt.GenerateContentConfig(
+                system_instruction = extraction_sys,
+                temperature        = 0.1,
+                max_output_tokens  = _MAX_TOKENS,
+                response_mime_type = "application/json",
+                response_schema    = _IntentSchema,
+            ),
+        )
+    except Exception as e:
+        raise ValueError(f"Phase 2 structured extraction failed: {e}")
+
+    raw = ext_resp.text
+    if not raw:
+        raise ValueError("Phase 2 returned empty response")
+
+    return json.loads(raw.strip())
 
 
 def _sanitize_json(text: str) -> str:
