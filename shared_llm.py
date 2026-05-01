@@ -68,7 +68,7 @@ def _is_truncated_json(text: str) -> bool:
 
 def generate_json(
     prompt: str,
-    model_name: str = "gemini-3.1-pro",
+    model_name: str = "gemini-2.5-flash",
     **kwargs,
 ) -> Dict[str, Any]:
     """

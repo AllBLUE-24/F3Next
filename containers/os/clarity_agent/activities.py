@@ -134,7 +134,7 @@ async def _call_agentic_llm(
     from google.genai import types as gt
     from llm_router import api_keys, _is_sidelined
 
-    model_name = "gemini-3.1-pro"
+    model_name = os.getenv("CLARITY_MODEL", "gemini-2.5-flash")
     available_keys = [k for k in api_keys if not _is_sidelined(model_name, k)]
     if not available_keys:
         available_keys = api_keys
@@ -154,11 +154,12 @@ async def _call_agentic_llm(
                     return resp
                 except Exception as e:
                     err_str = str(e)
-                    if "429" in err_str or "Quota" in err_str or "exhausted" in err_str.lower():
-                        logger.warning(f"[Clarity Agent] Key rotated due to quota limit: {err_str[:150]}")
+                    # 429 / quota → rotate key. 404 NOT_FOUND → bad model name → rotate model tier.
+                    if any(tok in err_str.lower() for tok in ("429", "quota", "exhausted", "not_found", "not found")):
+                        logger.warning(f"[Clarity Agent] Key/model rotated: {err_str[:150]}")
                         last_err = e
                         continue
-                    # If it's a different error, raise immediately
+                    # Any other error → hard fail (don't silently swallow it)
                     raise ValueError(f"Generation failed: {e}")
                 finally:
                     # CRITICAL: explicitly close the async client to prevent Temporal's
@@ -673,17 +674,28 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
             customer = party_name
 
     # ── Item extraction ───────────────────────────────────────────────────────
+    # Common unit-of-measurement words that should NEVER be treated as item codes
+    _UOM_STOP = {"kg", "kgs", "ltr", "ltrs", "litre", "litres", "liter", "liters",
+                 "pcs", "nos", "nos.", "units", "unit", "box", "boxes", "bag", "bags",
+                 "dozen", "pair", "pairs", "set", "sets", "roll", "rolls", "mtr", "mtrs",
+                 "gms", "gm", "gram", "grams", "ton", "tons", "tonne", "ml", "ft", "inch"}
+
     items = []
-    m_item = re.search(r'(\d+(?:\.\d+)?)\s+(?:units?|pcs?|nos?|qty)?\s*(?:of\s+)?([A-Z0-9][A-Z0-9\-\.]+)', prompt, re.IGNORECASE)
+    m_item = re.search(
+        r'(\d+(?:\.\d+)?)\s+(?:units?|pcs?|nos?|qty)?\s*(?:of\s+)?([A-Z0-9][A-Z0-9\-\.]+)',
+        prompt, re.IGNORECASE
+    )
     m_rate = re.search(r'(?:@|at|₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)', prompt, re.IGNORECASE)
     if m_item:
-        items = [{
-            "item_code": m_item.group(2),
-            "qty":       float(m_item.group(1)),
-            "rate":      float(m_rate.group(1)) if m_rate else None,
-            "warehouse": None,
-            "uom":       None,
-        }]
+        candidate_code = m_item.group(2)
+        if candidate_code.lower() not in _UOM_STOP:  # ← never capture 'kgs', 'ltr', etc.
+            items = [{
+                "item_code": candidate_code,
+                "qty":       float(m_item.group(1)),
+                "rate":      float(m_rate.group(1)) if m_rate else None,
+                "warehouse": None,
+                "uom":       None,
+            }]
 
     logger.warning(
         "extract_intent: using keyword fallback (LLM failed: %s). "

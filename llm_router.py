@@ -57,7 +57,7 @@ key_pool = cycle(api_keys) if api_keys else None
 
 _tier_env = os.getenv(
     "GEMINI_MODEL_TIERS",
-    "gemini-3.1-pro,gemini-2.5-flash-lite,gemini-1.5-flash-latest,gemini-1.5-pro-latest,gemini-flash-latest",
+    "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-1.5-flash-latest,gemini-1.5-pro-latest,gemini-flash-latest",
 )
 MODEL_TIERS: List[str] = [m.strip() for m in _tier_env.split(",") if m.strip()]
 
@@ -100,8 +100,11 @@ def _available_keys_for(model: str) -> List[str]:
 
 
 def _is_quota_error(exc: Exception) -> bool:
+    """Return True for errors that mean 'try a different model/key', not hard failures."""
     s = str(exc).lower()
-    return any(tok in s for tok in ("429", "quota", "exhausted", "rate limit", "resource_exhausted"))
+    # 429 / quota: try next key on same model
+    # 404 NOT_FOUND: model name doesn't exist — try next model tier immediately
+    return any(tok in s for tok in ("429", "quota", "exhausted", "rate limit", "resource_exhausted", "not_found", "not found"))
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +239,7 @@ def _normalise_response(response: Any) -> Any:
 
 async def invoke_smart_llm(
     messages,
-    model_name: str = "gemini-3.1-pro",
+    model_name: str = "gemini-2.5-flash",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
     **kwargs,
@@ -272,7 +275,7 @@ async def invoke_smart_llm(
 
 def invoke_smart_llm_sync(
     messages,
-    model_name: str = "gemini-3.1-pro",
+    model_name: str = "gemini-2.5-flash",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
     **kwargs,
