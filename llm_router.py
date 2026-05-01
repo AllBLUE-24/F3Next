@@ -102,9 +102,14 @@ def _available_keys_for(model: str) -> List[str]:
 def _is_quota_error(exc: Exception) -> bool:
     """Return True for errors that mean 'try a different model/key', not hard failures."""
     s = str(exc).lower()
-    # 429 / quota: try next key on same model
-    # 404 NOT_FOUND: model name doesn't exist — try next model tier immediately
-    return any(tok in s for tok in ("429", "quota", "exhausted", "rate limit", "resource_exhausted", "not_found", "not found"))
+    # 429 / quota:            try next key on same model
+    # 404 NOT_FOUND:          model name doesn't exist — try next model tier
+    # 403 PERMISSION_DENIED:  API key banned/project blocked — try next key
+    return any(tok in s for tok in (
+        "429", "quota", "exhausted", "rate limit", "resource_exhausted",
+        "not_found", "not found",
+        "403", "permission_denied", "permission denied", "denied access",
+    ))
 
 
 # ---------------------------------------------------------------------------

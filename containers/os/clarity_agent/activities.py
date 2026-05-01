@@ -154,9 +154,13 @@ async def _call_agentic_llm(
                     return resp
                 except Exception as e:
                     err_str = str(e)
-                    # 429 / quota → rotate key. 404 NOT_FOUND → bad model name → rotate model tier.
-                    if any(tok in err_str.lower() for tok in ("429", "quota", "exhausted", "not_found", "not found")):
-                        logger.warning(f"[Clarity Agent] Key/model rotated: {err_str[:150]}")
+                    # Rotatable errors: 429 quota, 404 bad model name, 403 key banned/project denied
+                    if any(tok in err_str.lower() for tok in (
+                        "429", "quota", "exhausted",
+                        "not_found", "not found",
+                        "403", "permission_denied", "permission denied", "denied access",
+                    )):
+                        logger.warning(f"[Clarity Agent] Key/model rotated ({err_str[:100]})")
                         last_err = e
                         continue
                     # Any other error → hard fail (don't silently swallow it)
@@ -905,7 +909,50 @@ async def extract_intent(data: dict) -> dict:
 
     except Exception as e:
         activity.logger.error("extract_intent failed: %s — using keyword fallback", e)
-        return _fallback_intent(prompt, erp_type, str(e))
+        fallback = _fallback_intent(prompt, erp_type, str(e))
+
+        # ── CVS Enrichment: if fallback has no items, search the DB directly ──────
+        # The LLM failed, but the CVS snapshot DB still has all master data.
+        # Extract a search keyword from the prompt (skip stopwords/quantities) and
+        # query CVS so the fallback result is populated with real item_codes.
+        if not fallback["entities"].get("items"):
+            try:
+                # Build a keyword from the prompt: drop common stop words and single chars
+                _SKIP = {"create", "make", "add", "new", "a", "an", "the", "by",
+                         "for", "from", "to", "so", "of", "and", "with", "order",
+                         "sales", "purchase", "invoice", "customer", "supplier",
+                         "reliance", "smart", "bazaar"}
+                words = [
+                    w for w in re.split(r'[\s\-\,]+', prompt.lower())
+                    if len(w) > 2 and not w.isdigit() and w not in _SKIP
+                ]
+                # Try progressively shorter keyword combinations
+                for n in (3, 2, 1):
+                    if len(words) < n:
+                        continue
+                    kw = " ".join(words[:n])
+                    cvs_results = await _search_cvs_master_data(query=kw, entity_type="Item")
+                    if cvs_results:
+                        best = cvs_results[0]
+                        # Try to extract quantity from prompt
+                        m_qty = re.search(r'(\d+(?:\.\d+)?)\s*(?:kg|kgs|ltr|pcs|nos|units?)?', prompt, re.IGNORECASE)
+                        qty = float(m_qty.group(1)) if m_qty else 1.0
+                        fallback["entities"]["items"] = [{
+                            "item_code": best.get("item_code", best.get("name")),
+                            "qty":       qty,
+                            "rate":      best.get("standard_rate"),
+                            "uom":       best.get("stock_uom"),
+                            "warehouse": None,
+                        }]
+                        activity.logger.info(
+                            "extract_intent: CVS enrichment found item '%s' for keyword '%s'",
+                            best.get("item_code"), kw,
+                        )
+                        break
+            except Exception as cvs_err:
+                activity.logger.warning("extract_intent: CVS enrichment failed: %s", cvs_err)
+
+        return fallback
 
 
 @activity.defn(name="resolve_ambiguity")
