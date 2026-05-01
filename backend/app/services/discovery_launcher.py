@@ -27,19 +27,22 @@ async def start_or_signal_discovery(project_id: str, user_message: str):
         
         if not existing_hook:
             print(f"[Discovery] Creating new Hook row for {project_id}")
-            # Create the initial row
             new_hook = Hook(
-                project_id=pid, 
-                discovery_status="STARTING",
-                discovery_step=1,
-                extracted_tags=[], 
-                last_bot_response="Thinking...",
-                
-                # --- 🔥 THE FIX IS HERE ---
-                # We must provide an empty value to satisfy the NOT NULL constraint
-                answers_health_check={}, 
-                report_content="" 
-                # --------------------------
+                project_id          = pid,
+                discovery_status    = "STARTING",
+                discovery_step      = 1,
+                discovery_turn_count= 0,
+                discovery_coverage  = {
+                    "industry":      {"status": None, "value": None},
+                    "strategy":      {"status": None, "value": None},
+                    "scale":         {"status": None, "value": None},
+                    "legacy_system": {"status": None, "value": None},
+                    "pain_point":    {"status": None, "value": None},
+                },
+                extracted_tags      = [],
+                last_bot_response   = "Thinking...",
+                answers_health_check= {},
+                report_content      = "",
             )
             db.add(new_hook)
             await db.commit()

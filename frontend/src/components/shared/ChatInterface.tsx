@@ -158,9 +158,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <div className="flex-shrink-0 mt-0.5 w-6 h-6 rounded bg-[var(--bg-shell)] border border-[var(--border-subtle)] flex items-center justify-center">
                   <Bot className="w-3.5 h-3.5 text-zinc-400" />
                 </div>
-                <div className="text-[14px] leading-relaxed font-mono text-zinc-400 flex items-center gap-1">
-                  <span className="w-1 h-3 bg-zinc-600 animate-pulse"></span>
-                  Processing...
+                <div className="text-[14px] leading-relaxed font-mono text-zinc-500 flex items-center gap-2">
+                  <span className="inline-flex gap-0.5">
+                    <span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </span>
+                  Adi is thinking...
                 </div>
               </div>
             </div>
@@ -186,14 +190,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               background: `rgba(245,158,11,0.1)`,
               border: `1px solid rgba(245,158,11,0.2)`,
               marginTop: "1px", flexShrink: 0,
-              userSelect: "none"
+              userSelect: "none",
+              opacity: isLoading ? 0.6 : 1,
+              transition: "opacity 0.3s ease",
           }}>
-            <span style={{ fontSize: "10px" }}>🔍</span>
+            <span style={{ fontSize: "10px", animation: isLoading ? "pulse 1s ease-in-out infinite" : "none" }}>✦</span>
             <span style={{ 
               color: "#f59e0b", fontSize: "9.5px", fontWeight: 700, 
               letterSpacing: "1px", paddingTop: "1px" 
             }}>
-              DISCOVERY
+              ADI
             </span>
           </div>
 
@@ -203,7 +209,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             rows={1}
             disabled={isLoading}
             placeholder={
-              isLoading ? "processing..." : "What would you like to discover?..."
+              isLoading
+                ? "Adi is thinking..."
+                : "Tell me about your business..."
             }
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}

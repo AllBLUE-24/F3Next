@@ -13,11 +13,11 @@ class Hook(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    report_content = Column(Text, nullable=True) #
+    report_content = Column(Text, nullable=True)
 
     last_bot_response = Column(Text, nullable=True)
 
-    discovery_step = Column(Integer, default=1)
+    discovery_step = Column(Integer, default=1)          # kept for backward compat
 
     discovery_status = Column(Text, default="START")
 
@@ -25,7 +25,15 @@ class Hook(Base):
 
     chat_history = Column(JSON, default=[])
 
-    discovery_metadata = Column(JSON, nullable=True)  # f3iche, industry, price_plan from discovery
+    discovery_metadata = Column(JSON, nullable=True)     # f3iche, industry, price_plan from discovery
+
+    # --- Dynamic Coverage Intelligence (v2) ---
+    # Tracks what Adi has understood per dimension, independent of step count.
+    # Shape: { "industry": {"status": "confirmed"|"partial"|null, "value": str|null}, ... }
+    discovery_coverage = Column(JSON, nullable=True, default=None)
+
+    # How many conversation turns have been taken (safety guardrail)
+    discovery_turn_count = Column(Integer, default=0)
 
     
 
