@@ -34,6 +34,9 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
+    from containers.context_versioning.context_store.activities import (
+        register_frappe_webhooks,
+    )
 
 TASK_QUEUE = "is-queue"
 
@@ -785,6 +788,81 @@ class ImplementationWorkflow:
         _kv(L, "tables written", "is_import_logs (per step), is_import_plans (status)")
         _kv(L, "audit", "is_audit_trail → import_executed")
         _step_ok(L, 13, "Execute Import Phases", f"3 phases executed (dry_run={sb.dry_run})")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 13.5 / 14  —  CVS Bootstrap (Baseline Sync + Webhook Registration)
+        # ══════════════════════════════════════════════════════════════════════
+        # Now that ERPNext has all data imported, we:
+        #   a) Run the baseline force-sync to populate Supabase CVS tables.
+        #   b) Register Frappe webhooks so all future changes arrive in real-time.
+        # This activates the full EDA pipeline for this project.
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, "13.5", "CVS Bootstrap — Baseline Sync + Webhook Registration",
+                    "Seeding Supabase CVS tables and activating real-time event pipeline")
+
+        cvs_bootstrap_ok = False
+        try:
+            # a) Trigger baseline CVS force-sync via Temporal workflow
+            #    We call the launcher activity directly rather than starting a workflow,
+            #    since the IS worker doesn't have direct Temporal client access in activities.
+            #    The force-sync endpoint does this asynchronously; we fire and move on.
+            import os, httpx
+            backend_url = os.getenv("BACKEND_INTERNAL_URL", "http://backend_api:8000")
+
+            # Load company profile from DB for credentials
+            from containers.os.context_retrieval.company_profile import fetch_profile_from_db
+            profile = await workflow.execute_activity(
+                "load_company_profile_for_cvs",
+                args=[{"project_id": project_id}],
+                task_queue             = TASK_QUEUE,
+                start_to_close_timeout = timedelta(seconds=30),
+                retry_policy           = _RETRY,
+            ) if False else None  # Placeholder — see note below
+
+            # Simpler: call the force-sync REST endpoint from within the workflow
+            # (Temporal workflows cannot do I/O directly, so we use an activity)
+            force_sync_result = await workflow.execute_activity(
+                "cvs_force_sync_for_project",
+                args=[{
+                    "project_id":   project_id,
+                    "company_slug": self._company_slug,
+                    "backend_url":  backend_url,
+                }],
+                task_queue             = "cvs-main-queue",
+                start_to_close_timeout = timedelta(seconds=30),
+                retry_policy           = _RETRY,
+            )
+            _kv(L, "cvs_force_sync", force_sync_result.get("workflow_id", "started"))
+
+            # b) Register Frappe webhooks on the customer's ERPNext instance
+            webhook_secret = f"f3cvs-{project_id[:8]}"  # deterministic per project
+            webhook_result = await workflow.execute_activity(
+                register_frappe_webhooks,
+                args=[{
+                    "project_id":     project_id,
+                    "erp_url":        sb.erpnext_base_url or "",
+                    "api_key":        sb.erpnext_api_key or "",
+                    "api_secret":     "",   # resolved from deployment_details in the activity
+                    "webhook_secret": webhook_secret,
+                    "backend_url":    os.getenv("PUBLIC_BACKEND_URL", "https://f3next.in"),
+                }],
+                task_queue             = "cvs-main-queue",
+                start_to_close_timeout = timedelta(seconds=120),
+                retry_policy           = _RETRY,
+            )
+            _kv(L, "webhooks_registered", webhook_result.get("registered"))
+            _kv(L, "webhooks_skipped",    webhook_result.get("skipped"))
+            _kv(L, "webhooks_failed",     webhook_result.get("failed"))
+
+            cvs_bootstrap_ok = True
+            _step_ok(L, "13.5", "CVS Bootstrap",
+                     f"sync started + {webhook_result.get('registered')} webhooks registered")
+
+        except Exception as e:
+            # Non-fatal — IS succeeded; CVS bootstrap can be re-run via force-sync
+            _step_fail(L, "13.5", "CVS Bootstrap", str(e))
+            L.info("      ⚠️  CVS bootstrap failed but IS is complete. "
+                   "Run /api/cvs/force-sync manually to seed context.")
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 14 / 14  —  Complete Session

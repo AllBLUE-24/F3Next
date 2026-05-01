@@ -14,11 +14,14 @@ No business logic here — all logic lives in cvs_launcher.py and the Temporal w
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -99,39 +102,123 @@ async def force_sync(
 
 @router.post(
     "/webhook/{project_id}",
-    summary="ERPNext webhook receiver (Phase 2)",
+    summary="ERPNext webhook receiver",
 )
 async def receive_webhook(
     project_id: UUID,
-    payload:    WebhookPayload,
+    request:    Request,
     launcher=   Depends(get_launcher),
+    x_frappe_webhook_signature: Optional[str] = Header(default=None),
 ):
     """
     Receive an ERPNext webhook and trigger a targeted context update.
 
-    Phase 2: ERPNext is configured to POST to this endpoint on document
-    submit/update events. The launcher routes the event to the appropriate
-    context layers and starts a CVSUpdateWorkflow.
+    Security:
+      Frappe signs every webhook payload with HMAC-SHA256 using the project's
+      webhook_secret (stored in projects.deployment_details.webhook_secret).
+      The signature is sent in X-Frappe-Webhook-Signature.
+      Requests without a valid signature are rejected with 401/403.
 
-    Phase 3 will add HMAC signature verification here.
+    Resilience:
+      The raw payload is written to context_events BEFORE Temporal is called.
+      If Temporal is briefly unavailable, the event is still recorded and can
+      be re-processed by the recovery cron (processed_at IS NULL).
     """
-    # Fetch the company profile from DB so the workflow has credentials
+    raw_body = await request.body()
+
+    # ── Step 1: Load project profile (need webhook_secret for HMAC) ───────────
     try:
         company_slug, company_profile = await _load_profile_for_project(str(project_id))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    # ── Step 2: HMAC-SHA256 signature verification ────────────────────────────
+    webhook_secret = company_profile.get("webhook_secret", "")
+    if not webhook_secret:
+        # Secret not yet configured — log and allow during initial setup,
+        # but flag loudly so ops team knows to fix it.
+        logger.warning(
+            "CVS webhook: project %s has no webhook_secret — SKIPPING verification. "
+            "Configure webhook_secret in deployment_details immediately.",
+            project_id,
+        )
+    else:
+        if not x_frappe_webhook_signature:
+            raise HTTPException(
+                status_code=401,
+                detail="Missing X-Frappe-Webhook-Signature header",
+            )
+
+        mac = hmac.new(
+            webhook_secret.encode("utf-8"),
+            raw_body,
+            hashlib.sha256,
+        )
+        expected = mac.hexdigest()
+
+        if not hmac.compare_digest(expected, x_frappe_webhook_signature):
+            logger.warning(
+                "CVS webhook: HMAC mismatch for project %s — rejecting.", project_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Invalid webhook signature",
+            )
+
+    # ── Step 3: Parse body ────────────────────────────────────────────────────
+    try:
+        payload_dict = json.loads(raw_body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    doctype  = payload_dict.get("doctype", "")
+    doc_name = payload_dict.get("name", "")
+
+    # ── Step 4: Buffer event to context_events BEFORE Temporal ───────────────
+    # This ensures we never lose an event even if Temporal is briefly down.
+    # processed_at=None marks it as pending; the recovery cron will pick it up.
+    try:
+        from shared.database.db import AsyncSessionLocal
+        from shared.models.cvs_models import ContextEvent
+        import uuid as _uuid
+
+        async with AsyncSessionLocal() as db:
+            event_row = ContextEvent(
+                project_id    = str(project_id),
+                event_type    = f"webhook_{doctype.lower().replace(' ', '_')}",
+                event_payload = payload_dict,
+                doctype       = doctype,
+                doc_name      = doc_name,
+            )
+            db.add(event_row)
+            await db.commit()
+            await db.refresh(event_row)
+            event_id = str(event_row.id)
+
+        logger.info(
+            "CVS webhook buffered: project=%s doctype=%s doc=%s event_id=%s",
+            project_id, doctype, doc_name, event_id,
+        )
+
+    except Exception as e:
+        logger.exception("CVS webhook: failed to buffer event to DB: %s", e)
+        # Don't return 500 to Frappe — that would cause it to retry and flood us.
+        # The event is lost but Frappe won't retry infinitely.
+        return {"ok": False, "error": "event_buffer_failed", "detail": str(e)}
+
+    # ── Step 5: Enqueue Temporal workflow ────────────────────────────────────
     result = await launcher.trigger_webhook_sync(
         project_id      = str(project_id),
         company_slug    = company_slug,
         company_profile = company_profile,
-        webhook_payload = payload.model_dump(),
+        webhook_payload = payload_dict,
     )
 
     return {
         "ok":          result.get("ok"),
         "workflow_id": result.get("workflow_id"),
         "layers":      result.get("layers"),
+        "event_id":    event_id,
     }
 
 

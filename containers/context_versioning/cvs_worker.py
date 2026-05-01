@@ -37,6 +37,9 @@ from containers.context_versioning.context_store.activities import (
     read_latest_snapshot,
     invalidate_session_cache,
     log_context_event,
+    register_frappe_webhooks,
+    recover_stuck_events,
+    cvs_force_sync_for_project,
 )
 
 # ── Workflow ───────────────────────────────────────────────────────────────────
@@ -53,6 +56,9 @@ async def main():
         read_latest_snapshot,
         invalidate_session_cache,
         log_context_event,
+        register_frappe_webhooks,
+        recover_stuck_events,
+        cvs_force_sync_for_project,
     ]
 
     worker = Worker(
@@ -71,6 +77,9 @@ async def main():
     print("┃    • read_latest_snapshot                                   ┃")
     print("┃    • invalidate_session_cache                               ┃")
     print("┃    • log_context_event                                      ┃")
+    print("┃    • register_frappe_webhooks  (IS post-deploy)             ┃")
+    print("┃    • recover_stuck_events      (recovery cron)              ┃")
+    print("┃    • cvs_force_sync_for_project (IS Step 13.5 trigger)      ┃")
     print("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
     print("🟢 CVS worker live — waiting for sync events...\n")
 

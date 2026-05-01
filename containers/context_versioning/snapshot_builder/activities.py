@@ -82,7 +82,9 @@ async def build_and_store_snapshot(data: dict) -> dict:
 
         except Exception as e:
             logger.exception("CVS: failed to fetch layer=%s: %s", layer, e)
-            results[layer] = {"data": {}, "error": str(e)}
+            # Re-raise so Temporal retries this activity.
+            # We must NOT save a snapshot with empty/partial data.
+            raise
 
     # ── Step 2: Write to Supabase and R2 ──────────────────────────────────────
     activity.heartbeat("Writing snapshots to Supabase + R2")

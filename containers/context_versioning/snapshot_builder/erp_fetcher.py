@@ -6,18 +6,20 @@ Fetches live data from ERPNext to build context snapshot layers.
 Called by snapshot_builder/activities.py during a CVS sync.
 
 Design rules:
-  - Never raises — all errors are caught and logged; partial data is returned
-  - Uses the ERPNext REST API (same pattern as execution_agent)
-  - All I/O is async (httpx)
-  - Credentials come from the company profile (identity layer), never hardcoded
+  - Auth errors (401/403) raise loudly — caller must not save partial data.
+  - Network errors raise loudly — caller must not save empty snapshots.
+  - Empty data arrays are allowed (a doctype may be empty on a fresh instance)
+    but are logged as warnings so they are visible in logs.
+  - All I/O is async (httpx).
+  - Credentials come from the company profile (identity layer), never hardcoded.
+  - ALL doctypes are fully paginated — no silent truncation at 500/1000 records.
 
 Functions:
   fetch_master_data(profile)      → Layer 2: customers, suppliers, items, warehouses
   fetch_transaction_intel(profile)→ Layer 3: recent orders, invoices, pending actions
 """
 
-from __future__ import annotations
-
+import asyncio
 import logging
 from datetime import date, timedelta
 from typing import Any, Optional
@@ -26,12 +28,20 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# ── Constants ──────────────────────────────────────────────────────────────────
+
+_PAGE_SIZE   = 1_000   # records per page — ERPNext max is 500 by default, but
+                        # site admins can raise it; 1000 is safe for our own instances
+_MAX_PAGES   = 100      # hard cap: 100 × 1000 = 100,000 records per doctype
+_TIMEOUT_SEC = 20.0     # slightly more generous than before for large pages
+
+
 # ── ERPNext API helper ─────────────────────────────────────────────────────────
 
 def _headers(profile: dict) -> dict:
     return {
         "Authorization": f"token {profile['api_key']}:{profile['api_secret']}",
-        "Content-Type": "application/json",
+        "Content-Type":  "application/json",
     }
 
 
@@ -46,59 +56,114 @@ async def _get_list(
     doctype:   str,
     fields:    list[str],
     filters:   Optional[list] = None,
-    limit:     int = 500,
+    limit:     int = _PAGE_SIZE,   # kept for back-compat; now used as page_size
 ) -> list[dict]:
     """
-    Call the ERPNext /api/resource/{doctype} list endpoint.
-    Returns [] on any failure (network, auth, doctype not found).
+    Fetch ALL records for a doctype from ERPNext using cursor-based pagination.
+
+    Walks pages of `limit` records each until ERPNext returns fewer records
+    than the page size (meaning we have reached the end).
+
+    Raises:
+      RuntimeError — on 401/403 (auth failure). Caller must not save partial data.
+      httpx.HTTPStatusError — on other non-2xx responses.
+      httpx.RequestError — on network/DNS failure.
+
+    Returns:
+      list[dict] — may be empty if the doctype has no records (not an error).
     """
     base_url = profile.get("erp_url", "").rstrip("/")
     if not base_url:
-        return []
+        raise ValueError("company profile is missing 'erp_url'")
 
-    params: dict[str, Any] = {
-        "fields":    str(fields),
-        "limit_page_length": limit,
-    }
-    if filters:
-        params["filters"] = str(filters)
+    url        = f"{base_url}/api/resource/{doctype.replace(' ', '%20')}"
+    page_size  = min(limit, _PAGE_SIZE)
+    all_records: list[dict] = []
+    page       = 0
 
-    url = f"{base_url}/api/resource/{doctype.replace(' ', '%20')}"
+    async with httpx.AsyncClient(
+        verify  = _ssl_verify(profile),
+        timeout = _TIMEOUT_SEC,
+    ) as client:
 
-    try:
-        async with httpx.AsyncClient(
-            verify=_ssl_verify(profile),
-            timeout=15.0,
-        ) as client:
+        while page < _MAX_PAGES:
+            params: dict[str, Any] = {
+                "fields":           str(fields),
+                "limit_page_length": page_size,
+                "limit_start":       page * page_size,
+            }
+            if filters:
+                params["filters"] = str(filters)
+
+            logger.debug(
+                "[ERP_FETCHER] GET %s  page=%d  limit_start=%d",
+                url, page, page * page_size,
+            )
+
             resp = await client.get(url, headers=_headers(profile), params=params)
-            
-            print(f"\n[ERP_FETCHER] Request: GET {url}")
-            print(f"[ERP_FETCHER] Status Code: {resp.status_code}")
-            
+
+            logger.debug(
+                "[ERP_FETCHER] %s  status=%d  page=%d",
+                doctype, resp.status_code, page,
+            )
+
+            # ── Auth errors: raise loudly, never save empty data ───────────────
+            if resp.status_code in (401, 403):
+                raise RuntimeError(
+                    f"ERPNext auth error {resp.status_code} for doctype={doctype}. "
+                    f"Check API key permissions."
+                )
+
+            resp.raise_for_status()
+
             try:
                 resp_data = resp.json()
-                print(f"[ERP_FETCHER] Raw JSON (first 300 chars): {str(resp_data)[:300]}")
             except Exception:
-                resp_data = None
-                print(f"[ERP_FETCHER] Raw Text (first 300 chars): {resp.text[:300]}")
-                
-            if resp.status_code in [401, 403]:
-                raise RuntimeError(f"Auth Error {resp.status_code} from ERPNext for {doctype}")
-                
-            resp.raise_for_status()
-            
-            if not resp_data or "data" not in resp_data:
-                raise ValueError(f"Invalid JSON format for {doctype}: missing 'data' key")
-                
-            data = resp_data.get("data", [])
-            if not data:
-                raise ValueError(f"Empty data array returned for {doctype}! Crashing fetcher.")
-                
-            return data
-            
-    except Exception as e:
-        logger.error("ERPNext fetch CRASHED for doctype=%s: %s", doctype, e)
-        raise  # Re-raise to fail the gather and prevent saving empty snapshots
+                raise ValueError(
+                    f"ERPNext returned non-JSON for doctype={doctype}: {resp.text[:200]}"
+                )
+
+            if "data" not in resp_data:
+                raise ValueError(
+                    f"ERPNext response missing 'data' key for doctype={doctype}: "
+                    f"{str(resp_data)[:200]}"
+                )
+
+            page_records = resp_data["data"]
+            all_records.extend(page_records)
+
+            logger.debug(
+                "[ERP_FETCHER] %s  page=%d  got=%d  total_so_far=%d",
+                doctype, page, len(page_records), len(all_records),
+            )
+
+            # ERPNext signals "last page" by returning fewer records than requested
+            if len(page_records) < page_size:
+                break
+
+            page += 1
+
+        else:
+            # Hit _MAX_PAGES cap — log a warning but return what we have
+            logger.warning(
+                "[ERP_FETCHER] %s hit MAX_PAGES cap (%d). "
+                "Fetched %d records. Some records may be missing.",
+                doctype, _MAX_PAGES, len(all_records),
+            )
+
+    logger.info(
+        "[ERP_FETCHER] %s  total_records=%d  pages_fetched=%d",
+        doctype, len(all_records), page + 1,
+    )
+
+    if not all_records:
+        logger.warning(
+            "[ERP_FETCHER] %s returned 0 records — doctype may be empty on this instance.",
+            doctype,
+        )
+
+    return all_records
+
 
 
 # ── Layer 2: Master Data ───────────────────────────────────────────────────────
