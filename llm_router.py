@@ -57,7 +57,7 @@ key_pool = cycle(api_keys) if api_keys else None
 
 _tier_env = os.getenv(
     "GEMINI_MODEL_TIERS",
-    "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-1.5-flash-latest,gemini-1.5-pro-latest,gemini-flash-latest",
+    "gemini-3.1-pro,gemini-2.5-flash-lite,gemini-1.5-flash-latest,gemini-1.5-pro-latest,gemini-flash-latest",
 )
 MODEL_TIERS: List[str] = [m.strip() for m in _tier_env.split(",") if m.strip()]
 
@@ -236,7 +236,7 @@ def _normalise_response(response: Any) -> Any:
 
 async def invoke_smart_llm(
     messages,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.1-pro",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
     **kwargs,
@@ -272,7 +272,7 @@ async def invoke_smart_llm(
 
 def invoke_smart_llm_sync(
     messages,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.1-pro",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
     **kwargs,

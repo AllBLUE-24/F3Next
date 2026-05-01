@@ -134,7 +134,7 @@ async def _call_agentic_llm(
     from google.genai import types as gt
     from llm_router import api_keys, _is_sidelined
 
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-3.1-pro"
     available_keys = [k for k in api_keys if not _is_sidelined(model_name, k)]
     if not available_keys:
         available_keys = api_keys
