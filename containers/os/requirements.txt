@@ -3,9 +3,10 @@ pydantic==2.11.7
 python-dotenv==0.21.0
 temporalio==1.21.1
 aiohttp
+httpx
 sqlalchemy==2.0.25
 langchain
 langchain-core
 langchain-google-genai
-google-generativeai
+google-genai
 asyncpg

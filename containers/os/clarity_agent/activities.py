@@ -4,13 +4,16 @@ containers/OS/clarity_agent/activities.py
 Temporal activities for the Clarity Agent.
 Registered on: os-main-queue
 
-FIXES vs previous version:
-  - gemini-2.0-flash → gemini-flash-latest  (higher quota on free tier)
-  - max_output_tokens: 200 → 1200        (was truncating JSON at char 109)
-  - Added retry loop (3x) on quota/rate-limit errors with backoff
-  - Fallback intent no longer has ambiguities — avoids re-prompting user
-  - JSON repair: if JSON truncated, attempts to close open braces
-  - Uses langchain_google_genai (not deprecated google.generativeai)
+SDK:
+  - _call_llm / resolve_ambiguity : langchain_google_genai via llm_router
+  - _call_agentic_llm (tool loop) : google-genai (google.genai) — new official SDK
+    Replaces deprecated google-generativeai which caused malformed JSON responses.
+
+Key improvements:
+  - JSON enforcement: response_mime_type='application/json' prevents markdown fences
+  - Tool schema: explicit FunctionDeclaration (no stub Python function introspection)
+  - Tool response: typed FunctionResponse Part (not raw dict)
+  - Agentic loop: contents-list based (not stateful chat session)
 """
 
 from __future__ import annotations
@@ -76,36 +79,33 @@ async def _call_agentic_llm(
 ) -> dict:
     """
     Native Google GenAI manual async function-calling loop.
+    Uses the new google-genai SDK (google.genai), NOT the deprecated
+    google-generativeai package.
 
-    Rationale: `enable_automatic_function_calling=True` in the old GenAI SDK
-    dispatches tool calls SYNCHRONOUSLY via reflection — it cannot await a
-    coroutine, causing `RuntimeWarning: coroutine was never awaited`.
+    Pattern:
+      1. Build explicit FunctionDeclaration tools — no stub Python functions.
+      2. Send the prompt; check every response for FunctionCall parts.
+      3. Await our async tool implementation, collect result.
+      4. Append model turn + FunctionResponse Part to the contents list.
+      5. On the FINAL text-only response, enforce JSON via response_mime_type.
+      6. Loop until text response (max 5 iterations).
 
-    The correct pattern:
-      1. Disable automatic calling.
-      2. Inspect every response for FunctionCall parts manually.
-      3. Await our async tool, get the result.
-      4. Feed `Part.from_function_response(name, result)` back to the chat.
-      5. Loop until we receive a TEXT finish (max 4 iterations).
-
-    `tool_dispatcher` maps tool name → async callable:
-      {"search_cvs_master_data": search_cvs_master_data_fn}
+    `tool_dispatcher` maps tool name → async callable.
     """
-    import google.generativeai as genai
-    from google.generativeai import types as genai_types
+    from google import genai
+    from google.genai import types as genai_types
     from llm_router import api_keys, _is_sidelined
 
     model_name = "gemini-2.5-flash"
     available_keys = [k for k in api_keys if not _is_sidelined(model_name, k)]
     if not available_keys:
         available_keys = api_keys
-
     if not available_keys:
         raise ValueError("No Gemini API keys available")
 
-    genai.configure(api_key=available_keys[0])
+    client = genai.Client(api_key=available_keys[0])
 
-    has_tools = bool(tools) and bool(tool_dispatcher)
+    has_tools = bool(tool_dispatcher)
 
     sys_inst = (
         "You are the F3Next Clarity Agent. Your job is to parse natural language ERP commands "
@@ -122,47 +122,95 @@ async def _call_agentic_llm(
         "4. If the user states a quantity in a unit that differs from the item's stock_uom "
         "(e.g. user says '40 Kg' but stock_uom is 'Nos' and weight_per_unit is 0.5 Kg), "
         "CALCULATE the correct qty: qty = user_qty / weight_per_unit. Use stock_uom as the uom.\n"
-        "5. Return ONLY a valid JSON object when finished — no markdown, no explanation."
+        "5. YOUR FINAL RESPONSE MUST BE PURE JSON ONLY. "
+        "No markdown fences, no backticks, no explanation text whatsoever. "
+        "Start your response with {{ and end with }}."
     ) if has_tools else None
 
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        tools=tools,
-        system_instruction=sys_inst,
-        generation_config=genai_types.GenerationConfig(
-            temperature=0.1,
-            max_output_tokens=_MAX_TOKENS,
-        ),
-    )
+    # ── Build typed tool declarations ──────────────────────────────────────
+    # The new SDK requires explicit FunctionDeclaration objects.
+    # We do NOT pass stub Python functions — we declare the schema manually.
+    genai_tools = None
+    if has_tools:
+        search_fn = genai_types.FunctionDeclaration(
+            name="search_cvs_master_data",
+            description=(
+                "Search the company's ERP master data for Items, Customers, or Suppliers. "
+                "Returns up to 10 matching records sorted by relevance. "
+                "Each Item record includes: item_code, item_name, stock_uom, "
+                "weight_per_unit, weight_uom. "
+                "Use entity_type='Customer' or entity_type='Supplier' for parties. "
+                "If 0 results are returned, retry with a shorter keyword."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search term, e.g. 'mango pickle' or 'guruji'",
+                    },
+                    "entity_type": {
+                        "type": "string",
+                        "enum": ["Item", "Customer", "Supplier"],
+                        "description": "The type of master data to search",
+                    },
+                },
+                "required": ["query"],
+            },
+        )
+        genai_tools = [genai_types.Tool(function_declarations=[search_fn])]
 
-    # Disable automatic calling — we handle the loop ourselves
-    chat = model.start_chat(enable_automatic_function_calling=False)
+    # ── Initialise conversation contents list ───────────────────────────────
+    contents = [
+        genai_types.Content(
+            role="user",
+            parts=[genai_types.Part(text=prompt)],
+        )
+    ]
 
-    current_message = prompt
-    max_iterations = 4
+    max_iterations = 5
 
     for iteration in range(max_iterations):
-        try:
-            response = await chat.send_message_async(current_message)
-        except Exception as e:
-            raise ValueError(f"GenAI send_message failed (iteration {iteration}): {e}")
+        # On the last tool-free iteration, force JSON output via MIME type
+        is_final_attempt = (iteration == max_iterations - 1)
 
-        # Check if the model wants to call a tool
+        config = genai_types.GenerateContentConfig(
+            system_instruction = sys_inst,
+            tools              = genai_tools,
+            temperature        = 0.1,
+            max_output_tokens  = _MAX_TOKENS,
+            # Enforce JSON on every non-tool call turn
+            response_mime_type = "application/json" if (not genai_tools or is_final_attempt) else None,
+        )
+
+        try:
+            response = await client.aio.models.generate_content(
+                model    = model_name,
+                contents = contents,
+                config   = config,
+            )
+        except Exception as e:
+            raise ValueError(f"google-genai generate_content failed (iteration {iteration}): {e}")
+
+        # ── Check for function calls ───────────────────────────────────────────
+        candidate = response.candidates[0] if response.candidates else None
+        if not candidate:
+            raise ValueError("No candidates in google-genai response")
+
         function_calls = [
             part.function_call
-            for candidate in response.candidates
             for part in candidate.content.parts
-            if part.function_call.name  # empty name == no function call
+            if part.function_call is not None
         ]
 
         if not function_calls or not has_tools:
-            # Model returned a final text response — parse and return
-            try:
-                raw = response.text.strip()
-            except ValueError:
-                # response.text raises ValueError when there's no text part
-                raise ValueError("No text in final GenAI response")
+            # ── Final text response ───────────────────────────────────────
+            raw = response.text
+            if raw is None:
+                raise ValueError("No text in final google-genai response")
+            raw = raw.strip()
 
+            # Strip any stray markdown fences (shouldn't appear with MIME enforcement)
             cleaned = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
             cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE).strip()
 
@@ -177,10 +225,14 @@ async def _call_agentic_llm(
                 repaired = _repair_json(sanitized)
                 if repaired:
                     return json.loads(repaired)
-                raise ValueError(f"Could not parse GenAI JSON response: {cleaned[:200]}")
+                raise ValueError(f"Could not parse JSON from google-genai response: {cleaned[:200]}")
 
-        # Process all tool calls and collect responses
-        tool_response_parts = []
+        # ── Process tool calls ─────────────────────────────────────────────
+        # Append the model's turn (with function_call parts) to contents
+        contents.append(candidate.content)
+
+        # Execute all tool calls and collect typed FunctionResponse Parts
+        function_response_parts = []
         for fc in function_calls:
             fn_name = fc.name
             fn_args = dict(fc.args)  # proto MapComposite → plain dict
@@ -202,20 +254,27 @@ async def _call_agentic_llm(
                 fn_name, len(fn_result) if isinstance(fn_result, list) else 1,
             )
 
-            tool_response_parts.append({
-                "function_response": {
-                    "name": fn_name,
-                    "response": {"result": fn_result}
-                }
-            })
+            # New SDK: build typed FunctionResponse Part
+            function_response_parts.append(
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        name     = fn_name,
+                        response = {"result": fn_result},
+                    )
+                )
+            )
 
-        # Feed all tool responses back to the model
-        current_message = tool_response_parts
+        # Append the tool results as a "tool" role turn
+        contents.append(
+            genai_types.Content(
+                role  = "tool",
+                parts = function_response_parts,
+            )
+        )
 
     raise ValueError(
         f"Agentic loop exceeded {max_iterations} iterations without a final text response"
     )
-
 
 
 def _sanitize_json(text: str) -> str:
@@ -707,18 +766,9 @@ async def extract_intent(data: dict) -> dict:
             return []
 
 
-    # Build the tool schema that the GenAI model will see
-    # (regular sync def — used only for schema introspection by genai)
-    def search_cvs_master_data(query: str, entity_type: str = "Item") -> list:
-        """Search the company's ERP master data for Items, Customers, or Suppliers.
-
-        Returns up to 5 matching records. Each Item record includes:
-        item_code, item_name, stock_uom, weight_per_unit, weight_uom.
-        Use entity_type='Customer' or entity_type='Supplier' for parties.
-        """
-        ...  # body never executes — genai only reads the signature + docstring
-
     # Dispatcher maps tool name → real async implementation
+    # (Schema is declared inside _call_agentic_llm via FunctionDeclaration
+    #  in the new google-genai SDK — no stub Python function needed here)
     tool_dispatcher = {
         "search_cvs_master_data": _search_cvs_master_data,
     }
@@ -728,10 +778,8 @@ async def extract_intent(data: dict) -> dict:
     llm_prompt = _build_extract_prompt(prompt, erp_type, session_context, clarifications)
 
     try:
-        # Pass the stub (schema) to the model, and the real async fns to the dispatcher
         result = await _call_agentic_llm(
             llm_prompt,
-            tools=[search_cvs_master_data],
             tool_dispatcher=tool_dispatcher,
         )
 
