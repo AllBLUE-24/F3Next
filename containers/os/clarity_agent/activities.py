@@ -138,7 +138,36 @@ async def _call_agentic_llm(
     if not available_keys:
         raise ValueError("No Gemini API keys available")
 
-    client = genai.Client(api_key=available_keys[0])
+    # ── Robust Generation Helper (Handles Quotas & Temporal Sandboxing) ─────
+    async def _generate_with_retry(contents, config):
+        last_err = None
+        for key in available_keys:
+            client = genai.Client(api_key=key)
+            try:
+                resp = await client.aio.models.generate_content(
+                    model=model_name, contents=contents, config=config,
+                )
+                return resp
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "Quota" in err_str or "exhausted" in err_str.lower():
+                    logger.warning(f"[Clarity Agent] Key rotated due to quota limit: {err_str[:150]}")
+                    last_err = e
+                    continue
+                # If it's a different error, raise immediately
+                raise ValueError(f"Generation failed: {e}")
+            finally:
+                # CRITICAL: explicitly close the async client to prevent Temporal's
+                # RestrictedWorkflowAccessError (which triggers if garbage collection 
+                # happens later during workflow execution).
+                if hasattr(client.aio, "aclose"):
+                    try:
+                        await client.aio.aclose()
+                    except Exception:
+                        pass
+        
+        raise ValueError(f"All keys exhausted or failed. Last error: {last_err}")
+
     has_tools = bool(tool_dispatcher)
 
     # ── Tool declaration ───────────────────────────────────────────────────────
@@ -184,9 +213,7 @@ async def _call_agentic_llm(
 
     for _iter in range(5):
         try:
-            resp = await client.aio.models.generate_content(
-                model=model_name, contents=contents, config=tool_cfg,
-            )
+            resp = await _generate_with_retry(contents=contents, config=tool_cfg)
         except Exception as e:
             raise ValueError(f"Phase 1 generate_content failed (iter {_iter}): {e}")
 
@@ -279,8 +306,7 @@ async def _call_agentic_llm(
     )
 
     try:
-        ext_resp = await client.aio.models.generate_content(
-            model    = model_name,
+        ext_resp = await _generate_with_retry(
             contents = [gt.Content(role="user", parts=[gt.Part(text=extraction_prompt)])],
             config   = gt.GenerateContentConfig(
                 system_instruction = extraction_sys,
