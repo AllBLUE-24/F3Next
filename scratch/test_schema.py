@@ -36,7 +36,7 @@ class _IntentSchema(BaseModel):
 async def main():
     client = genai.Client(api_key=api_keys[0])
     resp = await client.aio.models.generate_content(
-        model="gemini-3.1-pro",
+        model="gemini-2.5-flash",
         contents="I want to create a sales order for guruji with 5 kg of mango pickle.",
         config=gt.GenerateContentConfig(
             response_mime_type="application/json",
