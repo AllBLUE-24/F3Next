@@ -37,38 +37,41 @@ logger = logging.getLogger(__name__)
 # ── Intent Pydantic schema (used for response_schema in Phase 2) ──────────────
 
 class _Item(BaseModel):
+    # NO defaults — every field in required[] forces LLM to generate them explicitly
     item_code: str
     qty: float
-    uom: Optional[str] = None
-    rate: Optional[float] = None
-    warehouse: Optional[str] = None
+    uom: Optional[str]
+    rate: Optional[float]
+    warehouse: Optional[str]
 
 class _Entities(BaseModel):
-    customer:        Optional[str]        = None
-    supplier:        Optional[str]        = None
-    items:           List[_Item]          = []
-    transaction_date: Optional[str]       = None
-    delivery_date:   Optional[str]        = None
-    due_date:        Optional[str]        = None
-    posting_date:    Optional[str]        = None
-    amount:          Optional[float]      = None
-    currency:        Optional[str]        = None
-    payment_type:    Optional[str]        = None
-    mode_of_payment: Optional[str]        = None
-    from_warehouse:  Optional[str]        = None
-    to_warehouse:    Optional[str]        = None
-    stock_entry_type: Optional[str]       = None
+    # NO defaults — forces LLM to output each key, even if null/[]
+    customer:         Optional[str]
+    supplier:         Optional[str]
+    items:            List[_Item]
+    transaction_date: Optional[str]
+    delivery_date:    Optional[str]
+    due_date:         Optional[str]
+    posting_date:     Optional[str]
+    amount:           Optional[float]
+    currency:         Optional[str]
+    payment_type:     Optional[str]
+    mode_of_payment:  Optional[str]
+    from_warehouse:   Optional[str]
+    to_warehouse:     Optional[str]
+    stock_entry_type: Optional[str]
 
 class _IntentSchema(BaseModel):
-    intent_id:            str
-    action:               str
-    target_doctype:       str
-    confidence:           float         = 0.9
-    risk_level:           str           = "low"
-    requires_confirmation: bool         = False
-    has_ambiguities:      bool          = False
-    ambiguities:          List[str]     = Field(default_factory=list)
-    entities:             _Entities     = Field(default_factory=_Entities)
+    # NO defaults on entities/ambiguities — keep required so LLM cannot skip them
+    intent_id:             str
+    action:                str
+    target_doctype:        str
+    confidence:            float
+    risk_level:            str
+    requires_confirmation: bool
+    has_ambiguities:       bool
+    ambiguities:           List[str]
+    entities:              _Entities
 
 # ── Model config ──────────────────────────────────────────────────────────────
 _MAX_TOKENS = 1200
