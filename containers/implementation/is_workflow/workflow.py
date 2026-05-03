@@ -30,7 +30,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
-    from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, BuildImportPlanInput, ExecutePhaseInput
+    from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
@@ -752,16 +752,17 @@ class ImplementationWorkflow:
         self._stage = "importing"
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 13 / 14  —  Execute Import Phases (A → B → C)
+        # STEP 13 / 14  —  Execute Import Phases
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 13, "Execute Import Phases",
-                    f"dry_run={sb.dry_run} | 3 phases")
+        # ── PROTOCOL-COMPLIANT: Read phases from the dynamically built plan ──
+        phases = await workflow.execute_activity(
+            get_import_plan_phases,
+            GetImportPlanPhasesInput(session_id=self._session_id),
+            **_ACT,
+        )
 
-        phases = [
-            ("phase_a_config",        "Phase A: Configuration Setup"),
-            ("phase_b_master",        "Phase B: Master Data"),
-            ("phase_c_transactional", "Phase C: Transactional Data"),
-        ]
+        _step_start(L, 13, "Execute Import Phases",
+                    f"dry_run={sb.dry_run} | {len(phases)} phases")
 
         for phase_id, phase_label in phases:
             L.info("      ┌── %s ──┐", phase_label)
@@ -806,11 +807,8 @@ class ImplementationWorkflow:
             #    We call the launcher activity directly rather than starting a workflow,
             #    since the IS worker doesn't have direct Temporal client access in activities.
             #    The force-sync endpoint does this asynchronously; we fire and move on.
-            import os, httpx
-            backend_url = os.getenv("BACKEND_INTERNAL_URL", "http://backend_api:8000")
-
             # Load company profile from DB for credentials
-            from containers.os.context_retrieval.company_profile import fetch_profile_from_db
+            # Note: We do not import OS or perform DB fetches here to avoid sandbox violations.
             profile = await workflow.execute_activity(
                 "load_company_profile_for_cvs",
                 args=[{"project_id": project_id}],
@@ -826,7 +824,6 @@ class ImplementationWorkflow:
                 args=[{
                     "project_id":   project_id,
                     "company_slug": self._company_slug,
-                    "backend_url":  backend_url,
                 }],
                 task_queue             = "cvs-main-queue",
                 start_to_close_timeout = timedelta(seconds=30),
@@ -844,7 +841,6 @@ class ImplementationWorkflow:
                     "api_key":        sb.erpnext_api_key or "",
                     "api_secret":     "",   # resolved from deployment_details in the activity
                     "webhook_secret": webhook_secret,
-                    "backend_url":    os.getenv("PUBLIC_BACKEND_URL", "https://f3next.in"),
                 }],
                 task_queue             = "cvs-main-queue",
                 start_to_close_timeout = timedelta(seconds=120),

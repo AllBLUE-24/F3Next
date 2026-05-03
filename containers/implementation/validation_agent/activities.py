@@ -4,6 +4,10 @@ Validation Agent — Temporal activities for pre-import data validation.
 v2: Reads from ISTargetStructure + ISMappedData.
     Writes ISValidationResult + ISValidationError rows.
     Returns "success" string.
+
+Protocol: Validation rules (required fields, enum values) are read from
+erpnext_doctype_graph.json and field_mappings.json. The old in-code dicts
+are preserved as FALLBACK constants so existing behaviour is never broken.
 """
 from __future__ import annotations
 
@@ -13,7 +17,30 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext"
+_GRAPH_PATH   = _KB_DIR / "erpnext_doctype_graph.json"
+_FMAP_PATH    = _KB_DIR / "schema" / "field_mappings.json"
+
+
+def _load_graph() -> Dict:
+    """Load doctype graph; returns empty dict on any failure."""
+    try:
+        with open(_GRAPH_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _load_field_mappings() -> Dict:
+    """Load field mappings; returns empty dict on any failure."""
+    try:
+        with open(_FMAP_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 import boto3
 from botocore.config import Config
@@ -34,7 +61,9 @@ def _get_s3_client():
 # ── Embedded service logic ────────────────────────────────────────────────────
 
 class _ValidationEngine:
-    REQUIRED_FIELDS: Dict[str, List[str]] = {
+    # ── FALLBACK constants (used when JSON graph/schema don't have the entry) ──
+    # These preserve all existing behaviour. New doctypes only need graph entries.
+    _REQUIRED_FIELDS_FALLBACK: Dict[str, List[str]] = {
         "Item":             ["item_code", "item_name", "item_group", "stock_uom"],
         "Customer":         ["customer_name", "customer_group", "territory"],
         "Supplier":         ["supplier_name", "supplier_group"],
@@ -46,7 +75,7 @@ class _ValidationEngine:
         "Journal Entry":    ["posting_date", "accounts"],
     }
 
-    ENUM_FIELDS: Dict[str, Dict[str, List[str]]] = {
+    _ENUM_FIELDS_FALLBACK: Dict[str, Dict[str, List[str]]] = {
         "Payment Entry": {
             "payment_type": ["Receive", "Pay", "Internal Transfer"],
             "party_type": ["Customer", "Supplier", "Employee"],
@@ -61,6 +90,38 @@ class _ValidationEngine:
             "status": ["Active", "Inactive", "Suspended", "Left"],
         },
     }
+
+    def __init__(self, graph: Optional[Dict] = None, field_mappings: Optional[Dict] = None):
+        self._graph = graph or {}
+        self._field_mappings = field_mappings or {}
+
+    def _get_required_fields(self, doctype: str) -> List[str]:
+        """Read required_fields from graph; fall back to hardcoded list."""
+        graph_fields = (
+            self._graph.get("doctypes", {})
+                       .get(doctype, {})
+                       .get("required_fields", [])
+        )
+        if graph_fields:
+            return graph_fields
+        return self._REQUIRED_FIELDS_FALLBACK.get(doctype, [])
+
+    def _get_enum_rules(self, doctype: str) -> Dict[str, List[str]]:
+        """Read Select fields from field_mappings; fall back to hardcoded dict."""
+        dt_fields = (
+            self._field_mappings.get("doctypes", {})
+                                .get(doctype, {})
+                                .get("field_mappings", {})
+        )
+        enum_rules: Dict[str, List[str]] = {}
+        for _fn, cfg in dt_fields.items():
+            if cfg.get("fieldtype") == "Select" and cfg.get("options"):
+                opts = [o.strip() for o in str(cfg["options"]).split("\n") if o.strip()]
+                if opts:
+                    enum_rules[cfg.get("fieldname", _fn)] = opts
+        if enum_rules:
+            return enum_rules
+        return self._ENUM_FIELDS_FALLBACK.get(doctype, {})
 
     def validate(self, mapped_data: Dict[str, Any], target_structure: Dict[str, Any]) -> Dict[str, Any]:
         report: Dict[str, Any] = {
@@ -120,7 +181,7 @@ class _ValidationEngine:
                 )
 
         # Required-field check
-        required = self.REQUIRED_FIELDS.get(doctype, [])
+        required = self._get_required_fields(doctype)
         if rows and required:
             sample = rows[0]
             for field in required:
@@ -129,7 +190,7 @@ class _ValidationEngine:
                     check["status"] = "fail"
 
         # ── ENUM VALUE VALIDATION ──
-        enum_rules = self.ENUM_FIELDS.get(doctype, {})
+        enum_rules = self._get_enum_rules(doctype)
         if rows and enum_rules:
             for i, row in enumerate(rows[:20]):
                 for field_name, allowed_values in enum_rules.items():
@@ -237,7 +298,8 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
 
     # ── 3. Run validation engine ─────────────────────────────────────────────
     start_time = datetime.now()
-    engine = _ValidationEngine()
+    # Load context files so engine can read required_fields + enum rules from JSON
+    engine = _ValidationEngine(graph=_load_graph(), field_mappings=_load_field_mappings())
     report = engine.validate(mapped_data, target_structure)
     duration = (datetime.now() - start_time).total_seconds()
     

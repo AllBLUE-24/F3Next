@@ -119,8 +119,28 @@ class _MappingEngine:
         except Exception as e:
             return None
 
-    # Known entity-type values that indicate a file should be split by party type
-    ENTITY_TYPE_VALUES = {"supplier", "customer", "vendor", "client", "buyer", "seller"}
+    # ── PROTOCOL-COMPLIANT: Entity synonyms are read from field_mappings.json ──
+    # 'party_type_synonyms' key maps canonical names → list of user-facing aliases.
+    # Fallback to old hardcoded set if the key is absent from the JSON.
+    # ──────────────────────────────────────────────────────────────────────────
+
+    # Fallback: used only if field_mappings.json lacks 'party_type_synonyms'
+    _ENTITY_TYPE_VALUES_FALLBACK = {"supplier", "customer", "vendor", "client", "buyer", "seller"}
+
+    def _get_party_type_synonyms(self) -> Dict[str, List[str]]:
+        """Load party_type_synonyms from field_mappings.json.
+        Returns { 'Customer': ['client', 'buyer', ...], 'Supplier': [...] }.
+        Falls back to a minimal hardcoded dict if not present in JSON.
+        """
+        data = self._load_field_mappings()
+        synonyms = data.get("party_type_synonyms")
+        if synonyms:
+            return {k: [s.lower() for s in v] for k, v in synonyms.items()}
+        # Fallback: replicate old hardcoded behaviour
+        return {
+            "Customer": ["customer", "client", "buyer"],
+            "Supplier": ["supplier", "vendor", "seller"],
+        }
 
     def _split_by_entity_type(self, rows: List[Dict], columns: List[str]) -> Optional[Dict[str, List[Dict]]]:
         """
@@ -132,6 +152,17 @@ class _MappingEngine:
 
         Returns None if no split is needed, or {entity_type: [rows]} if split applies.
         """
+        # Build synonym index from JSON (or fallback)
+        party_synonyms = self._get_party_type_synonyms()
+        # Flat set of all known alias values for quick membership testing
+        all_entity_aliases: set = {alias for aliases in party_synonyms.values() for alias in aliases}
+        # Reverse map: lowercase alias → canonical name
+        alias_to_canonical: Dict[str, str] = {
+            alias: canonical
+            for canonical, aliases in party_synonyms.items()
+            for alias in aliases
+        }
+
         type_col = None
         type_synonyms = {"type", "entity type", "entity_type", "record type", "party type"}
         for c in columns:
@@ -152,7 +183,7 @@ class _MappingEngine:
         # Only split if at least 30% of unique values match known entity types
         if not unique_values:
             return None
-        entity_match_count = sum(1 for v in unique_values if v in self.ENTITY_TYPE_VALUES)
+        entity_match_count = sum(1 for v in unique_values if v in all_entity_aliases)
         if entity_match_count / len(unique_values) < 0.3:
             activity.logger.info("  Type column '%s' has non-entity values %s — skipping split",
                                  type_col, unique_values)
@@ -163,12 +194,8 @@ class _MappingEngine:
             raw_type = (row.get(type_col) or "").strip()
             if not raw_type:
                 continue
-            # Normalize common synonyms: "Client" → "Customer"
-            normalized = raw_type
-            if normalized.lower() in ("client", "buyer"):
-                normalized = "Customer"
-            elif normalized.lower() in ("vendor", "seller"):
-                normalized = "Supplier"
+            # Normalize via JSON alias map; if unknown, keep as-is
+            normalized = alias_to_canonical.get(raw_type.lower(), raw_type)
             groups.setdefault(normalized, []).append(row)
 
         # Only split if we have ≥2 distinct entity types
@@ -230,16 +257,32 @@ class _MappingEngine:
                 
         return result
 
-    @staticmethod
-    def _keyword_infer_doctype(content: str) -> Optional[str]:
-        """Keyword-based fallback doctype inference for unstructured text when LLM fails."""
+    def _keyword_infer_doctype(self, content: str) -> Optional[str]:
+        """Keyword-based fallback doctype inference for unstructured text when LLM fails.
+
+        Reads 'doctype_keyword_hints' from field_mappings.json.
+        Each entry: { "keywords": [...], "min_score": N }.
+        Falls back to hardcoded Company/Employee rules if the key is absent.
+        """
         text_lower = content.lower()
-        # Company setup signals
+        data = self._load_field_mappings()
+        hints = data.get("doctype_keyword_hints")
+
+        if hints:
+            # JSON-driven: score every doctype, pick highest above threshold
+            best_doctype, best_score = None, 0
+            for doctype, cfg in hints.items():
+                score = sum(1 for kw in cfg.get("keywords", []) if kw.lower() in text_lower)
+                min_score = cfg.get("min_score", 3)
+                if score >= min_score and score > best_score:
+                    best_score, best_doctype = score, doctype
+            return best_doctype
+
+        # Fallback: original hardcoded rules (preserved for backward compatibility)
         company_keywords = ["gstin", "gst", "company", "pvt", "ltd", "currency", "inr", "bank", "branch"]
         company_score = sum(1 for kw in company_keywords if kw in text_lower)
         if company_score >= 3:
             return "Company"
-        # Employee signals
         emp_keywords = ["employee", "staff", "designation", "department", "joining", "salary"]
         if sum(1 for kw in emp_keywords if kw in text_lower) >= 3:
             return "Employee"

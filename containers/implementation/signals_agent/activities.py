@@ -124,37 +124,60 @@ Return ONLY a valid JSON object matching this schema exactly:
 
 
 class _F3icheVerificationService:
-    NORMALIZE_MAP = {
-        "trading":       ["trading", "trade", "distributor", "trader", "trading_fmcg_distributor",
-                          "trading_hardware_variants", "trading_autoparts_highvolume"],
-        "manufacturing": ["manufacturing", "manufacture", "production", "maker",
-                          "manufacturing_garment_variants", "manufacturing_food_batch",
-                          "manufacturing_fabrication_jobshop"],
-        "service":       ["service", "services", "consulting", "service_professional"],
+    # ── PROTOCOL-COMPLIANT: No hardcoded F3iche ID lists. ─────────────────────
+    # Broad category is derived from the F3iche ID prefix (e.g.
+    # "manufacturing_project_chemical" → "manufacturing").
+    # Adding new F3iches to signals_registry.json requires zero changes here.
+    # ──────────────────────────────────────────────────────────────────────────
+
+    # Kept only for generic user-facing aliases ("trade", "service", etc.)
+    # that do NOT follow the niche ID naming convention.
+    _GENERIC_ALIASES: Dict[str, str] = {
+        "trade":         "trading",
+        "distributor":   "trading",
+        "trader":        "trading",
+        "manufacture":   "manufacturing",
+        "production":    "manufacturing",
+        "maker":         "manufacturing",
+        "services":      "service",
+        "consulting":    "service",
     }
 
     @classmethod
-    def normalize(cls, f3iche: str) -> str:
+    def _get_broad_category(cls, f3iche: str) -> str:
+        """Derive broad category from F3iche ID without any hardcoded lists.
+
+        Strategy:
+        1. If the value is already a broad category prefix, return it.
+        2. If the value follows the niche ID convention (e.g. 'trading_fmcg_distributor'),
+           extract and return the prefix ('trading').
+        3. Check generic user-facing aliases (e.g. 'trade' → 'trading').
+        4. Return the value as-is so comparisons still work.
+        """
         if not f3iche:
             return ""
         f = f3iche.lower().strip()
-        for canonical, aliases in cls.NORMALIZE_MAP.items():
-            if f == canonical or f in aliases:
-                return canonical
-        return f
+        # Broad category prefix match: trading_*, manufacturing_*, service_*
+        for prefix in ("trading", "manufacturing", "service"):
+            if f == prefix or f.startswith(f"{prefix}_"):
+                return prefix
+        # Generic alias fallback (for human-entered values from discovery)
+        return cls._GENERIC_ALIASES.get(f, f)
 
     @classmethod
     def verify(cls, f3iche_user: str, f3iche_signals: str, confidence: float = 0.0) -> Tuple[bool, str, Optional[str]]:
-        u, s = cls.normalize(f3iche_user), cls.normalize(f3iche_signals)
-        if not u:
+        u_cat = cls._get_broad_category(f3iche_user)
+        s_cat = cls._get_broad_category(f3iche_signals)
+
+        if not u_cat:
             return (False, "pending_clarification", "Please confirm your business type from the discovery chat.")
-        if not s:
+        if not s_cat:
             return (True, "matched", None)
-        if u == s:
+        if u_cat == s_cat:
             return (True, "matched", None)
         msg = (
-            f"Our analysis suggests you might be a **{s}** business, "
-            f"but you indicated **{u}**. Could you clarify which best describes your operations?"
+            f"Our analysis suggests you might be a **{s_cat}** business, "
+            f"but you indicated **{u_cat}**. Could you clarify which best describes your operations?"
         )
         return (False, "mismatch", msg)
 

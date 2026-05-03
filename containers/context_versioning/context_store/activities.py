@@ -251,7 +251,6 @@ async def register_frappe_webhooks(data: dict) -> dict:
         "api_key":        str,
         "api_secret":     str,
         "webhook_secret": str,    # HMAC secret; stored in deployment_details
-        "backend_url":    str,    # our public URL, e.g. https://f3next.in
       }
 
     Returns:
@@ -267,7 +266,9 @@ async def register_frappe_webhooks(data: dict) -> dict:
     api_key        = data["api_key"]
     api_secret     = data["api_secret"]
     webhook_secret = data["webhook_secret"]
-    backend_url    = data.get("backend_url", "https://f3next.in").rstrip("/")
+
+    import os
+    backend_url    = os.getenv("PUBLIC_BACKEND_URL", "https://f3next.in").rstrip("/")
 
     target_url = f"{backend_url}/api/cvs/webhook/{project_id}"
 
@@ -487,7 +488,6 @@ async def cvs_force_sync_for_project(data: dict) -> dict:
       {
         "project_id":   str,
         "company_slug": str,
-        "backend_url":  str,   # e.g. http://backend_api:8000
       }
 
     Returns:
@@ -495,7 +495,9 @@ async def cvs_force_sync_for_project(data: dict) -> dict:
     """
     project_id   = data["project_id"]
     company_slug = data.get("company_slug", "")
-    backend_url  = data.get("backend_url", "http://backend_api:8000").rstrip("/")
+    
+    import os
+    backend_url  = os.getenv("BACKEND_INTERNAL_URL", "http://backend_api:8000").rstrip("/")
 
     activity.heartbeat("Triggering baseline CVS force-sync")
 

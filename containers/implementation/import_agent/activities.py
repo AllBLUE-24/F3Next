@@ -172,8 +172,11 @@ _KNOWN_LINK_FIELDS: Dict[str, str] = {
 }
 
 # Doctypes that require complex structured data (child tables, multi-field bodies).
-# The dynamic seeder will NOT attempt to auto-create these — they must be in the
-# static baseline or pre-created manually.
+# The dynamic seeder will NOT attempt to auto-create these.
+#
+# PROTOCOL: Prefer setting seeding_complexity="complex" in erpnext_doctype_graph.json.
+# This set is the FALLBACK for doctypes not yet defined in the graph.
+# Do NOT add new entries here — add them to the graph JSON instead.
 _DYNAMIC_SEED_BLACKLIST: set = {
     "Account",
     "Tax Template",
@@ -189,6 +192,30 @@ _DYNAMIC_SEED_BLACKLIST: set = {
     # structured records built by _build_baseline_record special case:
     "Payment Terms Template",
 }
+
+_GRAPH_PATH_FOR_SEED = _KB_DIR / "erpnext_doctype_graph.json"
+
+
+def _is_seed_blacklisted(doctype: str) -> bool:
+    """Check if doctype should be skipped by the dynamic seeder.
+
+    Reads seeding_complexity from erpnext_doctype_graph.json first.
+    Falls back to the static _DYNAMIC_SEED_BLACKLIST set if not found in graph.
+    This means existing blacklisted doctypes still work even before graph is updated.
+    """
+    try:
+        with open(_GRAPH_PATH_FOR_SEED, "r", encoding="utf-8") as _f:
+            _graph = json.load(_f)
+        complexity = (
+            _graph.get("doctypes", {})
+                  .get(doctype, {})
+                  .get("seeding_complexity")
+        )
+        if complexity is not None:
+            return complexity in ("complex", "skip")
+    except Exception:
+        pass  # fall through to static blacklist
+    return doctype in _DYNAMIC_SEED_BLACKLIST
 
 
 async def _discover_name_field(
@@ -329,11 +356,30 @@ class _ImportEngine:
                 "reason": "Validation failed. Fix errors before import.",
             }
 
-        phases = {
-            "phase_a_config": {"name": "Configuration Setup", "steps": []},
-            "phase_b_master": {"name": "Master Data", "steps": []},
-            "phase_c_transactional": {"name": "Transactional Data", "steps": []}
+        # ── PROTOCOL-COMPLIANT: Phases are derived from setup_steps data. ────────────
+        # Pre-seed the 3 standard phases so existing plans never break.
+        # Any additional phases found in setup_steps are added dynamically.
+        # This means Phase D (projects) appears automatically once the graph
+        # maps its doctypes to 'phase_d_projects'.
+        _PHASE_LABEL_MAP = {
+            "phase_a_config":        "Configuration Setup",
+            "phase_b_master":        "Master Data",
+            "phase_c_transactional": "Transactional Data",
         }
+        phases: Dict[str, Any] = {
+            "phase_a_config":        {"name": "Configuration Setup",  "steps": []},
+            "phase_b_master":        {"name": "Master Data",          "steps": []},
+            "phase_c_transactional": {"name": "Transactional Data",   "steps": []},
+        }
+        for step_info in setup_steps:
+            phase_key = step_info.get("phase", "phase_a_config")
+            if phase_key not in phases:
+                # Dynamically create any new phase found in setup_steps
+                label = _PHASE_LABEL_MAP.get(
+                    phase_key,
+                    phase_key.replace("phase_", "").replace("_", " ").title() + " Setup"
+                )
+                phases[phase_key] = {"name": label, "steps": []}
         
         total_steps = 0
         
@@ -517,6 +563,47 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         pass
 
     return plan_status
+
+
+@dataclass
+class GetImportPlanPhasesInput:
+    session_id: str
+
+
+@activity.defn(name="get_import_plan_phases")
+async def get_import_plan_phases(inp: GetImportPlanPhasesInput) -> List[Tuple[str, str]]:
+    """
+    Reads the import plan from Supabase and returns the ordered list of phases
+    to execute: [(phase_id, phase_name), ...]
+    """
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISImportPlan
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(ISImportPlan)
+            .where(ISImportPlan.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISImportPlan.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        plan = result.scalar_one_or_none()
+
+    if not plan or not plan.phases:
+        # Fallback to standard 3 phases if plan isn't found
+        return [
+            ("phase_a_config",        "Configuration Setup"),
+            ("phase_b_master",        "Master Data"),
+            ("phase_c_transactional", "Transactional Data"),
+        ]
+
+    # Convert the JSON dict into an ordered list.
+    # We sort by the phase_id string so phase_a comes before phase_b, etc.
+    phase_list = []
+    for phase_id, phase_data in sorted(plan.phases.items()):
+        phase_list.append((phase_id, phase_data.get("name", phase_id)))
+    return phase_list
 
 
 @activity.defn(name="execute_import_phase")
@@ -707,7 +794,7 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
         # Payment Terms Template that require structured child-table records.
         if not inp.dry_run and base_url:
             for _supp_dt, _supp_vals in _baseline_data.items():
-                if _supp_dt in _DYNAMIC_SEED_BLACKLIST and _supp_dt not in seen_seed_doctypes and _supp_vals:
+                if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
                     seeded, already, failed = 0, 0, 0
                     for _sv in _supp_vals:
                         _record = _build_baseline_record(_supp_dt, _sv)
@@ -786,7 +873,7 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                         # Skip if already handled in Pass 1 or blacklisted
                         if _target_dt in seen_seed_doctypes:
                             continue
-                        if _target_dt in _DYNAMIC_SEED_BLACKLIST:
+                        if _is_seed_blacklisted(_target_dt):
                             continue
                         _dynamic_link_targets.setdefault(_target_dt, set()).add(_field_value.strip())
 
