@@ -470,7 +470,8 @@ class ImplementationWorkflow:
                     session_id=self._session_id,
                     industry=conf.industry,
                     company_size=conf.company_size,
-                    differentiators=conf.industry_sub or ""
+                    differentiators=conf.industry_sub or "",
+                    f3iche_id=conf.f3iche_user,
                 ),
                 **_ACT,
             )

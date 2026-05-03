@@ -22,6 +22,7 @@ from shared.models.is_models import (
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
 )
 from shared.models.cvs_models import ContextSnapshot, ContextEvent
+from shared.models.f3iche_models import F3icheDefinition
 from shared.database.db import engine, Base
 from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
@@ -33,6 +34,7 @@ from app.api.ingest import router as ingest_router
 from app.api.os_command import router as os_router
 from app.api.implementation import router as implementation_router
 from app.api.cvs import router as cvs_router
+from app.api.admin_f3iches import router as admin_f3iches_router
 
 
 @asynccontextmanager
@@ -47,12 +49,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics():
+    from fastapi import Response
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 _all_models = [
     Base, Client, Project, ProjectStatus, Hook,
     ISSession, ISFile, ISFileSignal, ISF3icheScore,
     ISCompanyProfile, ISTargetStructure, ISFieldMapping, ISMappedData,
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
-    ContextSnapshot, ContextEvent,
+    ContextSnapshot, ContextEvent, F3icheDefinition,
 ]
 
 if __name__ == "__main__":
@@ -97,3 +107,4 @@ app.include_router(ingest_router, prefix="/api")
 app.include_router(os_router, prefix="/api")
 app.include_router(implementation_router, prefix="/api")
 app.include_router(cvs_router, prefix="/api")
+app.include_router(admin_f3iches_router, prefix="/api")

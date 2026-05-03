@@ -90,6 +90,14 @@ async def force_sync(
         layers          = req.layers,
     )
 
+    try:
+        from shared.cvs_metrics import CVS_FORCE_SYNC_TOTAL
+
+        if CVS_FORCE_SYNC_TOTAL:
+            CVS_FORCE_SYNC_TOTAL.labels(result="ok" if result.get("ok") else "fail").inc()
+    except Exception:
+        pass
+
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("error", "Sync failed to start"))
 
@@ -120,9 +128,9 @@ async def receive_webhook(
       Requests without a valid signature are rejected with 401/403.
 
     Resilience:
-      The raw payload is written to context_events BEFORE Temporal is called.
-      If Temporal is briefly unavailable, the event is still recorded and can
-      be re-processed by the recovery cron (processed_at IS NULL).
+      Temporal workflow logs the ContextEvent (single source of truth).
+      If Temporal is unavailable, the endpoint returns an error and the ERP
+      may retry; the recovery poller also catches stale unprocessed rows.
     """
     raw_body = await request.body()
 
@@ -174,39 +182,7 @@ async def receive_webhook(
     doctype  = payload_dict.get("doctype", "")
     doc_name = payload_dict.get("name", "")
 
-    # ── Step 4: Buffer event to context_events BEFORE Temporal ───────────────
-    # This ensures we never lose an event even if Temporal is briefly down.
-    # processed_at=None marks it as pending; the recovery cron will pick it up.
-    try:
-        from shared.database.db import AsyncSessionLocal
-        from shared.models.cvs_models import ContextEvent
-        import uuid as _uuid
-
-        async with AsyncSessionLocal() as db:
-            event_row = ContextEvent(
-                project_id    = str(project_id),
-                event_type    = f"webhook_{doctype.lower().replace(' ', '_')}",
-                event_payload = payload_dict,
-                doctype       = doctype,
-                doc_name      = doc_name,
-            )
-            db.add(event_row)
-            await db.commit()
-            await db.refresh(event_row)
-            event_id = str(event_row.id)
-
-        logger.info(
-            "CVS webhook buffered: project=%s doctype=%s doc=%s event_id=%s",
-            project_id, doctype, doc_name, event_id,
-        )
-
-    except Exception as e:
-        logger.exception("CVS webhook: failed to buffer event to DB: %s", e)
-        # Don't return 500 to Frappe — that would cause it to retry and flood us.
-        # The event is lost but Frappe won't retry infinitely.
-        return {"ok": False, "error": "event_buffer_failed", "detail": str(e)}
-
-    # ── Step 5: Enqueue Temporal workflow ────────────────────────────────────
+    # ── Step 4: Enqueue Temporal workflow (logs ContextEvent inside workflow) ─
     result = await launcher.trigger_webhook_sync(
         project_id      = str(project_id),
         company_slug    = company_slug,
@@ -214,11 +190,18 @@ async def receive_webhook(
         webhook_payload = payload_dict,
     )
 
+    try:
+        from shared.cvs_metrics import CVS_WEBHOOKS_TOTAL
+
+        if CVS_WEBHOOKS_TOTAL:
+            CVS_WEBHOOKS_TOTAL.labels(result="ok" if result.get("ok") else "fail").inc()
+    except Exception:
+        pass
+
     return {
         "ok":          result.get("ok"),
         "workflow_id": result.get("workflow_id"),
         "layers":      result.get("layers"),
-        "event_id":    event_id,
     }
 
 
@@ -350,50 +333,7 @@ async def get_status(project_id: UUID):
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
 async def _load_profile_for_project(project_id: str) -> tuple[str, dict]:
-    """
-    Load the company profile from the projects DB table.
-    Used by the webhook endpoint to get ERP credentials without the caller providing them.
+    """Delegates to shared loader (workers + API use the same shape)."""
+    from shared.cvs_profile import load_cvs_company_profile
 
-    Returns (company_slug, profile_dict).
-    Raises ValueError if project not found or not yet deployed.
-    """
-    from shared.database.db import AsyncSessionLocal
-    from shared.models.core import Project
-    from sqlalchemy import select
-
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(Project).where(Project.id == project_id)
-        )
-        project = result.scalars().first()
-
-    if not project:
-        raise ValueError(f"Project {project_id} not found")
-
-    deployment = project.deployment_details or {}
-
-    if not deployment.get("api_key"):
-        raise ValueError(
-            f"Project {project_id} has no ERP credentials yet (IS not complete)"
-        )
-
-    company      = project.company_name or deployment.get("company", "Unknown")
-    company_slug = project.company_slug or project_id
-
-    profile = {
-        "company_id":         str(project.id),
-        "company_name":       company,
-        "company_slug":       company_slug,
-        "erp_type":           "erpnext",
-        "erp_url":            deployment.get("erp_url") or deployment.get("site_url", ""),
-        "api_key":            deployment.get("api_key", ""),
-        "api_secret":         deployment.get("api_secret", ""),
-        "verify_ssl":         deployment.get("verify_ssl", True),
-        "allow_insecure_ssl": deployment.get("allow_insecure_ssl", True),
-        "default_company":    deployment.get("company", company),
-        "default_currency":   deployment.get("currency", "INR"),
-        "default_warehouse":  deployment.get("default_warehouse", ""),
-        "source":             "cvs_webhook_loader",
-    }
-
-    return company_slug, profile
+    return await load_cvs_company_profile(project_id)

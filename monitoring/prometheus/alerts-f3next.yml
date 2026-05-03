@@ -1,0 +1,26 @@
+# Example Prometheus alert rules for CVS + Context Engine metrics.
+# Load with: prometheus --config.file=prometheus.yml (and rule_files pointing here).
+groups:
+  - name: f3next_cvs
+    interval: 30s
+    rules:
+      - alert: CVSWebhookFailures
+        expr: sum(increase(cvs_webhook_requests_total{result="fail"}[15m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CVS webhook handling reported failures"
+          description: "Check backend logs and ERP webhook configuration."
+
+  - name: f3next_context_engine
+    interval: 30s
+    rules:
+      - alert: ContextEngineSlowLoads
+        expr: histogram_quantile(0.95, sum(rate(context_engine_load_seconds_bucket[5m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Context engine p95 load time above 2s"
+          description: "Inspect DB latency, Redis, and kb_embeddings query cost."

@@ -147,6 +147,22 @@ class CVSUpdateWorkflow:
             snapshot_result.get("versions"),
         )
 
+        # ── Step 2b: Mark audit event processed ─────────────────────────────────
+        await workflow.execute_activity(
+            "mark_event_processed",
+            args=[{
+                "event_id":    event_result.get("event_id", ""),
+                "max_version": snapshot_result.get("max_version"),
+            }],
+            task_queue             = CVS_QUEUE,
+            start_to_close_timeout = timedelta(seconds=15),
+            retry_policy           = _RETRY_2,
+        )
+
+        workflow.logger.info(
+            "✅ CVS [2b] event marked processed id=%s", event_result.get("event_id", "?")
+        )
+
         # ── Step 3: Invalidate OS session caches ──────────────────────────────
         cache_result: dict = await workflow.execute_activity(
             "invalidate_session_cache",

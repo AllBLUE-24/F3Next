@@ -83,19 +83,35 @@ async def retrieve_context(data: dict) -> dict:
 
     activity.heartbeat("Loading doctype schema")
 
-    # ── Step 2: Doctype schema from KB-02 + KB-07 ─────────────────────────────
+    # ── Step 2: Doctype schema from KB + Context Engine (Tier1/2 + CVS) ───────
     try:
-        ckb            = context_kb()
+        ckb = context_kb()
         doctype_schema = ckb.doctype_schema(target_doctype) if target_doctype else {}
         module_context = ckb.module_context_for_doctype(target_doctype) if target_doctype else {}
-        related_docs   = ckb.related_doctypes(target_doctype) if target_doctype else []
-        workflow_str   = ckb.workflow_for_doctype(target_doctype) if target_doctype else ""
+        related_docs = ckb.related_doctypes(target_doctype) if target_doctype else []
+        workflow_str = ckb.workflow_for_doctype(target_doctype) if target_doctype else ""
+
+        f3iche_id = company_profile.get("f3_niche_id") or data.get("f3iche_id") or ""
+        from shared.context_engine import get_context_engine
+
+        pc = await get_context_engine().get_context(
+            project_id=str(company_id),
+            f3iche_id=f3iche_id,
+            layers=["master_data"],
+            include_tier3=False,
+        )
+        graph_dt = (pc.tier2_merged_graph.get("doctypes") or {}).get(target_doctype, {})
+        if graph_dt:
+            doctype_schema = {**doctype_schema, "f3iche_graph_overlay": graph_dt}
+        md = pc.cvs.get("master_data")
+        if isinstance(md, dict) and md:
+            doctype_schema["cvs_master_data_keys"] = list(md.keys())[:24]
     except Exception as e:
-        logger.exception("KB context load failed for doctype=%s: %s", target_doctype, e)
+        logger.exception("KB / context engine load failed for doctype=%s: %s", target_doctype, e)
         doctype_schema = {}
         module_context = {}
-        related_docs   = []
-        workflow_str   = ""
+        related_docs = []
+        workflow_str = ""
 
     # ── Step 3: Business rules stub (KB-06 not yet loaded) ────────────────────
     # TODO: load kb_06_validation_rules.json here when built

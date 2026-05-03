@@ -32,10 +32,7 @@ from datetime import datetime, timezone
 
 from temporalio import activity
 
-from containers.context_versioning.snapshot_builder.erp_fetcher import (
-    fetch_master_data,
-    fetch_transaction_intel,
-)
+from shared.erp_adapters import get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +56,21 @@ async def build_and_store_snapshot(data: dict) -> dict:
     trigger_event   = data.get("trigger_event", "force_sync")
     trigger_doctype = data.get("trigger_doctype")
 
-    activity.heartbeat("Fetching data from ERPNext")
+    activity.heartbeat("Fetching data from ERP")
 
+    adapter = get_adapter(profile)
     results: dict[str, dict] = {}   # layer → {data, version, r2_key}
 
-    # ── Step 1: Fetch ERPNext data for each layer ──────────────────────────────
+    # ── Step 1: Fetch ERP data for each layer ───────────────────────────────────
     for layer in layers:
         activity.heartbeat(f"Fetching {layer}")
 
         try:
             if layer == "master_data":
-                layer_data = await fetch_master_data(profile)
+                layer_data = await adapter.fetch_master_data()
 
             elif layer == "transaction_intel":
-                layer_data = await fetch_transaction_intel(profile, days=30)
+                layer_data = await adapter.fetch_transaction_intel(days=30)
 
             else:
                 logger.warning("CVS: unknown layer '%s' — skipping", layer)
@@ -145,9 +143,12 @@ async def build_and_store_snapshot(data: dict) -> dict:
 
     activity.heartbeat("Snapshot complete")
 
+    max_version = max(versions.values()) if versions else 0
+
     return {
         "success":  len(versions) > 0,
         "versions": versions,
         "r2_keys":  r2_keys,
         "layers_built": list(versions.keys()),
+        "max_version": max_version,
     }

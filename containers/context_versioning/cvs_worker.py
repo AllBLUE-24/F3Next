@@ -37,6 +37,7 @@ from containers.context_versioning.context_store.activities import (
     read_latest_snapshot,
     invalidate_session_cache,
     log_context_event,
+    mark_event_processed,
     register_frappe_webhooks,
     recover_stuck_events,
     cvs_force_sync_for_project,
@@ -56,6 +57,7 @@ async def main():
         read_latest_snapshot,
         invalidate_session_cache,
         log_context_event,
+        mark_event_processed,
         register_frappe_webhooks,
         recover_stuck_events,
         cvs_force_sync_for_project,
@@ -77,6 +79,7 @@ async def main():
     print("┃    • read_latest_snapshot                                   ┃")
     print("┃    • invalidate_session_cache                               ┃")
     print("┃    • log_context_event                                      ┃")
+    print("┃    • mark_event_processed                                   ┃")
     print("┃    • register_frappe_webhooks  (IS post-deploy)             ┃")
     print("┃    • recover_stuck_events      (recovery cron)              ┃")
     print("┃    • cvs_force_sync_for_project (IS Step 13.5 trigger)      ┃")

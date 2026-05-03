@@ -39,6 +39,13 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_CSRF_COOKIE_INSECURE: true
 
+  redis:
+    image: redis:7-alpine
+    container_name: f3_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   # 4. Workers
   discovery_worker:
     build:
@@ -95,8 +102,10 @@ services:
     restart: unless-stopped
     depends_on:
       - temporal
+      - redis
     environment:
       - TEMPORAL_HOST=temporal:7233
+      - REDIS_URL=redis://redis:6379/0
 
   os_worker:
     build:
@@ -108,8 +117,10 @@ services:
     restart: unless-stopped
     depends_on:
       - temporal
+      - redis
     environment:
       - TEMPORAL_HOST=temporal:7233
+      - REDIS_URL=redis://redis:6379/0
 
   cvs_worker:
     build:
@@ -121,10 +132,46 @@ services:
     restart: unless-stopped
     depends_on:
       - temporal
+      - redis
     environment:
       - TEMPORAL_HOST=temporal:7233
+      - REDIS_URL=redis://redis:6379/0
     # Explicit DNS — fixes systemd-resolved loopback (127.0.0.53) issue on DO/Ubuntu hosts.
     # This container must reach external ERPNext instances (e.g. f3.f3next.in) to build CVS snapshots.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  cvs_poller:
+    build:
+      context: .
+      dockerfile: containers/context_versioning/Dockerfile
+    container_name: f3_cvs_poller
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    command: ["python", "-m", "containers.context_versioning.poller_worker"]
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  cvs_recovery:
+    build:
+      context: .
+      dockerfile: containers/context_versioning/Dockerfile
+    container_name: f3_cvs_recovery
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    command: ["python", "-m", "containers.context_versioning.recovery_worker"]
+    environment:
+      - TEMPORAL_HOST=temporal:7233
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -154,8 +201,10 @@ services:
     restart: unless-stopped
     depends_on:
       - temporal
+      - redis
     environment:
       - TEMPORAL_HOST=temporal:7233
+      - REDIS_URL=redis://redis:6379/0
 
   frontend_web:
     build:

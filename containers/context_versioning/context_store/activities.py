@@ -121,6 +121,13 @@ async def invalidate_session_cache(data: dict) -> dict:
             await session.commit()
 
         logger.info("CVS: invalidated company_context for %d OS sessions (project=%s)", count, project_id)
+        try:
+            from shared.context_engine import get_context_engine
+
+            await get_context_engine().invalidate_project(str(project_id))
+        except Exception as ce:
+            logger.warning("CVS: context engine invalidate failed: %s", ce)
+
         return {"sessions_cleared": count}
 
     except Exception as e:
@@ -185,6 +192,51 @@ async def log_context_event(data: dict) -> dict:
     except Exception as e:
         logger.exception("CVS: log_context_event failed: %s", e)
         return {"event_id": ""}
+
+
+@activity.defn(name="mark_event_processed")
+async def mark_event_processed(data: dict) -> dict:
+    """
+    Set processed_at + version_produced on the ContextEvent row created in step 1.
+
+    Input: { "event_id": str, "max_version": int | None }
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import update
+    from sqlalchemy.sql import func as sqlfunc
+
+    event_id = (data or {}).get("event_id") or ""
+    max_version = (data or {}).get("max_version")
+    if not event_id:
+        return {"ok": True, "skipped": True}
+
+    activity.heartbeat("mark_event_processed")
+
+    try:
+        from shared.database.db import AsyncSessionLocal
+        from shared.models.cvs_models import ContextEvent
+
+        vid = _uuid.UUID(str(event_id))
+        ver = int(max_version) if max_version is not None else None
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                update(ContextEvent)
+                .where(ContextEvent.id == vid)
+                .values(
+                    processed_at=sqlfunc.now(),
+                    version_produced=ver,
+                )
+            )
+            await session.commit()
+
+        logger.info("CVS: marked event processed id=%s version=%s", event_id, ver)
+        return {"ok": True, "event_id": event_id}
+
+    except Exception as e:
+        logger.exception("CVS: mark_event_processed failed: %s", e)
+        return {"ok": False, "error": str(e)}
 
 
 # ── Sprint 2: Frappe Webhook Registration ──────────────────────────────────────
@@ -369,39 +421,27 @@ async def register_frappe_webhooks(data: dict) -> dict:
 
 # ── Sprint 2: Recovery Cron for Stuck Events ──────────────────────────────────
 
-@activity.defn(name="recover_stuck_events")
-async def recover_stuck_events(data: dict) -> dict:
+async def recover_stuck_events_core(data: dict) -> dict:
     """
-    Drain context_events rows where processed_at IS NULL and received_at is
-    older than `stale_minutes` ago. Re-triggers a CVSUpdateWorkflow for each.
-
-    This is the safety net for events that landed in the DB (Step 4 of the
-    webhook handler) but whose Temporal workflow never started or was dropped.
-
-    Input:
-      { "stale_minutes": int = 5 }   # default: events older than 5 minutes
-
-    Returns:
-      { "recovered": int, "errors": int }
+    Core implementation for stuck-event recovery (callable from cron script or activity).
     """
     stale_minutes = data.get("stale_minutes", 5)
 
-    activity.heartbeat("Scanning for stuck context_events")
-
     try:
-        from shared.database.db import AsyncSessionLocal
-        from shared.models.cvs_models import ContextEvent
-        from sqlalchemy import select, update
-        from sqlalchemy.sql import func
         from datetime import timedelta
         import os
 
+        from sqlalchemy import select
         from temporalio.client import Client
         from temporalio.common import WorkflowIDReusePolicy
+
         from containers.context_versioning.cvs_workflow.workflow import (
-            CVSUpdateWorkflow, CVSUpdateInput,
+            CVSUpdateInput,
+            CVSUpdateWorkflow,
         )
-        from backend.app.api.cvs import _load_profile_for_project
+        from shared.cvs_profile import load_cvs_company_profile
+        from shared.database.db import AsyncSessionLocal
+        from shared.models.cvs_models import ContextEvent
 
         client = await Client.connect(os.getenv("TEMPORAL_HOST", "localhost:7233"))
 
@@ -409,12 +449,13 @@ async def recover_stuck_events(data: dict) -> dict:
 
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                select(ContextEvent).where(
+                select(ContextEvent)
+                .where(
                     ContextEvent.processed_at == None,  # noqa: E711
-                    ContextEvent.received_at  <= cutoff,
+                    ContextEvent.received_at <= cutoff,
                 )
                 .order_by(ContextEvent.received_at)
-                .limit(50)   # process max 50 per run to avoid thundering herd
+                .limit(50)
             )
             stuck = result.scalars().all()
 
@@ -429,29 +470,29 @@ async def recover_stuck_events(data: dict) -> dict:
         for event in stuck:
             try:
                 project_id = str(event.project_id)
-                company_slug, company_profile = await _load_profile_for_project(project_id)
+                company_slug, company_profile = await load_cvs_company_profile(project_id)
 
-                from backend.app.services.cvs_launcher import _layers_for_doctype
-                layers   = _layers_for_doctype(event.doctype or "")
-                wf_id    = f"cvs-recover-{event.id}"
+                from shared.cvs_routing import layers_for_doctype
+
+                layers = layers_for_doctype(event.doctype or "")
 
                 inp = CVSUpdateInput(
-                    project_id      = project_id,
-                    company_slug    = company_slug,
-                    company_profile = company_profile,
-                    trigger_event   = "recovery",
-                    trigger_doctype = event.doctype,
-                    doc_name        = event.doc_name,
-                    layers          = layers,
-                    event_payload   = event.event_payload or {},
+                    project_id=project_id,
+                    company_slug=company_slug,
+                    company_profile=company_profile,
+                    trigger_event="recovery",
+                    trigger_doctype=event.doctype,
+                    doc_name=event.doc_name,
+                    layers=layers,
+                    event_payload=event.event_payload or {},
                 )
 
                 await client.start_workflow(
                     CVSUpdateWorkflow.run,
                     inp,
-                    id                = wf_id,
-                    task_queue        = "cvs-main-queue",
-                    id_reuse_policy   = WorkflowIDReusePolicy.TERMINATE_IF_RUNNING,
+                    id=f"cvs-recover-{event.id}",
+                    task_queue="cvs-main-queue",
+                    id_reuse_policy=WorkflowIDReusePolicy.TERMINATE_IF_RUNNING,
                 )
 
                 recovered += 1
@@ -467,6 +508,22 @@ async def recover_stuck_events(data: dict) -> dict:
     except Exception as e:
         logger.exception("CVS recover: recover_stuck_events failed: %s", e)
         return {"recovered": 0, "errors": 1}
+
+
+@activity.defn(name="recover_stuck_events")
+async def recover_stuck_events(data: dict) -> dict:
+    """
+    Drain context_events rows where processed_at IS NULL and received_at is
+    older than `stale_minutes` ago. Re-triggers a CVSUpdateWorkflow for each.
+
+    Input:
+      { "stale_minutes": int = 5 }
+
+    Returns:
+      { "recovered": int, "errors": int }
+    """
+    activity.heartbeat("Scanning for stuck context_events")
+    return await recover_stuck_events_core(data)
 
 
 
@@ -493,11 +550,16 @@ async def cvs_force_sync_for_project(data: dict) -> dict:
     Returns:
       { "ok": bool, "workflow_id": str }
     """
-    project_id   = data["project_id"]
-    company_slug = data.get("company_slug", "")
-    
+    project_id = data["project_id"]
+
     import os
-    backend_url  = os.getenv("BACKEND_INTERNAL_URL", "http://backend_api:8000").rstrip("/")
+
+    from shared.cvs_profile import build_force_sync_company_profile
+
+    slug, company_profile = await build_force_sync_company_profile(project_id)
+    company_slug = data.get("company_slug") or slug
+
+    backend_url = os.getenv("BACKEND_INTERNAL_URL", "http://backend_api:8000").rstrip("/")
 
     activity.heartbeat("Triggering baseline CVS force-sync")
 
@@ -507,7 +569,10 @@ async def cvs_force_sync_for_project(data: dict) -> dict:
         async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(
                 f"{backend_url}/api/cvs/force-sync/{project_id}",
-                json={"company_slug": company_slug},
+                json={
+                    "company_slug": company_slug,
+                    "company_profile": company_profile,
+                },
             )
             resp.raise_for_status()
             result = resp.json()

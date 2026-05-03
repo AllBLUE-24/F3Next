@@ -184,6 +184,7 @@ class RetrieveIndustryKnowledgeInput:
     industry: str
     company_size: Optional[str] = None
     differentiators: str = ""
+    f3iche_id: Optional[str] = None
 
 @dataclass
 class EnrichCompanyProfileInput:
@@ -488,9 +489,8 @@ async def retrieve_industry_knowledge(inp: RetrieveIndustryKnowledgeInput) -> Di
 
     from shared.database.db import AsyncSessionLocal
     from shared.models.is_models import ISCompanyProfile
-    from sqlalchemy import update, select, text
+    from sqlalchemy import update, select
     from containers.implementation.utils.llm_helper import generate_json
-    from langchain_google_genai import GoogleGenerativeAIEmbeddings
     import uuid
 
     # 1. Build the search query
@@ -523,25 +523,18 @@ async def retrieve_industry_knowledge(inp: RetrieveIndustryKnowledgeInput) -> Di
         activity.logger.error("  ❌ Failed to generate embedding: %s", e)
         vector_str = None
 
-    # 3. Vector Similarity Search in Supabase
-    retrieved_docs = []
+    # 3. Vector Similarity Search (Context Engine Tier 3)
+    retrieved_docs: list[str] = []
     if vector_str:
         try:
-            async with AsyncSessionLocal() as session:
-                # We use raw SQL with `<=>` which calculates cosine distance
-                # We use raw SQL with `<=>` which calculates cosine distance
-                stmt = text("""
-                    SELECT content 
-                    FROM kb_embeddings 
-                    ORDER BY embedding <=> CAST(:vector AS vector)
-                    LIMIT 5
-                """)
+            from shared.context_engine import get_context_engine
 
-                res = await session.execute(stmt, {"vector": vector_str})
-                
-                for row in res:
-                    retrieved_docs.append(row[0])
-                    
+            prefix = str(inp.f3iche_id) if inp.f3iche_id else None
+            retrieved_docs = await get_context_engine().get_tier3_chunks(
+                vector_str,
+                top_k=5,
+                kb_source_prefix=prefix,
+            )
             activity.logger.info("  ✅ Retrieved %d relevant chunks from pgvector", len(retrieved_docs))
         except Exception as e:
             activity.logger.error("  ❌ Vector search failed: %s", e)
