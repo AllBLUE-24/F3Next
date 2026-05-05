@@ -296,6 +296,8 @@ async def register_frappe_webhooks(data: dict) -> dict:
     so that all future document changes in ERPNext automatically push events
     to our /api/cvs/webhook/{project_id} endpoint.
 
+    NOW USES ERPAdapter for ERP-agnostic webhook registration.
+
     Input:
       {
         "project_id":     str,
@@ -308,112 +310,74 @@ async def register_frappe_webhooks(data: dict) -> dict:
     Returns:
       {
         "registered":  int,   # number of webhooks successfully created
-        "skipped":     int,   # already existed
+        "skipped":     int,   # already existed (detected inside adapter)
         "failed":      int,   # creation errors
         "details":     list,
       }
     """
     project_id     = data["project_id"]
-    erp_url        = data["erp_url"].rstrip("/")
-    api_key        = data["api_key"]
-    api_secret     = data["api_secret"]
     webhook_secret = data["webhook_secret"]
 
     import os
-    backend_url    = os.getenv("PUBLIC_BACKEND_URL", "https://f3next.in").rstrip("/")
+    from shared.erp_adapters.registry import get_adapter
 
+    backend_url = os.getenv("PUBLIC_BACKEND_URL", "https://f3next.in").rstrip("/")
     target_url = f"{backend_url}/api/cvs/webhook/{project_id}"
 
-    activity.heartbeat("Registering Frappe webhooks")
+    activity.heartbeat("Registering Frappe webhooks via ERPAdapter")
 
-    import httpx
-
-    headers = {
-        "Authorization": f"token {api_key}:{api_secret}",
-        "Content-Type":  "application/json",
+    # Build profile for adapter
+    profile = {
+        "erp_type":           "erpnext",
+        "erp_url":            data["erp_url"].rstrip("/"),
+        "api_key":            data["api_key"],
+        "api_secret":         data["api_secret"],
+        "verify_ssl":         False,  # typically dev/test environments
+        "allow_insecure_ssl": True,
     }
 
-    registered = skipped = failed = 0
+    adapter = get_adapter(profile)
+
+    registered = 0
+    skipped = 0
+    failed = 0
     details: list[dict] = []
 
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
-        for doctype, events in _WEBHOOK_DOCTYPES:
-            for event in events:
-                webhook_name = f"F3Next CVS — {doctype} {event}"
-                activity.heartbeat(f"Registering: {webhook_name}")
+    for doctype, events in _WEBHOOK_DOCTYPES:
+        for event in events:
+            activity.heartbeat(f"Registering: {doctype} {event}")
 
-                # Check if webhook already exists to avoid duplicates
-                check_resp = await client.get(
-                    f"{erp_url}/api/resource/Webhook",
-                    headers=headers,
-                    params={
-                        "filters": str([
-                            ["webhook_doctype", "=", doctype],
-                            ["request_url",     "=", target_url],
-                            ["webhook_docevent","=", event],
-                        ]),
-                        "fields": '["name"]',
-                        "limit":  "1",
-                    },
-                )
+            field_list = _WEBHOOK_FIELDS.get(doctype, ["name"])
 
-                if check_resp.is_success:
-                    existing = check_resp.json().get("data", [])
-                    if existing:
-                        logger.info("CVS webhooks: already exists — %s %s", doctype, event)
-                        skipped += 1
-                        details.append({"doctype": doctype, "event": event, "status": "skipped"})
-                        continue
+            success = await adapter.register_webhook(
+                doctype=doctype,
+                event=event,
+                callback_url=target_url,
+                webhook_secret=webhook_secret,
+                field_list=field_list,
+            )
 
-                # Build webhook data fields (which document fields to include in payload)
-                field_list = _WEBHOOK_FIELDS.get(doctype, ["name"])
-                webhook_data = [{"fieldname": f, "key": f} for f in field_list]
-                # Always include doctype and name for routing
-                if not any(d["key"] == "name" for d in webhook_data):
-                    webhook_data.insert(0, {"fieldname": "name", "key": "name"})
-
-                # Frappe also needs doctype injected — we add it as a condition header
-                payload = {
-                    "webhook_doctype":  doctype,
-                    "webhook_docevent": event,
-                    "request_url":      target_url,
-                    "request_method":   "POST",
-                    "request_structure": "Form URL-Encoded",
-                    "enable_security":  1,
-                    "webhook_secret":   webhook_secret,
-                    "webhook_data":     webhook_data,
-                    # Inject doctype into payload so our endpoint can route correctly
-                    "webhook_json": f'{{"doctype": "{doctype}"}}',
-                }
-
-                create_resp = await client.post(
-                    f"{erp_url}/api/resource/Webhook",
-                    headers=headers,
-                    json={"data": payload},
-                )
-
-                if create_resp.is_success:
-                    registered += 1
-                    logger.info("CVS webhooks: registered — %s %s", doctype, event)
-                    details.append({"doctype": doctype, "event": event, "status": "registered"})
-                else:
-                    failed += 1
-                    logger.error(
-                        "CVS webhooks: FAILED to register %s %s — %d %s",
-                        doctype, event, create_resp.status_code, create_resp.text[:200],
-                    )
-                    details.append({
-                        "doctype": doctype, "event": event,
-                        "status": "failed", "error": create_resp.text[:200],
-                    })
+            if success:
+                # Adapter returns True for both "created" and "already exists"
+                # We log both as success but don't distinguish here
+                registered += 1
+                details.append({"doctype": doctype, "event": event, "status": "registered"})
+            else:
+                failed += 1
+                details.append({
+                    "doctype": doctype,
+                    "event": event,
+                    "status": "failed",
+                    "error": "Adapter returned False — check logs",
+                })
 
     logger.info(
-        "CVS webhooks: registration complete — registered=%d skipped=%d failed=%d",
-        registered, skipped, failed,
+        "CVS webhooks: registration complete — registered=%d failed=%d",
+        registered, failed,
     )
     return {
         "registered": registered,
-        "skipped":    skipped,
+        "skipped":    skipped,  # adapter doesn't distinguish, so always 0 here
         "failed":     failed,
         "details":    details,
     }

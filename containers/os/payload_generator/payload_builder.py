@@ -22,27 +22,6 @@ from containers.os.payload_generator.kb_fields import field_kb
 
 logger = logging.getLogger(__name__)
 
-# ── Endpoint map ──────────────────────────────────────────────────────────────
-
-def _endpoint(action: str, doctype: str, step_ref: str = "") -> tuple[str, str]:
-    dt_url = doctype.replace(" ", "%20")
-    mapping = {
-        "create":       (f"/api/resource/{dt_url}",              "POST"),
-        "create_from":  (f"/api/resource/{dt_url}",              "POST"),
-        "get":          (f"/api/resource/{dt_url}/{step_ref}",   "GET"),
-        "search":       (f"/api/resource/{dt_url}",              "GET"),
-        "update":       (f"/api/resource/{dt_url}/{step_ref}",   "PUT"),
-        "submit":       (f"/api/resource/{dt_url}/{step_ref}",   "PUT"),
-        "cancel":       (f"/api/resource/{dt_url}/{step_ref}",   "PUT"),
-        "delete":       (f"/api/resource/{dt_url}/{step_ref}",   "DELETE"),
-        "report":       (f"/api/method/frappe.desk.query_report.run", "GET"),
-        "bulk_create":  (f"/api/resource/{dt_url}",              "POST"),
-        "validate_data":(f"",                                     ""),
-        "notify":       (f"/api/method/frappe.core.doctype.notification.notification.send", "POST"),
-    }
-    return mapping.get(action, (f"/api/resource/{dt_url}", "POST"))
-
-
 # ── Company name resolution ───────────────────────────────────────────────────
 
 def _get_company(context: dict) -> str:
@@ -399,26 +378,20 @@ def build_payload_bundle(plan: dict, context: dict, intent_dict: dict) -> dict:
             payload = {}
             notes   = f"Unknown action: {action}"
 
-        endpoint, http_method = _endpoint(action, doctype, step_ref)
-
         built_steps.append({
             "step_number": step_num,
             "action":      action,
             "doctype":     doctype,
             "payload":     payload,
-            "endpoint":    endpoint,
-            "http_method": http_method,
             "notes":       notes,
         })
 
         logger.info(
-            "  step %d [%s]: %s %s → %s %s  (%d payload keys)",
+            "  step %d [%s]: %s %s  (%d payload keys)",
             step_num,
             step.get("step_role", "main"),
             action,
             doctype,
-            http_method,
-            endpoint,
             len(payload),
         )
 

@@ -6,6 +6,8 @@ Registered on: os-main-queue (via os_worker.py)
 
 Activity name: "execute_command"  ← must match workflow.py call exactly
 
+NOW USES ERPAdapter for all ERP operations — no direct HTTP calls.
+
 Input:
   payload_bundle dict  — from Payload Generator
     {
@@ -14,8 +16,6 @@ Input:
           "step_number": 1,
           "action":      "create",
           "doctype":     "Sales Order",
-          "endpoint":    "/api/resource/Sales%20Order",
-          "http_method": "POST",
           "payload":     {...},
         }
       ]
@@ -43,19 +43,19 @@ No LLM. Timeout: 60 seconds (set in workflow.py).
 from __future__ import annotations
 
 import logging
-import ssl
 import time
-from urllib.parse import quote
 
-import aiohttp
 from temporalio import activity
+
+from shared.erp_adapters.registry import get_adapter
 
 logger = logging.getLogger(__name__)
 
-# ── HTTP status codes that should NOT be retried ──────────────────────────────
+# ── HTTP status codes that should NOT be retried (handled by adapter now) ─────
+# Kept for reference but adapter handles this internally
 _NO_RETRY_STATUSES = {400, 401, 403, 404, 409, 417, 422}
 
-# ── Master data doctypes that need duplicate-existence check before POST ───────
+# ── Master data doctypes that need duplicate-existence check before POST ──────
 # ERPNext auto-renames on duplicate (e.g. "Stark Industries" → "Stark Industries - 1")
 # instead of erroring, so we must check first.
 _MASTER_DATA_DOCTYPES: set[str] = {
@@ -83,291 +83,13 @@ _MASTER_NAME_FIELD: dict[str, str] = {
 }
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _build_headers(api_key: str, api_secret: str) -> dict:
-    return {
-        "Authorization": f"token {api_key}:{api_secret}",
-        "Content-Type":  "application/json",
-        "Accept":        "application/json",
-    }
-
-
-def _erp_url(base: str, endpoint: str) -> str:
-    """Safely join base URL and endpoint."""
-    base    = base.rstrip("/")
-    endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
-    return f"{base}{endpoint}"
-
-
-def _parse_erp_error(status: int, body: dict) -> str:
-    """Extract a human-readable error from ERPNext response."""
-    exc = body.get("exception", "")
-    msg = body.get("message", "")
-    exc_type = body.get("exc_type", "")
-
-    if exc_type:
-        return f"{exc_type}: {exc or msg}"
-    if exc:
-        return exc.split("\n")[-1].strip() or exc
-    return msg or f"ERPNext returned HTTP {status}"
-
-
-def _to_bool(value: object, default: bool = True) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _is_ssl_verification_error(exc: Exception) -> bool:
-    ssl_error_types = (
-        aiohttp.ClientConnectorCertificateError,
-        aiohttp.ClientConnectorSSLError,
-        aiohttp.ClientSSLError,
-        ssl.SSLCertVerificationError,
-    )
-
-    if isinstance(exc, ssl_error_types):
-        return True
-
-    message = str(exc)
-    return "CERTIFICATE_VERIFY_FAILED" in message or "self-signed certificate" in message
-
-
-async def _list_master_names(
-    session: aiohttp.ClientSession,
-    base_url: str,
-    doctype: str,
-    headers: dict,
-    limit: int = 100,
-) -> list[str]:
-    url = _erp_url(base_url, f"/api/resource/{quote(doctype, safe='')}")
-
-    try:
-        async with session.get(
-            url,
-            headers=headers,
-            params={
-                "limit_page_length": str(limit),
-            },
-            timeout=aiohttp.ClientTimeout(total=15),
-        ) as resp:
-            if resp.status != 200:
-                body_text = await resp.text()
-                activity.logger.warning(
-                    "  ⚠️  unable to list %s from %s → HTTP %s: %s",
-                    doctype,
-                    url,
-                    resp.status,
-                    body_text[:200],
-                )
-                return []
-            body = await resp.json(content_type=None)
-    except Exception as exc:
-        activity.logger.warning("  ⚠️  master list fetch failed for %s: %s", doctype, exc)
-        return []
-
-    rows = body.get("data", []) if isinstance(body, dict) else []
-    names = [str(row.get("name", "")).strip() for row in rows if isinstance(row, dict) and row.get("name")]
-    activity.logger.info("  ℹ️  loaded %d %s option(s)", len(names), doctype)
-    return names
-
-
-_BOOTSTRAP_MASTER_PAYLOADS: dict[str, list[dict]] = {
-    "Customer Group": [
-        {"customer_group_name": "All Customer Groups", "is_group": 1},
-    ],
-    "Territory": [
-        {"territory_name": "All Territories", "is_group": 1},
-    ],
-}
-
-
-async def _create_master_record(
-    session: aiohttp.ClientSession,
-    base_url: str,
-    doctype: str,
-    headers: dict,
-    payload: dict,
-) -> bool:
-    url = _erp_url(base_url, f"/api/resource/{quote(doctype, safe='')}")
-
-    try:
-        async with session.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=aiohttp.ClientTimeout(total=20),
-        ) as resp:
-            if resp.status in (200, 201):
-                activity.logger.warning("  🛠️  bootstrapped missing %s via %s", doctype, payload)
-                return True
-
-            body_text = await resp.text()
-            activity.logger.warning(
-                "  ⚠️  failed to bootstrap %s → HTTP %s: %s",
-                doctype,
-                resp.status,
-                body_text[:300],
-            )
-            return False
-    except Exception as exc:
-        activity.logger.warning("  ⚠️  bootstrap create failed for %s: %s", doctype, exc)
-        return False
-
-
-async def _bootstrap_master_options(
-    session: aiohttp.ClientSession,
-    base_url: str,
-    doctype: str,
-    headers: dict,
-) -> list[str]:
-    payloads = _BOOTSTRAP_MASTER_PAYLOADS.get(doctype, [])
-    if not payloads:
-        return []
-
-    activity.logger.warning("  ⚠️  no %s records found — attempting bootstrap", doctype)
-    created_any = False
-    for payload in payloads:
-        created = await _create_master_record(session, base_url, doctype, headers, payload)
-        created_any = created_any or created
-
-    if not created_any:
-        return []
-
-    return await _list_master_names(session, base_url, doctype, headers)
-
-
-async def _resolve_link_value(
-    session: aiohttp.ClientSession,
-    base_url: str,
-    link_doctype: str,
-    desired: str,
-    headers: dict,
-    fallbacks: list[str] | None = None,
-) -> str:
-    options = await _list_master_names(session, base_url, link_doctype, headers)
-    if not options:
-        options = await _bootstrap_master_options(session, base_url, link_doctype, headers)
-    if not options:
-        return desired
-
-    normalized = {name.casefold(): name for name in options}
-
-    for candidate in [desired, *(fallbacks or [])]:
-        if not candidate:
-            continue
-        match = normalized.get(candidate.strip().casefold())
-        if match:
-            return match
-
-    return options[0]
-
-
-async def _heal_master_payload_links(
-    session: aiohttp.ClientSession,
-    base_url: str,
-    doctype: str,
-    payload: dict,
-    headers: dict,
-) -> dict:
-    link_rules: dict[str, tuple[str, list[str]]] = {}
-
-    if doctype == "Customer":
-        link_rules = {
-            "customer_group": ("Customer Group", ["Commercial", "All Customer Groups"]),
-            "territory": ("Territory", ["All Territories", "India"]),
-        }
-    elif doctype == "Supplier":
-        link_rules = {
-            "supplier_group": ("Supplier Group", ["All Supplier Groups"]),
-        }
-    elif doctype == "Item":
-        link_rules = {
-            "item_group": ("Item Group", ["All Item Groups"]),
-            "stock_uom": ("UOM", ["Nos", "Unit"]),
-        }
-
-    if not link_rules:
-        return payload
-
-    for field_name, (link_doctype, fallback_values) in link_rules.items():
-        current = str(payload.get(field_name, "") or "").strip()
-        if not current:
-            continue
-
-        resolved = await _resolve_link_value(
-            session=session,
-            base_url=base_url,
-            link_doctype=link_doctype,
-            desired=current,
-            headers=headers,
-            fallbacks=fallback_values,
-        )
-
-        if resolved and resolved != current:
-            activity.logger.warning(
-                "  ↪️  resolved %s '%s' to existing %s '%s' for %s",
-                field_name,
-                current,
-                link_doctype,
-                resolved,
-                doctype,
-            )
-            payload[field_name] = resolved
-
-    return payload
-
-
-def _is_link_validation_error(exc: Exception) -> bool:
-    text = str(exc)
-    return "LinkValidationError" in text or "Could not find" in text
-
-
-async def _retry_after_link_validation_error(
-    session: aiohttp.ClientSession,
-    base_url: str,
-    doctype: str,
-    payload: dict,
-    headers: dict,
-    exc: Exception,
-) -> dict | None:
-    if not _is_link_validation_error(exc):
-        return None
-
-    healed_payload = await _heal_master_payload_links(
-        session=session,
-        base_url=base_url,
-        doctype=doctype,
-        payload=dict(payload),
-        headers=headers,
-    )
-
-    if healed_payload == payload:
-        activity.logger.warning(
-            "  ⚠️  link-validation retry skipped for %s — no alternative linked master values found",
-            doctype,
-        )
-        return None
-
-    activity.logger.warning(
-        "  ↻ retrying %s create after resolving linked master values from ERPNext",
-        doctype,
-    )
-    return healed_payload
-
-
 # ── Pre-flight duplicate check for master data ───────────────────────────────
 
 async def _check_master_exists(
-    session:  aiohttp.ClientSession,
-    base_url: str,
-    doctype:  str,
-    payload:  dict,
-    headers:  dict,
-) -> "str | None":
+    adapter,
+    doctype: str,
+    payload: dict,
+) -> str | None:
     """
     Check if a master data record with the same name already exists before POSTing.
     ERPNext silently renames duplicates (Stark Industries -> Stark Industries - 1)
@@ -382,167 +104,161 @@ async def _check_master_exists(
     if not candidate_name:
         return None
 
-    check_url = (
-        base_url.rstrip("/")
-        + "/api/resource/"
-        + quote(doctype, safe="")
-        + "/"
-        + quote(str(candidate_name), safe="")
-    )
-
     try:
-        async with session.get(
-            check_url,
-            headers=headers,
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as resp:
-            if resp.status == 200:
-                body = await resp.json(content_type=None)
-                existing_name = body.get("data", {}).get("name", candidate_name)
-                return str(existing_name)
-            return None   # 404 = doesn't exist, anything else = ignore
+        existing = await adapter.get_record(doctype, str(candidate_name), fields=["name"])
+        if existing and existing.get("name"):
+            return str(existing["name"])
+    except ValueError:
+        # 404 not found — safe to create
+        return None
     except Exception:
-        return None   # If check fails, let POST proceed and surface ERPNext's own error
+        # Other errors — let POST proceed and surface ERPNext's own error
+        return None
+
+    return None
 
 
-# ── Core HTTP caller (reusable per step) ──────────────────────────────────────
-
-async def _call_erpnext(
-    session:    aiohttp.ClientSession,
-    method:     str,
-    url:        str,
-    headers:    dict,
-    payload:    dict,
-    step_num:   int,
-) -> dict:
-    """
-    Fire one HTTP request to ERPNext and return a normalised result dict.
-    Raises ValueError for non-retryable 4xx errors.
-    Raises RuntimeError for 5xx errors (will be retried by Temporal).
-    """
-    activity.heartbeat(f"Calling ERPNext: {method} {url} (step {step_num})")
-
-    method = method.upper()
-
-    async with getattr(session, method.lower())(
-        url,
-        json=payload if method in ("POST", "PUT", "PATCH") else None,
-        headers=headers,
-        timeout=aiohttp.ClientTimeout(total=45),
-    ) as resp:
-        status = resp.status
-        try:
-            body = await resp.json(content_type=None)
-        except Exception:
-            body = {"message": await resp.text()}
-
-    if status in (200, 201):
-        data = body.get("data", body)
-        activity.logger.info(
-            "  ✅ step %d: %s %s → %s (doc: %s)",
-            step_num, method, url, status,
-            data.get("name", "—") if isinstance(data, dict) else "—",
-        )
-        return {"success": True, "status": status, "data": data}
-
-    error_msg = _parse_erp_error(status, body)
-
-    if status in _NO_RETRY_STATUSES:
-        activity.logger.warning(
-            "  ❌ step %d: %s %s → %s — %s (non-retryable)",
-            step_num, method, url, status, error_msg,
-        )
-        raise ValueError(f"HTTP {status}: {error_msg}")
-
-    activity.logger.warning(
-        "  ⚠️  step %d: %s %s → %s — %s (will retry)",
-        step_num, method, url, status, error_msg,
-    )
-    raise RuntimeError(f"HTTP {status}: {error_msg}")
-
-
-# ── Per-step executor with SSL fallback ───────────────────────────────────────
+# ── Per-step executor using ERPAdapter ────────────────────────────────────────
 
 async def _execute_step(
-    erp_url: str,
-    headers: dict,
+    adapter,
     step: dict,
-    verify_ssl: bool,
-    allow_insecure_ssl: bool,
 ) -> dict:
-    async def _run_once(use_verify_ssl: bool) -> dict:
-        connector = None if use_verify_ssl else aiohttp.TCPConnector(ssl=False)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            step_num = step.get("step_number", 1)
-            http_method = step.get("http_method", "POST").upper()
-            endpoint = step.get("endpoint", "")
-            step_payload = dict(step.get("payload", {}))
-            step_action = step.get("action", "create")
-            step_doctype = step.get("doctype", "")
+    """
+    Execute a single step using ERPAdapter.
+    
+    Raises:
+        ValueError — on non-retryable errors (4xx)
+        RuntimeError — on retryable errors (5xx, network)
+    """
+    step_num = step.get("step_number", 1)
+    step_action = step.get("action", "create")
+    step_doctype = step.get("doctype", "")
+    step_payload = dict(step.get("payload", {}))
 
-            url = _erp_url(erp_url, endpoint)
-            if step_action in ("update", "delete", "get"):
-                doc_name = step_payload.pop("name", None) or step_payload.pop("document_name", None)
-                if doc_name:
-                    url = f"{url}/{quote(str(doc_name), safe='')}"
-
-            if step_action == "create":
-                step_payload = await _heal_master_payload_links(
-                    session=session,
-                    base_url=erp_url,
-                    doctype=step_doctype,
-                    payload=step_payload,
-                    headers=headers,
-                )
-
-                if step_doctype in _MASTER_DATA_DOCTYPES:
-                    existing = await _check_master_exists(
-                        session, erp_url, step_doctype, step_payload, headers,
-                    )
-                    if existing:
-                        name_field = _MASTER_NAME_FIELD.get(step_doctype, "name")
-                        candidate = step_payload.get(name_field) or step_payload.get("name", "")
-                        activity.logger.warning(
-                            "  ⚠️  step %d: duplicate check — %s '%s' already exists as '%s'",
-                            step_num, step_doctype, candidate, existing,
-                        )
-                        raise ValueError(
-                            f"DuplicateEntryError: '{candidate}' already exists as '{existing}' "
-                            f"in {step_doctype}. Open the existing record or use a different name."
-                        )
-
-            try:
-                return await _call_erpnext(
-                    session, http_method, url, headers, step_payload, step_num,
-                )
-            except ValueError as exc:
-                if step_action != "create":
-                    raise
-
-                retry_payload = await _retry_after_link_validation_error(
-                    session=session,
-                    base_url=erp_url,
-                    doctype=step_doctype,
-                    payload=step_payload,
-                    headers=headers,
-                    exc=exc,
-                )
-                if retry_payload is None:
-                    raise
-
-                return await _call_erpnext(
-                    session, http_method, url, headers, retry_payload, step_num,
-                )
+    activity.heartbeat(f"Executing step {step_num}: {step_action} {step_doctype}")
 
     try:
-        return await _run_once(verify_ssl)
-    except Exception as exc:
-        if verify_ssl and allow_insecure_ssl and _is_ssl_verification_error(exc):
-            activity.logger.warning(
-                "SSL verification failed for %s — retrying once with certificate checks disabled",
-                erp_url,
+        # ── CREATE ────────────────────────────────────────────────────────────
+        if step_action == "create":
+            # Pre-flight duplicate check for master data
+            if step_doctype in _MASTER_DATA_DOCTYPES:
+                existing = await _check_master_exists(adapter, step_doctype, step_payload)
+                if existing:
+                    name_field = _MASTER_NAME_FIELD.get(step_doctype, "name")
+                    candidate = step_payload.get(name_field) or step_payload.get("name", "")
+                    activity.logger.warning(
+                        "  ⚠️  step %d: duplicate check — %s '%s' already exists as '%s'",
+                        step_num, step_doctype, candidate, existing,
+                    )
+                    raise ValueError(
+                        f"DuplicateEntryError: '{candidate}' already exists as '{existing}' "
+                        f"in {step_doctype}. Open the existing record or use a different name."
+                    )
+
+            data = await adapter.create_record(step_doctype, step_payload)
+            activity.logger.info(
+                "  ✅ step %d: created %s → %s",
+                step_num, step_doctype, data.get("name", "—"),
             )
-            return await _run_once(False)
+            return {"success": True, "data": data}
+
+        # ── UPDATE ────────────────────────────────────────────────────────────
+        elif step_action == "update":
+            doc_name = step_payload.pop("name", None) or step_payload.pop("docname", None)
+            if not doc_name:
+                raise ValueError(f"Update action requires 'name' field in payload")
+            
+            data = await adapter.update_record(step_doctype, str(doc_name), step_payload)
+            activity.logger.info(
+                "  ✅ step %d: updated %s/%s",
+                step_num, step_doctype, doc_name,
+            )
+            return {"success": True, "data": data}
+
+        # ── SUBMIT ────────────────────────────────────────────────────────────
+        elif step_action == "submit":
+            doc_name = step_payload.get("docname") or step_payload.get("name")
+            if not doc_name:
+                raise ValueError(f"Submit action requires 'docname' or 'name' field")
+            
+            data = await adapter.submit_document(step_doctype, str(doc_name))
+            activity.logger.info(
+                "  ✅ step %d: submitted %s/%s",
+                step_num, step_doctype, doc_name,
+            )
+            return {"success": True, "data": data}
+
+        # ── CANCEL ────────────────────────────────────────────────────────────
+        elif step_action == "cancel":
+            doc_name = step_payload.get("docname") or step_payload.get("name")
+            if not doc_name:
+                raise ValueError(f"Cancel action requires 'docname' or 'name' field")
+            
+            data = await adapter.cancel_document(step_doctype, str(doc_name))
+            activity.logger.info(
+                "  ✅ step %d: cancelled %s/%s",
+                step_num, step_doctype, doc_name,
+            )
+            return {"success": True, "data": data}
+
+        # ── GET ───────────────────────────────────────────────────────────────
+        elif step_action in ("get", "get_document"):
+            doc_name = step_payload.get("docname") or step_payload.get("name")
+            if not doc_name:
+                raise ValueError(f"Get action requires 'docname' or 'name' field")
+            
+            fields = step_payload.get("fields")
+            data = await adapter.get_record(step_doctype, str(doc_name), fields=fields)
+            activity.logger.info(
+                "  ✅ step %d: fetched %s/%s",
+                step_num, step_doctype, doc_name,
+            )
+            return {"success": True, "data": data}
+
+        # ── SEARCH/LIST ───────────────────────────────────────────────────────
+        elif step_action == "search":
+            filters = step_payload.get("filters", [])
+            fields = step_payload.get("fields", ["name", "status"])
+            limit = step_payload.get("limit", 20)
+            
+            data = await adapter.list_records(
+                step_doctype,
+                fields=fields,
+                filters=filters,
+                limit=limit,
+            )
+            activity.logger.info(
+                "  ✅ step %d: searched %s → %d results",
+                step_num, step_doctype, len(data),
+            )
+            return {"success": True, "data": data}
+
+        # ── DELETE ────────────────────────────────────────────────────────────
+        elif step_action == "delete":
+            doc_name = step_payload.get("docname") or step_payload.get("name")
+            if not doc_name:
+                raise ValueError(f"Delete action requires 'docname' or 'name' field")
+            
+            success = await adapter.delete_record(step_doctype, str(doc_name))
+            activity.logger.info(
+                "  ✅ step %d: deleted %s/%s",
+                step_num, step_doctype, doc_name,
+            )
+            return {"success": True, "data": {"name": doc_name, "deleted": success}}
+
+        # ── UNKNOWN ACTION ────────────────────────────────────────────────────
+        else:
+            raise ValueError(f"Unknown action: {step_action}")
+
+    except ValueError as e:
+        # Non-retryable client errors (4xx)
+        activity.logger.error("  ❌ step %d: %s (non-retryable)", step_num, e)
+        raise
+
+    except RuntimeError as e:
+        # Retryable server errors (5xx)
+        activity.logger.warning("  ⚠️  step %d: %s (will retry)", step_num, e)
         raise
 
 
@@ -557,8 +273,8 @@ async def execute_command(
     """
     Execution Agent activity.
 
-    Iterates over every step in the PayloadBundle, fires the corresponding
-    ERPNext REST call, and returns a structured result.
+    Iterates over every step in the PayloadBundle, executes via ERPAdapter,
+    and returns a structured result.
 
     Pipeline position: Agent 7 (after Confirmation Gate).
     Consumer: workflow checks success/error; passes result to Result Formatter.
@@ -570,8 +286,8 @@ async def execute_command(
     erp_url    = creds.get("erp_url",    "http://localhost:8080")
     api_key    = creds.get("api_key",    "")
     api_secret = creds.get("api_secret", "")
-    verify_ssl = _to_bool(creds.get("verify_ssl"), True)
-    allow_insecure_ssl = _to_bool(creds.get("allow_insecure_ssl"), True)
+    verify_ssl = creds.get("verify_ssl", True)
+    allow_insecure_ssl = creds.get("allow_insecure_ssl", True)
 
     is_dummy = context.get("company_profile", {}).get("is_dummy", False)
 
@@ -581,8 +297,8 @@ async def execute_command(
     action    = steps[0].get("action",  "unknown") if steps else "unknown"
 
     activity.logger.info(
-        "execute_command: doctype=%s action=%s steps=%d erp_url=%s dummy=%s verify_ssl=%s allow_insecure_ssl=%s",
-        doctype, action, n_steps, erp_url, is_dummy, verify_ssl, allow_insecure_ssl,
+        "execute_command: doctype=%s action=%s steps=%d erp_url=%s dummy=%s",
+        doctype, action, n_steps, erp_url, is_dummy,
     )
 
     # ── Dummy / stub mode ──────────────────────────────────────────────────────
@@ -603,8 +319,20 @@ async def execute_command(
             "error":             None,
         }
 
-    # ── Real execution ─────────────────────────────────────────────────────────
-    headers       = _build_headers(api_key, api_secret)
+    # ── Real execution via ERPAdapter ─────────────────────────────────────────
+    
+    # Build adapter profile
+    profile = {
+        "erp_type":           "erpnext",
+        "erp_url":            erp_url,
+        "api_key":            api_key,
+        "api_secret":         api_secret,
+        "verify_ssl":         verify_ssl,
+        "allow_insecure_ssl": allow_insecure_ssl,
+    }
+
+    adapter = get_adapter(profile)
+
     steps_results = []
     last_result   = {}
 
@@ -614,13 +342,7 @@ async def execute_command(
             step_action = step.get("action", "create")
             step_doctype = step.get("doctype", "")
 
-            step_result = await _execute_step(
-                erp_url=erp_url,
-                headers=headers,
-                step=step,
-                verify_ssl=verify_ssl,
-                allow_insecure_ssl=allow_insecure_ssl,
-            )
+            step_result = await _execute_step(adapter, step)
 
             steps_results.append({
                 "step":     step_num,

@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 import logging
-import ssl
 from typing import Any, Optional
-from urllib.parse import quote
-
-import aiohttp
 
 from containers.os.payload_generator.kb_fields import field_kb
 from shared.models.plan import ExecutionPlan, PlanStep
@@ -40,43 +36,6 @@ _NAME_FIELD_BY_DOCTYPE: dict[str, str] = {
 }
 
 
-def _to_bool(value: object, default: bool = True) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _build_headers(api_key: str, api_secret: str) -> dict[str, str]:
-    return {
-        "Authorization": f"token {api_key}:{api_secret}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-
-
-def _erp_url(base: str, endpoint: str) -> str:
-    base = base.rstrip("/")
-    endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
-    return f"{base}{endpoint}"
-
-
-def _is_ssl_verification_error(exc: Exception) -> bool:
-    ssl_error_types = (
-        aiohttp.ClientConnectorCertificateError,
-        aiohttp.ClientConnectorSSLError,
-        aiohttp.ClientSSLError,
-        ssl.SSLCertVerificationError,
-    )
-
-    if isinstance(exc, ssl_error_types):
-        return True
-
-    text = str(exc)
-    return "CERTIFICATE_VERIFY_FAILED" in text or "self-signed certificate" in text
-
-
 def _parse_depends_on(depends_on: Optional[str]) -> Optional[int]:
     if not depends_on:
         return None
@@ -94,62 +53,48 @@ def _bootstrap_display_value(doctype: str, payload: dict[str, Any]) -> str:
     return str(value).strip()
 
 
-async def _fetch_master_names_once(
-    erp_url: str,
+async def _list_master_names(
+    adapter,
     doctype: str,
-    headers: dict[str, str],
-    verify_ssl: bool,
     limit: int = 100,
 ) -> list[str]:
-    connector = None if verify_ssl else aiohttp.TCPConnector(ssl=False)
-    url = _erp_url(erp_url, f"/api/resource/{quote(doctype, safe='')}")
-
-    async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.get(
-            url,
-            headers=headers,
-            params={"limit_page_length": str(limit)},
-            timeout=aiohttp.ClientTimeout(total=15),
-        ) as resp:
-            if resp.status != 200:
-                body_text = await resp.text()
-                logger.warning(
-                    "Planner prereq lookup failed for %s → HTTP %s: %s",
-                    doctype,
-                    resp.status,
-                    body_text[:200],
-                )
-                return []
-
-            body = await resp.json(content_type=None)
-
-    rows = body.get("data", []) if isinstance(body, dict) else []
-    return [str(row.get("name", "")).strip() for row in rows if isinstance(row, dict) and row.get("name")]
-
-
-async def _list_master_names(
-    erp_url: str,
-    doctype: str,
-    headers: dict[str, str],
-    verify_ssl: bool,
-    allow_insecure_ssl: bool,
-) -> list[str]:
+    """
+    Fetch list of master data names using ERPAdapter.
+    
+    NOW USES ERPAdapter instead of direct aiohttp calls.
+    """
     try:
-        names = await _fetch_master_names_once(erp_url, doctype, headers, verify_ssl)
+        rows = await adapter.list_records(doctype, fields=["name"], limit=limit)
+        names = [str(row.get("name", "")).strip() for row in rows if row.get("name")]
         logger.info("Planner prereq lookup: %s has %d option(s)", doctype, len(names))
         return names
     except Exception as exc:
-        if verify_ssl and allow_insecure_ssl and _is_ssl_verification_error(exc):
-            logger.warning(
-                "Planner prereq lookup SSL failure for %s — retrying insecurely",
-                doctype,
-            )
-            names = await _fetch_master_names_once(erp_url, doctype, headers, False)
-            logger.info("Planner prereq lookup: %s has %d option(s) after SSL fallback", doctype, len(names))
-            return names
-
-        logger.warning("Planner prereq lookup crashed for %s: %s", doctype, exc)
+        logger.warning("Planner prereq lookup failed for %s: %s", doctype, exc)
         return []
+
+
+async def _bootstrap_master_options(
+    adapter,
+    doctype: str,
+) -> list[str]:
+    """
+    Create a bootstrap master record if missing.
+    
+    NOW USES ERPAdapter instead of direct aiohttp calls.
+    """
+    payload = _BOOTSTRAP_MASTER_PAYLOADS.get(doctype)
+    if not payload:
+        return []
+
+    try:
+        await adapter.create_record(doctype, payload)
+        display_value = _bootstrap_display_value(doctype, payload)
+        logger.info("Bootstrapped missing %s record via %s", doctype, display_value)
+    except Exception as exc:
+        logger.warning("Bootstrap create failed for %s: %s", doctype, exc)
+        return []
+
+    return await _list_master_names(adapter, doctype, limit=100)
 
 
 async def _resolve_link_field(
@@ -157,11 +102,13 @@ async def _resolve_link_field(
     field_key: str,
     field_spec: dict[str, Any],
     current_entities: dict[str, Any],
-    erp_url: str,
-    headers: dict[str, str],
-    verify_ssl: bool,
-    allow_insecure_ssl: bool,
+    adapter,
 ) -> tuple[Optional[str], Optional[PlanStep], str]:
+    """
+    Resolve a link field value by checking if it exists in ERP.
+    
+    NOW USES ERPAdapter instead of direct HTTP calls.
+    """
     link_doctype = field_spec.get("options", "")
     desired = current_entities.get(field_key)
     default = field_spec.get("default_value")
@@ -170,13 +117,7 @@ async def _resolve_link_field(
     if not link_doctype or not desired_value:
         return None, None, "no_resolution_needed"
 
-    options = await _list_master_names(
-        erp_url=erp_url,
-        doctype=link_doctype,
-        headers=headers,
-        verify_ssl=verify_ssl,
-        allow_insecure_ssl=allow_insecure_ssl,
-    )
+    options = await _list_master_names(adapter, link_doctype, limit=100)
 
     if options:
         normalized = {name.casefold(): name for name in options}
@@ -234,11 +175,13 @@ async def _resolve_link_field(
 
 async def _resolve_create_step_prerequisites(
     step: PlanStep,
-    erp_url: str,
-    headers: dict[str, str],
-    verify_ssl: bool,
-    allow_insecure_ssl: bool,
+    adapter,
 ) -> tuple[PlanStep, list[PlanStep]]:
+    """
+    Resolve all link field prerequisites for a create step.
+    
+    NOW USES ERPAdapter instead of direct HTTP calls.
+    """
     kb = field_kb()
     field_mappings = kb.field_mappings(step.doctype)
     if not field_mappings:
@@ -258,10 +201,7 @@ async def _resolve_create_step_prerequisites(
             field_key=field_key,
             field_spec=field_spec,
             current_entities=resolved_step.entities,
-            erp_url=erp_url,
-            headers=headers,
-            verify_ssl=verify_ssl,
-            allow_insecure_ssl=allow_insecure_ssl,
+            adapter=adapter,
         )
 
         if resolved_value:
@@ -284,18 +224,35 @@ async def enrich_plan_with_prerequisites(
     plan: ExecutionPlan,
     context: dict[str, Any],
 ) -> ExecutionPlan:
+    """
+    Enrich an execution plan with prerequisite steps for missing master data.
+    
+    NOW USES ERPAdapter for all ERP operations.
+    """
     creds = context.get("erp_credentials", {})
     erp_url = creds.get("erp_url", "")
     api_key = creds.get("api_key", "")
     api_secret = creds.get("api_secret", "")
-    verify_ssl = _to_bool(creds.get("verify_ssl"), True)
-    allow_insecure_ssl = _to_bool(creds.get("allow_insecure_ssl"), True)
+    verify_ssl = creds.get("verify_ssl", True)
+    allow_insecure_ssl = creds.get("allow_insecure_ssl", True)
 
     if not erp_url or not api_key or not api_secret:
         logger.info("Planner prereq resolution skipped — ERP credentials unavailable")
         return plan
 
-    headers = _build_headers(api_key, api_secret)
+    # Build ERPAdapter for all lookups
+    from shared.erp_adapters.registry import get_adapter
+
+    profile = {
+        "erp_type": "erpnext",
+        "erp_url": erp_url,
+        "api_key": api_key,
+        "api_secret": api_secret,
+        "verify_ssl": verify_ssl,
+        "allow_insecure_ssl": allow_insecure_ssl,
+    }
+    adapter = get_adapter(profile)
+
     records: list[dict[str, Any]] = []
 
     for step in plan.steps:
@@ -309,10 +266,7 @@ async def enrich_plan_with_prerequisites(
         if step.action == "create":
             resolved_step, prereq_steps = await _resolve_create_step_prerequisites(
                 resolved_step,
-                erp_url=erp_url,
-                headers=headers,
-                verify_ssl=verify_ssl,
-                allow_insecure_ssl=allow_insecure_ssl,
+                adapter=adapter,
             )
 
         for idx, prereq in enumerate(prereq_steps):

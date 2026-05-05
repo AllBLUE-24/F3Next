@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import boto3
-import httpx
 from botocore.config import Config
 from temporalio import activity
 
@@ -220,8 +219,7 @@ def _is_seed_blacklisted(doctype: str) -> bool:
 
 async def _discover_name_field(
     doctype: str,
-    client: "httpx.AsyncClient",
-    headers: dict,
+    adapter,
     cache: dict,
 ) -> str:
     """
@@ -229,6 +227,8 @@ async def _discover_name_field(
     Checks _DT_NAME_FIELD first (static lookup), then falls back to a live
     Frappe API call that inspects the doctype's field list.
     Result is stored in `cache` to avoid repeated API calls within a single run.
+    
+    NOW USES ERPAdapter instead of direct httpx client.
     """
     if doctype in cache:
         return cache[doctype]
@@ -240,17 +240,12 @@ async def _discover_name_field(
 
     # Live API fallback: inspect the DocType schema
     try:
-        resp = await client.get(
-            f"/api/resource/DocType/{doctype}",
-            headers=headers,
-            params={"fields": '["fields"]'},
-        )
-        if resp.status_code == 200:
-            schema_fields = resp.json().get("data", {}).get("fields", [])
-            for f in schema_fields:
-                if f.get("fieldtype") == "Data" and f.get("reqd") == 1:
-                    cache[doctype] = f["fieldname"]
-                    return f["fieldname"]
+        doc = await adapter.get_record("DocType", doctype, fields=["fields"])
+        schema_fields = doc.get("fields", [])
+        for f in schema_fields:
+            if f.get("fieldtype") == "Data" and f.get("reqd") == 1:
+                cache[doctype] = f["fieldname"]
+                return f["fieldname"]
     except Exception:
         pass  # fall through to generic fallback
 
@@ -263,8 +258,7 @@ async def _discover_name_field(
 async def _dynamic_seed_doctype(
     doctype: str,
     referenced_values: List[str],
-    client: "httpx.AsyncClient",
-    headers: dict,
+    adapter,
     name_field_cache: dict,
     logger,
 ) -> Dict[str, int]:
@@ -275,6 +269,8 @@ async def _dynamic_seed_doctype(
     2. Diffs against `referenced_values`.
     3. Creates only the missing records using the discovered name field.
 
+    NOW USES ERPAdapter instead of direct httpx client.
+
     Returns {"seeded": N, "already": N, "failed": N}.
     """
     seeded = 0
@@ -284,15 +280,10 @@ async def _dynamic_seed_doctype(
     # Step 1 — fetch existing names from ERPNext
     existing: set = set()
     try:
-        resp = await client.get(
-            f"/api/resource/{doctype}",
-            headers=headers,
-            params={"fields": '["name"]', "limit": 500},
-        )
-        if resp.status_code == 200:
-            for row in resp.json().get("data", []):
-                if row.get("name"):
-                    existing.add(row["name"])
+        rows = await adapter.list_records(doctype, fields=["name"], limit=500)
+        for row in rows:
+            if row.get("name"):
+                existing.add(row["name"])
     except Exception as e:
         logger.warning("  ⚠️  Could not fetch existing %s records: %s", doctype, e)
 
@@ -306,36 +297,25 @@ async def _dynamic_seed_doctype(
         return {"seeded": seeded, "already": already, "failed": failed}
 
     # Step 3 — discover the name field (cached)
-    name_field = await _discover_name_field(doctype, client, headers, name_field_cache)
+    name_field = await _discover_name_field(doctype, adapter, name_field_cache)
 
     # Step 4 — create each missing value
     for val in to_create:
         record = {name_field: val}
         try:
-            post_resp = await client.post(
-                f"/api/resource/{doctype}",
-                json=record,
-                headers=headers,
-            )
-            if post_resp.status_code in (200, 201):
-                seeded += 1
-            elif post_resp.status_code in (409, 417):
-                already += 1
-            else:
-                post_resp.raise_for_status()
-                seeded += 1
-        except Exception as exc:
+            await adapter.create_record(doctype, record)
+            seeded += 1
+        except ValueError as exc:
+            # Adapter raises ValueError for 4xx errors (including 409/417 duplicates)
             err_text = str(exc)
-            if hasattr(exc, "response") and exc.response is not None:
-                try:
-                    err_text = exc.response.json().get("exc_message", exc.response.text)
-                except Exception:
-                    err_text = exc.response.text
             if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
                 already += 1
             else:
                 failed += 1
                 logger.warning("  ⚠️  Dynamic seed %s '%s' failed: %s", doctype, val, err_text)
+        except Exception as exc:
+            failed += 1
+            logger.warning("  ⚠️  Dynamic seed %s '%s' failed: %s", doctype, val, exc)
 
     return {"seeded": seeded, "already": already, "failed": failed}
 
@@ -702,360 +682,308 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
         "Accept": "application/json"
     } if api_token else {}
 
-    # Increase timeout for bulk ERPNext processing
-    async with httpx.AsyncClient(base_url=base_url, timeout=60.0, verify=verify_ssl) as default_client:
-        client = default_client
-        unverified_client = None
+    # Build ERPAdapter for all ERP operations
+    from shared.erp_adapters.registry import get_adapter
+    
+    adapter_profile = {
+        "erp_type":           "erpnext",
+        "erp_url":            base_url,
+        "api_key":            api_token.split(":")[0] if ":" in api_token else "",
+        "api_secret":         api_token.split(":")[1] if ":" in api_token else "",
+        "verify_ssl":         verify_ssl,
+        "allow_insecure_ssl": allow_insecure_ssl,
+    }
+    
+    adapter = get_adapter(adapter_profile)
 
-        # ── PRE-FLIGHT SEEDER ─────────────────────────────────────────────────
-        # Runs BEFORE the main import loop.
-        # Seeds ALL `seed_from_baseline` doctypes across EVERY phase in the plan,
-        # not just the current phase. This ensures prerequisites (UOM, Item Group,
-        # Territory, Customer Group, etc.) are always present regardless of which
-        # phase is being executed — even when a phase is run in isolation.
-        # ── PRE-FLIGHT SEEDER — PASS 1 setup ─────────────────────────────────
-        # Load baseline once here so we can check which doctypes have values
-        # before deciding whether to mark them as 'handled' in seen_seed_doctypes.
-        _baseline_data: Dict[str, List] = {}
-        if _BASELINE_PATH.exists():
-            with open(_BASELINE_PATH, "r", encoding="utf-8") as _bf:
-                _baseline_data = json.load(_bf)
+    # ── PRE-FLIGHT SEEDER ─────────────────────────────────────────────────
+    # Runs BEFORE the main import loop.
+    # Seeds ALL `seed_from_baseline` doctypes across EVERY phase in the plan,
+    # not just the current phase. This ensures prerequisites (UOM, Item Group,
+    # Territory, Customer Group, etc.) are always present regardless of which
+    # phase is being executed — even when a phase is run in isolation.
+    # ── PRE-FLIGHT SEEDER — PASS 1 setup ─────────────────────────────────
+    # Load baseline once here so we can check which doctypes have values
+    # before deciding whether to mark them as 'handled' in seen_seed_doctypes.
+    _baseline_data: Dict[str, List] = {}
+    if _BASELINE_PATH.exists():
+        with open(_BASELINE_PATH, "r", encoding="utf-8") as _bf:
+            _baseline_data = json.load(_bf)
 
-        all_seed_steps: List[Dict] = []
-        seen_seed_doctypes: set = set()   # only doctypes ACTUALLY covered by Pass 1
-        for _phase_key in ("phase_a_config", "phase_b_master", "phase_c_transactional"):
-            for _s in phases.get(_phase_key, {}).get("steps", []):
-                if _s.get("action") == "seed_from_baseline" and _s.get("doctype") not in seen_seed_doctypes:
-                    _dt_check = _s.get("doctype")
-                    if _dt_check and _baseline_data.get(_dt_check):   # only mark handled if values exist
-                        all_seed_steps.append(_s)
-                        seen_seed_doctypes.add(_dt_check)
+    all_seed_steps: List[Dict] = []
+    seen_seed_doctypes: set = set()   # only doctypes ACTUALLY covered by Pass 1
+    for _phase_key in ("phase_a_config", "phase_b_master", "phase_c_transactional"):
+        for _s in phases.get(_phase_key, {}).get("steps", []):
+            if _s.get("action") == "seed_from_baseline" and _s.get("doctype") not in seen_seed_doctypes:
+                _dt_check = _s.get("doctype")
+                if _dt_check and _baseline_data.get(_dt_check):   # only mark handled if values exist
+                    all_seed_steps.append(_s)
+                    seen_seed_doctypes.add(_dt_check)
 
-        if all_seed_steps and not inp.dry_run and base_url:
-            activity.logger.info("")
-            activity.logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
+    if all_seed_steps and not inp.dry_run and base_url:
+        activity.logger.info("")
+        activity.logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
 
-            baseline: Dict[str, List] = _baseline_data  # already loaded above
+        baseline: Dict[str, List] = _baseline_data  # already loaded above
 
-            for seed_step in all_seed_steps:
-                dt_seed = seed_step["doctype"]
-                baseline_values: List[str] = baseline.get(dt_seed, [])
+        for seed_step in all_seed_steps:
+            dt_seed = seed_step["doctype"]
+            baseline_values: List[str] = baseline.get(dt_seed, [])
 
-                if not baseline_values:
-                    activity.logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
-                    continue
+            if not baseline_values:
+                activity.logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
+                continue
 
-                seeded = 0
-                already = 0
-                failed  = 0
+            seeded = 0
+            already = 0
+            failed  = 0
 
-                for bval in baseline_values:
-                    record = _build_baseline_record(dt_seed, bval)
+            for bval in baseline_values:
+                record = _build_baseline_record(dt_seed, bval)
+                try:
+                    await adapter.create_record(dt_seed, record)
+                    seeded += 1
+                except ValueError as _se:
+                    # Adapter raises ValueError for 4xx errors (including 409/417 duplicates)
+                    err_text = str(_se)
+                    if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
+                        already += 1
+                    else:
+                        failed += 1
+                        activity.logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, err_text)
+                except Exception as _se:
+                    failed += 1
+                    activity.logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
+
+            activity.logger.info(
+                "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
+                dt_seed, seeded, already, failed
+            )
+
+    elif all_seed_steps and inp.dry_run:
+        activity.logger.info("  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)", len(all_seed_steps))
+
+    # ── PASS 1B: Baseline Supplement ──────────────────────────────────────
+    # Seeds any doctype that is in _DYNAMIC_SEED_BLACKLIST AND has entries
+    # in the baseline JSON, even if the stored import plan has no explicit
+    # seed_from_baseline step for it. This handles complex doctypes like
+    # Payment Terms Template that require structured child-table records.
+    if not inp.dry_run and base_url:
+        for _supp_dt, _supp_vals in _baseline_data.items():
+            if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
+                seeded, already, failed = 0, 0, 0
+                for _sv in _supp_vals:
+                    _record = _build_baseline_record(_supp_dt, _sv)
                     try:
-                        _resp = await client.post(
-                            f"/api/resource/{dt_seed}",
-                            json=record,
-                            headers=headers,
-                        )
-                        if _resp.status_code in (409, 417):
-                            # 409 = already exists, 417 = duplicate name — both are OK
-                            already += 1
-                        else:
-                            _resp.raise_for_status()
-                            seeded += 1
-                    except Exception as _se:
-                        # Non-fatal: log and continue — a missing seed value will
-                        # surface as a link error on the specific row that uses it
-                        err_text = str(_se)
-                        if hasattr(_se, "response") and _se.response is not None:
-                            try:
-                                err_text = _se.response.json().get("exc_message", _se.response.text)
-                            except Exception:
-                                err_text = _se.response.text
-                        # Tolerate "already exists" style errors from Frappe
-                        if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
+                        await adapter.create_record(_supp_dt, _record)
+                        seeded += 1
+                    except ValueError as _se:
+                        _et = str(_se)
+                        if "already exist" in _et.lower() or "duplicate" in _et.lower():
                             already += 1
                         else:
                             failed += 1
-                            activity.logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, err_text)
-
+                            activity.logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _et)
+                    except Exception as _se:
+                        failed += 1
+                        activity.logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _se)
+                seen_seed_doctypes.add(_supp_dt)
                 activity.logger.info(
-                    "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
-                    dt_seed, seeded, already, failed
+                    "  🌱  [SUPP] %-22s  seeded=%d  already_existed=%d  failed=%d",
+                    _supp_dt, seeded, already, failed
                 )
+    # ── END PASS 1B ───────────────────────────────────────────────────────
 
-        elif all_seed_steps and inp.dry_run:
-            activity.logger.info("  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)", len(all_seed_steps))
+    activity.logger.info("")
+    # ── END PRE-FLIGHT SEEDER ─────────────────────────────────────────────
 
-        # ── PASS 1B: Baseline Supplement ──────────────────────────────────────
-        # Seeds any doctype that is in _DYNAMIC_SEED_BLACKLIST AND has entries
-        # in the baseline JSON, even if the stored import plan has no explicit
-        # seed_from_baseline step for it. This handles complex doctypes like
-        # Payment Terms Template that require structured child-table records.
-        if not inp.dry_run and base_url:
-            for _supp_dt, _supp_vals in _baseline_data.items():
-                if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
-                    seeded, already, failed = 0, 0, 0
-                    for _sv in _supp_vals:
-                        _record = _build_baseline_record(_supp_dt, _sv)
-                        try:
-                            _sr = await client.post(f"/api/resource/{_supp_dt}", json=_record, headers=headers)
-                            if _sr.status_code in (409, 417):
-                                already += 1
-                            else:
-                                _sr.raise_for_status()
-                                seeded += 1
-                        except Exception as _se:
-                            _et = str(_se)
-                            if hasattr(_se, "response") and _se.response is not None:
-                                try:
-                                    _et = _se.response.json().get("exc_message", _se.response.text)
-                                except Exception:
-                                    _et = _se.response.text
-                            if "already exist" in _et.lower() or "duplicate" in _et.lower():
-                                already += 1
-                            else:
-                                failed += 1
-                                activity.logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _et)
-                    seen_seed_doctypes.add(_supp_dt)
-                    activity.logger.info(
-                        "  🌱  [SUPP] %-22s  seeded=%d  already_existed=%d  failed=%d",
-                        _supp_dt, seeded, already, failed
-                    )
-        # ── END PASS 1B ───────────────────────────────────────────────────────
+    # ── PASS 2: Dynamic link field discovery ──────────────────────────────
+    # Scans all import rows in this phase for link field values that point
+    # to doctypes NOT covered by the static baseline seeder (Pass 1).
+    # Automatically creates any missing records in ERPNext before the main
+    # import loop runs — preventing LinkValidationError at row-creation time.
+    if not inp.dry_run and base_url:
+        _name_field_cache: dict = {}
+        activity.logger.info("  🔍  PASS 2 — scanning %d step(s) for unknown link targets", len(steps))
 
-        activity.logger.info("")
-        # ── END PRE-FLIGHT SEEDER ─────────────────────────────────────────────
+        # Build {doctype → set(values)} from all create-action rows in this phase
+        _dynamic_link_targets: Dict[str, set] = {}
 
-        # ── PASS 2: Dynamic link field discovery ──────────────────────────────
-        # Scans all import rows in this phase for link field values that point
-        # to doctypes NOT covered by the static baseline seeder (Pass 1).
-        # Automatically creates any missing records in ERPNext before the main
-        # import loop runs — preventing LinkValidationError at row-creation time.
-        if not inp.dry_run and base_url:
-            _name_field_cache: dict = {}
-            activity.logger.info("  🔍  PASS 2 — scanning %d step(s) for unknown link targets", len(steps))
-
-            # Build {doctype → set(values)} from all create-action rows in this phase
-            _dynamic_link_targets: Dict[str, set] = {}
-
-            for _dyn_step in steps:
-                _step_action = _dyn_step.get("action")
-                _step_dt = _dyn_step.get("doctype")
-                if _step_action != "create":
-                    activity.logger.info("  🔍    skip step doctype=%s action=%s (not create)", _step_dt, _step_action)
-                    continue
-                activity.logger.info("  🔍    processing step doctype=%s", _step_dt)
-
-                if _dyn_step.get("action") != "create":
-                    continue
-                try:
-                    _r2_key = _dyn_step.get("data_source")
-                    _r2_resp = s3.get_object(Bucket="clean-data", Key=_r2_key)
-                    _payload = json.loads(_r2_resp["Body"].read().decode("utf-8"))
-                    _rows = _payload.get("records", [])
-                except Exception:
-                    continue
-
-                # Merge global schema index with per-payload link_fields (payload wins).
-                # Payloads created before Fix 3 won't have link_fields —
-                # _KNOWN_LINK_FIELDS acts as the backward-compatible fallback.
-                _payload_link_fields: Dict[str, str] = _payload.get("link_fields", {})
-                _effective_link_fields: Dict[str, str] = {**_KNOWN_LINK_FIELDS, **_payload_link_fields}
-
-                for _row in _rows:
-                    for _field_name, _field_value in _row.items():
-                        if not _field_value or not isinstance(_field_value, str):
-                            continue
-                        _target_dt = _effective_link_fields.get(_field_name)
-                        if not _target_dt:
-                            continue
-                        # Skip if already handled in Pass 1 or blacklisted
-                        if _target_dt in seen_seed_doctypes:
-                            continue
-                        if _is_seed_blacklisted(_target_dt):
-                            continue
-                        _dynamic_link_targets.setdefault(_target_dt, set()).add(_field_value.strip())
-
-
-            if _dynamic_link_targets:
-                activity.logger.info(
-                    "  🔍  PASS 2 — Dynamic discovery for %d unknown doctype(s): %s",
-                    len(_dynamic_link_targets),
-                    ", ".join(_dynamic_link_targets.keys()),
-                )
-                for _dyn_dt, _dyn_vals in _dynamic_link_targets.items():
-                    _counts = await _dynamic_seed_doctype(
-                        _dyn_dt, list(_dyn_vals), client, headers,
-                        _name_field_cache, activity.logger,
-                    )
-                    activity.logger.info(
-                        "  🔍  %-22s  seeded=%d  already_existed=%d  failed=%d",
-                        _dyn_dt, _counts["seeded"], _counts["already"], _counts["failed"],
-                    )
-            else:
-                activity.logger.info("  🔍  PASS 2 — No unknown link targets found, skipping")
-
-        activity.logger.info("")
-        # ── END PASS 2 ────────────────────────────────────────────────────────
-
-        for step_idx, step in enumerate(steps):
-            dt = step.get("doctype", "")
-            action = step.get("action", "")
-            step_start = datetime.utcnow()
-
-            # Skip actions that are not row-level imports
-            if action in ("default_or_skip", "skip", "seed_from_baseline", "data_gap"):
-                if action == "data_gap":
-                    activity.logger.warning(
-                        "  ⚠️  DATA GAP: %s has no mapped data file and no baseline — skipping", dt
-                    )
+        for _dyn_step in steps:
+            _step_action = _dyn_step.get("action")
+            _step_dt = _dyn_step.get("doctype")
+            if _step_action != "create":
+                activity.logger.info("  🔍    skip step doctype=%s action=%s (not create)", _step_dt, _step_action)
                 continue
+            activity.logger.info("  🔍    processing step doctype=%s", _step_dt)
 
-            # Download payload from R2
-            rows = []
+            if _dyn_step.get("action") != "create":
+                continue
             try:
-                # data_source contains the R2 path we mapped in build_plan
-                r2_key = step.get("data_source")
-                response = s3.get_object(Bucket="clean-data", Key=r2_key)
-                payload = json.loads(response["Body"].read().decode("utf-8"))
-                rows = payload.get("records", [])
-            except Exception as e:
-                activity.logger.warning("  No R2 data found for %s — skipping", dt)
+                _r2_key = _dyn_step.get("data_source")
+                _r2_resp = s3.get_object(Bucket="clean-data", Key=_r2_key)
+                _payload = json.loads(_r2_resp["Body"].read().decode("utf-8"))
+                _rows = _payload.get("records", [])
+            except Exception:
                 continue
 
-            records_attempted = len(rows)
-            records_succeeded = 0
-            records_failed = 0
-            error_details = []
-            erpnext_responses = []
+            # Merge global schema index with per-payload link_fields (payload wins).
+            # Payloads created before Fix 3 won't have link_fields —
+            # _KNOWN_LINK_FIELDS acts as the backward-compatible fallback.
+            _payload_link_fields: Dict[str, str] = _payload.get("link_fields", {})
+            _effective_link_fields: Dict[str, str] = {**_KNOWN_LINK_FIELDS, **_payload_link_fields}
 
-            # Dry Run vs Live
-            if inp.dry_run or not base_url:
-                records_succeeded = records_attempted
-                steps_completed += 1
-                status = "success"
-                erpnext_responses = ["DRY_RUN_MOCK_SUCCESS"] * records_succeeded
-            else:
-                # 🚀 LIVE IMPORT: Row-by-Row Frappe API Posting
-                for row_idx, row in enumerate(rows):
-                    # ── Runtime normalization: fix known invalid Select values ──
-                    row = dict(row)  # shallow copy — don't mutate original
-                    if dt == "Supplier":
-                        _stype = row.get("supplier_type", "")
-                        if _stype not in ("Company", "Individual", "Partnership"):
-                            row["supplier_type"] = "Company"
-                    if dt == "Customer":
-                        _ctype = row.get("customer_type", "")
-                        if _ctype not in ("Company", "Individual", "Partnership"):
-                            row["customer_type"] = "Company"
-                    # ────────────────────────────────────────────────────────────
-                    try:
-                        try:
+            for _row in _rows:
+                for _field_name, _field_value in _row.items():
+                    if not _field_value or not isinstance(_field_value, str):
+                        continue
+                    _target_dt = _effective_link_fields.get(_field_name)
+                    if not _target_dt:
+                        continue
+                    # Skip if already handled in Pass 1 or blacklisted
+                    if _target_dt in seen_seed_doctypes:
+                        continue
+                    if _is_seed_blacklisted(_target_dt):
+                        continue
+                    _dynamic_link_targets.setdefault(_target_dt, set()).add(_field_value.strip())
 
-                            # Frappe API wants {"customer_name": "ABC"}, NOT {"data": [...]}
-                            resp = await client.post(
-                                f"/api/resource/{dt}",
-                                json=row,
-                                headers=headers,
-                            )
-                        except Exception as client_exc:
-                            if verify_ssl and allow_insecure_ssl and "CERTIFICATE_VERIFY_FAILED" in str(client_exc):
-                                activity.logger.warning("  ⚠️ SSL verify failed, switching to unverified client for remaining rows")
-                                if not unverified_client:
-                                    unverified_client = httpx.AsyncClient(base_url=base_url, timeout=60.0, verify=False)
-                                client = unverified_client
-                                verify_ssl = False  # only switch once
-                                resp = await client.post(
-                                    f"/api/resource/{dt}",
-                                    json=row,
-                                    headers=headers,
-                                )
-                            else:
-                                raise client_exc
 
-                        # ── Handle Duplicate Entries as Success ──
-                        is_duplicate = False
-                        if resp.status_code in (409, 417):
-                            try:
-                                _err_text = resp.json().get("exc_message", resp.text)
-                            except Exception:
-                                _err_text = resp.text
-                            if "already exist" in _err_text.lower() or "duplicate" in _err_text.lower():
-                                is_duplicate = True
-                                
-                        if is_duplicate:
-                            records_succeeded += 1
-                            erpnext_responses.append({"_status": "already_exists"})
-                            continue
+        if _dynamic_link_targets:
+            activity.logger.info(
+                "  🔍  PASS 2 — Dynamic discovery for %d unknown doctype(s): %s",
+                len(_dynamic_link_targets),
+                ", ".join(_dynamic_link_targets.keys()),
+            )
+            for _dyn_dt, _dyn_vals in _dynamic_link_targets.items():
+                _counts = await _dynamic_seed_doctype(
+                    _dyn_dt, list(_dyn_vals), adapter,
+                    _name_field_cache, activity.logger,
+                )
+                activity.logger.info(
+                    "  🔍  %-22s  seeded=%d  already_existed=%d  failed=%d",
+                    _dyn_dt, _counts["seeded"], _counts["already"], _counts["failed"],
+                )
+        else:
+            activity.logger.info("  🔍  PASS 2 — No unknown link targets found, skipping")
 
-                        resp.raise_for_status()
-                        
+    activity.logger.info("")
+    # ── END PASS 2 ────────────────────────────────────────────────────────
+
+    for step_idx, step in enumerate(steps):
+        dt = step.get("doctype", "")
+        action = step.get("action", "")
+        step_start = datetime.utcnow()
+
+        # Skip actions that are not row-level imports
+        if action in ("default_or_skip", "skip", "seed_from_baseline", "data_gap"):
+            if action == "data_gap":
+                activity.logger.warning(
+                    "  ⚠️  DATA GAP: %s has no mapped data file and no baseline — skipping", dt
+                )
+            continue
+
+        # Download payload from R2
+        rows = []
+        try:
+            # data_source contains the R2 path we mapped in build_plan
+            r2_key = step.get("data_source")
+            response = s3.get_object(Bucket="clean-data", Key=r2_key)
+            payload = json.loads(response["Body"].read().decode("utf-8"))
+            rows = payload.get("records", [])
+        except Exception as e:
+            activity.logger.warning("  No R2 data found for %s — skipping", dt)
+            continue
+
+        records_attempted = len(rows)
+        records_succeeded = 0
+        records_failed = 0
+        error_details = []
+        erpnext_responses = []
+
+        # Dry Run vs Live
+        if inp.dry_run or not base_url:
+            records_succeeded = records_attempted
+            steps_completed += 1
+            status = "success"
+            erpnext_responses = ["DRY_RUN_MOCK_SUCCESS"] * records_succeeded
+        else:
+            # 🚀 LIVE IMPORT: Row-by-Row via ERPAdapter
+            for row_idx, row in enumerate(rows):
+                # ── Runtime normalization: fix known invalid Select values ──
+                row = dict(row)  # shallow copy — don't mutate original
+                if dt == "Supplier":
+                    _stype = row.get("supplier_type", "")
+                    if _stype not in ("Company", "Individual", "Partnership"):
+                        row["supplier_type"] = "Company"
+                if dt == "Customer":
+                    _ctype = row.get("customer_type", "")
+                    if _ctype not in ("Company", "Individual", "Partnership"):
+                        row["customer_type"] = "Company"
+                # ────────────────────────────────────────────────────────────
+                try:
+                    data = await adapter.create_record(dt, row)
+                    records_succeeded += 1
+                    erpnext_responses.append(data)
+
+                except ValueError as exc:
+                    # Adapter raises ValueError for 4xx errors (including duplicates)
+                    err_msg = str(exc)
+                    if "already exist" in err_msg.lower() or "duplicate" in err_msg.lower():
                         records_succeeded += 1
-                        
-                        # Frappe returns the created document in 'data'
-                        resp_data = resp.json()
-                        erpnext_responses.append(resp_data.get("data", {}))
-
-                        
-                    except Exception as exc:
+                        erpnext_responses.append({"_status": "already_exists"})
+                    else:
                         records_failed += 1
-                        err_msg = str(exc)
-                        if hasattr(exc, 'response') and exc.response is not None:
-                            try:
-                                # Try to grab Frappe's specific error message
-                                err_msg = exc.response.json().get("exc_message", exc.response.text)
-                            except Exception:
-                                err_msg = exc.response.text
-                                
                         error_details.append({"row_index": row_idx, "error": err_msg})
                         activity.logger.error("  ❌ ERPNext API Error on %s row %d: %s", dt, row_idx, err_msg)
 
-                status = "failed" if records_failed > 0 else "success"
-                if records_failed > 0:
-                    steps_failed += 1
-                else:
-                    steps_completed += 1
+                except Exception as exc:
+                    records_failed += 1
+                    err_msg = str(exc)
+                    error_details.append({"row_index": row_idx, "error": err_msg})
+                    activity.logger.error("  ❌ ERPNext API Error on %s row %d: %s", dt, row_idx, err_msg)
 
-            total_records_created += records_succeeded
-            duration_sec = (datetime.utcnow() - step_start).total_seconds()
+            status = "failed" if records_failed > 0 else "success"
+            if records_failed > 0:
+                steps_failed += 1
+            else:
+                steps_completed += 1
 
-            # Build Log Object
-            log_entry = {
-                "step": step_idx + 1,
-                "doctype": dt,
-                "status": status,
-                "records_attempted": records_attempted,
-                "records_succeeded": records_succeeded,
-                "records_failed": records_failed,
-                "duration_seconds": int(duration_sec)
-            }
-            execution_logs.append(log_entry)
+        total_records_created += records_succeeded
+        duration_sec = (datetime.utcnow() - step_start).total_seconds()
 
-            # Persist to Supabase ISImportLog
-            async with AsyncSessionLocal() as db_session:
-                db_session.add(ISImportLog(
-                    id=uuid.uuid4(),
-                    import_plan_id=import_plan.id,
-                    phase=inp.phase_id,
-                    step_number=step_idx + 1,
-                    doctype=dt,
-                    action=action,
-                    status=status,
-                    records_attempted=records_attempted,
-                    records_succeeded=records_succeeded,
-                    records_failed=records_failed,
-                    error_message="Import errors occurred" if records_failed > 0 else None,
-                    error_details=json.dumps(error_details) if error_details else None,
-                    erpnext_response=json.dumps(erpnext_responses[:5]) if erpnext_responses else None, # Save first 5 responses for auditing
-                    started_at=step_start,
-                    completed_at=datetime.utcnow(),
-                    duration_seconds=int(duration_sec)
-                ))
-                await db_session.commit()
+        # Build Log Object
+        log_entry = {
+            "step": step_idx + 1,
+            "doctype": dt,
+            "status": status,
+            "records_attempted": records_attempted,
+            "records_succeeded": records_succeeded,
+            "records_failed": records_failed,
+            "duration_seconds": int(duration_sec)
+        }
+        execution_logs.append(log_entry)
 
-        if unverified_client:
-            await unverified_client.aclose()
+        # Persist to Supabase ISImportLog
+        async with AsyncSessionLocal() as db_session:
+            db_session.add(ISImportLog(
+                id=uuid.uuid4(),
+                import_plan_id=import_plan.id,
+                phase=inp.phase_id,
+                step_number=step_idx + 1,
+                doctype=dt,
+                action=action,
+                status=status,
+                records_attempted=records_attempted,
+                records_succeeded=records_succeeded,
+                records_failed=records_failed,
+                error_message="Import errors occurred" if records_failed > 0 else None,
+                error_details=json.dumps(error_details) if error_details else None,
+                erpnext_response=json.dumps(erpnext_responses[:5]) if erpnext_responses else None, # Save first 5 responses for auditing
+                started_at=step_start,
+                completed_at=datetime.utcnow(),
+                duration_seconds=int(duration_sec)
+            ))
+            await db_session.commit()
 
     # ── 3. Update import plan status ─────────────────────────────────────────
     async with AsyncSessionLocal() as session:
