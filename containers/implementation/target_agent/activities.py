@@ -63,6 +63,7 @@ _LAYER_ORDER = [
     "layer_5_transactions",
     "layer_6_fulfillment",
     "layer_7_finance",
+    "layer_8_projects",
 ]
 
 _LAYER_TO_PHASE = {
@@ -74,6 +75,7 @@ _LAYER_TO_PHASE = {
     "layer_5_transactions": "phase_c_transactional",
     "layer_6_fulfillment":  "phase_c_transactional",
     "layer_7_finance":      "phase_c_transactional",
+    "layer_8_projects":      "phase_d_projects",
     "layer_unknown":        "phase_c_transactional",
 }
 
@@ -175,6 +177,7 @@ def _build_graph_setup_steps(
         "phase_a_config":        {"name": "Configuration Setup",  "doctypes": []},
         "phase_b_master":        {"name": "Master Data",           "doctypes": []},
         "phase_c_transactional": {"name": "Transactional Data",    "doctypes": []},
+        "phase_d_projects":      {"name": "Project Data",         "doctypes": []},
     }
     step_num = 1
 
@@ -523,4 +526,4 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
     activity.logger.info("✅ build_target_structure done | doctypes=%d steps=%d graph_driven=%s",
                          len(result.get("required_doctypes", [])), len(result.get("setup_steps", [])), graph_driven)
     return result
-
+

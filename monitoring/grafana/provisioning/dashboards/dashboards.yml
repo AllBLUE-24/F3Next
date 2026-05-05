@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: F3Next
+    folder: F3Next
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

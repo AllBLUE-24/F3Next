@@ -25,7 +25,8 @@
       "manufacturing_food_batch",
       "trading_autoparts_highvolume",
       "manufacturing_fabrication_jobshop",
-      "service_professional"
+      "service_professional",
+      "manufacturing_project_chemical"
     ]
   },
 
@@ -137,6 +138,14 @@
           "weight": 0.8,
           "against": ["trading_fmcg_distributor", "trading_autoparts_highvolume", "manufacturing_garment_variants"],
           "against_weight": 0.5
+        },
+        {
+          "pattern": ["project list", "site costing", "installation record", "batch register", "epoxy", "coating", "floor coating"],
+          "type": "file_name",
+          "suggests": ["manufacturing_project_chemical"],
+          "weight": 0.85,
+          "against": ["trading_fmcg_distributor", "service_professional"],
+          "against_weight": 0.6
         }
       ]
     },
@@ -303,6 +312,14 @@
           "suggests": ["trading_fmcg_distributor", "manufacturing_food_batch"],
           "weight": 0.6,
           "notes": "MRP/PTR/PTD pricing structure is typical of FMCG channel"
+        },
+        {
+          "pattern": ["project code", "project name", "site address", "installation date", "coating type", "substrate", "batch no"],
+          "type": "column_header",
+          "suggests": ["manufacturing_project_chemical"],
+          "weight": 0.9,
+          "against": ["trading_fmcg_distributor", "service_professional"],
+          "against_weight": 0.7
         }
       ]
     },
@@ -452,6 +469,12 @@
           "type": "sheet_name",
           "suggests": ["manufacturing_food_batch"],
           "weight": 0.85
+        },
+        {
+          "pattern": ["Projects", "Site Expenses", "Batch Register", "Installation", "Project Costing"],
+          "type": "sheet_name",
+          "suggests": ["manufacturing_project_chemical"],
+          "weight": 0.85
         }
       ]
     }
@@ -596,6 +619,10 @@
     "service_professional": {
       "key_discriminating_signals": ["SAC codes", "timesheet/hours columns", "no stock file present", "recurring same-customer invoices"],
       "minimum_score_for_confident_match": 0.65
+    },
+    "manufacturing_project_chemical": {
+      "key_discriminating_signals": ["project list + batch register both present", "installation/site columns", "coating product names (epoxy, PU, vinyl ester)", "dual BOM+project costing"],
+      "minimum_score_for_confident_match": 0.70
     }
   }
 }

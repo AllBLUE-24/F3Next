@@ -20,7 +20,15 @@
     "layer_4_pricing": ["Item Price", "BOM"],
     "layer_5_transactions": ["Purchase Order", "Sales Order", "Stock Entry"],
     "layer_6_fulfillment": ["Purchase Receipt", "Delivery Note", "Work Order"],
-    "layer_7_finance": ["Purchase Invoice", "Sales Invoice", "Payment Entry", "Journal Entry"]
+    "layer_7_finance": ["Purchase Invoice", "Sales Invoice", "Payment Entry", "Journal Entry"],
+    "layer_8_projects": ["Project", "Task", "Timesheet", "Project Template", "Activity Type", "Activity Cost"]
+  },
+
+  "phase_mapping": {
+    "phase_a_config": ["layer_0_system", "layer_1_config"],
+    "phase_b_master": ["layer_2_masters", "layer_3_parties"],
+    "phase_c_transactional": ["layer_4_pricing", "layer_5_transactions", "layer_6_fulfillment", "layer_7_finance"],
+    "phase_d_projects": ["layer_8_projects"]
   },
 
   "doctypes": {
@@ -28,6 +36,8 @@
     "Company": {
       "module": "Setup",
       "layer": 0,
+      "seeding_complexity": "skip",
+      "name_field": "company_name",
       "depends_on": [],
       "unlocks": ["Account", "Cost Center", "Warehouse", "Fiscal Year"],
       "required_fields": ["company_name", "abbr", "default_currency", "country"],
@@ -40,6 +50,8 @@
     "Fiscal Year": {
       "module": "Setup",
       "layer": 0,
+      "seeding_complexity": "complex",
+      "name_field": "year",
       "depends_on": ["Company"],
       "unlocks": ["all financial transactions"],
       "required_fields": ["year", "year_start_date", "year_end_date"],
@@ -52,6 +64,8 @@
     "Currency": {
       "module": "Setup",
       "layer": 0,
+      "seeding_complexity": "simple",
+      "name_field": "currency_name",
       "depends_on": [],
       "unlocks": ["Company", "Price List", "Item Price"],
       "required_fields": ["currency_name", "symbol"],
@@ -64,6 +78,8 @@
     "UOM": {
       "module": "Setup",
       "layer": 0,
+      "seeding_complexity": "simple",
+      "name_field": "uom_name",
       "depends_on": [],
       "unlocks": ["Item", "BOM", "Stock Entry"],
       "required_fields": ["uom_name"],
@@ -76,6 +92,8 @@
     "Account": {
       "module": "Accounts",
       "layer": 1,
+      "seeding_complexity": "complex",
+      "name_field": "account_name",
       "depends_on": ["Company", "Fiscal Year"],
       "unlocks": ["Journal Entry", "Payment Entry", "Sales Invoice", "Purchase Invoice", "Tax Template"],
       "required_fields": ["account_name", "account_type", "root_type", "company"],
@@ -94,6 +112,8 @@
     "Cost Center": {
       "module": "Accounts",
       "layer": 1,
+      "seeding_complexity": "complex",
+      "name_field": "cost_center_name",
       "depends_on": ["Company"],
       "unlocks": ["Sales Invoice", "Purchase Invoice", "Journal Entry"],
       "required_fields": ["cost_center_name", "company"],
@@ -106,6 +126,8 @@
     "Warehouse": {
       "module": "Stock",
       "layer": 1,
+      "seeding_complexity": "complex",
+      "name_field": "warehouse_name",
       "depends_on": ["Company"],
       "unlocks": ["Item", "Stock Entry", "Purchase Receipt", "Delivery Note", "Work Order"],
       "required_fields": ["warehouse_name", "company"],
@@ -124,6 +146,8 @@
     "Tax Template": {
       "module": "Accounts",
       "layer": 1,
+      "seeding_complexity": "complex",
+      "name_field": "title",
       "depends_on": ["Account", "Company"],
       "unlocks": ["Sales Invoice", "Purchase Invoice", "Sales Order", "Purchase Order"],
       "required_fields": ["title", "company"],
@@ -142,6 +166,8 @@
     "Item Group": {
       "module": "Stock",
       "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "item_group_name",
       "depends_on": [],
       "unlocks": ["Item"],
       "required_fields": ["item_group_name"],
@@ -154,6 +180,8 @@
     "Customer Group": {
       "module": "Selling",
       "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "customer_group_name",
       "depends_on": [],
       "unlocks": ["Customer"],
       "required_fields": ["customer_group_name"],
@@ -166,6 +194,8 @@
     "Supplier Group": {
       "module": "Buying",
       "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "supplier_group_name",
       "depends_on": [],
       "unlocks": ["Supplier"],
       "required_fields": ["supplier_group_name"],
@@ -178,6 +208,8 @@
     "Territory": {
       "module": "Selling",
       "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "territory_name",
       "depends_on": [],
       "unlocks": ["Customer"],
       "required_fields": ["territory_name"],
@@ -190,6 +222,8 @@
     "Price List": {
       "module": "Stock",
       "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "price_list_name",
       "depends_on": ["Currency"],
       "unlocks": ["Item Price", "Customer pricing"],
       "required_fields": ["price_list_name", "currency"],
@@ -202,6 +236,8 @@
     "Item": {
       "module": "Stock",
       "layer": 3,
+      "seeding_complexity": "complex",
+      "name_field": "item_code",
       "depends_on": ["Item Group", "UOM", "Warehouse"],
       "unlocks": ["Item Price", "BOM", "Purchase Order", "Sales Order", "Stock Entry", "Stock Reconciliation"],
       "required_fields": ["item_code", "item_name", "item_group", "stock_uom"],
@@ -233,6 +269,8 @@
     "Item Variant": {
       "module": "Stock",
       "layer": 3,
+      "seeding_complexity": "complex",
+      "name_field": "item_code",
       "depends_on": ["Item (template)", "Item Attribute"],
       "unlocks": ["Item Price per variant", "Stock tracking per variant"],
       "required_fields": ["variant_of", "item_code"],
@@ -245,6 +283,8 @@
     "Customer": {
       "module": "Selling",
       "layer": 3,
+      "seeding_complexity": "complex",
+      "name_field": "customer_name",
       "depends_on": ["Customer Group", "Territory"],
       "unlocks": ["Sales Order", "Sales Invoice", "Quotation", "Payment Entry"],
       "required_fields": ["customer_name", "customer_type", "customer_group", "territory"],
@@ -269,6 +309,8 @@
     "Supplier": {
       "module": "Buying",
       "layer": 3,
+      "seeding_complexity": "complex",
+      "name_field": "supplier_name",
       "depends_on": ["Supplier Group"],
       "unlocks": ["Purchase Order", "Purchase Invoice", "Payment Entry"],
       "required_fields": ["supplier_name", "supplier_type", "supplier_group"],
@@ -286,6 +328,8 @@
     "Item Price": {
       "module": "Stock",
       "layer": 4,
+      "seeding_complexity": "simple",
+      "name_field": "item_code",
       "depends_on": ["Item", "Price List"],
       "unlocks": ["auto-population of rate in invoices and orders"],
       "required_fields": ["item_code", "price_list", "price_list_rate"],
@@ -298,6 +342,8 @@
     "BOM": {
       "module": "Manufacturing",
       "layer": 4,
+      "seeding_complexity": "complex",
+      "name_field": "item",
       "depends_on": ["Item (finished good)", "Item (all components)", "UOM", "Warehouse"],
       "unlocks": ["Work Order", "Material Request for manufacturing", "Production cost calculation"],
       "required_fields": ["item", "quantity", "items (component list with qty)"],
@@ -321,6 +367,8 @@
     "Purchase Order": {
       "module": "Buying",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Supplier", "Item", "Warehouse"],
       "unlocks": ["Purchase Receipt", "Purchase Invoice"],
       "required_fields": ["supplier", "items (item_code, qty, rate)", "company", "transaction_date"],
@@ -333,6 +381,8 @@
     "Sales Order": {
       "module": "Selling",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Customer", "Item", "Warehouse"],
       "unlocks": ["Delivery Note", "Purchase Order (for procurement)", "Work Order (for manufacturing)"],
       "required_fields": ["customer", "items (item_code, qty, rate)", "delivery_date"],
@@ -345,6 +395,8 @@
     "Stock Entry": {
       "module": "Stock",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Item", "Warehouse"],
       "unlocks": ["updated stock balances"],
       "required_fields": ["stock_entry_type", "items (item_code, qty, warehouse)"],
@@ -364,6 +416,8 @@
     "Stock Reconciliation": {
       "module": "Stock",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Item", "Warehouse"],
       "unlocks": ["corrected stock balances"],
       "required_fields": ["purpose", "items (item_code, warehouse, qty, valuation_rate)"],
@@ -376,6 +430,8 @@
     "Purchase Receipt": {
       "module": "Buying",
       "layer": 6,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Supplier", "Item", "Warehouse"],
       "unlocks": ["Purchase Invoice", "updates stock balance"],
       "required_fields": ["supplier", "items (item_code, qty, warehouse)"],
@@ -388,6 +444,8 @@
     "Delivery Note": {
       "module": "Selling",
       "layer": 6,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Customer", "Item", "Warehouse", "Sales Order (optional)"],
       "unlocks": ["Sales Invoice", "reduces stock balance"],
       "required_fields": ["customer", "items (item_code, qty, warehouse)"],
@@ -400,6 +458,8 @@
     "Work Order": {
       "module": "Manufacturing",
       "layer": 6,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["BOM", "Item (finished good)", "Warehouse (WIP)", "Warehouse (FG)"],
       "unlocks": ["Job Card", "Stock Entry - Manufacture", "production tracking"],
       "required_fields": ["production_item", "bom_no", "qty", "wip_warehouse", "fg_warehouse"],
@@ -412,6 +472,8 @@
     "Job Card": {
       "module": "Manufacturing",
       "layer": 6,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Work Order", "Workstation", "Operation"],
       "unlocks": ["time tracking per operation", "production costing"],
       "required_fields": ["work_order", "operation", "workstation"],
@@ -424,6 +486,8 @@
     "Sales Invoice": {
       "module": "Accounts",
       "layer": 7,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Customer", "Item", "Account", "Tax Template", "Fiscal Year"],
       "unlocks": ["Payment Entry", "accounts receivable balance"],
       "required_fields": ["customer", "items (item_code, qty, rate)", "taxes", "company", "posting_date"],
@@ -447,6 +511,8 @@
     "Purchase Invoice": {
       "module": "Accounts",
       "layer": 7,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Supplier", "Item", "Account", "Tax Template", "Fiscal Year"],
       "unlocks": ["Payment Entry", "accounts payable balance", "GST Input Tax Credit"],
       "required_fields": ["supplier", "bill_no", "bill_date", "items (item_code, qty, rate)", "taxes"],
@@ -459,6 +525,8 @@
     "Payment Entry": {
       "module": "Accounts",
       "layer": 7,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Customer or Supplier", "Account (bank/cash)", "Sales Invoice or Purchase Invoice"],
       "unlocks": ["outstanding invoice reconciliation"],
       "required_fields": ["payment_type", "party_type", "party", "paid_amount", "paid_to/paid_from"],
@@ -471,6 +539,8 @@
     "Journal Entry": {
       "module": "Accounts",
       "layer": 7,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Account", "Company", "Fiscal Year"],
       "unlocks": ["any manual accounting adjustment"],
       "required_fields": ["voucher_type", "accounts (account, debit, credit)"],
@@ -483,6 +553,8 @@
     "Quotation": {
       "module": "Selling",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Customer or Lead", "Item"],
       "unlocks": ["Sales Order"],
       "required_fields": ["quotation_to", "party_name", "items"],
@@ -495,6 +567,8 @@
     "Material Request": {
       "module": "Stock",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": ["Item", "Warehouse"],
       "unlocks": ["Purchase Order", "Stock Transfer"],
       "required_fields": ["material_request_type", "items (item_code, qty, warehouse)"],
@@ -507,6 +581,8 @@
     "Lead": {
       "module": "CRM",
       "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "name",
       "depends_on": [],
       "unlocks": ["Opportunity", "Quotation", "Customer (converted)"],
       "required_fields": ["lead_name", "company_name"],
@@ -514,6 +590,126 @@
       "signal_in_files": ["prospect list", "inquiry list", "contact list before sale"],
       "sme_relevance": "conditional — only if CRM module is needed; most SMEs start without it",
       "notes": "Skip for first ERPNext implementation. CRM is phase 2 for most SMEs. Priority is transactional modules first."
+    },
+
+    "Project": {
+      "module": "Projects",
+      "layer": 8,
+      "seeding_complexity": "simple",
+      "name_field": "project_name",
+      "depends_on": ["Holiday List", "Customer", "Project Template", "Company", "Cost Center", "Project Type", "Sales Order", "Department"],
+      "required_fields": ["naming_series", "project_name", "company"],
+      "sme_relevance": "conditional — project manufacturing and services"
+    },
+
+    "Task": {
+      "module": "Projects",
+      "layer": 8,
+      "seeding_complexity": "simple",
+      "name_field": "subject",
+      "depends_on": ["User", "Task Type", "Company", "Issue", "Project", "Department"],
+      "required_fields": ["subject"],
+      "sme_relevance": "conditional — project manufacturing and services"
+    },
+
+    "Timesheet": {
+      "module": "Projects",
+      "layer": 8,
+      "seeding_complexity": "simple",
+      "name_field": "title",
+      "depends_on": ["Customer", "Currency", "Employee", "Company", "User", "Sales Invoice", "Project", "Department"],
+      "required_fields": ["naming_series", "time_logs"],
+      "sme_relevance": "conditional — project manufacturing and services"
+    },
+
+    "Timesheet Detail": {
+      "module": "Projects",
+      "layer": 8,
+      "seeding_complexity": "simple",
+      "name_field": "name",
+      "depends_on": ["Sales Invoice", "Project", "Activity Type", "Task"],
+      "required_fields": [],
+      "sme_relevance": "conditional — project manufacturing and services"
+    },
+
+    "Project Template": {
+      "module": "Projects",
+      "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "name",
+      "depends_on": ["Project Type"],
+      "required_fields": ["tasks"],
+      "sme_relevance": "conditional — project manufacturing and services"
+    },
+
+    "Batch": {
+      "module": "Stock",
+      "layer": 6,
+      "seeding_complexity": "simple",
+      "name_field": "batch_id",
+      "depends_on": ["Supplier", "Item", "UOM", "DocType"],
+      "required_fields": ["batch_id", "item"],
+      "sme_relevance": "conditional — food, pharma, chemicals"
+    },
+
+    "Quality Inspection": {
+      "module": "Stock",
+      "layer": 6,
+      "seeding_complexity": "complex",
+      "name_field": "name",
+      "depends_on": ["Item", "BOM", "Letter Head", "Company", "Quality Inspection Template", "User", "Serial No", "Batch"],
+      "required_fields": ["naming_series", "report_date", "status", "inspection_type", "reference_type", "reference_name", "item_code", "sample_size", "inspected_by"],
+      "sme_relevance": "conditional — manufacturers with QC"
+    },
+
+    "Quality Inspection Template": {
+      "module": "Stock",
+      "layer": 4,
+      "seeding_complexity": "simple",
+      "name_field": "name",
+      "depends_on": [],
+      "required_fields": ["quality_inspection_template_name", "item_quality_inspection_parameter"],
+      "sme_relevance": "conditional — manufacturers with QC"
+    },
+
+    "Workstation": {
+      "module": "Manufacturing",
+      "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "name",
+      "depends_on": ["Plant Floor", "Workstation Type", "Holiday List", "Warehouse"],
+      "required_fields": ["workstation_name", "production_capacity"],
+      "sme_relevance": "conditional — manufacturers with routing"
+    },
+
+    "Operation": {
+      "module": "Manufacturing",
+      "layer": 2,
+      "seeding_complexity": "simple",
+      "name_field": "name",
+      "depends_on": ["Quality Inspection Template", "Workstation"],
+      "required_fields": [],
+      "sme_relevance": "conditional — manufacturers with routing"
+    },
+
+    "Subcontracting Order": {
+      "module": "Subcontracting",
+      "layer": 5,
+      "seeding_complexity": "complex",
+      "name_field": "supplier_name",
+      "depends_on": ["Warehouse", "Letter Head", "Address", "Company", "Cost Center", "Contact", "Print Heading", "Project", "Purchase Order", "Supplier"],
+      "required_fields": ["naming_series", "purchase_order", "supplier", "supplier_name", "supplier_warehouse", "company", "transaction_date", "items", "service_items", "status"],
+      "sme_relevance": "conditional — manufacturers with outsourcing"
+    },
+
+    "Employee": {
+      "module": "Setup",
+      "layer": 3,
+      "seeding_complexity": "complex",
+      "name_field": "employee_name",
+      "depends_on": ["Salutation", "Designation", "Branch", "Holiday List", "Gender", "Currency", "User", "Company", "Department"],
+      "required_fields": ["first_name", "gender", "date_of_birth", "date_of_joining", "status", "company"],
+      "sme_relevance": "always"
     }
   },
 
@@ -535,11 +731,13 @@
 
   "module_to_doctype_map": {
     "Accounts": ["Account", "Cost Center", "Journal Entry", "Payment Entry", "Sales Invoice", "Purchase Invoice", "Tax Template", "Fiscal Year"],
-    "Stock": ["Item", "Item Group", "Item Price", "Item Variant", "Warehouse", "UOM", "Price List", "Stock Entry", "Stock Reconciliation", "Material Request"],
+    "Stock": ["Item", "Item Group", "Item Price", "Item Variant", "Warehouse", "UOM", "Price List", "Stock Entry", "Stock Reconciliation", "Material Request", "Batch", "Quality Inspection", "Quality Inspection Template"],
     "Selling": ["Customer", "Customer Group", "Territory", "Quotation", "Sales Order", "Delivery Note", "Sales Invoice"],
     "Buying": ["Supplier", "Supplier Group", "Purchase Order", "Purchase Receipt", "Purchase Invoice"],
     "Manufacturing": ["BOM", "Work Order", "Job Card", "Workstation", "Operation"],
+    "Projects": ["Project", "Task", "Timesheet", "Timesheet Detail", "Project Template"],
+    "Subcontracting": ["Subcontracting Order"],
     "CRM": ["Lead", "Opportunity"],
-    "Setup": ["Company", "Fiscal Year", "Currency", "Country"]
+    "Setup": ["Company", "Fiscal Year", "Currency", "Country", "Employee"]
   }
 }

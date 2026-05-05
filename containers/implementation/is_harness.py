@@ -311,7 +311,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fixture", default=None, metavar="PATH",
                    help="JSON file with input data. Default: dev_fixtures/<step>.json")
     p.add_argument("--phase", default=None,
-                   choices=["phase_a_config", "phase_b_master", "phase_c_transactional"],
+                   choices=["phase_a_config", "phase_b_master", "phase_c_transactional", "phase_d_projects"],
                    help="(execute_import_phase only) Which phase to run.")
     p.add_argument("--mock-llm", action="store_true",
                    help="Replace all Gemini calls with canned responses. Saves tokens during iteration.")

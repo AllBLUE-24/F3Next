@@ -1,0 +1,426 @@
+{
+    "id": "manufacturing_project_chemical",
+    "display_name": "Chemical Coatings Manufacturer & Project Installer",
+    "version": "2.0",
+    "last_updated": "2026-05-04",
+    "regulatory_criticality_level": "CRITICAL",
+    
+    "business_reality": {
+      "typical_company_profile": {
+        "size": "15-75 employees",
+        "structure": "Owner/CEO. Chief Chemist/R&D Head. Factory Production Manager. Project/Operations Manager (handles field crews). 10-20 factory workers (batching, milling, filling). 3-4 Field Supervisors. 10-30 installation technicians. 2-3 Hazmat-certified dispatchers.",
+        "location": "Industrial zones with heavy zoning permits for chemicals (high fire risk, VOC emissions). Field crews travel regionally or nationally to client sites.",
+        "business_models": [
+          "Manufacture + Install (Turnkey) (50-60% of SMEs) — Make the epoxy, send own crews to apply it on client floors.",
+          "Formulator / B2B Supply (20-30%) — Manufacture plural-component systems and sell in bulk to independent flooring contractors.",
+          "Toll Manufacturing (10-20%) — Produce proprietary formulations for large brands using their specific recipes."
+        ],
+        "typical_products": {
+          "part_a_resins": "Epoxy base, Polyurethane base, Polyaspartic, pigmented resins, primers.",
+          "part_b_hardeners": "Amines, polyamides, isocyanates (catalysts/curing agents).",
+          "additives": "Accelerators, retarders, anti-slip aggregates (quartz, flakes), matting agents.",
+          "solvents": "Xylene, MEK, Acetone (for thinning and equipment cleaning)."
+        },
+        "typical_batch_size": "Factory: 50 to 500 gallons per batch (using high-speed dispersers and mixing tanks). Site: 1 to 5-gallon buckets mixed continuously.",
+        "processing_types_used": [
+          "High-Speed Dispersion (breaking down pigments into resins)",
+          "Media Milling / Bead Milling (for ultra-fine pigment dispersion)",
+          "Letdown / Blending (adding solvents and additives to base)",
+          "Filtration (removing un-dispersed particles before canning)",
+          "Plural-Component Mixing (happens ON-SITE, highly time-sensitive)"
+        ]
+      },
+      
+      "actual_workflow": {
+        "description": "This workflow is inherently SPLIT. Phase 1 is Factory (controlled chemical batch processing). Phase 2 is Field/Project (uncontrolled environment application). The link between them is the Project Estimate, which dictates how much material the factory must produce and ship to the site.",
+        
+        "step_1_project_estimation_and_bidding": {
+          "business_action": "Sales/Project team visits client site. Measures square footage, assesses concrete substrate condition (cracks, moisture, oil contamination), determines required system (e.g., Primer + 2mm Epoxy Build + PU Topcoat). Calculates theoretical coverage rates to generate a quote.",
+          "sourcing_reality": "Theoretical coverage is never actual coverage. Pitted concrete absorbs 30% more primer than smooth concrete. Underestimating substrate porosity means running out of material mid-job.",
+          "critical_checks": [
+            "Moisture Vapor Emission Rate (MVER) testing (calcium chloride test or relative humidity probes)",
+            "Concrete surface profile (CSP) requirement determination",
+            "Chemical resistance requirements (e.g., does the factory use harsh acids?)"
+          ],
+          "erpnext_doctypes": ["Opportunity", "Quotation", "Project", "Task (Site Assessment)"],
+          "erpnext_warehouses": "N/A (Pre-sales phase)",
+          "pain_points": [
+            "Inaccurate measurements — Quoted for 10,000 sq ft, actual is 11,500 sq ft. Material runs out, job halts.",
+            "Ignoring environmental factors — Bidding a fast-cure polyaspartic for a humid environment without accounting for flash-curing risks."
+          ]
+        },
+        
+        "step_2_raw_material_procurement": {
+          "business_action": "Factory purchases bulk chemicals: Liquid epoxy resins (totes/drums), dry pigments (bags), solvents (drums), and hardeners. Lead times can be volatile based on global petrochemical supply chains.",
+          "critical_checks": [
+            "Certificate of Analysis (CoA) matching — Ensure incoming resin viscosity and epoxy equivalent weight (EEW) match specifications.",
+            "Hazmat receiving — Strict segregation of flammables, oxidizers, and corrosives.",
+            "Moisture protection — Isocyanates (Part B for PU) crystallize and ruin if exposed to even slight ambient moisture."
+          ],
+          "erpnext_doctypes": ["Purchase Order", "Purchase Receipt", "Quality Inspection (CoA Verification)"],
+          "erpnext_warehouses": "RM-Bulk Liquids, RM-Dry Powders, RM-Flammables, RM-Hardeners",
+          "pain_points": [
+            "Cold weather viscosity spikes — Resins delivered in winter are too thick to pump, requiring 48 hours in a hot room before they can be used.",
+            "Shelf life of hardeners — Over-ordering isocyanates leads to them gelling in the drum (total loss of $1,000+ per drum)."
+          ]
+        },
+        
+        "step_3_factory_dispersion_milling": {
+          "business_action": "The grind phase. Liquid resin is loaded into a mixing tank. Dry pigments and fillers are added slowly under a high-speed disperser (cowles blade) to break agglomerates. If making dark/vibrant colors, mixture goes through a bead mill.",
+          "critical_checks": [
+            "Hegman Grind Test — Measures particle fineness. Must reach specific micron size (e.g., 6 Hegman) or the floor finish will be gritty.",
+            "Temperature monitoring — High-speed dispersion generates immense heat. If resin gets too hot (>140°F), it can degrade or cause flash-boiling of solvents."
+          ],
+          "erpnext_doctypes": ["Work Order", "Job Card (Dispersion)", "Stock Entry (Issue)"],
+          "erpnext_warehouses": "WIP-Mixing",
+          "pain_points": [
+            "Pigment shock/kick-out — Adding materials in the wrong sequence causes pigment to clump permanently, ruining the batch.",
+            "Equipment bottleneck — Cleaning a mill between a black batch and a white batch takes hours and uses gallons of expensive solvent."
+          ]
+        },
+        
+        "step_4_letdown_and_factory_qc": {
+          "business_action": "The milled paste is 'let down' with more resin, solvents, and additives (defoamers, leveling agents). The batch is mixed to final consistency, and QC takes a sample for testing BEFORE it is allowed to be packaged.",
+          "critical_checks": [
+            "Viscosity check (Krebs Stormer or Brookfield viscometer) — Must be pumpable and rollable.",
+            "Color matching (Spectrophotometer or visual drawdown) — Delta E must be < 1.0 compared to standard.",
+            "Gel time / Pot life test — QC mixes a tiny sample of Part A with Part B to ensure it cures in the expected time frame."
+          ],
+          "erpnext_doctypes": ["Job Card (Letdown)", "Quality Inspection (In-Process)"],
+          "erpnext_warehouses": "WIP-Letdown",
+          "pain_points": [
+            "Color mismatch — Adjusting color in a 500-gallon tank is extremely difficult and requires 'tinting' which consumes hours of production time.",
+            "Off-spec batches — If viscosity is wrong, requires adding more solvent (changing the VOC profile, potentially making it illegal to sell in certain states)."
+          ]
+        },
+        
+        "step_5_filtration_and_packaging": {
+          "business_action": "Approved batch is pumped through mesh filters into retail/project packaging (1-gal cans, 5-gal pails, 55-gal drums). Part A and Part B are ALWAYS packaged separately.",
+          "batch_number_logic": "Batch numbers are critical. Field crews must mix Part A and Part B from compatible lots. If a customer orders 50 pails, all 50 must be from the SAME batch to prevent color shifting on the floor.",
+          "erpnext_doctypes": ["Stock Entry (Manufacture)", "Batch creation", "Job Card (Packaging)"],
+          "erpnext_warehouses": "FG-Epoxy Systems, FG-PU Systems",
+          "pain_points": [
+            "Filter blowouts — Pressure bursts the filter bag, sending gritty particles into the final pails. Discovered only when customer rolls it on the floor.",
+            "Short filling — Legal Metrology violations if pails don't contain exactly the stated volume (crucial because mix ratios depend on exact volumes)."
+          ]
+        },
+        
+        "step_6_logistics_and_site_transfer": {
+          "business_action": "Materials allocated for the project are loaded onto company trucks or LTL freight. Requires SDS documents and Hazmat placards if shipping solvents or certain corrosives.",
+          "erpnext_doctypes": ["Delivery Note", "Stock Entry (Material Transfer to Project Warehouse)"],
+          "erpnext_warehouses": "Site-Warehouse (Virtual warehouse per project)",
+          "pain_points": [
+            "Freezing in transit — Water-based epoxies freeze and separate in winter transit. Total write-off.",
+            "Missing the catalyst — Shipping 50 buckets of Part A but forgetting the 10 buckets of Part B. The crew is on site, hotel paid, labor ticking, but they can't work."
+          ]
+        },
+        
+        "step_7_site_surface_preparation": {
+          "business_action": "Field crew arrives. They DO NOT open chemicals yet. They spend 60% of the project time prepping the concrete using planetary diamond grinders or shot blasters to remove old coatings and open the concrete pores.",
+          "critical_checks": [
+            "Vacuuming/Dust removal — Micro-dust left on the floor acts as a bond breaker.",
+            "Dew point calculation — Substrate temperature must be at least 5°F above dew point, otherwise invisible condensation forms and ruins adhesion."
+          ],
+          "erpnext_doctypes": ["Timesheet", "Project Task (Surface Prep)"],
+          "erpnext_warehouses": "Site-Warehouse",
+          "pain_points": [
+            "Unexpected hard concrete — Burns through diamond tooling twice as fast, destroying the tooling budget for the project.",
+            "Oil contamination — Discovered during grinding. Requires emergency procurement of oil-stop primers, delaying the timeline."
+          ]
+        },
+        
+        "step_8_on_site_catalyzation_mixing": {
+          "business_action": "The point of no return. Crew sets up a mixing station. They mix Part A and Part B using exact stoichiometric ratios (e.g., 2:1 or 4:1 by volume).",
+          "pot_life_reality": "Once mixed, a chemical reaction starts (exothermic). The clock is ticking. 'Pot life' is the time they have to pour it out of the bucket (e.g., 30 minutes). If left in the bucket, the mass generates heat, boils, smokes, and hardens into a solid block of plastic.",
+          "critical_checks": [
+            "Induction time (sweat-in time) — Some primers must sit for 15 mins after mixing before application.",
+            "Scraping the sides — Unmixed resin clinging to the bucket walls will cause sticky, uncured spots on the floor."
+          ],
+          "erpnext_doctypes": ["Stock Entry (Material Consumption against Project)"],
+          "erpnext_warehouses": "Site-Warehouse",
+          "pain_points": [
+            "Ratio errors — Crew 'eyeballs' the mix instead of measuring. Floor never cures. Stays tacky forever. Requires scraping off with solvent (massive loss).",
+            "Flash curing — Mixing a 5-gallon batch in 90°F ambient heat. Pot life drops from 30 mins to 10 mins. Material hardens in the bucket (lost material + lost time)."
+          ]
+        },
+        
+        "step_9_application_and_layering": {
+          "business_action": "Pouring the mixed material in ribbons and spreading via squeegee, then back-rolling with spiked rollers to release entrapped air. Multiple coats required (Primer -> Base/Broadcast -> Topcoat).",
+          "critical_checks": [
+            "Dry Film Thickness (DFT) / Wet Film Thickness (WFT) — Measuring with a gauge to ensure they are putting it down at exactly 10 mils, not 15 mils.",
+            "Overcoat window — Coat 2 must be applied between 8 and 24 hours after Coat 1. Too early = solvent popping. Too late = no chemical bond, requires mechanical sanding."
+          ],
+          "erpnext_doctypes": ["Timesheet", "Project Task (Application)"],
+          "pain_points": [
+            "Outgassing — Air bubbles rising from the concrete create pinholes in the curing epoxy. Requires a full recoat to fix.",
+            "Debris/Bugs — Insects or dust landing in the wet topcoat before it cures, ruining the aesthetic finish."
+          ]
+        },
+        
+        "step_10_project_handover_and_reconciliation": {
+          "business_action": "Floor cures (24 hrs for foot traffic, 72 hrs for forklift traffic). Crew packs up. Leftover unmixed material is returned to the factory. Consumed material is costed against the project.",
+          "erpnext_doctypes": ["Stock Entry (Material Transfer Return)", "Project (Update Costing)", "Sales Invoice"],
+          "erpnext_warehouses": "Transfer from Site-Warehouse back to FG-Warehouse",
+          "pain_points": [
+            "Phantom inventory — Crew leaves 3 buckets of Part A in their van, but marks it as consumed on the project. Factory inventory is off.",
+            "Return to service failures — Client drives a forklift on the floor after 24 hrs instead of 72 hrs, tires rip the epoxy off. Client blames the manufacturer."
+          ]
+        }
+      },
+      
+      "key_pain_points": {
+        "inventory_management": [
+          "Part A / Part B Imbalance — Selling out of Part A but having huge dead stock of Part B because crews spill or waste hardener. They must be consumed in strict ratios.",
+          "Shelf Life of Catalysts — Isocyanates and certain amines have strict 6-12 month shelf lives and degrade rapidly once opened. Expiry losses are massive.",
+          "Batch/Lot matching — Having 100 gallons of 'Grey' in stock, but it's split across 4 different batch numbers. Cannot send to a single 10,000 sq ft project because the shades of grey will slightly differ."
+        ],
+        "project_costing": [
+          "Yield Variance on Site — Estimator assumed 100 sq ft/gallon. Concrete was porous, crew achieved 75 sq ft/gallon. Project requires 25% more material, wiping out the entire profit margin.",
+          "Tooling Costs — Diamond grinding blades are expensive ($200+ each) and wear out. Often categorized as overhead but should be costed directly to the specific project.",
+          "Lost Time / Weather Delays — Crew travels 3 hours, but site is too humid to pour. Hotel and labor costs accrue while zero progress is made."
+        ],
+        "quality_control": [
+          "The Tacky Floor Nightmare — Improper mixing ratios on site result in a floor that never hardens. The only fix is chemical stripping and grinding. A $10,000 job turns into a $30,000 loss.",
+          "Amine Blush — Cold temperatures cause amines in the hardener to react with moisture, leaving a greasy, cloudy film on the surface that blocks the next coat from sticking.",
+          "Color Drift — Pigment settling in the drum. If the field crew doesn't mechanically mix Part A *before* adding Part B, the color on the floor will be streaky."
+        ],
+        "regulatory_and_safety": [
+          "VOC Compliance — EPA/State regulations dictate Volatile Organic Compounds. Shipping a high-VOC solvent-based sealer to California results in massive fines.",
+          "Hazmat Storage — Fire marshals restrict how many gallons of flammable solvents can be stored indoors. Inventory must be carefully staged.",
+          "SDS Availability — OSHA requires SDS (Safety Data Sheets) physically present on every job site. If an inspector shows up and crews don't have them, fines are immediate."
+        ]
+      },
+      
+      "pricing_logic": {
+        "model": "Turnkey projects: Priced per Square Foot (Sq Ft) based on substrate condition and system thickness. Material supply only: Priced per Gallon/Kit.",
+        "calculation_reality": "Example: 5,000 sq ft warehouse. System: Primer + 100% Solids Epoxy + PU Topcoat. \nPrimer covers 200 sq ft/gal = 25 gals. \nEpoxy covers 100 sq ft/gal = 50 gals. \nPU covers 400 sq ft/gal = 12.5 gals. \nTotal material cost = $3,500. \nLabor (4 guys x 3 days) = $2,400. \nTooling/Sundries (rollers, tape, diamond blades) = $600. \nTravel/Per Diem = $800. \nTotal Cost = $7,300. \nQuoted price to client: $3.50/sq ft = $17,500. Expected Margin: 58%.",
+        "margin_reality": "Planned 58%. Actual drops to 30% if concrete requires an extra day of grinding, or if an extra 10 gallons of epoxy is needed due to floor porosity.",
+        "payment_terms": "Project-based: 30-50% mobilization deposit (funds the material procurement). Balance on completion. Retention (5-10%) sometimes held by general contractors for 60-90 days."
+      },
+      
+      "compliance_requirements": [
+        "OSHA / EPA Compliance (MANDATORY) — Strict handling of VOCs, isocyanates, and flammable liquids. Proper PPE (respirators) mandated for factory and field.",
+        "Hazmat Shipping & Placarding — DOT regulations for transporting flammable liquids (Class 3) and corrosives (Class 8).",
+        "GHS Labeling — Globally Harmonized System labels required on every container showing hazard pictograms, signal words, and hazard statements.",
+        "Batch Traceability — If a floor fails catastrophically, must trace back to the exact factory batch to determine if it was an application error or a chemical formulation error.",
+        "Waste Disposal — Cured epoxy is solid waste. Unmixed liquid Part A or Part B is hazardous waste and requires expensive specialized disposal."
+      ]
+    },
+    
+    "detection_signals": {
+      "strong_signals": {
+        "column_headers": [
+          "part a", "part b", "hardener", "resin", "catalyst", "base",
+          "mix ratio", "volume ratio", "pot life", "induction time", "cure time",
+          "sq ft", "square footage", "coverage rate", "wft", "dft", "mils",
+          "viscosity", "cps", "hegman", "grind", "voc", "voc g/l",
+          "batch number", "lot number", "delta e", "color match",
+          "substrate", "csp", "mver", "dew point"
+        ],
+        "sheet_names": [
+          "formulation", "batch ticket", "grind log", "tint log",
+          "project estimate", "site survey", "coverage calc",
+          "sds tracker", "hazmat inventory"
+        ],
+        "file_names": [
+          "batch_ticket", "formulation_sheet", "mix_design",
+          "site_assessment", "project_takeoff",
+          "qc_log", "coa_receipt"
+        ],
+        "data_patterns": [
+          "Mix ratios like 2:1, 4:1, 1:1, or 100:30 by weight",
+          "Coverage rates expressed in sq ft/gal or mils (e.g., '10 mils', '160 sqft/gal')",
+          "Pot life times (e.g., '30 mins', '45 mins')",
+          "VOC measurements (e.g., '<50 g/L', '400 g/L')",
+          "Substrate prep codes (CSP 2, CSP 3)"
+        ],
+        "bom_structure": "Resins (lbs/gals) + Pigments (lbs) + Additives (grams/lbs) + Solvents (lbs) = Part A Base. Handled entirely separately from Part B Hardener."
+      },
+      "weak_signals": {
+        "column_headers": [
+          "project manager", "site supervisor", "crew",
+          "mobilization", "per diem", "sundries",
+          "totes", "drums", "pails", "gallons"
+        ],
+        "customer_types": ["General Contractors", "Facility Managers", "Warehouses", "Hospitals", "Aviation Hangars", "Auto Shops"]
+      },
+      "against_signals": {
+        "column_headers": [
+          "thread count", "fabric", "stitch",
+          "food grade", "fssai", "calories", "expiry date (unless chemical shelf life)",
+          "cnc program", "machining time"
+        ],
+        "bom_indicators": [
+          "Items measured in 'meters' or 'pieces' as primary raw materials (chemicals are weight/volume)."
+        ]
+      }
+    },
+    
+    "absolute_profile": {
+      "mandatory_modules": [
+        "Manufacturing",
+        "Stock",
+        "Projects",
+        "Selling",
+        "Buying",
+        "Quality Management"
+      ],
+      "optional_modules": [
+        "HR (for tracking highly variable field crew timesheets and hazard pay)",
+        "CRM (for managing complex B2B bidding pipelines)"
+      ],
+      "compliance_modules": ["Batch Traceability", "Custom fields for VOC/Hazmat tracking"]
+    },
+    
+    "mandatory_doctypes": [
+      "Item",
+      "Item Variant",
+      "Batch",
+      "BOM (Formulation)",
+      "Work Order (Batch Ticket)",
+      "Job Card",
+      "Project",
+      "Task",
+      "Timesheet",
+      "Quotation",
+      "Sales Order",
+      "Delivery Note",
+      "Stock Entry (Issue, Transfer, Manufacture)",
+      "Quality Inspection",
+      "Quality Inspection Template"
+    ],
+    
+    "erpnext_masters_setup": {
+      "item_structure": {
+        "approach": "Split Item architecture. Part A and Part B MUST be separate Items. They are manufactured separately, stocked separately, and combined ONLY on the project site.",
+        "raw_material_items": "Liquid Epoxy Resin (UOM: Lbs or Kg), Titanium Dioxide Pigment (UOM: Lbs), Xylene (UOM: Gal/Liters), Amine Hardener (UOM: Lbs).",
+        "finished_goods_items": "Epoxy Primer 1000 - Part A (UOM: Gallon/Pail), Epoxy Primer 1000 - Part B (UOM: Gallon/Pail). Product Bundles/Kits can be used for selling '1 Kit of Primer'.",
+        "custom_fields_required": "In Item Master: 'VOC Content (g/L)', 'Hazmat Class', 'Mix Ratio by Volume', 'Mix Ratio by Weight', 'Pot Life (mins)'."
+      },
+      
+      "batch_setup": {
+        "critical_importance": "Batch tracking is non-negotiable for color consistency and warranty claims. 'Has Batch No' must be checked for all resins, hardeners, and finished goods.",
+        "expiry_tracking": "Hardeners (Part B) and certain additives have strict shelf lives. Expiry tracking must be enabled to prevent shipping 'dead' catalyst to a site."
+      },
+      
+      "bom_structure": {
+        "type": "Process manufacturing BOM (Formulation). Usually based on weight (Lbs/Kg) even if finished good is volume (Gallons), because factory scales measure weight.",
+        "components": [
+          {"item": "Liquid Epoxy Resin", "qty": "500 Lbs", "scrap": "1%"},
+          {"item": "Defoamer Additive", "qty": "5 Lbs", "scrap": "0%"},
+          {"item": "Grey Pigment Dispersion", "qty": "50 Lbs", "scrap": "2%"}
+        ],
+        "yield_output": "Yield loss is a massive factor. 555 Lbs of input might only yield 50 Gallons of output due to evaporation of solvents and material clinging to the sides of the mixing tank/hoses.",
+        "operations": [
+          {"operation": "High-Speed Dispersion", "workstation": "Cowles Mixer 1", "time_in_mins": 90},
+          {"operation": "Milling", "workstation": "Bead Mill", "time_in_mins": 120},
+          {"operation": "Letdown & Thinning", "workstation": "Letdown Tank", "time_in_mins": 60},
+          {"operation": "Filtration & Canning", "workstation": "Filling Line", "time_in_mins": 45}
+        ]
+      },
+      
+      "warehouse_setup": {
+        "required_warehouses": [
+          "RM - Bulk Liquids",
+          "RM - Dry Powders",
+          "RM - Flammables (Hazmat restricted)",
+          "WIP - Factory",
+          "FG - Part A Resins",
+          "FG - Part B Hardeners",
+          "FG - Sundries & Tooling (Rollers, tape, blades)",
+          "Site - [Project Name] (Dynamic virtual warehouses created per project)"
+        ],
+        "warehouse_logic": "Creating a virtual warehouse for EVERY project is critical. Material is 'transferred' from FG to Site. Consumption happens AT the site. Leftovers are transferred back. This is the only way to accurately track project material costs."
+      }
+    },
+    
+    "default_settings": {
+      "stock_settings": {
+        "valuation_method": "FIFO",
+        "allow_negative_stock": false,
+        "default_material_request_type": "Purchase"
+      },
+      "manufacturing_settings": {
+        "material_consumption": "Manual (Not Backflush). Chemical manufacturing requires precise measurement of what was actually dumped into the tank, as variations happen per batch to adjust viscosity/color.",
+        "update_bom_cost_automatically": true
+      },
+      "projects_settings": {
+        "track_costs_against_project": true,
+        "ignore_pricing_rule_for_project": false
+      }
+    },
+    
+    "workflow_processes": [
+      {
+        "process_id": "P1_factory_batch_production",
+        "process_name": "Formulation & Batching (Factory)",
+        "trigger": "Min-stock level reached OR Large project won",
+        "steps": [
+          {"action": "Create Work Order for Part A", "doctype": "Work Order"},
+          {"action": "Stage Raw Materials", "doctype": "Stock Entry (Material Transfer to WIP)"},
+          {"action": "Dispersion & Milling", "doctype": "Job Card", "details": "Operator logs actual time and notes any temperature spikes."},
+          {"action": "In-Process QC", "doctype": "Quality Inspection", "details": "Check Viscosity, Hegman Grind, Color. If fail, adjust batch (add solvent/pigment) before proceeding."},
+          {"action": "Filtration & Filling", "doctype": "Job Card"},
+          {"action": "Complete Batch", "doctype": "Work Order -> Finish", "details": "Yield recorded. FG transferred to warehouse with Batch No."}
+        ]
+      },
+      {
+        "process_id": "P2_project_execution",
+        "process_name": "Turnkey Project Execution (Field)",
+        "trigger": "Quotation Approved by Client",
+        "steps": [
+          {"action": "Create Project", "doctype": "Project", "details": "Link to Sales Order. Create project tasks (Prep, Prime, Base, Topcoat)."},
+          {"action": "Create Project Warehouse", "doctype": "Warehouse"},
+          {"action": "Material Allocation & Dispatch", "doctype": "Stock Entry (Material Transfer)", "details": "Move exact quantities of Part A, Part B, and sundries to Project Warehouse. Print Delivery Note with Hazmat data."},
+          {"action": "Field Labor Tracking", "doctype": "Timesheet", "details": "Crew logs hours against specific project tasks. Prevailing wage rates applied if government job."},
+          {"action": "Material Consumption", "doctype": "Stock Entry (Material Issue)", "details": "Project Manager logs exactly how many buckets were mixed and poured on the floor."},
+          {"action": "Project Reconciliation", "doctype": "Stock Entry (Return)", "details": "Unopened buckets transferred back to main FG warehouse. Project costing analyzed (Estimated vs Actual)."}
+        ]
+      }
+    ],
+    
+    "questions_to_ask": [
+      {
+        "question": "How do you currently ensure Part A and Part B quantities match when shipping to a project site?",
+        "purpose": "Identifies if they use manual kits or if they suffer from the 'stranded hardener' inventory problem."
+      },
+      {
+        "question": "When a field crew requires more material than estimated due to concrete porosity, how is that extra cost captured?",
+        "purpose": "Reveals gaps in their project costing. Often, field crews just grab more material from the shop and the cost is never linked to the project."
+      },
+      {
+        "question": "How do you track the exact batch numbers of the products applied at a specific customer's site?",
+        "purpose": "Tests their traceability capability. Essential for defending against warranty claims (was it a bad batch, or bad field application?)."
+      },
+      {
+        "question": "Do you adjust chemical recipes on the fly based on viscosity or color? How is that recorded?",
+        "purpose": "Determines if they need flexible BOMs or custom Stock Entries for 'batch adjustments' (tinting/thinning)."
+      }
+    ],
+    
+    "common_data_gaps": [
+      "No Project Warehouses — Materials are just 'issued' directly from the main warehouse to the project without a transit step. Prevents tracking of un-used returns.",
+      "Yield Loss Ignored — BOMs assume 100% yield from liquid raw materials. Fails to account for 5% loss clinging to the mixing vats.",
+      "Tooling not Costed — Diamond blades and rollers are treated as generic factory consumables rather than direct project costs, inflating perceived project margins.",
+      "Part A / Part B Unit Mismatch — Stocking Part A in Gallons but Part B in Liters or Lbs, making the mix ratio calculations impossible for the system to automate."
+    ],
+    
+    "common_failures": [
+      {
+        "failure": "Bundling Part A and Part B as a single manufactured Item.",
+        "why_it_fails": "They are manufactured in different tanks, at different times, and Part B (hardener) has a much shorter shelf life. If bundled as one Item code, inventory tracking breaks completely.",
+        "correct_approach": "Create separate Items. Use ERPNext 'Product Bundle' ONLY at the Sales Order level if selling a 'Kit'."
+      },
+      {
+        "failure": "Standardizing BOMs without allowing for 'Letdown Adjustments'.",
+        "why_it_fails": "Chemicals vary. A batch might need 2 extra gallons of Xylene to hit the target viscosity. If the system locks the BOM rigidly, the operator cannot accurately record what was used.",
+        "correct_approach": "Configure Manufacturing Settings to allow manual Material Consumption against the Work Order, deviating from the exact BOM quantities."
+      }
+    ],
+    
+    "notes_for_ai_agent": {
+      "discovery_agent_focus": "When gathering initial context, aggressively probe the split between their Factory operations and Field operations. Most companies lean heavily into one or the other. Identify if they are strictly ETO (Engineer-to-Order) bidding on floors, or Make-to-Stock selling pails to distributors. Ask explicitly about how they handle Hazmat shipping and VOC compliance, as this alters item master setup.",
+      "is_agent_mapping_rules": "During data cleaning and mapping, pay extreme attention to UOMs (Units of Measure). Chemical manufacturers often buy raw materials in Lbs/Kg but sell finished goods in Gallons/Liters. Ensure UOM conversion factors are mathematically perfect in the Item Master. Map Part A and Part B as distinct, separate Items, never merged. Force the creation of virtual Project Warehouses when mapping their location structures.",
+      "os_agent_execution_cues": "For daily operational prompts, prioritize linking Stock Entries directly to Project codes. When the user prompts 'shipped 50 kits to the downtown warehouse job', the agent must execute a Stock Transfer of both Part A items and Part B items (using the predefined mix ratio) from FG to the specific Project Warehouse. Ensure the agent proactively asks for Batch Numbers during these transfers to maintain traceablity."
+    }
+  }

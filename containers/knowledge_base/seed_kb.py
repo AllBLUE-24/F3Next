@@ -16,13 +16,22 @@ from llm_router import api_keys, key_pool
 # Import the data from the new files
 from containers.knowledge_base.manufacturing_kb_chunks import ALL_MANUFACTURING_CHUNKS
 from containers.knowledge_base.trading_kb_chunks import ALL_TRADING_CHUNKS
+from containers.knowledge_base.project_manufacturing_kb_chunks import project_manufacturing_kb_chunks
 
 load_dotenv()
 
 def prepare_documents():
     """Flattens the nested structures into a single list of formatted strings."""
     documents = []
-    master_list = ALL_MANUFACTURING_CHUNKS + ALL_TRADING_CHUNKS
+    
+    # Structure the new project manufacturing chunks similarly
+    project_mfg_wrapper = [{
+        "industry": "Specialty Chemicals / Construction Coatings",
+        "kb_type": "project_manufacturing",
+        "chunks": project_manufacturing_kb_chunks
+    }]
+    
+    master_list = ALL_MANUFACTURING_CHUNKS + ALL_TRADING_CHUNKS + project_mfg_wrapper
     
     for category in master_list:
         industry = category["industry"]
