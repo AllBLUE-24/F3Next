@@ -34,6 +34,8 @@ from temporalio import activity
 
 logger = logging.getLogger(__name__)
 
+from shared.os_metrics import OS_CLARITY_AMBIGUITY_TOTAL, OS_CLARITY_FALLBACK_TOTAL
+
 # ── Intent Pydantic schema (used for response_schema in Phase 2) ──────────────
 
 class _Item(BaseModel):
@@ -583,7 +585,6 @@ Return ONLY the JSON object:"""
 def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
     """
     Deterministic fallback when LLM fails.
-    Does NOT set ambiguities — avoids re-prompting the user.
     Uses keyword matching to guess intent + party type.
 
     FIX: now correctly sets supplier vs customer based on intent,
@@ -707,6 +708,23 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
         reason[:80], intent_id, doctype, customer or supplier, len(items),
     )
 
+    ambiguities: list[dict] = []
+
+    def _req(field: str, question: str) -> None:
+        ambiguities.append({"field": field, "question": question, "required": True})
+
+    # Minimal safety: if required information is missing, force clarification.
+    if doctype in ("Sales Order", "Sales Invoice", "Delivery Note", "Quotation"):
+        if not customer:
+            _req("customer", f"Which customer is this {doctype} for?")
+        if not items:
+            _req("items", f"What item(s) should be included in this {doctype}, and what quantity for each?")
+    if doctype in ("Purchase Order", "Purchase Invoice", "Purchase Receipt"):
+        if not supplier:
+            _req("supplier", f"Which supplier is this {doctype} for?")
+        if not items:
+            _req("items", f"What item(s) should be included in this {doctype}, and what quantity for each?")
+
     return {
         "intent_id":              intent_id,
         "category":               category,
@@ -739,9 +757,9 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
             "company":            None,
             "extra":              {},
         },
-        "confidence":             0.60,   # Lower — signals fallback was used
-        "ambiguities":            [],     # ← EMPTY — never re-ask user
-        "has_ambiguities":        False,  # ← FALSE — don't trigger ambiguity loop
+        "confidence":             0.40,   # Lower — signals fallback was used
+        "ambiguities":            ambiguities,
+        "has_ambiguities":        len(ambiguities) > 0,
         "risk_level":             "low",
         "requires_confirmation":  False,
         "raw_prompt":             prompt,
@@ -803,7 +821,7 @@ async def extract_intent(data: dict) -> dict:
                 res = await session.execute(
                     select(ContextSnapshot)
                     .where(
-                        ContextSnapshot.project_id == real_uuid,
+                        ContextSnapshot.project_id == uuid.UUID(str(real_uuid)),
                         ContextSnapshot.layer == "master_data",
                     )
                     .order_by(ContextSnapshot.version.desc())
@@ -905,11 +923,70 @@ async def extract_intent(data: dict) -> dict:
             "extract_intent: intent=%s  doctype=%s  confidence=%.2f  ambiguities=%d",
             result.get("intent_id"), result.get("target_doctype"), conf, n_amb,
         )
+        try:
+            if result.get("has_ambiguities") and OS_CLARITY_AMBIGUITY_TOTAL is not None:
+                OS_CLARITY_AMBIGUITY_TOTAL.labels(source="llm").inc()
+        except Exception:
+            pass
         return result
 
     except Exception as e:
         activity.logger.error("extract_intent failed: %s — using keyword fallback", e)
-        return _fallback_intent(prompt, erp_type, str(e))
+        try:
+            if OS_CLARITY_FALLBACK_TOTAL is not None:
+                OS_CLARITY_FALLBACK_TOTAL.labels(erp_type=str(erp_type or "unknown")).inc()
+        except Exception:
+            pass
+        fallback = _fallback_intent(prompt, erp_type, str(e))
+        fallback["raw_prompt"] = prompt
+        fallback["erp_type"] = erp_type
+        fallback["session_context"] = session_context
+
+        # Best-effort: use CVS tool to detect common misclassification (item mistaken as customer/supplier)
+        try:
+            entities = fallback.get("entities") or {}
+            party = entities.get("customer") or entities.get("supplier")
+            items = entities.get("items") or []
+
+            if party and isinstance(party, str) and (not isinstance(items, list) or len(items) == 0):
+                cust_hits = await _search_cvs_master_data(party, "Customer")
+                supp_hits = await _search_cvs_master_data(party, "Supplier")
+                item_hits = await _search_cvs_master_data(party, "Item")
+
+                # If it doesn't exist as a party but does exist as an item, force a helpful clarification
+                if (not cust_hits and not supp_hits) and item_hits:
+                    top = item_hits[0] or {}
+                    hint = (
+                        top.get("item_code")
+                        or top.get("name")
+                        or top.get("item_name")
+                        or party
+                    )
+                    if entities.get("customer") == party:
+                        entities["customer"] = None
+                    if entities.get("supplier") == party:
+                        entities["supplier"] = None
+                    fallback["entities"] = entities
+                    fallback["ambiguities"] = [{
+                        "field": "items",
+                        "question": (
+                            f"Did you mean the item '{hint}'? "
+                            "Please provide the customer/supplier name and the quantity for each item."
+                        ),
+                        "required": True,
+                    }]
+                    fallback["has_ambiguities"] = True
+                    fallback["confidence"] = min(float(fallback.get("confidence") or 0.4), 0.35)
+        except Exception as cvs_e:
+            activity.logger.warning("fallback CVS classification skipped: %s", cvs_e)
+
+        try:
+            if fallback.get("has_ambiguities") and OS_CLARITY_AMBIGUITY_TOTAL is not None:
+                OS_CLARITY_AMBIGUITY_TOTAL.labels(source="fallback").inc()
+        except Exception:
+            pass
+
+        return fallback
 
 
 @activity.defn(name="resolve_ambiguity")

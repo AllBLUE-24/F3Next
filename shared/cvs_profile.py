@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import logging
 import uuid as uuid_lib
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
 
-async def load_cvs_company_profile(project_id: str) -> Tuple[str, dict[str, Any]]:
+async def load_cvs_company_profile(project_id: str) -> tuple[str, dict[str, Any]]:
     """
     Returns (company_slug, profile_dict) including webhook_secret when present.
 
@@ -66,7 +66,7 @@ async def load_cvs_company_profile(project_id: str) -> Tuple[str, dict[str, Any]
     return company_slug, profile
 
 
-async def build_force_sync_company_profile(project_id: str) -> Tuple[str, dict[str, Any]]:
+async def build_force_sync_company_profile(project_id: str) -> tuple[str, dict[str, Any]]:
     """Payload for POST /api/cvs/force-sync — company_slug + company_profile."""
     slug, profile = await load_cvs_company_profile(project_id)
     return slug, profile

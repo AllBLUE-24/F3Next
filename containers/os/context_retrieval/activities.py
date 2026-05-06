@@ -41,6 +41,16 @@ from containers.os.context_retrieval.company_profile import load_company_context
 
 logger = logging.getLogger(__name__)
 
+from shared.os_metrics import OS_READINESS_BLOCK_TOTAL
+
+_ITEMS_REQUIRED_DOCTYPES = {
+    "Sales Order", "Sales Invoice", "Delivery Note",
+    "Purchase Order", "Purchase Invoice", "Purchase Receipt",
+    "Stock Entry", "Quotation",
+}
+_SALES_DOCTYPES_REQUIRE_CUSTOMER = {"Sales Order", "Sales Invoice", "Delivery Note", "Quotation"}
+_PURCHASE_DOCTYPES_REQUIRE_SUPPLIER = {"Purchase Order", "Purchase Invoice", "Purchase Receipt"}
+
 
 @activity.defn(name="retrieve_context")
 async def retrieve_context(data: dict) -> dict:
@@ -145,6 +155,33 @@ async def retrieve_context(data: dict) -> dict:
         company_profile.get("source", "?"),
     )
 
+    # ── Readiness hint (purely informational; workflow may choose to block) ──
+    readiness_blocker = None
+    readiness_reason = None
+    try:
+        registry = company_profile.get("entity_registry", {}) if isinstance(company_profile, dict) else {}
+        known_items = (registry.get("known_items") or []) if isinstance(registry, dict) else []
+        known_customers = (registry.get("known_customers") or []) if isinstance(registry, dict) else []
+        known_suppliers = (registry.get("known_suppliers") or []) if isinstance(registry, dict) else []
+
+        if company_profile.get("is_dummy") and not company_profile.get("dummy_allowed", False):
+            readiness_reason = "dummy_profile_disallowed"
+            readiness_blocker = "ERP credentials are not configured yet (Implementation System not complete)."
+        elif target_doctype in _ITEMS_REQUIRED_DOCTYPES and not known_items:
+            readiness_reason = "no_items_in_cvs"
+            readiness_blocker = "No Items found in CVS master_data for this company yet."
+        elif target_doctype in _SALES_DOCTYPES_REQUIRE_CUSTOMER and not known_customers:
+            readiness_reason = "no_customers_in_cvs"
+            readiness_blocker = "No Customers found in CVS master_data for this company yet."
+        elif target_doctype in _PURCHASE_DOCTYPES_REQUIRE_SUPPLIER and not known_suppliers:
+            readiness_reason = "no_suppliers_in_cvs"
+            readiness_blocker = "No Suppliers found in CVS master_data for this company yet."
+
+        if readiness_reason and OS_READINESS_BLOCK_TOTAL is not None:
+            OS_READINESS_BLOCK_TOTAL.labels(reason=readiness_reason).inc()
+    except Exception:
+        pass
+
     return {
         # Pass-through
         "intent":           intent_dict,
@@ -163,6 +200,10 @@ async def retrieve_context(data: dict) -> dict:
 
         # Validation
         "business_rules":   business_rules,    # Stub — KB-06 not loaded yet
+
+        # Readiness hint for orchestration
+        "_readiness_blocker": readiness_blocker,
+        "_readiness_reason": readiness_reason,
 
         # Context snapshot (safe to store in DB — no credentials)
         # Workflow writes this to os_commands.context_snapshot

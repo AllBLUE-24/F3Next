@@ -11,7 +11,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import boto3
 from botocore.config import Config
@@ -66,7 +66,7 @@ class _SignalsInferenceService:
         self,
         uploaded_files: List[Dict],
         file_contents: Optional[Dict[str, str]] = None,
-    ) -> Tuple[str, float, List[str]]:
+    ) -> tuple[str, float, List[str]]:
         from containers.implementation.utils.llm_helper import generate_json
         
         registry_summary = self._load_registry_summary()
@@ -165,7 +165,7 @@ class _F3icheVerificationService:
         return cls._GENERIC_ALIASES.get(f, f)
 
     @classmethod
-    def verify(cls, f3iche_user: str, f3iche_signals: str, confidence: float = 0.0) -> Tuple[bool, str, Optional[str]]:
+    def verify(cls, f3iche_user: str, f3iche_signals: str, confidence: float = 0.0) -> tuple[bool, str, Optional[str]]:
         u_cat = cls._get_broad_category(f3iche_user)
         s_cat = cls._get_broad_category(f3iche_signals)
 

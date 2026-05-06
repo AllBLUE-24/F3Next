@@ -551,7 +551,7 @@ class GetImportPlanPhasesInput:
 
 
 @activity.defn(name="get_import_plan_phases")
-async def get_import_plan_phases(inp: GetImportPlanPhasesInput) -> List[Tuple[str, str]]:
+async def get_import_plan_phases(inp: GetImportPlanPhasesInput) -> List[tuple[str, str]]:
     """
     Reads the import plan from Supabase and returns the ordered list of phases
     to execute: [(phase_id, phase_name), ...]

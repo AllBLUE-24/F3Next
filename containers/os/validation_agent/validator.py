@@ -416,51 +416,102 @@ def _validate_runtime_links(
     step_num: int,
     doctype:  str,
     payload:  dict,
+    context:  dict,
+    errors:   list,
     warnings: list,
 ) -> None:
     """
     Existence checks for linked records (customer, supplier, items, warehouses).
-    These require a live ERP call — we can't do them pre-execution.
-    We emit informational warnings so the user knows what will be checked.
+
+    If CVS entity registry is available in the context bundle, we can deterministically
+    validate existence without a live ERP call. If registry is missing/empty, we fall
+    back to informational warnings.
     """
+    profile = context.get("company_profile", {}) if isinstance(context, dict) else {}
+    registry = profile.get("entity_registry", {}) if isinstance(profile, dict) else {}
+
+    known_customers = registry.get("known_customers") or []
+    known_suppliers = registry.get("known_suppliers") or []
+    known_items = registry.get("known_items") or []
+    known_warehouses = registry.get("known_warehouses") or []
+
+    cust_set = {str(x).casefold() for x in known_customers if x} if isinstance(known_customers, list) else set()
+    supp_set = {str(x).casefold() for x in known_suppliers if x} if isinstance(known_suppliers, list) else set()
+    item_set = {str(x).casefold() for x in known_items if x} if isinstance(known_items, list) else set()
+    wh_set = {str(x).casefold() for x in known_warehouses if x} if isinstance(known_warehouses, list) else set()
+
     customer = payload.get("customer")
     if customer:
-        warnings.append(_warn(
-            "runtime_link_check",
-            "customer",
-            f"Customer '{customer}' will be verified against Customer master at execution time",
-            step_num,
-        ))
+        if cust_set and str(customer).casefold() not in cust_set:
+            errors.append(_err(
+                "unknown_customer",
+                "customer",
+                f"Customer '{customer}' was not found in CVS master_data. Please choose an existing customer.",
+                step_num,
+            ))
+        elif not cust_set:
+            warnings.append(_warn(
+                "runtime_link_check",
+                "customer",
+                f"Customer '{customer}' will be verified against Customer master at execution time",
+                step_num,
+            ))
 
     supplier = payload.get("supplier")
     if supplier:
-        warnings.append(_warn(
-            "runtime_link_check",
-            "supplier",
-            f"Supplier '{supplier}' will be verified against Supplier master at execution time",
-            step_num,
-        ))
+        if supp_set and str(supplier).casefold() not in supp_set:
+            errors.append(_err(
+                "unknown_supplier",
+                "supplier",
+                f"Supplier '{supplier}' was not found in CVS master_data. Please choose an existing supplier.",
+                step_num,
+            ))
+        elif not supp_set:
+            warnings.append(_warn(
+                "runtime_link_check",
+                "supplier",
+                f"Supplier '{supplier}' will be verified against Supplier master at execution time",
+                step_num,
+            ))
 
     items = payload.get("items", [])
-    for item in items:
-        code = item.get("item_code")
-        if code:
+    for i, item in enumerate(items if isinstance(items, list) else []):
+        code = item.get("item_code") if isinstance(item, dict) else None
+        if not code:
+            continue
+        if item_set and str(code).casefold() not in item_set:
+            errors.append(_err(
+                "unknown_item",
+                f"items[{i}].item_code",
+                f"Item '{code}' was not found in CVS master_data. Please choose an existing item.",
+                step_num,
+            ))
+            break
+        if not item_set:
             warnings.append(_warn(
                 "runtime_link_check",
                 "items.item_code",
                 f"Item '{code}' will be verified against Item master at execution time",
                 step_num,
             ))
-            break   # Only emit once per step — avoid 20 identical warnings for bulk items
+            break
 
-    warehouse = payload.get("target_warehouse") or payload.get("from_warehouse")
+    warehouse = payload.get("target_warehouse") or payload.get("from_warehouse") or payload.get("to_warehouse")
     if warehouse:
-        warnings.append(_warn(
-            "runtime_link_check",
-            "warehouse",
-            f"Warehouse '{warehouse}' will be verified at execution time",
-            step_num,
-        ))
+        if wh_set and str(warehouse).casefold() not in wh_set:
+            errors.append(_err(
+                "unknown_warehouse",
+                "warehouse",
+                f"Warehouse '{warehouse}' was not found in CVS master_data. Please choose an existing warehouse.",
+                step_num,
+            ))
+        elif not wh_set:
+            warnings.append(_warn(
+                "runtime_link_check",
+                "warehouse",
+                f"Warehouse '{warehouse}' will be verified at execution time",
+                step_num,
+            ))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -526,7 +577,7 @@ def validate_payload_bundle(
         _validate_data_quality(step_num, doctype, payload, warnings)
 
         # ── Layer 5: Runtime link warnings ────────────────────────────────
-        _validate_runtime_links(step_num, doctype, payload, warnings)
+        _validate_runtime_links(step_num, doctype, payload, context, errors, warnings)
 
     is_valid = len(errors) == 0
 

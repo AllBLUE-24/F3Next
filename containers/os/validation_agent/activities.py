@@ -27,6 +27,8 @@ from containers.os.validation_agent.validator import validate_payload_bundle
 
 logger = logging.getLogger(__name__)
 
+from shared.os_metrics import OS_VALIDATION_ERRORS_TOTAL
+
 
 @activity.defn(name="validate_payload")
 async def validate_payload(payload_bundle: dict, context: dict) -> dict:
@@ -64,6 +66,11 @@ async def validate_payload(payload_bundle: dict, context: dict) -> dict:
 
         for e in result.get("errors", []):
             activity.logger.warning("  ❌ [%s] %s — %s", e["rule_id"], e["field"], e["message"])
+            try:
+                if OS_VALIDATION_ERRORS_TOTAL is not None:
+                    OS_VALIDATION_ERRORS_TOTAL.labels(rule_id=str(e.get("rule_id", "unknown"))).inc()
+            except Exception:
+                pass
         for w in result.get("warnings", []):
             activity.logger.info("  ⚠️  [%s] %s — %s", w["rule_id"], w["field"], w["message"])
         for c in result.get("auto_corrections", []):

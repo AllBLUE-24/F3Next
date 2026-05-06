@@ -211,12 +211,15 @@ class CVSLauncher:
             from shared.database.db import AsyncSessionLocal
             from shared.models.cvs_models import ContextSnapshot
             from sqlalchemy import select
+            import uuid as uuid_lib
+
+            pid = uuid_lib.UUID(str(project_id))
 
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
                     select(ContextSnapshot)
                     .where(
-                        ContextSnapshot.project_id == project_id,
+                        ContextSnapshot.project_id == pid,
                         ContextSnapshot.layer      == layer,
                     )
                     .order_by(ContextSnapshot.version.desc())

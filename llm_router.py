@@ -30,7 +30,7 @@ import time
 from collections import defaultdict
 from itertools import cycle
 from threading import Lock
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -66,7 +66,7 @@ MODEL_TIERS: List[str] = [m.strip() for m in _tier_env.split(",") if m.strip()]
 #   _quota_sidelined[(model, key)] = unix timestamp when it was sidelined
 # ---------------------------------------------------------------------------
 
-_quota_sidelined: Dict[Tuple[str, str], float] = {}
+_quota_sidelined: Dict[tuple[str, str], float] = {}
 _quota_lock = Lock()
 _COOLDOWN_SECONDS = 20  # keys become re-eligible after this window
 

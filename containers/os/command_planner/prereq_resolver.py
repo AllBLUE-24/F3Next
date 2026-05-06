@@ -8,6 +8,8 @@ from shared.models.plan import ExecutionPlan, PlanStep
 
 logger = logging.getLogger(__name__)
 
+from shared.os_metrics import OS_PLANNER_UNRESOLVED_LINK_TOTAL
+
 _BOOTSTRAP_MASTER_PAYLOADS: dict[str, dict[str, Any]] = {
     "Customer Group": {
         "customer_group_name": "All Customer Groups",
@@ -128,15 +130,21 @@ async def _resolve_link_field(
             if match:
                 return match, None, "matched_existing"
 
-        chosen = options[0]
         logger.warning(
-            "Planner prereq resolution: %s.%s='%s' not found, using existing '%s'",
+            "Planner prereq resolution: %s.%s='%s' not found in ERP options (%d). Leaving unresolved.",
             doctype,
             field_key,
             desired_value,
-            chosen,
+            len(options),
         )
-        return chosen, None, "fallback_existing"
+        try:
+            if OS_PLANNER_UNRESOLVED_LINK_TOTAL is not None and desired_value:
+                OS_PLANNER_UNRESOLVED_LINK_TOTAL.labels(doctype=str(doctype), field=str(field_key)).inc()
+        except Exception:
+            pass
+        # Do NOT silently substitute a different master record for mandatory link fields.
+        # Leaving unresolved allows downstream validation + user clarification to correct it.
+        return (desired_value or None), None, "unresolved"
 
     bootstrap_payload = _BOOTSTRAP_MASTER_PAYLOADS.get(link_doctype)
     if bootstrap_payload:

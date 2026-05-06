@@ -91,6 +91,9 @@ async def build_and_store_snapshot(data: dict) -> dict:
     from shared.models.cvs_models import ContextSnapshot
     from shared.r2_client import r2_write_context_snapshot
     from sqlalchemy import select, func as sqlfunc
+    import uuid as uuid_lib
+
+    pid = uuid_lib.UUID(str(project_id))
 
     versions: dict[str, int] = {}
     r2_keys:  dict[str, str] = {}
@@ -104,7 +107,7 @@ async def build_and_store_snapshot(data: dict) -> dict:
             # Get current max version for this project+layer
             max_ver_result = await session.execute(
                 select(sqlfunc.max(ContextSnapshot.version)).where(
-                    ContextSnapshot.project_id == project_id,
+                    ContextSnapshot.project_id == pid,
                     ContextSnapshot.layer      == layer,
                 )
             )
@@ -121,7 +124,7 @@ async def build_and_store_snapshot(data: dict) -> dict:
 
             # Write Supabase row
             snapshot = ContextSnapshot(
-                project_id      = project_id,
+                project_id      = pid,
                 layer           = layer,
                 version         = new_version,
                 data            = result["data"],

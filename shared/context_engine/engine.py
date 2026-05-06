@@ -73,11 +73,21 @@ class ContextEngine:
         try:
             from shared.database.db import AsyncSessionLocal
             from shared.models.cvs_models import ContextSnapshot
+            from sqlalchemy import text
 
             try:
-                pid_uuid = uuid_lib.UUID(str(project_id))
+                pid_uuid: uuid_lib.UUID = uuid_lib.UUID(str(project_id))
             except ValueError:
-                pid_uuid = project_id  # type: ignore[assignment]
+                # Resolve slug -> UUID (projects.company_slug)
+                async with AsyncSessionLocal() as session:
+                    res = await session.execute(
+                        text("SELECT id FROM projects WHERE company_slug = :slug LIMIT 1"),
+                        {"slug": str(project_id)},
+                    )
+                    resolved = res.scalar()
+                if not resolved:
+                    raise ValueError(f"Unknown project identifier '{project_id}' (not UUID, not company_slug)")
+                pid_uuid = uuid_lib.UUID(str(resolved))
 
             async with AsyncSessionLocal() as session:
                 for layer in layers:

@@ -51,6 +51,8 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+from shared.os_metrics import OS_PROFILE_DUMMY_TOTAL
+
 # ── Profile cache TTL ──────────────────────────────────────────────────────────
 PROFILE_CACHE_TTL_SECONDS = 300   # 5 min — CVS keeps context fresh, so shorter TTL is fine
 
@@ -87,6 +89,7 @@ def _build_dummy_profile(company_id: str) -> dict:
     fiscal_year = os.getenv("ERP_FISCAL_YEAR", "2024-2025")
     verify_ssl = _env_bool("ERP_VERIFY_SSL", True)
     allow_insecure_ssl = _env_bool("ERP_ALLOW_INSECURE_SSL", True)
+    dummy_allowed = _env_bool("ALLOW_DUMMY_PROFILE", False)
 
     return {
         # Identity
@@ -95,6 +98,7 @@ def _build_dummy_profile(company_id: str) -> dict:
         "erp_type":           "erpnext",
         "f3_niche_id":        None,              # Not yet determined by IS
         "is_dummy":           True,
+        "dummy_allowed":     dummy_allowed,
 
         # ERPNext credentials — used by Execution Agent
         "erp_url":            erp_url,
@@ -159,7 +163,14 @@ async def fetch_profile_from_db(
     """
     try:
         from shared.database.db import AsyncSessionLocal
+        import uuid as uuid_lib
         from sqlalchemy import text
+
+        pid_uuid = None
+        try:
+            pid_uuid = uuid_lib.UUID(str(project_id))
+        except (ValueError, TypeError):
+            pid_uuid = None
 
         async with AsyncSessionLocal() as session:
             # Join projects + latest hook for this project
@@ -175,11 +186,15 @@ async def fetch_profile_from_db(
                     h.answers_health_check
                 FROM projects p
                 LEFT JOIN hooks h ON h.project_id = p.id
-                WHERE p.company_slug = :project_id   
+                WHERE (
+                    (:pid_uuid IS NOT NULL AND p.id = :pid_uuid)
+                    OR
+                    (:pid_uuid IS NULL AND p.company_slug = :project_id)
+                )
                 ORDER BY h.created_at DESC
                 LIMIT 1
             """)
-            result = await session.execute(query, {"project_id": project_id})
+            result = await session.execute(query, {"project_id": project_id, "pid_uuid": pid_uuid})
             row = result.mappings().first()
 
         if not row:
@@ -223,6 +238,8 @@ async def fetch_profile_from_db(
             "erp_type":           "erpnext",
             "f3_niche_id":        None,   # TODO: read from processed_config
             "is_dummy":           False,
+            "dummy_allowed":     _env_bool("ALLOW_DUMMY_PROFILE", False),
+            "company_slug":       row.get("company_slug") or "",
 
             # ERPNext credentials from deployment_details
             "erp_url":            deployment["erp_url"],
@@ -267,7 +284,7 @@ async def fetch_cvs_enrichment(project_id: str) -> dict:
     """
     import uuid
     try:
-        uuid.UUID(project_id)
+        pid = uuid.UUID(project_id)
     except ValueError:
         logger.debug("CVS enrichment skipped: project_id '%s' is not a valid UUID", project_id)
         return {"entity_registry": {}, "transaction_intel": {}, "cvs_version": {}}
@@ -288,7 +305,7 @@ async def fetch_cvs_enrichment(project_id: str) -> dict:
                 res = await session.execute(
                     select(ContextSnapshot)
                     .where(
-                        ContextSnapshot.project_id == project_id,
+                        ContextSnapshot.project_id == pid,
                         ContextSnapshot.layer      == layer,
                     )
                     .order_by(ContextSnapshot.version.desc())
@@ -384,6 +401,12 @@ async def load_company_context(
             "company_context: using dummy profile (IS not ready) — "
             "set ERP_URL / ERP_API_KEY / ERP_API_SECRET to test against real ERPNext"
         )
+        try:
+            if OS_PROFILE_DUMMY_TOTAL is not None:
+                allowed = "true" if profile.get("dummy_allowed") else "false"
+                OS_PROFILE_DUMMY_TOTAL.labels(allowed=allowed).inc()
+        except Exception:
+            pass
 
     # ── CVS Enrichment: inject entity_registry + transaction_intel ────────────
     # This runs regardless of whether we got a real or dummy profile.
@@ -393,4 +416,4 @@ async def load_company_context(
     profile["transaction_intel"] = cvs_data.get("transaction_intel", {})
     profile["cvs_version"]       = cvs_data.get("cvs_version", {})
 
-    return profile
+    return profile

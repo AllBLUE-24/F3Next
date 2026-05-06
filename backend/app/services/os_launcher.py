@@ -67,6 +67,96 @@ async def _get_client() -> Client:
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+def _is_uuid(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+async def _normalize_project_identifiers(
+    project_id: str,
+    company_id: str,
+) -> tuple[str, str]:
+    """
+    Normalize incoming identifiers into:
+      - project_id: UUID string (canonical internal identifier)
+      - company_id: company_slug (human-friendly / legacy identifier)
+
+    Accepts either field containing either UUID or slug, for backward compatibility.
+    """
+    raw_project_id = (project_id or "").strip()
+    raw_company_id = (company_id or "").strip()
+
+    uuid_str: Optional[str] = None
+    slug: Optional[str] = None
+
+    # Prefer explicit UUIDs if provided
+    if _is_uuid(raw_project_id):
+        uuid_str = str(uuid.UUID(raw_project_id))
+    elif _is_uuid(raw_company_id):
+        uuid_str = str(uuid.UUID(raw_company_id))
+
+    # Prefer explicit slugs if provided
+    if raw_company_id and not _is_uuid(raw_company_id):
+        slug = raw_company_id
+    elif raw_project_id and not _is_uuid(raw_project_id):
+        slug = raw_project_id
+
+    # Resolve missing side from DB (best effort, never hard-fail dispatch)
+    if uuid_str is None or slug is None:
+        try:
+            from shared.database.db import AsyncSessionLocal
+            from sqlalchemy import text
+
+            params: dict[str, Any] = {}
+            where = []
+
+            if uuid_str is not None:
+                params["pid"] = uuid.UUID(uuid_str)
+                where.append("id = :pid")
+            if slug is not None:
+                params["slug"] = slug
+                where.append("company_slug = :slug")
+
+            if where:
+                query = text(
+                    f"""
+                    SELECT id, company_slug
+                    FROM projects
+                    WHERE {" OR ".join(where)}
+                    LIMIT 1
+                    """
+                )
+                async with AsyncSessionLocal() as session:
+                    res = await session.execute(query, params)
+                    row = res.mappings().first()
+
+                if row:
+                    if uuid_str is None and row.get("id"):
+                        uuid_str = str(row["id"])
+                    if slug is None and row.get("company_slug"):
+                        slug = str(row["company_slug"])
+        except Exception as e:
+            logger.warning(
+                "OS dispatch: failed to normalize identifiers project_id=%s company_id=%s: %s",
+                raw_project_id,
+                raw_company_id,
+                e,
+            )
+
+    # Last resort: keep inputs stable
+    if uuid_str is None:
+        uuid_str = raw_project_id or raw_company_id
+    if slug is None:
+        slug = raw_company_id or raw_project_id
+
+    return uuid_str, slug
+
+
 def _parse_session_context(raw: Optional[str]) -> list[dict]:
     """Safely parse session_context JSON string → list of turn dicts."""
     if not raw:
@@ -99,10 +189,15 @@ async def dispatch_os_command(req: CommandRequest) -> CommandDispatch:
     workflow_id = _make_workflow_id()
     session_id  = req.session_id or _make_session_id()
 
+    project_uuid, company_slug = await _normalize_project_identifiers(
+        project_id=req.project_id,
+        company_id=req.company_id,
+    )
+
     wf_input = CommandWorkflowInput(
         prompt          = req.prompt,
-        project_id      = req.project_id,
-        company_id      = req.company_id,
+        project_id      = project_uuid,
+        company_id      = company_slug,
         user_id         = req.user_id,
         erp_type        = req.erp_type,
         session_id      = session_id,
