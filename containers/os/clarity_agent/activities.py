@@ -292,12 +292,14 @@ async def _call_agentic_llm(
             lines.append(f"Searched: {tr['query']}")
             if isinstance(res, list):
                 for r in res[:5]:
-                    lines.append(
-                        f"  item_code={r.get('item_code','?')}  "
-                        f"item_name={r.get('item_name','?')}  "
-                        f"stock_uom={r.get('stock_uom','?')}  "
-                        f"weight_per_unit={r.get('weight_per_unit','?')}"
-                    )
+                    parts = []
+                    for k in ['item_code', 'item_name', 'name', 'customer_name', 'supplier_name', 'stock_uom', 'weight_per_unit']:
+                        if r.get(k) is not None:
+                            parts.append(f"{k}={r.get(k)}")
+                    if parts:
+                        lines.append("  " + "  ".join(parts))
+                    else:
+                        lines.append(f"  {r}")
             else:
                 lines.append(f"  {res}")
         tool_context = "\n".join(lines)
@@ -309,6 +311,7 @@ async def _call_agentic_llm(
         f"ORIGINAL USER COMMAND: {prompt}\n\n"
         "RULES:\n"
         "- item_code MUST be the exact code from the search results. Never invent one.\n"
+        "- customer or supplier MUST be the exact name (or customer_name/supplier_name) from the search results. Never invent one.\n"
         "- If the user said '40 kg' but stock_uom is 'Nos' and weight_per_unit is 0.5, "
         "set qty = 40 / 0.5 = 80.\n"
         "- Set confidence >= 0.95 when item_code confirmed by search.\n"

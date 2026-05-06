@@ -173,8 +173,13 @@ async def fetch_profile_from_db(
             pid_uuid = None
 
         async with AsyncSessionLocal() as session:
+            if pid_uuid:
+                where_clause = "p.id = :pid_uuid"
+            else:
+                where_clause = "p.company_slug = :project_id"
+
             # Join projects + latest hook for this project
-            query = text("""
+            query = text(f"""
                 SELECT
                     p.id             AS project_id,
                     p.company_name,
@@ -186,11 +191,7 @@ async def fetch_profile_from_db(
                     h.answers_health_check
                 FROM projects p
                 LEFT JOIN hooks h ON h.project_id = p.id
-                WHERE (
-                    (:pid_uuid IS NOT NULL AND p.id = :pid_uuid)
-                    OR
-                    (:pid_uuid IS NULL AND p.company_slug = :project_id)
-                )
+                WHERE {where_clause}
                 ORDER BY h.created_at DESC
                 LIMIT 1
             """)
