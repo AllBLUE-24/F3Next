@@ -199,6 +199,66 @@ class ERPNextAdapter(ERPAdapter):
                 len(customers), len(suppliers), len(items), len(warehouses),
             )
 
+            # ── Optional extension: additional master doctypes via Tier1 doctype_graph ──
+            entities_by_doctype: dict[str, Any] = {}
+            known_names: dict[str, list[str]] = {}
+            counts: dict[str, int] = {}
+
+            def _add_bucket(key: str, records: Any, *, known: Optional[list[str]] = None) -> None:
+                entities_by_doctype[key] = records
+                if known is None:
+                    if isinstance(records, list):
+                        known = [str(r.get("name")) for r in records if isinstance(r, dict) and r.get("name")]
+                    else:
+                        known = []
+                known_names[key] = known
+                counts[key] = len(records) if isinstance(records, list) else 0
+
+            _add_bucket("customers", customers, known=known_customers)
+            _add_bucket("suppliers", suppliers, known=known_suppliers)
+            _add_bucket("items", items, known=known_items)
+            _add_bucket("warehouses", warehouses, known=known_warehouses)
+            _add_bucket("cost_centers", cost_centers)
+            _add_bucket("item_groups", [g["name"] for g in item_groups if g.get("name")])
+            _add_bucket("territories", [t["name"] for t in territories if t.get("name")])
+            _add_bucket("uoms", [u["name"] for u in uoms if u.get("name")])
+
+            try:
+                from shared.context_engine.loader import Tier1Loader
+
+                tier1, _ = Tier1Loader().load()
+                doctypes = ((tier1.get("doctype_graph") or {}).get("doctypes") or {})
+                extras: list[tuple[str, dict]] = []
+                for dt_name, dt_spec in doctypes.items():
+                    cfg = (dt_spec or {}).get("cvs_config") or {}
+                    if not cfg or not cfg.get("include_in_snapshot"):
+                        continue
+                    # Skip ones we already fetched above
+                    if dt_name in {"Customer", "Supplier", "Item", "Warehouse", "Cost Center", "Item Group", "Territory", "UOM"}:
+                        continue
+                    extras.append((dt_name, cfg))
+
+                if extras:
+                    tasks = []
+                    meta: list[tuple[str, str]] = []  # (doctype, registry_key)
+                    for dt_name, cfg in extras:
+                        registry_key = str(cfg.get("registry_key") or "").strip() or dt_name.lower().replace(" ", "_") + "s"
+                        fields = cfg.get("fetch_fields") or ["name"]
+                        filters = cfg.get("filters")
+                        limit = int(cfg.get("limit") or 1000)
+                        tasks.append(self.list_records(dt_name, fields, filters=filters, limit=limit))
+                        meta.append((dt_name, registry_key))
+
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    for (dt_name, registry_key), res in zip(meta, results):
+                        if isinstance(res, Exception):
+                            logger.warning("CVS master extra fetch failed for %s: %s", dt_name, res)
+                            continue
+                        if isinstance(res, list):
+                            _add_bucket(registry_key, res)
+            except Exception as e:
+                logger.debug("CVS master dynamic extension skipped: %s", e)
+
             return {
                 # Full records (for rich OS context)
                 "customers":     customers,
@@ -223,6 +283,10 @@ class ERPNextAdapter(ERPAdapter):
                     "items":      len(items),
                     "warehouses": len(warehouses),
                 },
+
+                # Generic, doctype-agnostic registry (new; backward compatible)
+                "entities_by_doctype": entities_by_doctype,
+                "known_names": known_names,
             }
 
         return await self._master_cb.call(_run)

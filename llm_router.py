@@ -45,11 +45,16 @@ logger = logging.getLogger(__name__)
 _keys_raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
 api_keys: List[str] = [k.strip() for k in _keys_raw.split(",") if k.strip()]
 
+# Optional separate pool for complex reasoning calls (same model family, different quota budget).
+_keys_raw_complex = os.getenv("GEMINI_API_KEYS_COMPLEX", "")
+complex_api_keys: List[str] = [k.strip() for k in _keys_raw_complex.split(",") if k.strip()]
+
 if not api_keys:
     logger.warning("[llm_router] No GEMINI_API_KEYS or GEMINI_API_KEY found in environment.")
 
 # Infinite round-robin iterator — shared across the module
 key_pool = cycle(api_keys) if api_keys else None
+complex_key_pool = cycle(complex_api_keys) if complex_api_keys else None
 
 # ---------------------------------------------------------------------------
 # Model tier fallback chain
@@ -94,9 +99,20 @@ def _sideline_key(model: str, key: str) -> None:
     )
 
 
-def _available_keys_for(model: str) -> List[str]:
-    """Return all API keys that are NOT currently sidelined for `model`."""
-    return [k for k in api_keys if not _is_sidelined(model, k)]
+def _select_key_list(task_type: str) -> List[str]:
+    """
+    Choose which key pool to use.
+    - simple: use GEMINI_API_KEYS (default)
+    - complex: use GEMINI_API_KEYS_COMPLEX if set, else fall back to GEMINI_API_KEYS
+    """
+    if str(task_type).lower().strip() == "complex" and complex_api_keys:
+        return complex_api_keys
+    return api_keys
+
+
+def _available_keys_for(model: str, keys: List[str]) -> List[str]:
+    """Return all API keys from `keys` that are NOT currently sidelined for `model`."""
+    return [k for k in keys if not _is_sidelined(model, k)]
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -139,6 +155,7 @@ def _try_model_sync(
     temperature: float,
     max_output_tokens: int,
     kwargs: dict,
+    keys: List[str],
 ) -> Any:
     """
     Attempt one model against all its available keys.
@@ -148,7 +165,7 @@ def _try_model_sync(
     """
     from langchain_google_genai import ChatGoogleGenerativeAI
 
-    candidates = _available_keys_for(model)
+    candidates = _available_keys_for(model, keys)
     if not candidates:
         raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
 
@@ -185,11 +202,12 @@ async def _try_model_async(
     temperature: float,
     max_output_tokens: int,
     kwargs: dict,
+    keys: List[str],
 ) -> Any:
     """Async version of _try_model_sync."""
     from langchain_google_genai import ChatGoogleGenerativeAI
 
-    candidates = _available_keys_for(model)
+    candidates = _available_keys_for(model, keys)
     if not candidates:
         raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
 
@@ -247,6 +265,7 @@ async def invoke_smart_llm(
     model_name: str = "gemini-2.5-flash",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
+    task_type: str = "simple",
     **kwargs,
 ) -> Any:
     """
@@ -258,6 +277,7 @@ async def invoke_smart_llm(
       - Sidelined keys recover after 20 s.
     """
     model_queue = _build_model_queue(model_name)
+    keys = _select_key_list(task_type)
 
     for idx, current_model in enumerate(model_queue):
         if idx > 0:
@@ -266,7 +286,7 @@ async def invoke_smart_llm(
                 model_queue[idx - 1], current_model,
             )
         try:
-            return await _try_model_async(current_model, messages, temperature, max_output_tokens, kwargs)
+            return await _try_model_async(current_model, messages, temperature, max_output_tokens, kwargs, keys)
         except RuntimeError:
             # All keys exhausted for this model — move to next tier
             continue
@@ -283,6 +303,7 @@ def invoke_smart_llm_sync(
     model_name: str = "gemini-2.5-flash",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
+    task_type: str = "simple",
     **kwargs,
 ) -> Any:
     """
@@ -290,6 +311,7 @@ def invoke_smart_llm_sync(
     Same strategy as invoke_smart_llm — fast 1-strike key rotation.
     """
     model_queue = _build_model_queue(model_name)
+    keys = _select_key_list(task_type)
 
     for idx, current_model in enumerate(model_queue):
         if idx > 0:
@@ -298,7 +320,7 @@ def invoke_smart_llm_sync(
                 model_queue[idx - 1], current_model,
             )
         try:
-            return _try_model_sync(current_model, messages, temperature, max_output_tokens, kwargs)
+            return _try_model_sync(current_model, messages, temperature, max_output_tokens, kwargs, keys)
         except RuntimeError:
             continue
 

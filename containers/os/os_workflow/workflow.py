@@ -254,6 +254,7 @@ class ERPOSCommandWorkflow:
         clarification_qa: list[dict],
         *,
         max_rounds: int = 3,
+        request_type: str = "ambiguity",
     ) -> tuple[dict, list[dict]]:
         """
         Run the shared ambiguity/clarification loop.
@@ -270,7 +271,7 @@ class ERPOSCommandWorkflow:
             first_q = blocking[0].get("question") or "Could you clarify?"
             self._status = "awaiting_clarification"
             self._confirmation_request = {
-                "type":     "ambiguity",
+                "type":     request_type,
                 "question": first_q,
                 "round":    round_num,
             }
@@ -315,7 +316,9 @@ class ERPOSCommandWorkflow:
         intent_dict: dict,
         *,
         hr: str,
-    ) -> tuple[dict, dict, dict, dict]:
+        clarification_qa: list[dict],
+        run_business_clarification: bool = False,
+    ) -> tuple[dict, dict, dict, dict, dict, list[dict]]:
         """
         Steps 3-6: retrieve context, build plan, generate payload, validate payload.
         Extracted so the workflow can re-run this block after clarifications.
@@ -352,6 +355,72 @@ class ERPOSCommandWorkflow:
         blocker = _readiness_blocker(intent_dict, context)
         if blocker:
             raise NotReadyError(blocker)
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 3.5 — BUSINESS-AWARE REQUIREMENTS (RAG)  [NEW]
+        # ══════════════════════════════════════════════════════════════════════
+        if run_business_clarification:
+            try:
+                self._status = "analyzing_business_requirements"
+                analysis: dict = await workflow.execute_activity(
+                    "analyze_business_requirements",
+                    args=[intent_dict, context],
+                    task_queue=OS_QUEUE,
+                    start_to_close_timeout=timedelta(seconds=45),
+                    retry_policy=_RETRY_LLM,
+                )
+
+                max_biz_rounds = 2
+                for biz_round in range(1, max_biz_rounds + 1):
+                    missing = analysis.get("missing_critical_fields") or []
+                    if not isinstance(missing, list) or not missing:
+                        break
+
+                    # Ask Tier-1 first, then Tier-2 defaults.
+                    tier1 = [m for m in missing if isinstance(m, dict) and int(m.get("tier", 1)) == 1]
+                    tier2 = [m for m in missing if isinstance(m, dict) and int(m.get("tier", 2)) == 2]
+                    ask_set = tier1 or tier2
+                    if not ask_set:
+                        break
+
+                    lines = [
+                        "I need a bit more business info to do this correctly.",
+                        "Please answer the following (you can reply as JSON mapping field→value, or as numbered answers):",
+                        "",
+                    ]
+                    for idx, m in enumerate(ask_set, 1):
+                        field = m.get("field") or "unknown"
+                        q = m.get("question") or "Please clarify."
+                        sug = m.get("suggested_default")
+                        if isinstance(sug, dict) and "value" in sug:
+                            lines.append(f"{idx}. {field}: {q} (suggested: {sug.get('value')})")
+                        else:
+                            lines.append(f"{idx}. {field}: {q}")
+                    question = "\n".join(lines)
+
+                    intent_dict["ambiguities"] = [{"field": "business_requirements", "question": question, "required": True}]
+                    intent_dict["has_ambiguities"] = True
+                    intent_dict, clarification_qa = await self._run_ambiguity_loop(
+                        original_prompt=inp.prompt,
+                        intent_dict=intent_dict,
+                        clarification_qa=clarification_qa,
+                        max_rounds=1,
+                        request_type="business_clarification",
+                    )
+
+                    # Re-run analysis after merging the clarification via resolve_ambiguity
+                    analysis = await workflow.execute_activity(
+                        "analyze_business_requirements",
+                        args=[intent_dict, context],
+                        task_queue=OS_QUEUE,
+                        start_to_close_timeout=timedelta(seconds=30),
+                        retry_policy=_RETRY_LLM,
+                    )
+
+                    if analysis.get("ready_for_planning"):
+                        break
+            except Exception as e:
+                workflow.logger.warning("Business requirements analysis skipped: %s", e)
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 4 — COMMAND PLANNER
@@ -418,7 +487,7 @@ class ERPOSCommandWorkflow:
             retry_policy           = _NO_RETRY,
         )
 
-        return context, plan, payload, validation
+        return context, plan, payload, validation, intent_dict, clarification_qa
 
     # ── Run ───────────────────────────────────────────────────────────────────
 
@@ -495,10 +564,12 @@ class ERPOSCommandWorkflow:
                 workflow.logger.info("\n🔁 Repair round %d/%d — rebuilding plan/payload after clarification\n", repair_round, max_repairs)
 
             try:
-                context, plan, payload, validation = await self._build_plan_payload_and_validate(
+                context, plan, payload, validation, intent_dict, clarification_qa = await self._build_plan_payload_and_validate(
                     inp=inp,
                     intent_dict=intent_dict,
                     hr=_HR,
+                    clarification_qa=clarification_qa,
+                    run_business_clarification=(repair_round == 0),
                 )
             except NotReadyError as e:
                 self._status = "done"
@@ -560,6 +631,75 @@ class ERPOSCommandWorkflow:
                 "\n✅ [6] VALIDATION — valid=True  errors=0  warnings=%d  corrections=%d\n",
                 n_warn, n_fix,
             )
+
+            # ────────────────────────────────────────────────────────────────
+            # Semantic validation (RAG) — user choice on warnings
+            # ────────────────────────────────────────────────────────────────
+            try:
+                semantic: dict = await workflow.execute_activity(
+                    "validate_business_logic",
+                    args=[payload, intent_dict, context],
+                    task_queue=OS_QUEUE,
+                    start_to_close_timeout=timedelta(seconds=45),
+                    retry_policy=_NO_RETRY,
+                )
+            except Exception as e:
+                workflow.logger.warning("Semantic validation skipped: %s", e)
+                semantic = {"warnings": []}
+
+            sem_warnings = semantic.get("warnings") if isinstance(semantic, dict) else []
+            if isinstance(sem_warnings, list) and sem_warnings:
+                self._status = "awaiting_semantic_confirmation"
+                self._confirmation_request = {
+                    "type": "semantic_validation_confirm",
+                    "question": "I found potential business issues. Do you want to proceed as-is, or cancel and fix details?",
+                    "warnings": sem_warnings[:8],
+                    "doctype": intent_dict.get("target_doctype"),
+                }
+
+                self._user_confirmation = None
+                try:
+                    await workflow.wait_condition(
+                        lambda: self._user_confirmation is not None,
+                        timeout=timedelta(minutes=5),
+                    )
+                except TimeoutError:
+                    # Default safe behavior: proceed (no write has happened yet; still behind confirmation gate)
+                    self._confirmation_request = None
+                    self._user_confirmation = None
+                    workflow.logger.warning("Semantic confirmation timed out — proceeding")
+                else:
+                    decision = (self._user_confirmation or "").strip().lower()
+                    self._user_confirmation = None
+                    self._confirmation_request = None
+
+                    if decision == "cancel":
+                        self._status = "done"
+                        self._final_response = "Command cancelled after semantic validation warnings. No changes were made."
+                        return CommandWorkflowOutput(status="cancelled", response=self._final_response)
+
+                    if decision in {"fix", "edit"} and repair_round < max_repairs:
+                        warn_lines = []
+                        for w in sem_warnings[:5]:
+                            if isinstance(w, dict):
+                                warn_lines.append(f"- {w.get('field')}: {w.get('message')}")
+                            else:
+                                warn_lines.append(f"- {w}")
+                        q = (
+                            "Please provide corrected values for the following warnings (reply as JSON field→value where possible), "
+                            "or reply 'proceed' to continue:\n" + "\n".join(warn_lines)
+                        )
+                        intent_dict["ambiguities"] = [{"field": "semantic_validation", "question": q, "required": True}]
+                        intent_dict["has_ambiguities"] = True
+                        intent_dict, clarification_qa = await self._run_ambiguity_loop(
+                            original_prompt=inp.prompt,
+                            intent_dict=intent_dict,
+                            clarification_qa=clarification_qa,
+                            max_rounds=1,
+                            request_type="semantic_validation_fix",
+                        )
+                        continue
+
             break
 
         # ══════════════════════════════════════════════════════════════════════

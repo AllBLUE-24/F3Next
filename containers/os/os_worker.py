@@ -23,10 +23,12 @@ from containers.os.context_retrieval.activities import retrieve_context
 from containers.os.command_planner.activities import plan_command
 from containers.os.payload_generator.activities import generate_payload
 from containers.os.validation_agent.activities import validate_payload
+from containers.os.validation_agent.semantic_validator import validate_business_logic
 from containers.os.execution_agent.activities import execute_command
 from containers.os.result_formatter.activities import format_result
 from containers.os.os_workflow.workflow import ERPOSCommandWorkflow
 from containers.os.search_planner.activities import plan_search
+from containers.os.business_analyzer.activities import analyze_business_requirements
 
 async def main():
     client = await Client.connect(os.getenv("TEMPORAL_HOST"))
@@ -34,7 +36,9 @@ async def main():
     activities_list = [
         extract_intent, resolve_ambiguity, retrieve_context,
         plan_command, generate_payload, validate_payload, 
-        execute_command, format_result, plan_search
+        execute_command, format_result, plan_search,
+        analyze_business_requirements,
+        validate_business_logic,
     ]
 
     # Worker 1: Main Router Queue (Workflow + Clarity/Context)

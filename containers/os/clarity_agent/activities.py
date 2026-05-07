@@ -24,7 +24,7 @@ import logging
 import os
 import re
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -38,6 +38,11 @@ from shared.os_metrics import OS_CLARITY_AMBIGUITY_TOTAL, OS_CLARITY_FALLBACK_TO
 
 # ── Intent Pydantic schema (used for response_schema in Phase 2) ──────────────
 
+class _Ambiguity(BaseModel):
+    field: str
+    question: str
+    required: bool = True
+
 class _Item(BaseModel):
     # NO defaults — every field in required[] forces LLM to generate them explicitly
     item_code: str
@@ -47,10 +52,11 @@ class _Item(BaseModel):
     warehouse: Optional[str]
 
 class _Entities(BaseModel):
-    # NO defaults — forces LLM to output each key, even if null/[]
-    customer:         Optional[str]
-    supplier:         Optional[str]
-    items:            List[_Item]
+    # Keep these as common fields, but allow arbitrary extra entity fields
+    # so Clarity can handle any doctype without schema edits.
+    customer:         Optional[str] = None
+    supplier:         Optional[str] = None
+    items:            List[_Item] = Field(default_factory=list)
     transaction_date: Optional[str]
     delivery_date:    Optional[str]
     due_date:         Optional[str]
@@ -62,9 +68,11 @@ class _Entities(BaseModel):
     from_warehouse:   Optional[str]
     to_warehouse:     Optional[str]
     stock_entry_type: Optional[str]
+    extra:            dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"extra": "allow"}
 
 class _IntentSchema(BaseModel):
-    # NO defaults on entities/ambiguities — keep required so LLM cannot skip them
     intent_id:             str
     action:                str
     target_doctype:        str
@@ -72,7 +80,7 @@ class _IntentSchema(BaseModel):
     risk_level:            str
     requires_confirmation: bool
     has_ambiguities:       bool
-    ambiguities:           List[str]
+    ambiguities:           List[_Ambiguity] = Field(default_factory=list)
     entities:              _Entities
 
 # ── Model config ──────────────────────────────────────────────────────────────
@@ -119,6 +127,8 @@ async def _call_agentic_llm(
     prompt: str,
     tools: list = None,
     tool_dispatcher: dict = None,
+    *,
+    allowed_entity_types: Optional[list[str]] = None,
 ) -> dict:
     """
     Two-phase agentic loop using google-genai SDK.
@@ -189,21 +199,25 @@ async def _call_agentic_llm(
     # ── Tool declaration ───────────────────────────────────────────────────────
     genai_tools = None
     if has_tools:
+        props: dict[str, Any] = {
+            "query": {"type": "string"},
+            "entity_type": {"type": "string"},
+        }
+        if allowed_entity_types:
+            props["entity_type"]["enum"] = allowed_entity_types
+
         genai_tools = [gt.Tool(function_declarations=[
             gt.FunctionDeclaration(
                 name="search_cvs_master_data",
                 description=(
-                    "Search ERP master data for Items, Customers, or Suppliers. "
+                    "Search ERP master data (from CVS) for the requested entity type. "
                     "Returns up to 10 records. Each Item includes: item_code, "
                     "item_name, stock_uom, weight_per_unit, weight_uom. "
                     "Retry with a shorter keyword if 0 results are returned."
                 ),
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "query":       {"type": "string"},
-                        "entity_type": {"type": "string", "enum": ["Item", "Customer", "Supplier"]},
-                    },
+                    "properties": props,
                     "required": ["query"],
                 },
             )
@@ -515,6 +529,18 @@ def _build_extract_prompt(prompt: str, erp_type: str, session_context: list,
             for c in clarifications
         )
 
+    try:
+        from containers.os.clarity_agent.kb_loader import kb as _kb
+        _intent_ids = ", ".join(_kb().intent_ids())
+    except Exception:
+        _intent_ids = (
+            "create_sales_order, create_purchase_order, create_sales_invoice, "
+            "create_purchase_invoice, create_delivery_note, create_payment_entry, "
+            "create_stock_entry, create_journal_entry, submit_document, cancel_document, "
+            "get_document, search_documents, generate_report, create_customer, create_supplier, "
+            "create_item, create_quotation"
+        )
+
     return f"""You are an ERP command parser for {erp_type.upper()}. Today is {today}.
 
 Your job: extract structured data from ERP commands and return ONLY a JSON object.
@@ -556,11 +582,7 @@ EXAMPLE OUTPUT:
 ---
 
 INTENT IDs:
-  create_sales_order, create_purchase_order, create_sales_invoice,
-  create_purchase_invoice, create_delivery_note, create_payment_entry,
-  create_stock_entry, create_journal_entry, submit_document,
-  cancel_document, get_document, search_documents, generate_report,
-  create_customer, create_supplier, create_item, create_quotation
+  {_intent_ids}
 
 MASTER DATA RULES:
   "Create a customer named X"  → create_customer, target_doctype=Customer, entities.customer=X
@@ -835,11 +857,23 @@ async def extract_intent(data: dict) -> dict:
                     return []
 
             type_map = {
-                "item":     "items",
+                "item": "items",
+                "items": "items",
                 "customer": "customers",
+                "customers": "customers",
                 "supplier": "suppliers",
+                "suppliers": "suppliers",
+                "warehouse": "warehouses",
+                "warehouses": "warehouses",
+                "cost center": "cost_centers",
+                "cost_center": "cost_centers",
+                "cost_centers": "cost_centers",
             }
-            key       = type_map.get(entity_type.lower(), "items")
+
+            key = type_map.get(str(entity_type or "").strip().lower())
+            if not key:
+                # Best-effort: assume caller passed the raw snapshot key
+                key = str(entity_type or "items").strip().lower()
             data_list = row.data.get(key, [])
 
             # ── Token-based fuzzy scoring ────────────────────────────────────
@@ -895,17 +929,21 @@ async def extract_intent(data: dict) -> dict:
     llm_prompt = _build_extract_prompt(prompt, erp_type, session_context, clarifications)
 
     try:
+        from containers.os.clarity_agent.schema_builder import (
+            build_allowed_entity_types,
+            guess_intent_meta,
+            normalise_intent_dict,
+        )
+        _intent_id_hint, _doctype_hint = guess_intent_meta(prompt)
+        allowed_entity_types = build_allowed_entity_types(_doctype_hint)
+
         result = await _call_agentic_llm(
             llm_prompt,
             tool_dispatcher=tool_dispatcher,
+            allowed_entity_types=allowed_entity_types,
         )
 
-        # Normalise
-        result.setdefault("erp_type", erp_type)
-        result.setdefault("raw_prompt", prompt)
-        result.setdefault("session_context", session_context)
-        result.setdefault("ambiguities", [])
-        result.setdefault("has_ambiguities", False)
+        result = normalise_intent_dict(result, prompt=prompt, erp_type=erp_type, session_context=session_context)
         result.setdefault("confidence", 0.9)
         result.setdefault("risk_level", "low")
         result.setdefault("requires_confirmation", False)
@@ -944,6 +982,8 @@ async def extract_intent(data: dict) -> dict:
         fallback["raw_prompt"] = prompt
         fallback["erp_type"] = erp_type
         fallback["session_context"] = session_context
+        from containers.os.clarity_agent.schema_builder import normalise_intent_dict
+        fallback = normalise_intent_dict(fallback, prompt=prompt, erp_type=erp_type, session_context=session_context)
 
         # Best-effort: use CVS tool to detect common misclassification (item mistaken as customer/supplier)
         try:
@@ -1022,11 +1062,13 @@ Return ONLY valid JSON:"""
 
     try:
         result = await _call_llm(prompt)
-        result.setdefault("erp_type", erp_type)
-        result.setdefault("raw_prompt", original_prompt)
-        result.setdefault("ambiguities", [])
-        result.setdefault("has_ambiguities", False)
-        result.setdefault("session_context", [])
+        from containers.os.clarity_agent.schema_builder import normalise_intent_dict
+        result = normalise_intent_dict(
+            result,
+            prompt=original_prompt,
+            erp_type=erp_type,
+            session_context=[],
+        )
 
         activity.logger.info(
             "resolve_ambiguity: intent=%s  confidence=%.2f",
