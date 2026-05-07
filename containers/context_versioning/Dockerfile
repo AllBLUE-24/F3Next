@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY containers/context_versioning/requirements.txt /app/cvs_requirements.txt
 RUN pip install --no-cache-dir -r /app/cvs_requirements.txt
 
-# Root requirements (llm_router, shared_llm, etc.)
+# Root requirements (llm_router, etc.)
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 

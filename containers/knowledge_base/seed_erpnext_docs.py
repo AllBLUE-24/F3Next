@@ -332,21 +332,37 @@ def _embed(text: str) -> list[float]:
 
 # ── Step 5: Insert ─────────────────────────────────────────────────────────────
 
-async def seed_database(all_chunks: list[dict]) -> None:
+async def seed_database(all_chunks: list[dict], resume: bool = False) -> None:
     """Embed each chunk and insert into kb_embeddings."""
     total = len(all_chunks)
 
     async with AsyncSessionLocal() as session:
-        logger.info("Clearing existing '%s' rows ...", KB_SOURCE)
-        await session.execute(
-            text("DELETE FROM kb_embeddings WHERE kb_source LIKE :pfx"),
-            {"pfx": f"{KB_SOURCE}%"},
-        )
-        await session.commit()
-        logger.info("Cleared. Starting embedding of %d chunks...", total)
+        if not resume:
+            logger.info("Clearing existing '%s' rows ...", KB_SOURCE)
+            await session.execute(
+                text("DELETE FROM kb_embeddings WHERE kb_source LIKE :pfx"),
+                {"pfx": f"{KB_SOURCE}%"},
+            )
+            await session.commit()
+            existing_texts = set()
+            logger.info("Cleared. Starting embedding of %d chunks...", total)
+        else:
+            logger.info("Resume mode active. Fetching existing chunks to prevent duplicates...")
+            result = await session.execute(
+                text("SELECT content FROM kb_embeddings WHERE kb_source = :src"),
+                {"src": KB_SOURCE}
+            )
+            existing_texts = {row[0] for row in result}
+            logger.info("Found %d existing chunks in DB. Resuming...", len(existing_texts))
 
         for idx, chunk in enumerate(all_chunks, 1):
             page_label = chunk["url"].split("/")[-1]
+            
+            # Skip if already in the database
+            if chunk["text"] in existing_texts:
+                logger.info("[%d/%d] Skipping (Already Embedded): %s", idx, total, page_label)
+                continue
+
             logger.info("[%d/%d] Embedding: %s — %s", idx, total, chunk["module"], page_label)
 
             vector      = _embed(chunk["text"])
@@ -372,13 +388,35 @@ async def seed_database(all_chunks: list[dict]) -> None:
 
         await session.commit()
 
-    logger.info("🎉 Done! %d ERPNext doc chunks embedded and saved.", total)
-
+    logger.info("🎉 Done! ERPNext doc chunks embedded and saved.")
 
 # ── Orchestrator ───────────────────────────────────────────────────────────────
 
-async def run(priority_only: bool = False, dry_run: bool = False) -> None:
+async def run(priority_only: bool = False, dry_run: bool = False, resume: bool = False) -> None:
     urls = fetch_sitemap_urls(priority_only=priority_only)
+
+    # --- NEW FAST-RESUME LOGIC ---
+    if resume and not dry_run:
+        logger.info("🔍 Fast-Resume: Checking DB for already processed URLs to skip scraping...")
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                text("SELECT content FROM kb_embeddings WHERE kb_source = :src"),
+                {"src": KB_SOURCE}
+            )
+            existing_urls = set()
+            import re
+            for row in res:
+                # Extract the URL from the rich text chunk header
+                match = re.search(r'URL:\s+(https?://[^\n]+)', row[0])
+                if match:
+                    existing_urls.add(match.group(1).strip())
+        
+        # Filter the URLs list to only those we haven't seen
+        original_count = len(urls)
+        urls = [u for u in urls if u not in existing_urls]
+        logger.info("✅ Fast-Resume: Found %d URLs already embedded. Only %d left to scrape!", 
+                    original_count - len(urls), len(urls))
+    # -----------------------------
 
     all_chunks: list[dict] = []
     skipped = 0
@@ -400,7 +438,7 @@ async def run(priority_only: bool = False, dry_run: bool = False) -> None:
                 len(urls) - skipped, skipped, len(all_chunks))
 
     if not all_chunks:
-        logger.error("No chunks generated — aborting.")
+        logger.warning("No new chunks generated (everything might already be embedded).")
         return
 
     # Print sample chunk
@@ -410,7 +448,7 @@ async def run(priority_only: bool = False, dry_run: bool = False) -> None:
         logger.info("[DRY RUN] Skipping DB insertion. %d chunks ready.", len(all_chunks))
         return
 
-    await seed_database(all_chunks)
+    await seed_database(all_chunks, resume=resume)
 
 
 # ── Entrypoint ─────────────────────────────────────────────────────────────────
@@ -427,6 +465,14 @@ if __name__ == "__main__":
         "--priority-only", action="store_true",
         help="Only scrape priority modules (Selling, Buying, Stock, Accounts, etc.)"
     )
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="Skip deletion and only embed chunks that are not already in the database"
+    )
     args = parser.parse_args()
 
-    asyncio.run(run(priority_only=args.priority_only, dry_run=args.dry_run))
+    asyncio.run(run(
+        priority_only=args.priority_only, 
+        dry_run=args.dry_run, 
+        resume=args.resume
+    ))

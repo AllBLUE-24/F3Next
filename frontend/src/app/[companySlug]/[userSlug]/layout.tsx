@@ -2,7 +2,6 @@
 
 import { use } from "react";
 import { usePathname } from "next/navigation";
-import FloatingAIBubble from "@/components/FloatingAIBubble";
 import PrimarySidebar from "@/components/shared/PrimarySidebar";
 import { UniversalHeader } from "@/components/shared/UniversalHeader";
 
@@ -23,13 +22,6 @@ export default function WorkspaceLayout({
                       pathname.includes('/validate') || 
                       pathname.includes('/sandbox') ||
                       pathname.includes('/discovery');
-  // Determine if we should hide the floating bubble (already has AI interface)
-  const hideAIBubble = pathname.includes('/command') || 
-                       pathname.includes('/discovery') ||
-                       pathname.includes('/upload') ||
-                       pathname.includes('/analyze') ||
-                       pathname.includes('/validate') ||
-                       pathname.includes('/sandbox');
 
   return (
     <div className="flex h-dvh bg-[var(--bg-void)] text-[var(--text-primary)] font-sans selection:bg-amber-500/20 selection:text-amber-200 overflow-hidden">
@@ -49,7 +41,6 @@ export default function WorkspaceLayout({
             </div>
           )}
         </div>
-        {!hideAIBubble && <FloatingAIBubble />}
       </main>
     </div>
   );

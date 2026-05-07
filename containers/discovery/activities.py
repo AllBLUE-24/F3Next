@@ -3,7 +3,7 @@ import json
 from uuid import UUID
 from temporalio import activity
 from containers.discovery.prompts import DISCOVERY_PROMPT, RECOMMENDATION_PROMPT
-from containers.discovery.knowledge_base import KNOWLEDGE_BASE
+from containers.knowledge_base.common.discovery_taxonomy import KNOWLEDGE_BASE
 from shared.database.db import engine
 from shared.models.hooks import Hook
 from sqlalchemy import update

@@ -23,6 +23,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 # Re-export everything from the universal helper
-from shared_llm import generate_json  # noqa: F401, E402
+from shared.shared_llm import generate_json  # noqa: F401, E402
 
 __all__ = ["generate_json"]

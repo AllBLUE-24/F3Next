@@ -1,24 +1,18 @@
 """
-llm_router.py  —  Universal Gemini Smart Router
+llm_router.py  —  Universal Smart Router (OpenAI & Gemini)
 ================================================
 Handles:
-  - Round-robin API key rotation across a pool loaded from GEMINI_API_KEYS / GEMINI_API_KEY
+  - Round-robin API key rotation across a pool loaded from GEMINI_API_KEYS and OPENAI_API_KEYS
   - **1-strike quota tracking per (model, key) pair** — the moment a key returns 429/quota
     on a model it is immediately sidelined for that model (no retries on the same key).
   - When ALL keys are exhausted on a model it drops to the next model tier instantly.
   - Sidelined keys get a 60-second cooldown window, after which they are re-eligible.
-  - Tiered fallback order (override via GEMINI_MODEL_TIERS env var, comma-separated):
-        Tier 1 (Primary)  : gemini-2.5-flash
-        Tier 2 (Fallback) : gemini-2.5-flash-lite
-        Tier 3 (Fallback) : gemini-1.5-flash-latest
-        Tier 4 (Fallback) : gemini-1.5-pro-latest
-        Tier 5 (Last)     : gemini-flash-latest
+  - Tiered fallback order (override via OPENAI_MODEL_TIERS or GEMINI_MODEL_TIERS).
 
 Public API (all callers work unchanged):
   await invoke_smart_llm(messages, model_name=..., temperature=..., max_output_tokens=..., **kwargs)
         invoke_smart_llm_sync(messages, model_name=..., temperature=..., max_output_tokens=..., **kwargs)
-
-Key-pool state is module-level so it is shared across all calls in the same worker process.
+  await invoke_agentic_loop(prompt, tool_dispatcher, schema, allowed_entity_types, max_tokens, model_name)
 """
 
 from __future__ import annotations
@@ -30,7 +24,8 @@ import time
 from collections import defaultdict
 from itertools import cycle
 from threading import Lock
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
+from pydantic import BaseModel
 
 from dotenv import load_dotenv
 
@@ -42,38 +37,48 @@ logger = logging.getLogger(__name__)
 # API key pool
 # ---------------------------------------------------------------------------
 
-_keys_raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
-api_keys: List[str] = [k.strip() for k in _keys_raw.split(",") if k.strip()]
+_gemini_keys_raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
+gemini_api_keys: List[str] = [k.strip() for k in _gemini_keys_raw.split(",") if k.strip()]
 
-# Optional separate pool for complex reasoning calls (same model family, different quota budget).
-_keys_raw_complex = os.getenv("GEMINI_API_KEYS_COMPLEX", "")
-complex_api_keys: List[str] = [k.strip() for k in _keys_raw_complex.split(",") if k.strip()]
+_gemini_keys_raw_complex = os.getenv("GEMINI_API_KEYS_COMPLEX", "")
+gemini_complex_api_keys: List[str] = [k.strip() for k in _gemini_keys_raw_complex.split(",") if k.strip()]
 
-if not api_keys:
-    logger.warning("[llm_router] No GEMINI_API_KEYS or GEMINI_API_KEY found in environment.")
+_openai_keys_raw = os.getenv("OPENAI_API_KEYS", "") or os.getenv("OPENAI_API_KEY", "")
+openai_api_keys: List[str] = [k.strip() for k in _openai_keys_raw.split(",") if k.strip()]
 
-# Infinite round-robin iterator — shared across the module
-key_pool = cycle(api_keys) if api_keys else None
-complex_key_pool = cycle(complex_api_keys) if complex_api_keys else None
+_openai_keys_raw_complex = os.getenv("OPENAI_API_KEYS_COMPLEX", "")
+openai_complex_api_keys: List[str] = [k.strip() for k in _openai_keys_raw_complex.split(",") if k.strip()]
+
+if not gemini_api_keys and not openai_api_keys:
+    logger.warning("[llm_router] No API keys found in environment for Gemini or OpenAI.")
 
 # ---------------------------------------------------------------------------
 # Model tier fallback chain
 # ---------------------------------------------------------------------------
 
-_tier_env = os.getenv(
+_gemini_tier_env = os.getenv(
     "GEMINI_MODEL_TIERS",
     "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-1.5-flash-latest,gemini-1.5-pro-latest,gemini-flash-latest",
 )
-MODEL_TIERS: List[str] = [m.strip() for m in _tier_env.split(",") if m.strip()]
+GEMINI_MODEL_TIERS: List[str] = [m.strip() for m in _gemini_tier_env.split(",") if m.strip()]
+
+_openai_tier_env = os.getenv(
+    "OPENAI_MODEL_TIERS",
+    "gpt-4o-mini,gpt-4o,gpt-4-turbo",
+)
+OPENAI_MODEL_TIERS: List[str] = [m.strip() for m in _openai_tier_env.split(",") if m.strip()]
 
 # ---------------------------------------------------------------------------
 # Per-(model, key) quota state
-#   _quota_sidelined[(model, key)] = unix timestamp when it was sidelined
 # ---------------------------------------------------------------------------
 
 _quota_sidelined: Dict[tuple[str, str], float] = {}
 _quota_lock = Lock()
-_COOLDOWN_SECONDS = 20  # keys become re-eligible after this window
+_COOLDOWN_SECONDS = 20
+
+
+def _is_openai(model: str) -> bool:
+    return model.startswith("gpt-") or model.startswith("o1-") or model.startswith("o3-")
 
 
 def _is_sidelined(model: str, key: str) -> bool:
@@ -82,7 +87,6 @@ def _is_sidelined(model: str, key: str) -> bool:
         if ts is None:
             return False
         if time.time() - ts >= _COOLDOWN_SECONDS:
-            # Cooldown expired — re-admit this key
             del _quota_sidelined[(model, key)]
             logger.debug("[llm_router] Key ...%s re-admitted for %s after cooldown", key[-6:], model)
             return False
@@ -99,51 +103,51 @@ def _sideline_key(model: str, key: str) -> None:
     )
 
 
-def _select_key_list(task_type: str) -> List[str]:
-    """
-    Choose which key pool to use.
-    - simple: use GEMINI_API_KEYS (default)
-    - complex: use GEMINI_API_KEYS_COMPLEX if set, else fall back to GEMINI_API_KEYS
-    """
-    if str(task_type).lower().strip() == "complex" and complex_api_keys:
-        return complex_api_keys
-    return api_keys
+def _select_key_list(task_type: str, model: str) -> List[str]:
+    is_openai = _is_openai(model)
+    is_complex = str(task_type).lower().strip() == "complex"
+    
+    if is_openai:
+        if is_complex and openai_complex_api_keys:
+            return openai_complex_api_keys
+        return openai_api_keys
+    else:
+        if is_complex and gemini_complex_api_keys:
+            return gemini_complex_api_keys
+        return gemini_api_keys
 
 
 def _available_keys_for(model: str, keys: List[str]) -> List[str]:
-    """Return all API keys from `keys` that are NOT currently sidelined for `model`."""
     return [k for k in keys if not _is_sidelined(model, k)]
 
 
 def _is_quota_error(exc: Exception) -> bool:
-    """Return True for errors that mean 'try a different model/key', not hard failures."""
     s = str(exc).lower()
-    # 429 / quota:            try next key on same model
-    # 404 NOT_FOUND:          model name doesn't exist — try next model tier
-    # 403 PERMISSION_DENIED:  API key banned/project blocked — try next key
     return any(tok in s for tok in (
         "429", "quota", "exhausted", "rate limit", "resource_exhausted",
         "not_found", "not found",
-        "403", "permission_denied", "permission denied", "denied access",
+        "403", "401", "permission_denied", "permission denied", "denied access", "unauthorized",
     ))
 
 
-# ---------------------------------------------------------------------------
-# Helper: build the tier list starting from the requested model
-# ---------------------------------------------------------------------------
-
 def _build_model_queue(requested_model: str) -> List[str]:
-    """
-    Returns the ordered list of models to try.
-    The requested model is tried first; then the remaining tiers in order
-    (skipping any that equal the requested model to avoid duplicates).
-    """
+    tiers = OPENAI_MODEL_TIERS if _is_openai(requested_model) else GEMINI_MODEL_TIERS
     queue = [requested_model]
-    for tier in MODEL_TIERS:
+    for tier in tiers:
         if tier != requested_model:
             queue.append(tier)
+            
+    # Cross-provider fallback
+    if _is_openai(requested_model) and gemini_api_keys:
+        for tier in GEMINI_MODEL_TIERS:
+            if tier not in queue:
+                queue.append(tier)
+    elif not _is_openai(requested_model) and openai_api_keys:
+        for tier in OPENAI_MODEL_TIERS:
+            if tier not in queue:
+                queue.append(tier)
+                
     return queue
-
 
 # ---------------------------------------------------------------------------
 # Core routing logic — sync
@@ -157,28 +161,33 @@ def _try_model_sync(
     kwargs: dict,
     keys: List[str],
 ) -> Any:
-    """
-    Attempt one model against all its available keys.
-    Returns the LLM response on success.
-    Raises RuntimeError if all keys are exhausted/sidelined for this model.
-    Raises any non-quota exception immediately (let caller decide).
-    """
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
     candidates = _available_keys_for(model, keys)
     if not candidates:
         raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
 
     for key in candidates:
         try:
-            llm = ChatGoogleGenerativeAI(
-                model=model,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-                google_api_key=key,
-                max_retries=0,  # <-- CRITICAL: Disable Langchain's built-in sleep/retry!
-                **kwargs,
-            )
+            if _is_openai(model):
+                from langchain_openai import ChatOpenAI
+                llm = ChatOpenAI(
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_output_tokens,
+                    openai_api_key=key,
+                    max_retries=0,
+                    **kwargs,
+                )
+            else:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                llm = ChatGoogleGenerativeAI(
+                    model=model,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    google_api_key=key,
+                    max_retries=0,
+                    **kwargs,
+                )
+                
             response = llm.invoke(messages)
             response = _normalise_response(response)
             logger.debug("[llm_router] ✅ %s succeeded with key ...%s", model, key[-6:])
@@ -187,12 +196,9 @@ def _try_model_sync(
         except Exception as exc:
             if _is_quota_error(exc):
                 _sideline_key(model, key)
-                # Immediately try the next key — no sleep, stay fast
                 continue
-            # Non-quota error — propagate immediately
             raise
 
-    # Reached here means every candidate key failed with quota
     raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
 
 
@@ -204,23 +210,33 @@ async def _try_model_async(
     kwargs: dict,
     keys: List[str],
 ) -> Any:
-    """Async version of _try_model_sync."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
     candidates = _available_keys_for(model, keys)
     if not candidates:
         raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
 
     for key in candidates:
         try:
-            llm = ChatGoogleGenerativeAI(
-                model=model,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-                google_api_key=key,
-                max_retries=0,  # <-- CRITICAL: Disable Langchain's built-in sleep/retry!
-                **kwargs,
-            )
+            if _is_openai(model):
+                from langchain_openai import ChatOpenAI
+                llm = ChatOpenAI(
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_output_tokens,
+                    openai_api_key=key,
+                    max_retries=0,
+                    **kwargs,
+                )
+            else:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                llm = ChatGoogleGenerativeAI(
+                    model=model,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    google_api_key=key,
+                    max_retries=0,
+                    **kwargs,
+                )
+                
             response = await llm.ainvoke(messages)
             response = _normalise_response(response)
             logger.debug("[llm_router] ✅ %s succeeded with key ...%s", model, key[-6:])
@@ -240,7 +256,6 @@ async def _try_model_async(
 # ---------------------------------------------------------------------------
 
 def _normalise_response(response: Any) -> Any:
-    """Flatten list-content responses that Gemini sometimes returns."""
     if isinstance(getattr(response, "content", None), list):
         content_str = " ".join(
             p.get("text", "") for p in response.content
@@ -262,24 +277,16 @@ def _normalise_response(response: Any) -> Any:
 
 async def invoke_smart_llm(
     messages,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gpt-4o-mini",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
     task_type: str = "simple",
     **kwargs,
 ) -> Any:
-    """
-    Async smart LLM call with automatic key rotation and model-tier fallback.
-
-    Strategy (fast):
-      - 1 quota error on a key → sideline that key, try next key immediately.
-      - All keys dead on the requested model → switch to next model tier instantly.
-      - Sidelined keys recover after 20 s.
-    """
     model_queue = _build_model_queue(model_name)
-    keys = _select_key_list(task_type)
 
     for idx, current_model in enumerate(model_queue):
+        keys = _select_key_list(task_type, current_model)
         if idx > 0:
             logger.warning(
                 "[llm_router] 🔁 Switching model: '%s' exhausted all keys → trying '%s'",
@@ -288,9 +295,7 @@ async def invoke_smart_llm(
         try:
             return await _try_model_async(current_model, messages, temperature, max_output_tokens, kwargs, keys)
         except RuntimeError:
-            # All keys exhausted for this model — move to next tier
             continue
-        # Non-quota exceptions bubble up immediately
 
     raise Exception(
         f"[llm_router] 🚨 Critical: All models exhausted ({', '.join(model_queue)}). "
@@ -300,20 +305,16 @@ async def invoke_smart_llm(
 
 def invoke_smart_llm_sync(
     messages,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gpt-4o-mini",
     temperature: float = 0.1,
     max_output_tokens: int = 800,
     task_type: str = "simple",
     **kwargs,
 ) -> Any:
-    """
-    Sync smart LLM call with automatic key rotation and model-tier fallback.
-    Same strategy as invoke_smart_llm — fast 1-strike key rotation.
-    """
     model_queue = _build_model_queue(model_name)
-    keys = _select_key_list(task_type)
 
     for idx, current_model in enumerate(model_queue):
+        keys = _select_key_list(task_type, current_model)
         if idx > 0:
             logger.warning(
                 "[llm_router] 🔁 Switching model: '%s' exhausted all keys → trying '%s'",
@@ -327,4 +328,42 @@ def invoke_smart_llm_sync(
     raise Exception(
         f"[llm_router] 🚨 Critical: All models exhausted ({', '.join(model_queue)}). "
         "All API keys are on cooldown."
+    )
+
+
+async def invoke_agentic_loop(
+    prompt: str,
+    tool_dispatcher: dict,
+    schema: Type[BaseModel],
+    allowed_entity_types: Optional[List[str]] = None,
+    max_tokens: int = 1200,
+    model_name: str = "gpt-4o-mini",
+) -> dict:
+    model_queue = _build_model_queue(model_name)
+
+    for idx, current_model in enumerate(model_queue):
+        keys = _select_key_list("simple", current_model)
+        
+        if _is_openai(current_model):
+            from shared.llm_providers.openai_provider import OpenAIProvider
+            provider = OpenAIProvider(keys)
+        else:
+            from shared.llm_providers.gemini_provider import GeminiProvider
+            provider = GeminiProvider(keys)
+
+        try:
+            return await provider.invoke_agentic_loop(
+                prompt=prompt,
+                tool_dispatcher=tool_dispatcher,
+                schema=schema,
+                allowed_entity_types=allowed_entity_types,
+                max_tokens=max_tokens,
+                model_name=current_model,
+            )
+        except RuntimeError:
+            continue
+            
+    raise Exception(
+        f"[llm_router] 🚨 Critical: All models exhausted ({', '.join(model_queue)}). "
+        "All API keys are on cooldown for agentic loop."
     )
