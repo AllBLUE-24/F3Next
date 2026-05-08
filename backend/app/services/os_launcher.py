@@ -43,6 +43,11 @@ from shared.models.command import (
 
 logger = logging.getLogger(__name__)
 
+# Workflow clarification `type` values that should surface as ClarificationBlock payloads.
+_CLARIFICATION_TYPES = frozenset(
+    {"ambiguity", "business_clarification", "semantic_validation_fix"}
+)
+
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 TEMPORAL_HOST     = os.getenv("TEMPORAL_HOST")   # Override via env in production
@@ -52,6 +57,15 @@ WORKFLOW_TIMEOUT  = timedelta(hours=1) # Max time for a single command workflow
 # ─── Temporal client (lazy singleton) ────────────────────────────────────────
 
 _client: Optional[Client] = None
+
+
+def _coerce_round(value: Any, *, default: int = 1) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 async def _get_client() -> Client:
@@ -270,13 +284,41 @@ async def query_workflow_status(workflow_id: str) -> WorkflowStatus:
     confirmation_request: Optional[ConfirmationRequest] = None
 
     if cr_raw and isinstance(cr_raw, dict):
-        cr_type = cr_raw.get("type", "ambiguity")
+        cr_type = str(cr_raw.get("type", "ambiguity"))
 
-        if cr_type == "ambiguity":
+        if cr_type in _CLARIFICATION_TYPES:
             confirmation_request = ConfirmationRequest(
                 type     = "ambiguity",
                 question = cr_raw.get("question", "Could you clarify?"),
-                round    = cr_raw.get("round", 1),
+                round    = _coerce_round(cr_raw.get("round"), default=1),
+            )
+        elif cr_type == "semantic_validation_confirm":
+            warnings_raw = cr_raw.get("warnings") or []
+            norm_warnings: list[dict[str, str]] = []
+            if isinstance(warnings_raw, list):
+                for w in warnings_raw:
+                    if isinstance(w, dict):
+                        norm_warnings.append(
+                            {
+                                "field": str(w.get("field", "") or ""),
+                                "message": str(w.get("message", "") or w),
+                            }
+                        )
+                    else:
+                        norm_warnings.append({"field": "", "message": str(w)})
+            q = str(
+                cr_raw.get("question")
+                or "I found potential business issues. Proceed, or cancel to revise?"
+            )
+            confirmation_request = ConfirmationRequest(
+                type       = "confirmation",
+                risk_level = "medium",
+                preview    = ConfirmationPreview(
+                    action_summary   = q,
+                    entities         = [],
+                    warnings         = norm_warnings,
+                    auto_corrections = [],
+                ),
             )
         elif cr_type == "confirmation":
             preview_raw = cr_raw.get("preview")

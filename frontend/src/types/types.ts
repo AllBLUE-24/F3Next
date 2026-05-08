@@ -47,11 +47,13 @@ export type PipelineKey = typeof PIPELINE_STEPS[number]["key"];
 export const STEP_STATUS: Record<string, string> = {
   clarity:                "Parsing your intent...",
   awaiting_clarification: "Waiting for your answer...",
+  analyzing_business_requirements: "Analyzing business requirements...",
   retrieving_context:     "Fetching company & ERP schema...",
   planning:               "Building execution plan...",
   generating_payload:     "Generating ERP payload...",
   validating:             "Validating schema & rules...",
   awaiting_confirmation:  "Awaiting your confirmation...",
+  awaiting_semantic_confirmation: "Review business-rule warnings...",
   executing:              "Calling ERPNext API...",
   formatting:             "Formatting result...",
 };

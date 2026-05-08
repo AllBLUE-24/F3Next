@@ -73,9 +73,23 @@ export default function OSShell({
         const step = data.status;
         setAgentStep(step);
 
-        if (step === "awaiting_clarification" || step === "awaiting_confirmation") {
-          setConfirmReq(data.confirmation_request);
-          setPhase(step === "awaiting_clarification" ? "awaiting_clarification" : "awaiting_confirmation");
+        if (
+          step === "awaiting_clarification"
+          || step === "awaiting_confirmation"
+          || step === "awaiting_semantic_confirmation"
+        ) {
+          const cr = data.confirmation_request ?? null;
+          const needsClarificationUi = step === "awaiting_clarification";
+          const needsConfirmUi =
+            step === "awaiting_confirmation" || step === "awaiting_semantic_confirmation";
+          if (needsClarificationUi && !cr) {
+            return;
+          }
+          if (needsConfirmUi && !cr) {
+            return;
+          }
+          setConfirmReq(cr);
+          setPhase(needsClarificationUi ? "awaiting_clarification" : "awaiting_confirmation");
           setInputLocked(true);
           stopPolling();
           return;
@@ -203,7 +217,11 @@ export default function OSShell({
     setAgentStep("");
   }, []);
 
-  const isProcessing = phase === "submitting" || phase === "polling";
+  const isProcessing =
+    phase === "submitting"
+    || phase === "polling"
+    || phase === "awaiting_clarification"
+    || phase === "awaiting_confirmation";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -217,7 +235,7 @@ export default function OSShell({
       {phase === "awaiting_confirmation" && confirmReq && (
         <ConfirmationBlock request={confirmReq} onDecide={handleConfirm} />
       )}
-      {phase !== "awaiting_clarification" && (
+      {phase !== "awaiting_clarification" && phase !== "awaiting_confirmation" && (
         <TerminalInput companyId={companyId} onSubmit={handleSubmit} disabled={inputLocked} phase={phase} onDismissError={phase === "error" ? handleDismiss : undefined} />
       )}
     </div>

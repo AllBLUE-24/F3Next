@@ -21,6 +21,8 @@ interface Props {
 const PAUSE_STEP_MAP: Partial<Record<AgentStep, PipelineKey>> = {
   awaiting_clarification: "clarity",
   awaiting_confirmation:  "validating",
+  awaiting_semantic_confirmation: "validating",
+  analyzing_business_requirements: "planning",
 };
 
 export default function PipelineStatus({ step, visible }: Props): React.JSX.Element | null {
