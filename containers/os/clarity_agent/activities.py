@@ -727,11 +727,26 @@ Clarifications:
 {qa_str}
 
 Return the complete updated intent JSON (same structure as before).
+Preserve intent_id, target_doctype, and existing entities (customer, supplier, items)
+unless the user explicitly changed them in the clarification answers.
 Return ONLY valid JSON:"""
 
     try:
-        result = await _call_llm(prompt)
-        from containers.os.clarity_agent.schema_builder import normalise_intent_dict
+        raw = await _call_llm(prompt)
+        if not isinstance(raw, dict):
+            raw = {}
+        from containers.os.clarity_agent.schema_builder import (
+            fill_intent_gaps_from_partial,
+            normalise_intent_dict,
+        )
+        merged = fill_intent_gaps_from_partial(raw, partial_intent)
+        result = normalise_intent_dict(
+            merged,
+            prompt=original_prompt,
+            erp_type=erp_type,
+            session_context=[],
+        )
+        result = fill_intent_gaps_from_partial(result, partial_intent)
         result = normalise_intent_dict(
             result,
             prompt=original_prompt,

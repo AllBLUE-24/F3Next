@@ -555,11 +555,11 @@ def validate_payload_bundle(
         doctype  = step.get("doctype", "")
         payload  = step.get("payload", {})
 
-        if not doctype:
-            warnings.append(_warn(
+        if not (isinstance(doctype, str) and doctype.strip()):
+            errors.append(_err(
                 "missing_doctype",
                 "doctype",
-                f"Step {step_num} has no doctype — skipping validation",
+                f"Step {step_num} has no document type (doctype) — cannot call ERPNext.",
                 step_num,
             ))
             continue

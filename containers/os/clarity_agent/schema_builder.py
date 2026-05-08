@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import re
 from typing import Any, Optional
 
@@ -120,4 +121,67 @@ def normalise_intent_dict(result: dict, *, prompt: str, erp_type: str, session_c
         ent["extra"] = {}
 
     return result
+
+
+def _empty_scalar(v: Any) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, str) and not v.strip():
+        return True
+    return False
+
+
+def fill_intent_gaps_from_partial(resolved: dict, partial: dict) -> dict:
+    """
+    After resolve_ambiguity, restore fields the LLM dropped while merging Q&A.
+    Without this, an incomplete JSON response can clear intent_id / doctype / items
+    and break planning (intent=unknown, empty ERP POST).
+    """
+    if not isinstance(resolved, dict):
+        resolved = {}
+    out = copy.deepcopy(resolved)
+    if not isinstance(partial, dict):
+        return out
+
+    for key in ("intent_id", "target_doctype", "action"):
+        if _empty_scalar(out.get(key)):
+            pv = partial.get(key)
+            if not _empty_scalar(pv):
+                out[key] = copy.deepcopy(pv)
+
+    p_ent = partial.get("entities") if isinstance(partial.get("entities"), dict) else {}
+    r_ent = out.get("entities") if isinstance(out.get("entities"), dict) else {}
+    merged: dict[str, Any] = copy.deepcopy(p_ent)
+    for k, v in r_ent.items():
+        if k in ("items", "extra"):
+            continue
+        merged[k] = copy.deepcopy(v)
+
+    r_items = r_ent.get("items") if isinstance(r_ent.get("items"), list) else []
+    p_items = p_ent.get("items") if isinstance(p_ent.get("items"), list) else []
+    merged["items"] = copy.deepcopy(r_items) if len(r_items) > 0 else copy.deepcopy(p_items)
+
+    for party in ("customer", "supplier"):
+        if _empty_scalar(merged.get(party)) and not _empty_scalar(p_ent.get(party)):
+            merged[party] = copy.deepcopy(p_ent[party])
+
+    p_ex = p_ent.get("extra") if isinstance(p_ent.get("extra"), dict) else {}
+    r_ex = r_ent.get("extra") if isinstance(r_ent.get("extra"), dict) else {}
+    merged["extra"] = {**copy.deepcopy(p_ex), **copy.deepcopy(r_ex)}
+
+    out["entities"] = merged
+
+    try:
+        cnum = float(out.get("confidence", 0) or 0)
+    except (TypeError, ValueError):
+        cnum = 0.0
+    if cnum <= 0:
+        try:
+            pcf = float(partial.get("confidence", 0) or 0)
+        except (TypeError, ValueError):
+            pcf = 0.0
+        if pcf > 0:
+            out["confidence"] = pcf
+
+    return out
 
