@@ -115,7 +115,7 @@ def _build_single_step_plan(intent_dict: dict, meta: dict) -> ExecutionPlan:
     kb          = plans_kb()
     intent_id   = intent_dict.get("intent_id", "unknown")
     action      = meta.get("action", "create")
-    doctype     = meta.get("target_doctype", intent_dict.get("target_doctype", ""))
+    doctype     = meta.get("target_doctype") or intent_dict.get("target_doctype", "")
     category    = meta.get("category", "create")
     intent_risk = meta.get("risk_level", "low")
     entities    = intent_dict.get("entities", {})

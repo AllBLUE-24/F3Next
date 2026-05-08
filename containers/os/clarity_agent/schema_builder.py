@@ -143,7 +143,29 @@ def fill_intent_gaps_from_partial(resolved: dict, partial: dict) -> dict:
     if not isinstance(partial, dict):
         return out
 
-    for key in ("intent_id", "target_doctype", "action"):
+    _kb = kb()
+    valid_intents = set(_kb.intent_ids())
+
+    def _valid_intent_id(v: Any) -> bool:
+        return isinstance(v, str) and v in valid_intents
+
+    # If resolve_ambiguity invented or cleared intent_id, restore the last
+    # known-good value from the partial intent and align target_doctype.
+    cur_intent_id = out.get("intent_id")
+    partial_intent_id = partial.get("intent_id")
+    if not _valid_intent_id(cur_intent_id) and _valid_intent_id(partial_intent_id):
+        out["intent_id"] = copy.deepcopy(partial_intent_id)
+        cur_intent_id = out["intent_id"]
+
+    intent_def = _kb.get_intent(cur_intent_id) if _valid_intent_id(cur_intent_id) else None
+    kb_doctype = (intent_def or {}).get("target_doctype") or None
+    if kb_doctype:
+        out["target_doctype"] = kb_doctype
+    elif _empty_scalar(out.get("target_doctype")) and not _empty_scalar(partial.get("target_doctype")):
+        out["target_doctype"] = copy.deepcopy(partial.get("target_doctype"))
+
+    # Action still falls back to the partial intent when missing.
+    for key in ("action",):
         if _empty_scalar(out.get(key)):
             pv = partial.get(key)
             if not _empty_scalar(pv):
