@@ -168,6 +168,10 @@ def _try_model_sync(
     for key in candidates:
         try:
             if _is_openai(model):
+                oai_kwargs = dict(kwargs)
+                if oai_kwargs.pop("response_mime_type", None) == "application/json":
+                    oai_kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
+
                 from langchain_openai import ChatOpenAI
                 llm = ChatOpenAI(
                     model=model,
@@ -175,7 +179,7 @@ def _try_model_sync(
                     max_tokens=max_output_tokens,
                     openai_api_key=key,
                     max_retries=0,
-                    **kwargs,
+                    **oai_kwargs,
                 )
             else:
                 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -217,6 +221,10 @@ async def _try_model_async(
     for key in candidates:
         try:
             if _is_openai(model):
+                oai_kwargs = dict(kwargs)
+                if oai_kwargs.pop("response_mime_type", None) == "application/json":
+                    oai_kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
+
                 from langchain_openai import ChatOpenAI
                 llm = ChatOpenAI(
                     model=model,
@@ -224,7 +232,7 @@ async def _try_model_async(
                     max_tokens=max_output_tokens,
                     openai_api_key=key,
                     max_retries=0,
-                    **kwargs,
+                    **oai_kwargs,
                 )
             else:
                 from langchain_google_genai import ChatGoogleGenerativeAI

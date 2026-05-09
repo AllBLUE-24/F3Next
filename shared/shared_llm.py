@@ -11,7 +11,7 @@ Usage:
 
     result: dict = generate_json(
         prompt="...",
-        model_name="gemini-2.5-flash",   # optional — defaults to primary tier
+        model_name="gpt-4o-mini",   # optional — defaults to primary tier
         max_output_tokens=4000,           # optional
         temperature=0.1,                  # optional
     )
@@ -68,7 +68,7 @@ def _is_truncated_json(text: str) -> bool:
 
 def generate_json(
     prompt: str,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gpt-4o-mini",
     **kwargs,
 ) -> Dict[str, Any]:
     """

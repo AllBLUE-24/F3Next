@@ -25,7 +25,7 @@ from temporalio import activity
 
 logger = logging.getLogger(__name__)
 
-_MODEL      = "gemini-flash-latest"
+_MODEL      = "gpt-4o-mini"
 _MAX_TOKENS = 800
 
 async def _call_llm(prompt: str, max_retries: int = 3) -> dict:
