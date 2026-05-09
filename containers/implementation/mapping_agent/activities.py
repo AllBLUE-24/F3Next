@@ -489,13 +489,26 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
                     mapped_row[field_mapping[src_col]] = val
             mapped_records.append(mapped_row)
 
-        # ✨ Apply Baseline Defaults via LLM ✨
+        # ✨ Apply Baseline Defaults via LLM (with ERPNext RAG context) (G5) ✨
         baseline_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "erpnext_deafaults_baseline.json"
         if baseline_path.exists() and mapped_records:
             try:
                 with open(baseline_path, "r", encoding="utf-8") as bf:
                     baseline_data = json.load(bf)
-                
+
+                # RAG: pull ERPNext doc chunks for this doctype to guide normalization
+                erp_rag_context = ""
+                try:
+                    import asyncio as _asyncio
+                    from containers.implementation.utils.rag_helper import rag_retrieve
+                    erp_chunks = _asyncio.get_event_loop().run_until_complete(
+                        rag_retrieve(f"{doctype} ERPNext field requirements validation defaults", "erpnext_docs", top_k=4)
+                    )
+                    erp_rag_context = "\n\n".join(erp_chunks[:3])
+                    activity.logger.info("  RAG mapping | %d erpnext_docs chunks for %s", len(erp_chunks), doctype)
+                except Exception as rag_e:
+                    activity.logger.debug("  RAG mapping skipped: %s", rag_e)
+
                 # Process in chunks to respect token output limits
                 CHUNK_SIZE = 50
                 cleaned_records = []
@@ -505,11 +518,18 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
                         "You are an ERP data cleaning agent.\n"
                         f"Here are the allowed ERPNext baseline defaults: {json.dumps(baseline_data)}\n"
                         f"We are importing records for the doctype '{doctype}'.\n"
+                    )
+                    if erp_rag_context:
+                        prompt += (
+                            "\n[ERPNext Documentation for this Doctype]\n"
+                            f"{erp_rag_context}\n\n"
+                        )
+                    prompt += (
                         "Please review the following array of records. You must:\n"
                         "1. Normalize any categorical fields (e.g., 'Customer Group', 'Supplier Group', 'Territory', 'Payment Terms Template', etc.) "
                         "to exactly match an allowed value from the baseline if it's close. If it's completely invalid or missing, pick the safest default (e.g., 'All Customer Groups', 'All Supplier Groups', etc.).\n"
                         "2. Specifically ensure that 'Customer Type' is strictly one of 'Company', 'Individual', or 'Partnership'. If missing or invalid, default to 'Company'.\n"
-                        "3. Ensure any required standard ERP fields are present and valid based on the baseline.\n"
+                        "3. Ensure any required standard ERP fields are present and valid based on the baseline and ERPNext documentation above.\n"
                         "4. Do not invent new records. Only modify existing values and add required default keys to existing objects.\n"
                         f"Records:\n{json.dumps(chunk)}\n\n"
                         'Return JSON strictly in this format: { "records": [ {<record1>}, {<record2>} ] }. Ensure the returned array length matches the input length exactly.'
@@ -524,6 +544,8 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
                 activity.logger.info("  ✨ Applied baseline defaults via LLM for %s", doctype)
             except Exception as e:
                 activity.logger.warning("  ⚠️ LLM baseline cleaning failed: %s", e)
+
+
 
         # ── Build link_fields metadata from schema ────────────────────────────
         # Extract every Link field for this doctype from field_mappings.json so

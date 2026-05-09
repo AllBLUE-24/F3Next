@@ -425,13 +425,32 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
     llm_reasoning = "Graph-driven: setup_steps produced from erpnext_doctype_graph.json"
     llm_enhanced  = False
     try:
-        prompt  = TARGET_STRUCTURE_PROMPT.format(company_profile=json.dumps(profile_dict, indent=2))
+        # RAG: fetch ERPNext + APQC context to guide reasoning annotation (G4)
+        from containers.implementation.utils.rag_helper import rag_retrieve
+        target_rag_query = (
+            f"{inp.f3iche} ERPNext phase setup doctype dependencies implementation"
+        )
+        erp_ctx_chunks  = await rag_retrieve(target_rag_query, "erpnext_docs", top_k=5)
+        apqc_ctx_chunks = await rag_retrieve(target_rag_query, "apqc_pcf",    top_k=4)
+        activity.logger.info(
+            "  RAG target | erpnext=%d  apqc=%d chunks",
+            len(erp_ctx_chunks), len(apqc_ctx_chunks),
+        )
+        erp_ctx_str  = "\n\n".join(erp_ctx_chunks[:3])  or "No ERPNext docs retrieved."
+        apqc_ctx_str = "\n\n".join(apqc_ctx_chunks[:3]) or "No APQC context retrieved."
+
+        prompt  = TARGET_STRUCTURE_PROMPT.format(
+            company_profile=json.dumps(profile_dict, indent=2),
+            erpnext_context=erp_ctx_str,
+            apqc_context=apqc_ctx_str,
+        )
         llm_out = generate_json(prompt, temperature=0.1, max_output_tokens=2000)
         llm_reasoning = llm_out.get("llm_reasoning") or llm_reasoning
         llm_enhanced  = True
         activity.logger.info("  💬 LLM reasoning appended")
     except Exception as e:
         activity.logger.warning("  ⚠️ LLM call failed (non-fatal, graph steps already built): %s", e)
+
 
     # ── Bare fallback if graph produced nothing ───────────────────────────────
     if not setup_steps:

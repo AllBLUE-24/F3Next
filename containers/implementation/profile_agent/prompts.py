@@ -32,11 +32,16 @@ CURRENT COMPANY PROFILE:
 RAW UPLOADED DATA SNIPPETS:
 {data_snippets}
 
+[Authoritative ERPNext & Industry Context]
+Use the knowledge below to inform your recommended customizations and completeness evaluation.
+Do NOT contradict what is stated here — it is sourced from ERPNext documentation and the company's industry template.
+{rag_context}
+
 Analyze the data and provide:
 1. data_quality_score: (0.0 to 1.0) How clean and structured is the data? (e.g., CSVs with headers = high; messy text = low).
 2. completeness_score: (0.0 to 1.0) Based on the required modules for their industry, how much necessary data is missing?
 3. data_observations: A list of 3-5 specific facts about their data (e.g., "Contains employee roles", "Missing customer GST numbers", "Dates are in MM/DD/YYYY format").
-4. recommended_customizations: A list of 2-3 specific ERPNext configurations they will need based on this data (e.g., "Create custom fields for machinery assets", "Enable strict batch tracking").
+4. recommended_customizations: A list of 2-3 specific ERPNext configurations they will need based on this data AND the context above (e.g., "Enable strict batch tracking per APQC PCF 4.4", "Create custom fields for machinery assets as required by the Manufacturing template").
 
 Return EXACTLY this JSON structure:
 {{
@@ -45,4 +50,4 @@ Return EXACTLY this JSON structure:
   "data_observations": ["observation 1", "observation 2"],
   "recommended_customizations": ["customization 1", "customization 2"]
 }}
-"""
+"""

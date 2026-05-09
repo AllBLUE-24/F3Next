@@ -64,44 +64,67 @@ class _CompanyProfileService:
         f3iche: str,
         industry: str,
         action: str = "update",
+        rag_chunks: Optional[Dict[str, List[str]]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         f3iche_data = cls._load_f3iche(f3iche) or {}
-        
+        rag_chunks = rag_chunks or {}
+
         # Load file contents from R2 manifest if URL provided
         r2_manifest_url = kwargs.get("r2_manifest_url", "")
         file_contents = _load_file_contents_from_r2(r2_manifest_url) if r2_manifest_url else {}
-        
+
         file_summaries = []
         for fname, txt in file_contents.items():
             snippet = txt[:1500] if txt else "(empty file)"
             file_summaries.append(f"Filename: {fname}\nSample Data:\n{snippet}\n---")
-            
+
+        # ── RAG context blocks (injected from kb_embeddings) ─────────────────
+        apqc_block = "\n\n".join(rag_chunks.get("apqc_pcf", [])[:3]) or "No APQC context retrieved."
+        erp_block  = "\n\n".join(rag_chunks.get("erpnext_docs", [])[:3]) or "No ERPNext docs retrieved."
+        f3_block   = "\n\n".join(rag_chunks.get("f3iche", [])[:4])
+        if not f3_block:
+            # Fallback: use JSON narrative fields directly
+            f3_block = "\n".join(filter(None, [
+                f3iche_data.get("business_reality", ""),
+                *[str(c) for c in f3iche_data.get("critical_checks", [])[:2]],
+            ])) or "No F3iche narrative retrieved."
+
         prompt = f"""
 You are the F3Next Profile Agent. Assemble a context profile for a company named '{kwargs.get("company_name", "Unknown")}'.
 Their target business niche/f3iche model is: {f3iche} (Industry: {industry}).
 
-Based on the standard template for this niche, it includes:
-Required Modules: {f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))}
+Deterministic template constraints for this niche:
+  Required Modules: {f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))}
 
-However, you must tailor this profile based on the actual DATA they uploaded:
+[Layer 1: APQC Process Framework]
+{apqc_block}
+
+[Layer 2: ERPNext Documentation]
+{erp_block}
+
+[Layer 3: F3iche Industry Knowledge]
+{f3_block}
+
+Company's uploaded data:
 {"".join(file_summaries)}
 
-1. Describe their 'business_reality' based strictly on what the headers and data reveal about them.
-2. List up to 3 'context_flags' if you notice issues like negative numbers, missing columns, or messy unstructured text.
+Using BOTH the authoritative knowledge above AND the uploaded data:
+1. Describe their 'business_reality' — reference specific APQC processes or ERPNext modules relevant to this industry.
+2. List up to 3 'context_flags' if you notice data issues (negative numbers, missing columns, messy text).
 3. Assign a 'data_quality_score' (High, Medium, Low).
-4. Assign an 'llm_confidence' (0.0 to 1.0) indicating how confident you are that this data matches the {f3iche} business model.
+4. Assign an 'llm_confidence' (0.0 to 1.0) for how well the data matches the {f3iche} business model.
 
 Return EXACTLY this JSON structure:
 {{
-  "business_reality": "summary of operations",
+  "business_reality": "summary of operations citing industry context",
   "context_flags": ["flag1"],
   "data_quality_score": "Medium",
   "llm_confidence": 0.85
 }}
 """
         from containers.implementation.utils.llm_helper import generate_json
-        
+
         try:
             llm_enrichment = generate_json(prompt, temperature=0.2, max_output_tokens=4000)
         except Exception as e:
@@ -199,16 +222,37 @@ class EnrichCompanyProfileInput:
 async def build_company_profile(inp: BuildProfileInput) -> str:
     """
     Build a fresh versioned company profile snapshot, persist to Supabase + R2.
-    
+
     Returns: "success"
     """
     activity.logger.info("▶ build_company_profile started | project=%s f3iche=%s", inp.project_id, inp.f3iche)
+
+    # ── RAG: fetch knowledge BEFORE building profile (G1) ─────────────────────
+    from containers.implementation.utils.rag_helper import rag_retrieve
+    rag_query = (
+        f"{inp.industry} {inp.f3iche} business operations compliance workflows ERP setup"
+        f"{(' size:' + inp.company_size) if inp.company_size else ''}"
+    )
+    rag_chunks: Dict[str, List] = {}
+    try:
+        apqc_chunks   = await rag_retrieve(rag_query, "apqc_pcf",   top_k=5)
+        erp_chunks    = await rag_retrieve(rag_query, "erpnext_docs", top_k=5)
+        f3iche_chunks = await rag_retrieve(rag_query, f"f3iche_{inp.f3iche}", top_k=6)
+        rag_chunks = {"apqc_pcf": apqc_chunks, "erpnext_docs": erp_chunks, "f3iche": f3iche_chunks}
+        activity.logger.info(
+            "  RAG | apqc=%d  erpnext=%d  f3iche=%d chunks",
+            len(apqc_chunks), len(erp_chunks), len(f3iche_chunks),
+        )
+    except Exception as e:
+        activity.logger.warning("  RAG fetch failed (non-fatal): %s", e)
+
     profile = _CompanyProfileService.build(
         project_id=inp.project_id,
         version=inp.version,
         f3iche=inp.f3iche,
         industry=inp.industry,
         action=inp.action,
+        rag_chunks=rag_chunks,
         industry_sub=inp.industry_sub,
         company_size=inp.company_size,
         company_name=inp.company_name,
@@ -494,50 +538,28 @@ async def retrieve_industry_knowledge(inp: RetrieveIndustryKnowledgeInput) -> Di
     import uuid
 
     # 1. Build the search query
-    # 1. Build the search query
-    search_query = f"Industry: {inp.industry}. Size: {inp.company_size}. Unique aspects: {inp.differentiators}. What compliance requirements, best practices, and workflows are typical?"
-    
-    # 2. Generate Vector Embedding using the new REST API
+    search_query = (
+        f"Industry: {inp.industry}. Size: {inp.company_size}. "
+        f"Unique aspects: {inp.differentiators}. "
+        "What compliance requirements, best practices, and workflows are typical?"
+    )
+
+    # 2. RAG: query all three layers via shared helper
+    from containers.implementation.utils.rag_helper import rag_retrieve
+    f3iche_prefix = f"f3iche_{inp.f3iche_id}" if inp.f3iche_id else None
+
     try:
-        import requests
-        from llm_router import key_pool
-        
-        # Get a key from your router
-        current_key = next(key_pool)
-        
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={current_key}"
-        payload = {
-            "model": "models/gemini-embedding-001",
-            "content": {"parts": [{"text": search_query}]}
-        }
-        response = requests.post(url, headers={'Content-Type': 'application/json'}, json=payload)
-        response_data = response.json()
-        
-        if "error" in response_data:
-            raise Exception(response_data["error"])
-            
-        vector = response_data['embedding']['values']
-        vector_str = "[" + ",".join(map(str, vector)) + "]"
-        
+        apqc_chunks   = await rag_retrieve(search_query, "apqc_pcf",    top_k=5)
+        erp_chunks    = await rag_retrieve(search_query, "erpnext_docs", top_k=5)
+        f3iche_chunks = await rag_retrieve(search_query, f3iche_prefix, top_k=6) if f3iche_prefix else []
+        retrieved_docs: list[str] = apqc_chunks + erp_chunks + f3iche_chunks
+        activity.logger.info(
+            "  ✅ RAG | apqc=%d  erpnext=%d  f3iche=%d chunks",
+            len(apqc_chunks), len(erp_chunks), len(f3iche_chunks),
+        )
     except Exception as e:
-        activity.logger.error("  ❌ Failed to generate embedding: %s", e)
-        vector_str = None
-
-    # 3. Vector Similarity Search (Context Engine Tier 3)
-    retrieved_docs: list[str] = []
-    if vector_str:
-        try:
-            from shared.context_engine import get_context_engine
-
-            prefix = str(inp.f3iche_id) if inp.f3iche_id else None
-            retrieved_docs = await get_context_engine().get_tier3_chunks(
-                vector_str,
-                top_k=5,
-                kb_source_prefix=prefix,
-            )
-            activity.logger.info("  ✅ Retrieved %d relevant chunks from pgvector", len(retrieved_docs))
-        except Exception as e:
-            activity.logger.error("  ❌ Vector search failed: %s", e)
+        activity.logger.error("  ❌ RAG retrieval failed: %s", e)
+        retrieved_docs = []
 
     # Fallback if no docs found
     if not retrieved_docs:
@@ -683,10 +705,28 @@ async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, An
     for fname, txt in file_contents.items():
         snippets.append(f"File: {fname}\nData: {str(txt)[:1000]}\n---")
 
-    # 3. Call LLM for Enrichment
+    # 3. Fetch RAG context for enrichment (G2)
+    from containers.implementation.utils.rag_helper import rag_retrieve
+    enrich_query = (
+        f"{profile_dict.get('f3iche', '')} {profile_dict.get('industry', '')} "
+        "ERPNext implementation recommended customizations data quality"
+    )
+    enrich_rag_chunks: list[str] = []
+    try:
+        enrich_rag_chunks += await rag_retrieve(enrich_query, "erpnext_docs", top_k=5)
+        if profile_dict.get("f3iche"):
+            enrich_rag_chunks += await rag_retrieve(enrich_query, f"f3iche_{profile_dict['f3iche']}", top_k=5)
+        activity.logger.info("  RAG enrichment | %d chunks retrieved", len(enrich_rag_chunks))
+    except Exception as e:
+        activity.logger.warning("  RAG enrichment fetch failed (non-fatal): %s", e)
+
+    rag_context_str = "\n\n".join(enrich_rag_chunks[:6]) or "No additional context available."
+
+    # 4. Call LLM for Enrichment
     prompt = PROFILE_ENRICHMENT_PROMPT.format(
         current_profile=json.dumps(profile_dict, indent=2),
-        data_snippets="\n".join(snippets)
+        data_snippets="\n".join(snippets),
+        rag_context=rag_context_str,
     )
 
     try:

@@ -1,16 +1,20 @@
 TARGET_STRUCTURE_PROMPT = """
-You are the F3Next ERPNext Architect. Your job is to take a messy company profile and generate a strict, import-ready Target Structure for ERPNext.
+You are the F3Next ERPNext Architect. Your job is to take a messy company profile and provide authoritative reasoning notes for the graph-driven Target Structure.
 
 COMPANY PROFILE:
 {company_profile}
 
+[Authoritative ERPNext Documentation]
+Use the knowledge below to justify your phase assignments and identify any special setup requirements.
+{erpnext_context}
+
+[APQC Process Framework Reference]
+{apqc_context}
+
 YOUR INSTRUCTIONS:
-1. Extract all required doctypes but CLEAN THE NAMES. They must be exact ERPNext Doctype names (e.g., "Item", NOT "Item (raw materials)").
-2. Organize these doctypes into 'import_phases'. You MUST follow strict ERPNext dependency logic:
-   - phase_a_config: Core setup (Company, Fiscal Year, UOM, Item Group, Warehouse, Workstation, Operation).
-   - phase_b_master: Master data (Item, Customer, Supplier, BOM).
-   - phase_c_transactional: Live documents (Material Request, Purchase Order, Job Card, Sales Invoice).
-3. Generate 'setup_steps' which is a flat array representing the exact chronological order we must hit the API.
+1. Review the required_doctypes in the company profile and confirm the phase assignments are correct per ERPNext dependency rules.
+2. Flag any special doctype setup that the standard graph may not handle (e.g., custom fields, batch tracking, multi-currency).
+3. Provide concise reasoning based on the ERPNext documentation and APQC context above.
 
 Return EXACTLY this JSON structure:
 {{
@@ -24,6 +28,6 @@ Return EXACTLY this JSON structure:
     {{"step": 1, "phase": "phase_a_config", "doctype": "Company"}},
     {{"step": 2, "phase": "phase_a_config", "doctype": "UOM"}}
   ],
-  "llm_reasoning": "Added Workstation and Operation to Phase A so BOMs can be imported in Phase B."
+  "llm_reasoning": "Reasoning citing ERPNext docs and APQC references where applicable."
 }}
-"""
+"""

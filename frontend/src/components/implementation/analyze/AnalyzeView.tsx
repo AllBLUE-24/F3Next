@@ -20,6 +20,7 @@ const NICHE_DISPLAY: Record<string, { label: string; industry: string }> = {
   manufacturing_garment_variants:   { label: 'Garment Manufacturing', industry: 'manufacturing' },
   manufacturing_food_batch:         { label: 'Food / Batch Manufacturing', industry: 'manufacturing' },
   manufacturing_fabrication_jobshop:{ label: 'Metal Fabrication / Job Shop', industry: 'manufacturing' },
+  manufacturing_project_chemical:   { label: 'Chemical Manufacturing', industry: 'manufacturing' },
   service:                          { label: 'Professional Services', industry: 'service' },
   service_professional:             { label: 'Professional Services', industry: 'service' },
 };
