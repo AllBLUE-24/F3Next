@@ -38,9 +38,9 @@ sys.path.insert(0, str(_ROOT))
 
 load_dotenv()
 
-from llm_router import api_keys, key_pool  # noqa: E402
 from shared.database.db import AsyncSessionLocal  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from shared.embedding_generator import generate_embedding  # noqa: E402
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -60,12 +60,7 @@ _DESC_COLS   = ["Element Description", "Description"]
 _ID_COLS     = ["PCF ID", "ID"]
 _HIER_COLS   = ["Hierarchy ID", "Hierarchy"]
 
-EMBEDDING_MODEL = "models/gemini-embedding-001"
-EMBED_URL_TPL   = (
-    "https://generativelanguage.googleapis.com/v1beta/"
-    f"{EMBEDDING_MODEL}:embedContent?key={{key}}"
-)
-RATE_LIMIT_DELAY = 2   # seconds between embeds (respects 60 RPM limit)
+RATE_LIMIT_DELAY = 0.5   # seconds between embeds
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -168,41 +163,7 @@ def build_chunks() -> list[dict]:
 
 # ── Step 2: Embed ─────────────────────────────────────────────────────────────
 
-def _embed(text: str, max_attempts: int | None = None) -> list[float]:
-    """Call Gemini embedding API with key rotation. Returns the embedding vector."""
-    if not api_keys:
-        raise RuntimeError("No Gemini API keys found. Check GEMINI_API_KEYS env var.")
 
-    attempts = max_attempts or (len(api_keys) + 1)
-    for attempt in range(attempts):
-        key = next(key_pool)
-        try:
-            resp = requests.post(
-                EMBED_URL_TPL.format(key=key),
-                headers={"Content-Type": "application/json"},
-                json={
-                    "model": EMBEDDING_MODEL,
-                    "content": {"parts": [{"text": text}]},
-                },
-                timeout=30,
-            )
-            data = resp.json()
-            if "error" in data:
-                msg = data["error"].get("message", "").lower()
-                if any(tok in msg for tok in ("429", "quota", "exhausted", "denied", "403", "permission", "invalid")):
-                    print(f"   ⚠️  API issue (quota or invalid key) — rotating key (attempt {attempt + 1})")
-                    import time; time.sleep(5)
-                    continue
-                raise RuntimeError(f"Gemini embed error: {data['error']}")
-            return data["embedding"]["values"]
-        except RuntimeError:
-            raise
-        except Exception as e:
-            if attempt == attempts - 1:
-                raise
-            print(f"   ⚠️  Embed attempt {attempt + 1} failed: {e} — retrying")
-
-    raise RuntimeError("All Gemini API keys exhausted during embedding.")
 
 
 async def seed_database(chunks: list[dict], reset: bool = False) -> None:
@@ -249,7 +210,7 @@ async def seed_database(chunks: list[dict], reset: bool = False) -> None:
             label = chunk["text"].split("\n")[4][:60]  # "Name: ..." line
             print(f"[{idx}/{total}] {label}")
 
-            vector = _embed(chunk["text"])
+            vector = await generate_embedding(chunk["text"])
             vector_str = "[" + ",".join(map(str, vector)) + "]"
 
             await session.execute(

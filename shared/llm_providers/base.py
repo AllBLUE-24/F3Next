@@ -12,3 +12,14 @@ class AgenticProvider:
         model_name: str = "gpt-4o-mini",
     ) -> dict:
         raise NotImplementedError
+
+    async def invoke_structured_output(
+        self,
+        prompt: str,
+        schema: Type[BaseModel],
+        system_instruction: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: int = 2000,
+        model_name: str = "gpt-4o-mini",
+    ) -> dict:
+        raise NotImplementedError

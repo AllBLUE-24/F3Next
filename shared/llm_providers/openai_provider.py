@@ -12,6 +12,91 @@ class OpenAIProvider(AgenticProvider):
     def __init__(self, api_keys: List[str]):
         self.api_keys = api_keys
 
+    async def invoke_structured_output(
+        self,
+        prompt: str,
+        schema: Type[BaseModel],
+        system_instruction: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: int = 2000,
+        model_name: str = "gpt-4o-mini",
+    ) -> dict:
+        from openai import AsyncOpenAI
+        from llm_router import _is_sidelined
+
+        available_keys = [k for k in self.api_keys if not _is_sidelined(model_name, k)]
+        if not available_keys:
+            available_keys = self.api_keys
+        if not available_keys:
+            raise ValueError("No OpenAI API keys available")
+
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        last_err = None
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "structured_output",
+                "strict": True,
+                "schema": schema.model_json_schema(),
+            },
+        }
+
+        for attempt in range(2):
+            for key in available_keys:
+                client = AsyncOpenAI(api_key=key)
+                try:
+                    resp = await client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        response_format=response_format,
+                    )
+                    raw = resp.choices[0].message.content
+                    if not raw:
+                        raise ValueError("Empty response from OpenAI structured output")
+                    data = json.loads(raw)
+                    parsed = schema.model_validate(data)
+                    return parsed.model_dump(mode="json")
+                except Exception as e:
+                    err_str = str(e)
+                    if any(tok in err_str.lower() for tok in (
+                        "429", "rate limit", "quota", "exhausted",
+                        "404", "not found",
+                        "403", "401", "permission denied", "unauthorized",
+                    )):
+                        logger.warning(f"[OpenAIProvider] Key/model rotated ({err_str[:100]})")
+                        last_err = e
+                        continue
+                    # Fallback to json_object if json_schema isn't supported by the runtime/provider combo.
+                    try:
+                        resp = await client.chat.completions.create(
+                            model=model_name,
+                            messages=messages,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            response_format={"type": "json_object"},
+                        )
+                        raw = resp.choices[0].message.content
+                        if not raw:
+                            raise ValueError("Empty response from OpenAI structured output")
+                        data = json.loads(raw)
+                        parsed = schema.model_validate(data)
+                        return parsed.model_dump(mode="json")
+                    except Exception as inner_e:
+                        last_err = inner_e
+                        raise ValueError(f"Generation failed: {inner_e}")
+                finally:
+                    await client.close()
+            if attempt == 0:
+                logger.warning("[OpenAIProvider] All keys exhausted! Sleeping 10s...")
+                await asyncio.sleep(10)
+        raise ValueError(f"All keys exhausted or failed. Last error: {last_err}")
+
     async def invoke_agentic_loop(
         self,
         prompt: str,

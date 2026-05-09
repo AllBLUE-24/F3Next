@@ -437,18 +437,22 @@ except Exception as e:
     print(f'ERROR:{{str(e)}}')
     sys.exit(0)
 """
-        # C. Execution
+        # C. Write Script to Volume and Execute
+        async with conn.start_sftp_client() as sftp:
+            async with sftp.open(f"{base_dir}/sites/keygen.py", 'w') as f:
+                await f.write(key_gen_script)
+
         cmd_keygen = (
             f"cd {base_dir} && "
             f"docker compose exec -T --user frappe backend "
             f"bash -c \"cd /home/frappe/frappe-bench/sites && "
             f"mkdir -p {site_url}/logs && "
-            f"../env/bin/python -u\""
+            f"../env/bin/python keygen.py\""
         )
         
         activity.logger.info("⚡ Executing KeyGen...")
         try:
-            result = await conn.run(cmd_keygen, input=key_gen_script, check=False)
+            result = await conn.run(cmd_keygen, check=False)
             
             if result.exit_status != 0:
                 activity.logger.error(f"❌ KeyGen failed: {result.stderr}")

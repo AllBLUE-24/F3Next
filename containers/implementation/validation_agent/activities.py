@@ -102,9 +102,36 @@ class _ValidationEngine:
                        .get(doctype, {})
                        .get("required_fields", [])
         )
-        if graph_fields:
-            return graph_fields
-        return self._REQUIRED_FIELDS_FALLBACK.get(doctype, [])
+        fields = graph_fields if graph_fields else self._REQUIRED_FIELDS_FALLBACK.get(doctype, [])
+        return self._normalise_required_fields(fields or [])
+
+    @staticmethod
+    def _normalise_required_fields(fields: List[str]) -> List[str]:
+        """
+        Graph required_fields may include descriptive strings like:
+          'items (item_code, qty, rate)' or 'paid_to/paid_from'
+        Normalize them into real fieldnames so validation reports actionable errors.
+        """
+        out: List[str] = []
+        seen: set = set()
+
+        for raw in fields or []:
+            s = str(raw or "").strip()
+            if not s:
+                continue
+            # "items (a, b)" -> "items"
+            if "(" in s:
+                s = s.split("(", 1)[0].strip()
+            # "paid_to/paid_from" -> ["paid_to", "paid_from"]
+            parts = [p.strip() for p in s.split("/") if p.strip()]
+            for p in parts or [s]:
+                # Also handle "field - note" style
+                p2 = p.split(" ", 1)[0].strip()
+                if p2 and p2 not in seen:
+                    seen.add(p2)
+                    out.append(p2)
+
+        return out
 
     def _get_enum_rules(self, doctype: str) -> Dict[str, List[str]]:
         """Read Select fields from field_mappings; fall back to hardcoded dict."""

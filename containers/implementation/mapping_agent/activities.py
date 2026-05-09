@@ -26,6 +26,16 @@ from containers.implementation.utils.llm_helper import generate_json
 
 # 🚀 Importing the prompt cleanly!
 from containers.implementation.mapping_agent.prompts import REFINE_MAPPING_PROMPT
+from containers.implementation.mapping_agent.kb import field_mappings as _kb_field_mappings
+from containers.implementation.mapping_agent.classifier import classify_doctype
+from containers.implementation.mapping_agent.extraction import (
+    extract_unstructured_records,
+    validate_records_against_schema,
+)
+from containers.implementation.mapping_agent.defaults import (
+    fold_child_tables,
+    apply_defaults_and_normalize,
+)
 
 FIELD_MAPPINGS_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -49,9 +59,9 @@ class _MappingEngine:
         self._field_mappings: Dict = {}
 
     def _load_field_mappings(self) -> Dict:
-        if not self._field_mappings and FIELD_MAPPINGS_PATH.exists():
-            with open(FIELD_MAPPINGS_PATH, "r", encoding="utf-8") as f:
-                self._field_mappings = json.load(f)
+        # Prefer cached KB loader to keep reads deterministic and fast.
+        if not self._field_mappings:
+            self._field_mappings = _kb_field_mappings() or {}
         return self._field_mappings
 
     def infer_doctype(self, columns: List[str], sample_text: Optional[str] = None) -> Optional[str]:
@@ -235,25 +245,9 @@ class _MappingEngine:
             if not matched:
                 unmapped_cols.append(col)
                 
-        if unmapped_cols:
-            schema = {k: v.get("fieldname", k) for k, v in field_mappings.items()}
-            
-            prompt = f"Map the following unmapped source columns to the closest matching ERPNext '{doctype}' fields.\n"
-            prompt += f"Unmapped source columns: {unmapped_cols}\n"
-            prompt += f"Target ERPNext schema fields: {list(schema.values())}\n"
-            if sample_row:
-                prompt += f"Here is a sample row showing values for context: {sample_row}\n"
-            
-            prompt += 'Return JSON: { "col1": "erpnext_field1", "col2": "erpnext_field2" }. '
-            prompt += 'Only map a column if you are highly confident it matches semantics. Otherwise, omit it.'
-            
-            try:
-                llm_map = generate_json(prompt, max_output_tokens=2000)
-                for col_name, erp_field in llm_map.items():
-                    if col_name in unmapped_cols and erp_field in schema.values():
-                        result[col_name] = erp_field
-            except Exception as e:
-                pass
+        # NOTE (Determinism): We intentionally do NOT use LLM-based column mapping here.
+        # LLM column mapping is non-deterministic and caused schema drift. Unmapped
+        # columns are ignored; defaults + schema-locked extraction cover gaps.
                 
         return result
 
@@ -291,20 +285,47 @@ class _MappingEngine:
     def _extract_nlp_rows(self, content: str, doctype: str) -> List[Dict]:
         data = self._load_field_mappings()
         field_mappings = data.get("doctypes", {}).get(doctype, {}).get("field_mappings", {})
-        schema = {k: v.get("fieldname", k) for k, v in field_mappings.items()}
         
-        prompt = f"I have unstructured text that represents records for an ERPNext '{doctype}'.\n"
-        prompt += f"Extract the data into a structured array of JSON objects.\n"
-        prompt += f"Each object should ONLY contain keys from this exact schema: {list(schema.values())}\n"
-        prompt += f"Do not invent fields. Use natural inferences for data aggregation if required.\n"
-        prompt += f"Here is the text to parse:\n\n{content[:4000]}\n\n"
-        prompt += 'Return JSON: { "rows": [ {"field1": "val", "field2": "val"} ] }'
+        parent_schema = {k: v.get("fieldname", k) for k, v in field_mappings.items() if v.get("fieldtype") != "Table"}
+        child_tables = {v.get("fieldname", k): v.get("child_fields", {}) for k, v in field_mappings.items() if v.get("fieldtype") == "Table"}
+
+        prompt1 = f"I have unstructured text that represents records for an ERPNext '{doctype}'.\n"
+        prompt1 += f"Extract the parent-level data into a structured array of JSON objects.\n"
+        prompt1 += f"Each object should ONLY contain keys from this exact parent schema: {list(parent_schema.values())}\n"
+        prompt1 += "CRITICAL: For any date fields (e.g., delivery_date, transaction_date), you MUST use a strict JSON schema where the field is 'type: string, format: date'. Convert all dates strictly to 'YYYY-MM-DD' (e.g., convert 'Next Monday' to a valid YYYY-MM-DD date).\n"
+        prompt1 += f"Do not invent fields. Do not extract child table items in this step.\n"
+        prompt1 += f"Here is the text to parse:\n\n{content[:4000]}\n\n"
+        prompt1 += 'Return JSON: { "rows": [ {"field1": "val", "delivery_date": "YYYY-MM-DD"} ] }'
         
         try:
-            res = generate_json(prompt, max_output_tokens=4000)
-            return res.get("rows", [])
+            res1 = generate_json(prompt1, max_output_tokens=4000)
+            parent_rows = res1.get("rows", [])
         except Exception:
             return []
+            
+        if not parent_rows:
+            return []
+
+        # Call 2: Extract child data
+        if child_tables:
+            for parent_row in parent_rows:
+                for child_fieldname, child_schema in child_tables.items():
+                    child_keys = [v.get("fieldname", k) for k, v in child_schema.items()]
+                    prompt2 = f"I have unstructured text that represents a record for an ERPNext '{doctype}'.\n"
+                    prompt2 += f"The parent document details are: {json.dumps(parent_row)}\n"
+                    prompt2 += f"Extract ALL line items, services, or materials mentioned in this text related to this parent document into an array of objects.\n"
+                    prompt2 += f"Each object should ONLY contain keys from this exact child schema: {child_keys}\n"
+                    prompt2 += f"For items, ensure you extract standard 'item_code', 'qty', and 'rate' values. Convert casual expenses into valid ERP items.\n"
+                    prompt2 += f"Here is the text to parse:\n\n{content[:4000]}\n\n"
+                    prompt2 += 'Return JSON: { "child_items": [ {"item_code": "val", "qty": 1, "rate": 10.0} ] }'
+                    
+                    try:
+                        res2 = generate_json(prompt2, max_output_tokens=4000)
+                        parent_row[child_fieldname] = res2.get("child_items", [])
+                    except Exception:
+                        parent_row[child_fieldname] = []
+                        
+        return parent_rows
 
     def map_file(self, content: str, filename: str, doctype_hint: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -395,6 +416,59 @@ class MapFileInput:
     session_id: str
     doctype_hint: Optional[str] = None
 
+
+async def _load_session_required_doctypes(session_id: str) -> List[str]:
+    """
+    Load the most recent ISTargetStructure.required_doctypes for the session.
+    Returns [] on any failure.
+    """
+    try:
+        from shared.models.is_models import ISTargetStructure
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISTargetStructure)
+                .where(ISTargetStructure.session_id == uuid.UUID(session_id))
+                .order_by(ISTargetStructure.created_at.desc())
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            row = res.scalar_one_or_none()
+            if not row or not row.required_doctypes:
+                return []
+            required = row.required_doctypes
+            if isinstance(required, str):
+                try:
+                    required = json.loads(required)
+                except Exception:
+                    required = []
+            if not isinstance(required, list):
+                return []
+            return [str(x) for x in required if x]
+    except Exception:
+        return []
+
+
+async def _get_candidate_doctypes(session_id: str) -> List[str]:
+    """
+    Best-practice candidate list for deterministic routing.
+
+    - Prefer session-scoped ISTargetStructure.required_doctypes
+    - Intersect with KB doctypes (field_mappings.json)
+    - Always include a small safe core set
+    """
+    core = {"Item", "Customer", "Supplier", "Employee"}
+    kb = _kb_field_mappings() or {}
+    kb_doctypes = set((kb.get("doctypes") or {}).keys())
+    required = set(await _load_session_required_doctypes(session_id))
+
+    candidates = set()
+    if required:
+        candidates |= (required & kb_doctypes)
+    candidates |= (core & kb_doctypes) if kb_doctypes else core
+
+    # Stable order for determinism: sort case-insensitively but keep original
+    return sorted(candidates, key=lambda s: s.lower())
+
 @dataclass
 class MapColumnsInput:
     columns: List[str]
@@ -429,11 +503,120 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
         return "error"
 
     engine = _MappingEngine()
-    results = engine.map_file(content, inp.filename, inp.doctype_hint)
+    candidates = await _get_candidate_doctypes(inp.session_id)
+
+    # ── New pipeline: Step A (classification) → Step B (extraction/normalization) ──
+    # For structured files, extraction is deterministic mapping + folding.
+    # For unstructured text, extraction is schema-locked structured output.
+    is_unstructured = inp.filename.lower().endswith(".txt") or inp.filename.lower().endswith(".pdf")
+
+    results: List[Dict[str, Any]] = []
+    if is_unstructured:
+        snippet = (content or "")[:2000]
+        if inp.doctype_hint and inp.doctype_hint in candidates:
+            doctype = inp.doctype_hint
+            cls_meta = {"method": "hint", "confidence": 1.0, "signals": ["doctype_hint"]}
+        else:
+            cls = await classify_doctype(
+                filename=inp.filename,
+                content_snippet=snippet,
+                columns=None,
+                candidates=candidates,
+                model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+            )
+            doctype = cls.get("doctype")
+            cls_meta = cls
+
+        # Step B: schema-locked extraction
+        records: List[Dict[str, Any]] = []
+        try:
+            records = await extract_unstructured_records(
+                doctype=doctype,
+                content=content or "",
+                filename=inp.filename,
+                model_name=os.getenv("MAPPING_EXTRACTION_MODEL"),
+            )
+        except Exception as e:
+            activity.logger.warning("  ⚠️ Unstructured extraction failed for %s → %s: %s", inp.filename, doctype, e)
+            records = []
+
+        records = apply_defaults_and_normalize(doctype, records)
+        try:
+            records = validate_records_against_schema(doctype, records)
+        except Exception as e:
+            # Keep best-effort normalized records; validation engine will surface issues.
+            activity.logger.info("  ⚠️ Schema validation still failing for %s → %s: %s", inp.filename, doctype, str(e)[:160])
+
+        results = [{
+            "doctype": doctype,
+            "field_mapping": {},   # no column mapping for unstructured
+            "rows": records,
+            "inferred_doctype": doctype,
+            "source_columns": [],
+            "_classification": cls_meta,
+        }]
+    else:
+        # Structured CSV/TSV style: deterministic mapping
+        rows = list(csv.DictReader(io.StringIO(content)))
+        clean_rows = [{k: v for k, v in r.items() if k is not None} for r in rows]
+        if not clean_rows:
+            clean_rows = []
+
+        columns = [c for c in list(clean_rows[0].keys()) if c is not None] if clean_rows else []
+
+        # Multi-entity split (preserve existing behavior)
+        split_groups = engine._split_by_entity_type(clean_rows, columns) if clean_rows else None
+        if split_groups:
+            for entity_type, group_rows in split_groups.items():
+                # Prefer exact doctype name match for entity types
+                group_doctype = None
+                kb = engine._load_field_mappings()
+                for dt_name in kb.get("doctypes", {}).keys():
+                    if entity_type.lower() == dt_name.lower() and dt_name in candidates:
+                        group_doctype = dt_name
+                        break
+                if not group_doctype:
+                    cls = await classify_doctype(
+                        filename=inp.filename,
+                        content_snippet=str(entity_type),
+                        columns=columns,
+                        candidates=candidates,
+                        model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                    )
+                    group_doctype = cls.get("doctype")
+
+                field_mapping = engine.map_columns(columns, group_doctype, sample_row=group_rows[0] if group_rows else None)
+                results.append({
+                    "doctype": group_doctype,
+                    "field_mapping": field_mapping,
+                    "rows": group_rows,
+                    "inferred_doctype": group_doctype,
+                    "source_columns": columns,
+                })
+        else:
+            # Single doctype
+            if inp.doctype_hint and inp.doctype_hint in candidates:
+                doctype = inp.doctype_hint
+            else:
+                cls = await classify_doctype(
+                    filename=inp.filename,
+                    content_snippet="",
+                    columns=columns,
+                    candidates=candidates,
+                    model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                )
+                doctype = cls.get("doctype")
+            field_mapping = engine.map_columns(columns, doctype, sample_row=clean_rows[0] if clean_rows else None)
+            results = [{
+                "doctype": doctype,
+                "field_mapping": field_mapping,
+                "rows": clean_rows,
+                "inferred_doctype": doctype,
+                "source_columns": columns,
+            }]
 
     # ── NLP DEDUP: check which doctypes are already mapped by structured files ──
     already_mapped_doctypes: set = set()
-    is_unstructured = inp.filename.lower().endswith(".txt") or inp.filename.lower().endswith(".pdf")
 
     if is_unstructured:
         try:
@@ -481,69 +664,25 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
         except Exception as e:
             activity.logger.error("  ❌ R2 rows upload failed: %s", e)
 
-        mapped_records = []
-        for row in rows:
-            mapped_row = {}
-            for src_col, val in row.items():
-                if src_col in field_mapping:
-                    mapped_row[field_mapping[src_col]] = val
-            mapped_records.append(mapped_row)
+        mapped_records: List[Dict[str, Any]] = []
+        if rows and field_mapping:
+            for row in rows:
+                mapped_row = {}
+                for src_col, val in row.items():
+                    if src_col in field_mapping:
+                        mapped_row[field_mapping[src_col]] = val
+                mapped_records.append(mapped_row)
+        elif isinstance(rows, list) and rows and isinstance(rows[0], dict) and not field_mapping:
+            # Unstructured pipeline already produced mapped rows (schema-shaped)
+            mapped_records = [dict(r) for r in rows]
 
-        # ✨ Apply Baseline Defaults via LLM (with ERPNext RAG context) (G5) ✨
-        baseline_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "erpnext_deafaults_baseline.json"
-        if baseline_path.exists() and mapped_records:
-            try:
-                with open(baseline_path, "r", encoding="utf-8") as bf:
-                    baseline_data = json.load(bf)
-
-                # RAG: pull ERPNext doc chunks for this doctype to guide normalization
-                erp_rag_context = ""
-                try:
-                    import asyncio as _asyncio
-                    from containers.implementation.utils.rag_helper import rag_retrieve
-                    erp_chunks = _asyncio.get_event_loop().run_until_complete(
-                        rag_retrieve(f"{doctype} ERPNext field requirements validation defaults", "erpnext_docs", top_k=4)
-                    )
-                    erp_rag_context = "\n\n".join(erp_chunks[:3])
-                    activity.logger.info("  RAG mapping | %d erpnext_docs chunks for %s", len(erp_chunks), doctype)
-                except Exception as rag_e:
-                    activity.logger.debug("  RAG mapping skipped: %s", rag_e)
-
-                # Process in chunks to respect token output limits
-                CHUNK_SIZE = 50
-                cleaned_records = []
-                for i in range(0, len(mapped_records), CHUNK_SIZE):
-                    chunk = mapped_records[i:i+CHUNK_SIZE]
-                    prompt = (
-                        "You are an ERP data cleaning agent.\n"
-                        f"Here are the allowed ERPNext baseline defaults: {json.dumps(baseline_data)}\n"
-                        f"We are importing records for the doctype '{doctype}'.\n"
-                    )
-                    if erp_rag_context:
-                        prompt += (
-                            "\n[ERPNext Documentation for this Doctype]\n"
-                            f"{erp_rag_context}\n\n"
-                        )
-                    prompt += (
-                        "Please review the following array of records. You must:\n"
-                        "1. Normalize any categorical fields (e.g., 'Customer Group', 'Supplier Group', 'Territory', 'Payment Terms Template', etc.) "
-                        "to exactly match an allowed value from the baseline if it's close. If it's completely invalid or missing, pick the safest default (e.g., 'All Customer Groups', 'All Supplier Groups', etc.).\n"
-                        "2. Specifically ensure that 'Customer Type' is strictly one of 'Company', 'Individual', or 'Partnership'. If missing or invalid, default to 'Company'.\n"
-                        "3. Ensure any required standard ERP fields are present and valid based on the baseline and ERPNext documentation above.\n"
-                        "4. Do not invent new records. Only modify existing values and add required default keys to existing objects.\n"
-                        f"Records:\n{json.dumps(chunk)}\n\n"
-                        'Return JSON strictly in this format: { "records": [ {<record1>}, {<record2>} ] }. Ensure the returned array length matches the input length exactly.'
-                    )
-                    res = generate_json(prompt, max_output_tokens=8000)
-                    cleaned_chunk = res.get("records", chunk)
-                    if isinstance(cleaned_chunk, list) and len(cleaned_chunk) == len(chunk):
-                        cleaned_records.extend(cleaned_chunk)
-                    else:
-                        cleaned_records.extend(chunk)
-                mapped_records = cleaned_records
-                activity.logger.info("  ✨ Applied baseline defaults via LLM for %s", doctype)
-            except Exception as e:
-                activity.logger.warning("  ⚠️ LLM baseline cleaning failed: %s", e)
+        # Deterministic folding + defaults + normalization
+        mapped_records = fold_child_tables(doctype, mapped_records)
+        mapped_records = apply_defaults_and_normalize(doctype, mapped_records)
+        try:
+            mapped_records = validate_records_against_schema(doctype, mapped_records)
+        except Exception:
+            pass
 
 
 

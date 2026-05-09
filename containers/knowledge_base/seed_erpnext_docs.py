@@ -43,9 +43,9 @@ sys.path.insert(0, str(_ROOT))
 
 load_dotenv()
 
-from llm_router import api_keys, key_pool       # noqa: E402
 from shared.database.db import AsyncSessionLocal # noqa: E402
 from sqlalchemy import text                      # noqa: E402
+from shared.embedding_generator import generate_embedding  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -56,13 +56,7 @@ SITEMAP_URL      = "https://docs.frappe.io/sitemap.xml"
 DOCS_BASE        = "https://docs.frappe.io"
 KB_SOURCE        = "erpnext_docs"
 
-EMBEDDING_MODEL  = "models/gemini-embedding-001"
-EMBED_URL_TPL    = (
-    "https://generativelanguage.googleapis.com/v1beta/"
-    f"{EMBEDDING_MODEL}:embedContent?key={{key}}"
-)
-
-RATE_LIMIT_DELAY = 2          # seconds between embeds (60 RPM limit)
+RATE_LIMIT_DELAY = 0.5          # seconds between embeds
 PAGE_FETCH_DELAY = 0.5        # seconds between page fetches (polite crawling)
 REQUEST_TIMEOUT  = 15         # seconds per HTTP request
 COMMIT_BATCH     = 50         # commit to DB every N chunks
@@ -291,43 +285,7 @@ def build_chunks_from_page(page: dict) -> list[dict]:
     return result
 
 
-# ── Step 4: Embed ──────────────────────────────────────────────────────────────
 
-def _embed(text: str) -> list[float]:
-    """Call Gemini embedding API with automatic key rotation."""
-    if not api_keys:
-        raise RuntimeError("No Gemini API keys found. Check GEMINI_API_KEYS env var.")
-
-    max_attempts = len(api_keys) + 1
-    for attempt in range(max_attempts):
-        key = next(key_pool)
-        try:
-            resp = requests.post(
-                EMBED_URL_TPL.format(key=key),
-                headers={"Content-Type": "application/json"},
-                json={
-                    "model":   EMBEDDING_MODEL,
-                    "content": {"parts": [{"text": text}]},
-                },
-                timeout=30,
-            )
-            data = resp.json()
-            if "error" in data:
-                msg = data["error"].get("message", "").lower()
-                if any(tok in msg for tok in ("429", "quota", "exhausted", "denied", "403", "permission", "invalid")):
-                    logger.warning("API issue (quota or invalid key) — rotating key (attempt %d)", attempt + 1)
-                    time.sleep(5)
-                    continue
-                raise RuntimeError(f"Gemini embed error: {data['error']}")
-            return data["embedding"]["values"]
-        except RuntimeError:
-            raise
-        except Exception as e:
-            if attempt == max_attempts - 1:
-                raise
-            logger.warning("Embed attempt %d failed: %s — retrying", attempt + 1, e)
-
-    raise RuntimeError("All Gemini API keys exhausted.")
 
 
 # ── Step 5: Insert ─────────────────────────────────────────────────────────────
@@ -365,7 +323,7 @@ async def seed_database(all_chunks: list[dict], resume: bool = False) -> None:
 
             logger.info("[%d/%d] Embedding: %s — %s", idx, total, chunk["module"], page_label)
 
-            vector      = _embed(chunk["text"])
+            vector      = await generate_embedding(chunk["text"])
             vector_str  = "[" + ",".join(map(str, vector)) + "]"
 
             await session.execute(

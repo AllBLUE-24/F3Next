@@ -339,6 +339,55 @@ def invoke_smart_llm_sync(
     )
 
 
+async def invoke_structured_llm(
+    prompt: str,
+    schema: Type[BaseModel],
+    model_name: str = "gpt-4o-mini",
+    temperature: float = 0.0,
+    max_tokens: int = 2000,
+    system_instruction: Optional[str] = None,
+) -> dict:
+    """
+    Provider-agnostic structured output helper.
+
+    Routes to the active provider implementation, which handles its own native
+    schema enforcement.
+    """
+    model_queue = _build_model_queue(model_name)
+
+    for idx, current_model in enumerate(model_queue):
+        keys = _select_key_list("simple", current_model)
+        if idx > 0:
+            logger.warning(
+                "[llm_router] 🔁 Switching model: '%s' exhausted all keys → trying '%s'",
+                model_queue[idx - 1], current_model,
+            )
+
+        try:
+            if _is_openai(current_model):
+                from shared.llm_providers.openai_provider import OpenAIProvider
+                provider = OpenAIProvider(keys)
+            else:
+                from shared.llm_providers.gemini_provider import GeminiProvider
+                provider = GeminiProvider(keys)
+
+            return await provider.invoke_structured_output(
+                prompt=prompt,
+                schema=schema,
+                system_instruction=system_instruction,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                model_name=current_model,
+            )
+        except RuntimeError:
+            continue
+
+    raise Exception(
+        f"[llm_router] 🚨 Critical: All models exhausted ({', '.join(model_queue)}). "
+        "All API keys are on cooldown for structured output."
+    )
+
+
 async def invoke_agentic_loop(
     prompt: str,
     tool_dispatcher: dict,

@@ -33,41 +33,15 @@ sys.path.insert(0, str(_ROOT))
 
 load_dotenv()
 
-from llm_router import api_keys, key_pool  # noqa: E402
 from shared.database.db import AsyncSessionLocal  # noqa: E402
+from shared.embedding_generator import generate_embedding  # noqa: E402
 
-
-EMBEDDING_MODEL = "models/gemini-embedding-001"
-EMBED_URL_TPL = (
-    "https://generativelanguage.googleapis.com/v1beta/"
-    f"{EMBEDDING_MODEL}:embedContent?key={{key}}"
-)
-RATE_LIMIT_DELAY = 2
+RATE_LIMIT_DELAY = 0.5
 
 F3ICHE_DIR = _HERE / "common" / "f3iches"
 
 
-def _embed(text: str) -> list[float]:
-    if not api_keys:
-        raise RuntimeError("No Gemini API keys found. Check GEMINI_API_KEYS env var.")
-    max_attempts = len(api_keys) + 1
-    for attempt in range(max_attempts):
-        key = next(key_pool)
-        resp = requests.post(
-            EMBED_URL_TPL.format(key=key),
-            headers={"Content-Type": "application/json"},
-            json={"model": EMBEDDING_MODEL, "content": {"parts": [{"text": text}]}},
-            timeout=30,
-        )
-        data = resp.json()
-        if "error" in data:
-            msg = str(data["error"].get("message", "")).lower()
-            if any(tok in msg for tok in ("429", "quota", "exhausted")):
-                time.sleep(5)
-                continue
-            raise RuntimeError(f"Gemini embed error: {data['error']}")
-        return data["embedding"]["values"]
-    raise RuntimeError("All Gemini API keys exhausted during embedding.")
+
 
 
 def _chunks_from_f3iche(defn: dict[str, Any], *, f3iche_id: str) -> list[str]:
@@ -124,13 +98,18 @@ def _chunks_from_f3iche(defn: dict[str, Any], *, f3iche_id: str) -> list[str]:
     return chunks
 
 
-async def seed_database() -> None:
+async def seed_database(target_file: str | None = None) -> None:
     if not F3ICHE_DIR.exists():
         raise FileNotFoundError(f"F3iche dir not found: {F3ICHE_DIR}")
 
-    files = sorted(F3ICHE_DIR.glob("*.json"))
-    if not files:
-        raise RuntimeError(f"No f3iche json files found in {F3ICHE_DIR}")
+    if target_file:
+        files = [F3ICHE_DIR / target_file]
+        if not files[0].exists():
+             raise FileNotFoundError(f"Target file not found: {files[0]}")
+    else:
+        files = sorted(F3ICHE_DIR.glob("*.json"))
+        if not files:
+            raise RuntimeError(f"No f3iche json files found in {F3ICHE_DIR}")
 
     async with AsyncSessionLocal() as session:
         for f in files:
@@ -151,7 +130,7 @@ async def seed_database() -> None:
             await session.commit()
 
             for chunk in chunks:
-                vec = _embed(chunk)
+                vec = await generate_embedding(chunk)
                 vec_str = "[" + ",".join(map(str, vec)) + "]"
                 await session.execute(
                     text(
@@ -169,5 +148,6 @@ async def seed_database() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_database())
+    target = sys.argv[1] if len(sys.argv) > 1 else None
+    asyncio.run(seed_database(target))
 

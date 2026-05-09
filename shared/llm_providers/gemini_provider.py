@@ -13,6 +13,69 @@ class GeminiProvider(AgenticProvider):
     def __init__(self, api_keys: List[str]):
         self.api_keys = api_keys
 
+    async def invoke_structured_output(
+        self,
+        prompt: str,
+        schema: Type[BaseModel],
+        system_instruction: Optional[str] = None,
+        temperature: float = 0.0,
+        max_tokens: int = 2000,
+        model_name: str = "gemini-2.5-flash",
+    ) -> dict:
+        from google import genai
+        from google.genai import types as gt
+        from llm_router import _is_sidelined
+
+        available_keys = [k for k in self.api_keys if not _is_sidelined(model_name, k)]
+        if not available_keys:
+            available_keys = self.api_keys
+        if not available_keys:
+            raise ValueError("No Gemini API keys available")
+
+        contents = [gt.Content(role="user", parts=[gt.Part(text=prompt)])]
+        cfg = gt.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            response_mime_type="application/json",
+            response_schema=schema,
+        )
+
+        last_err = None
+        for attempt in range(2):
+            for key in available_keys:
+                client = genai.Client(api_key=key)
+                try:
+                    resp = await client.aio.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config=cfg,
+                    )
+                    if getattr(resp, "parsed", None):
+                        return resp.parsed.model_dump(mode="json")
+                    raise ValueError("Gemini structured output returned no parsed schema")
+                except Exception as e:
+                    err_str = str(e)
+                    if any(tok in err_str.lower() for tok in (
+                        "429", "quota", "exhausted",
+                        "not_found", "not found",
+                        "403", "permission_denied", "permission denied", "denied access",
+                    )):
+                        logger.warning(f"[GeminiProvider] Key/model rotated ({err_str[:100]})")
+                        last_err = e
+                        continue
+                    raise ValueError(f"Generation failed: {e}")
+                finally:
+                    if hasattr(client.aio, "aclose"):
+                        try:
+                            await client.aio.aclose()
+                        except Exception:
+                            pass
+            if attempt == 0:
+                logger.warning("[GeminiProvider] All keys exhausted! Sleeping 10s...")
+                await asyncio.sleep(10)
+        raise ValueError(f"All keys exhausted or failed. Last error: {last_err}")
+
     async def invoke_agentic_loop(
         self,
         prompt: str,
