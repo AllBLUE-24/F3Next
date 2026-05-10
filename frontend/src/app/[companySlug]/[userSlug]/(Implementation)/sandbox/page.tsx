@@ -1,7 +1,6 @@
 // PATH: src/app/[companySlug]/[userSlug]/(implementation)/sandbox/page.tsx
 
 import { redirect } from 'next/navigation';
-import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { SandboxView } from '@/components/implementation/sandbox/SandboxView';
 import type { SandboxInstance } from '@/types/implementation';
 import { getBaseApiUrl } from '@/lib/config';
@@ -69,13 +68,11 @@ export default async function SandboxPage({ params, searchParams }: Props) {
   if (!sandbox || !jobId) redirect(`/${companySlug}/${userSlug}/validate`);
 
   return (
-    <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
-      <SandboxView
-        jobId={jobId}
-        sandbox={sandbox}
-        companySlug={companySlug}
-        approveAction={approveForProduction}
-      />
-    </ImplementationServerProvider>
+    <SandboxView
+      jobId={jobId}
+      sandbox={sandbox}
+      companySlug={companySlug}
+      approveAction={approveForProduction}
+    />
   );
 }

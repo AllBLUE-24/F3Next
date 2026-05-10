@@ -1,7 +1,6 @@
 // PATH: src/app/[companySlug]/[userSlug]/(implementation)/analyze/page.tsx
 
 import { redirect } from 'next/navigation';
-import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { AnalyzeView } from '@/components/implementation/analyze/AnalyzeView';
 import type { AnalysisTask } from '@/types/implementation';
 
@@ -38,12 +37,10 @@ export default async function AnalyzePage({ params, searchParams }: Props) {
   const resolvedJobId = jobId ?? DEV_JOB_ID;
 
   return (
-    <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
-      <AnalyzeView
-        jobId={resolvedJobId}
-        validateHref={`/${companySlug}/${userSlug}/validate`}
-        devTasks={isDev && !jobId ? DEV_TASKS : undefined}
-      />
-    </ImplementationServerProvider>
+    <AnalyzeView
+      jobId={resolvedJobId}
+      validateHref={`/${companySlug}/${userSlug}/validate`}
+      devTasks={isDev && !jobId ? DEV_TASKS : undefined}
+    />
   );
 }

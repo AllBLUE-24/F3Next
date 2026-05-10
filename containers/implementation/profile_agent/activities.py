@@ -17,6 +17,8 @@ import boto3
 from botocore.config import Config
 from temporalio import activity
 
+from shared.models.is_status import NodeStatusEnvelope
+
 KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches"
 
 
@@ -219,7 +221,7 @@ class EnrichCompanyProfileInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="build_company_profile")
-async def build_company_profile(inp: BuildProfileInput) -> str:
+async def build_company_profile(inp: BuildProfileInput) -> NodeStatusEnvelope:
     """
     Build a fresh versioned company profile snapshot, persist to Supabase + R2.
 
@@ -340,8 +342,35 @@ async def build_company_profile(inp: BuildProfileInput) -> str:
             result="success",
         )
 
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+
+    if not inp.f3iche:
+        errors.append({"code": "MISSING_F3ICHE", "message": "No f3iche provided to build_company_profile"})
+    if not inp.industry:
+        warnings.append({"code": "MISSING_INDUSTRY", "message": "No industry provided to build_company_profile"})
+
+    # Flag persistence problems (the node currently logs and continues; envelope captures the issue)
+    if inp.session_id and profile_id is None:
+        warnings.append({"code": "PROFILE_DB_WRITE_FAILED", "message": "Failed to persist is_company_profiles row"})
+    # If R2 write failed, r2_key is still defined but upload may not have happened; we only know by log
+    # so we treat this as best-effort and do not fail the workflow here.
+
+    primary = {
+        "profile_version": inp.version,
+        "f3iche": inp.f3iche,
+        "industry": inp.industry,
+        "company_name": inp.company_name,
+        "required_modules": profile.get("modules") or [],
+        "draft_required_doctypes": profile.get("required_doctypes") or [],
+    }
+
     activity.logger.info("✅ build_company_profile done")
-    return "success"
+    if errors:
+        return NodeStatusEnvelope.failed(primary_result=primary, errors=errors, warnings=warnings)
+    if warnings:
+        return NodeStatusEnvelope.partial(primary_result=primary, warnings=warnings)
+    return NodeStatusEnvelope.success(primary_result=primary)
 
 
 def _parse_dqs(val) -> Optional[float]:

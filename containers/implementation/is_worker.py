@@ -30,12 +30,18 @@ from containers.implementation.mapping_agent.activities    import map_file_to_er
 from containers.implementation.validation_agent.activities import validate_mapped_data
 from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases
 from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
+from containers.implementation.supervisor_agent.activities import supervise_step, apply_supervisor_actions
+from containers.implementation.derive_agent.activities import derive_required_records
 from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files
 from containers.implementation.file_io.persist_profile     import persist_profile
 from containers.implementation.file_io.persist_session     import persist_session
 from containers.implementation.file_io.persist_mapping     import persist_mapping
 from containers.implementation.file_io.persist_import_run  import persist_import_plan, persist_import_log
 from containers.implementation.file_io.persist_audit       import persist_audit
+from containers.implementation.file_io.persist_supervisor_prompt import (
+    persist_supervisor_prompt,
+    mark_supervisor_prompt_answered,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +78,11 @@ async def main() -> None:
                         refine_mapping_with_llm,
                         # validation_agent
                         validate_mapped_data,
+                        # supervisor_agent
+                        supervise_step,
+                        apply_supervisor_actions,
+                        # derive_agent
+                        derive_required_records,
                         # import_agent
                         build_import_plan,
                         execute_import_phase,
@@ -86,6 +97,8 @@ async def main() -> None:
                         persist_import_plan,
                         persist_import_log,
                         persist_audit,
+                        persist_supervisor_prompt,
+                        mark_supervisor_prompt_answered,
                        ],
             activity_executor=activity_executor,
         )

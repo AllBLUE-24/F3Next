@@ -21,7 +21,7 @@ from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import (
     ISSession, ISCompanyProfile, ISTargetStructure,
     ISMappedData, ISValidationResult, ISValidationError,
-    ISImportPlan, ISImportLog,
+    ISImportPlan, ISImportLog, ISSupervisorPrompt,
 )
 from shared.models.hooks import Hook
 
@@ -33,6 +33,7 @@ from containers.implementation.is_workflow.workflow import (
     MappingConfirmedSignal,
     ValidationSubmittedSignal,
     SandboxApprovedSignal,
+    SupervisorResponseSignal,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,23 @@ class ImplementationLauncher:
         except RPCError as e:
             logger.warning(f"Failed to signal sandbox approved (likely completed/failed): {e}")
 
+    async def signal_supervisor_response(
+        self,
+        project_id: str | UUID,
+        prompt_id: str,
+        chosen_action_id: str,
+        extra_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        handle = await self._handle(project_id)
+        await handle.signal(
+            ImplementationWorkflow.supervisor_response,
+            SupervisorResponseSignal(
+                prompt_id=prompt_id,
+                chosen_action_id=chosen_action_id,
+                extra_data=extra_data or {},
+            ),
+        )
+
     # ── Queries ───────────────────────────────────────────────────────────────
 
     async def get_stage(self, project_id: str | UUID) -> str:
@@ -280,6 +298,67 @@ class ImplementationLauncher:
                 "errors": all_errors,
                 "warnings": all_warnings,
             }
+
+    async def get_supervisor_prompts(self, project_id: str | UUID, status: str = "open") -> List[Dict[str, Any]]:
+        """
+        Return Supervisor prompts for the latest IS session of this project.
+        """
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            return []
+
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISSupervisorPrompt)
+                .where(ISSupervisorPrompt.session_id == is_session.id)
+                .where(ISSupervisorPrompt.status == status)
+                .order_by(ISSupervisorPrompt.created_at.desc())
+                .limit(50)
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            out: List[Dict[str, Any]] = []
+            for r in rows:
+                out.append(
+                    {
+                        "id": str(r.id),
+                        "session_id": str(r.session_id),
+                        "step": r.step,
+                        "status": r.status,
+                        "summary_for_ui": r.summary_for_ui,
+                        "actions": r.actions or [],
+                        "node_status": r.node_status or {},
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                    }
+                )
+            return out
+
+    async def answer_supervisor_prompt(
+        self,
+        project_id: str | UUID,
+        prompt_id: str,
+        chosen_action_id: str,
+        extra_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Persist the user's answer and signal the workflow.
+        """
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            raise ValueError("Implementation session not found")
+
+        answer_payload = {"chosen_action_id": chosen_action_id, "extra_data": extra_data or {}}
+
+        from sqlalchemy import update
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                update(ISSupervisorPrompt)
+                .where(ISSupervisorPrompt.id == UUID(prompt_id))
+                .values(status="answered", answer_payload=answer_payload)
+            )
+            await session.commit()
+
+        await self.signal_supervisor_response(project_id, prompt_id, chosen_action_id, extra_data=extra_data)
 
     async def get_import_plan(self, project_id: str | UUID) -> Optional[Dict]:
         """Query ISImportPlan for this project."""

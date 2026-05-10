@@ -46,6 +46,8 @@ import boto3
 from botocore.config import Config
 from temporalio import activity
 
+from shared.models.is_status import NodeStatusEnvelope
+
 
 def _get_s3_client():
     return boto3.client(
@@ -267,7 +269,7 @@ class ValidateInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="validate_mapped_data")
-async def validate_mapped_data(inp: ValidateInput) -> str:
+async def validate_mapped_data(inp: ValidateInput) -> NodeStatusEnvelope:
     activity.logger.info("▶ validate_mapped_data started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
@@ -438,4 +440,25 @@ async def validate_mapped_data(inp: ValidateInput) -> str:
          activity.logger.error("  ❌ Audit log failed: %s", e)
 
     activity.logger.info("✅ validate_mapped_data done | overall=%s errors=%d", v_status, n_errors)
-    return v_status
+    # Build structured envelope (node remains deterministic; this is only a contract change)
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+
+    for msg in report.get("errors", []) or []:
+        errors.append({"code": "VALIDATION_ERROR", "message": str(msg)})
+    for msg in report.get("warnings", []) or []:
+        warnings.append({"code": "VALIDATION_WARNING", "message": str(msg)})
+
+    primary = {
+        "overall": v_status,
+        "error_count": n_errors,
+        "warning_count": n_warnings,
+        "report_r2_path": report_key,
+        "doctypes_checked": len(report.get("checks", []) or []),
+    }
+
+    if v_status != "pass" or errors:
+        return NodeStatusEnvelope.failed(primary_result=primary, errors=errors, warnings=warnings)
+    if warnings:
+        return NodeStatusEnvelope.partial(primary_result=primary, warnings=warnings)
+    return NodeStatusEnvelope.success(primary_result=primary)

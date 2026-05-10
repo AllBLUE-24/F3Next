@@ -18,6 +18,7 @@ Tables:
   is_import_plans         — 3-phase import plans
   is_import_logs          — step-by-step import execution log
   is_audit_trail          — full history of every action
+  is_supervisor_prompts   — exception-driven Supervisor prompts (conversation loop)
 """
 
 from __future__ import annotations
@@ -579,6 +580,45 @@ class ISAuditTrail(Base):
         Index("idx_audit_trail_session", "session_id"),
         Index("idx_audit_trail_action", "action"),
         Index("idx_audit_trail_actor", "actor"),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 14. ISSupervisorPrompt — Exception-driven user prompts
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ISSupervisorPrompt(Base):
+    __tablename__ = "is_supervisor_prompts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("is_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Which step raised this prompt (e.g., mapping, validation, target_structure)
+    step = Column(String, nullable=False)
+
+    # open | answered | obsolete
+    status = Column(String, nullable=False, default="open")
+
+    # Snapshot of the node status envelope (JSON serializable)
+    node_status = Column(JSONB, nullable=True)
+
+    # Supervisor actions (auto_fix / ask_user / hard_block)
+    actions = Column(JSONB, nullable=True)
+
+    summary_for_ui = Column(Text, nullable=True)
+    answer_payload = Column(JSONB, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_is_supervisor_prompts_session", "session_id"),
+        Index("idx_is_supervisor_prompts_step", "step"),
+        Index("idx_is_supervisor_prompts_status", "status"),
     )
 
 class ISFieldMappingHistory(Base):

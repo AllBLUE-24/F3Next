@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
+from dataclasses import asdict
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
@@ -28,12 +30,22 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche, InferF3icheInput, VerifyF3icheInput
     from containers.implementation.profile_agent.activities    import align_discovery_and_signals, build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput, AlignDiscoverySignalsInput, RetrieveIndustryKnowledgeInput, EnrichCompanyProfileInput, retrieve_industry_knowledge, enrich_company_profile
     from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
+    from containers.implementation.derive_agent.activities     import derive_required_records, DeriveRequiredRecordsInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
+    from containers.implementation.supervisor_agent.activities import supervise_step, SuperviseStepInput
+    from containers.implementation.supervisor_agent.activities import apply_supervisor_actions
+    from shared.models.is_status import ApplySupervisorActionsInput
+    from containers.implementation.file_io.persist_supervisor_prompt import (
+        persist_supervisor_prompt,
+        PersistSupervisorPromptInput,
+        mark_supervisor_prompt_answered,
+        MarkSupervisorPromptAnsweredInput,
+    )
     from containers.context_versioning.context_store.activities import (
         register_frappe_webhooks,
     )
@@ -129,6 +141,13 @@ class SandboxApprovedSignal:
     dry_run: bool = False
 
 
+@dataclass
+class SupervisorResponseSignal:
+    prompt_id: str
+    chosen_action_id: str
+    extra_data: Dict[str, Any] = field(default_factory=dict)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Workflow
 # ══════════════════════════════════════════════════════════════════════════════
@@ -148,6 +167,7 @@ class ImplementationWorkflow:
         self._mapping_confirmed_event  = asyncio.Event()
         self._validation_submitted_event = asyncio.Event()
         self._sandbox_approved_event   = asyncio.Event()
+        self._supervisor_response_event = asyncio.Event()
 
         # Signal payloads
         self._sig_files:      Optional[FilesUploadedSignal]      = None
@@ -155,6 +175,7 @@ class ImplementationWorkflow:
         self._sig_mapping:    Optional[MappingConfirmedSignal]   = None
         self._sig_validation: Optional[ValidationSubmittedSignal] = None
         self._sig_sandbox:    Optional[SandboxApprovedSignal]    = None
+        self._sig_supervisor: Optional[SupervisorResponseSignal] = None
 
     # ── Signals ──────────────────────────────────────────────────────────────
 
@@ -182,6 +203,11 @@ class ImplementationWorkflow:
     async def sandbox_approved(self, sig: SandboxApprovedSignal) -> None:
         self._sig_sandbox = sig
         self._sandbox_approved_event.set()
+
+    @workflow.signal
+    async def supervisor_response(self, sig: SupervisorResponseSignal) -> None:
+        self._sig_supervisor = sig
+        self._supervisor_response_event.set()
 
     # ── Queries ───────────────────────────────────────────────────────────────
 
@@ -505,7 +531,7 @@ class ImplementationWorkflow:
                     f"f3iche={conf.f3iche_user} | industry={conf.industry}")
 
         try:
-            target: Dict = await workflow.execute_activity(
+            target_env = await workflow.execute_activity(
                 build_target_structure,
                 BuildTargetInput(
                     session_id=self._session_id,
@@ -515,8 +541,9 @@ class ImplementationWorkflow:
                 ),
                 **_ACT,
             )
-            n_doctypes = len(target.get("required_doctypes", []))
-            n_steps = len(target.get("setup_steps", []))
+            target: Dict = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
+            n_doctypes = len(target.get("required_doctypes", [])) if isinstance(target, dict) else 0
+            n_steps = len(target.get("setup_steps", [])) if isinstance(target, dict) else 0
             _kv(L, "required_doctypes", n_doctypes)
             _kv(L, "setup_steps", n_steps)
             _kv(L, "table", "is_target_structures")
@@ -528,7 +555,62 @@ class ImplementationWorkflow:
             self._stage = "error"
             raise ApplicationError(f"Target structure failed: {e}")
 
+        # Supervisor hook (non-blocking): persist prompt if target build not OK
+        supervisor_enabled = workflow.side_effect(lambda: os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1")
+        if supervisor_enabled and not getattr(target_env, "ok", False):
+            try:
+                sup = await workflow.execute_activity(
+                    supervise_step,
+                    SuperviseStepInput(
+                        project_id=project_id,
+                        session_id=self._session_id,
+                        node_name="build_target_structure",
+                        step="8",
+                        f3iche_id=conf.f3iche_user,
+                        phase="phase_a_config",
+                        doctypes_in_focus=[],
+                        status=target_env,
+                    ),
+                    **_ACT,
+                )
+                await workflow.execute_activity(
+                    persist_supervisor_prompt,
+                    PersistSupervisorPromptInput(
+                        session_id=self._session_id,
+                        step="target_structure",
+                        status="open",
+                        node_status=asdict(target_env),
+                        actions=[asdict(a) for a in (sup.actions or [])],
+                        summary_for_ui=sup.summary_for_ui,
+                    ),
+                    **_ACT,
+                )
+            except Exception as e:
+                L.info("      ⚠️  Supervisor hook for target_structure failed (non-fatal): %s", e)
+
         self._set_task("t5", "done", f"{len(target.get('required_doctypes', []))} doctypes target")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 8b / 14  —  Derive Required Records (draft prerequisites)
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, "8b", "Derive Required Records", "Deriving prerequisite doctypes when files are missing")
+        try:
+            derive_env = await workflow.execute_activity(
+                derive_required_records,
+                DeriveRequiredRecordsInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            d_primary = derive_env.primary_result if hasattr(derive_env, "primary_result") else {}
+            missing = (d_primary or {}).get("missing_doctypes", []) if isinstance(d_primary, dict) else []
+            _kv(L, "derived", list((d_primary or {}).get("derived", {}).keys()) if isinstance(d_primary, dict) else [])
+            _kv(L, "missing_doctypes", len(missing))
+            _step_ok(L, "8b", "Derive Required Records", f"missing={len(missing)}")
+        except Exception as e:
+            _step_fail(L, "8b", "Derive Required Records", str(e))
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 8 / 14  —  Update Session to Mapping
@@ -566,7 +648,7 @@ class ImplementationWorkflow:
         for i, fname in enumerate(sorted_files):
             L.info("      [%d/%d] Mapping: %s", i + 1, len(self._parsed_files), fname)
             try:
-                mapped_doctype: str = await workflow.execute_activity(
+                mapped_env = await workflow.execute_activity(
                     map_file_to_erpnext,
                     MapFileInput(
                         r2_manifest_url=r2_manifest_url,
@@ -577,11 +659,46 @@ class ImplementationWorkflow:
                     ),
                     **_ACT,
                 )
-                if mapped_doctype not in ["error", "unmapped"]:
+                pr = mapped_env.primary_result if hasattr(mapped_env, "primary_result") else {}
+                mapped_doctypes = (pr or {}).get("doctypes_mapped", []) if isinstance(pr, dict) else []
+                if getattr(mapped_env, "ok", False) and mapped_doctypes:
                     mapped_count += 1
-                    L.info("             → ✅ %s → %s", fname, mapped_doctype)
+                    L.info("             → ✅ %s → %s", fname, ",".join(mapped_doctypes))
                 else:
-                    L.info("             → ⚠️  %s → %s", fname, mapped_doctype)
+                    L.info("             → ⚠️  %s → %s", fname, ",".join(mapped_doctypes) if mapped_doctypes else "unmapped")
+
+                # Supervisor hook (non-blocking): persist mapping prompt for this file if needed
+                supervisor_enabled = workflow.side_effect(lambda: os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1")
+                if supervisor_enabled and not getattr(mapped_env, "ok", False):
+                    try:
+                        sup = await workflow.execute_activity(
+                            supervise_step,
+                            SuperviseStepInput(
+                                project_id=project_id,
+                                session_id=self._session_id,
+                                node_name="map_file_to_erpnext",
+                                step="9",
+                                f3iche_id=conf.f3iche_user,
+                                phase="phase_b_master",
+                                doctypes_in_focus=mapped_doctypes,
+                                status=mapped_env,
+                            ),
+                            **_ACT,
+                        )
+                        await workflow.execute_activity(
+                            persist_supervisor_prompt,
+                            PersistSupervisorPromptInput(
+                                session_id=self._session_id,
+                                step="mapping",
+                                status="open",
+                                node_status=asdict(mapped_env),
+                                actions=[asdict(a) for a in (sup.actions or [])],
+                                summary_for_ui=sup.summary_for_ui,
+                            ),
+                            **_ACT,
+                        )
+                    except Exception as e:
+                        L.info("             → ⚠️  Supervisor hook for mapping failed: %s", e)
             except Exception as e:
                 L.info("             → ❌ %s FAILED: %s", fname, e)
 
@@ -653,24 +770,136 @@ class ImplementationWorkflow:
                     "Checking mapped data vs target structure rules")
 
         try:
-            v_status: str = await workflow.execute_activity(
+            v_env = await workflow.execute_activity(
                 validate_mapped_data,
                 ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                 **_ACT,
             )
-            _kv(L, "overall_status", v_status)
+            v_primary = v_env.primary_result if hasattr(v_env, "primary_result") else {}
+            v_status = v_primary.get("overall") if isinstance(v_primary, dict) else None
+            _kv(L, "overall_status", v_status or getattr(v_env, "status", "unknown"))
             _kv(L, "reads from", "is_target_structures, is_mapped_data, R2 extracted rows")
             _kv(L, "tables written", "is_validation_results, is_validation_errors")
             _kv(L, "also updates", "is_mapped_data.validation_status, is_sessions.status")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_validation/report.json")
             _kv(L, "audit", "is_audit_trail → validation_run")
-            _step_ok(L, 11, "Validation", f"overall={v_status}")
+            _step_ok(L, 11, "Validation", f"overall={v_status or getattr(v_env, 'status', 'unknown')}")
         except Exception as e:
             _step_fail(L, 11, "Validation", str(e))
             self._stage = "error"
             raise ApplicationError(f"Validation failed: {e}")
 
-        self._set_task("t7", "done", f"Status: {v_status}")
+        # ── Supervisor correction loop (feature-flagged) ─────────────────────
+        supervisor_enabled = workflow.side_effect(lambda: os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1")
+        if supervisor_enabled:
+            auto_fix_attempted = False
+            ask_cycles = 0
+
+            while True:
+                if getattr(v_env, "ok", False):
+                    break
+
+                sup = await workflow.execute_activity(
+                    supervise_step,
+                    SuperviseStepInput(
+                        project_id=project_id,
+                        session_id=self._session_id,
+                        node_name="validate_mapped_data",
+                        step="11",
+                        f3iche_id=conf.f3iche_user,
+                        phase="phase_c_transactional",
+                        doctypes_in_focus=[],
+                        status=v_env,
+                    ),
+                    **_ACT,
+                )
+                _kv(L, "supervisor", sup.summary_for_ui)
+
+                auto_fixes = [a for a in (sup.actions or []) if getattr(a, "type", "") == "auto_fix"]
+                if auto_fixes and not auto_fix_attempted and sup.final_status == "resolved":
+                    await workflow.execute_activity(
+                        apply_supervisor_actions,
+                        ApplySupervisorActionsInput(
+                            project_id=project_id,
+                            session_id=self._session_id,
+                            step="validation",
+                            company_slug=self._company_slug,
+                            actions=auto_fixes,
+                        ),
+                        **_ACT,
+                    )
+                    auto_fix_attempted = True
+                    v_env = await workflow.execute_activity(
+                        validate_mapped_data,
+                        ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
+                        **_ACT,
+                    )
+                    continue
+
+                if sup.final_status in ("needs_user_input", "hard_block"):
+                    # Persist prompt for UI consumption
+                    prompt_id = await workflow.execute_activity(
+                        persist_supervisor_prompt,
+                        PersistSupervisorPromptInput(
+                            session_id=self._session_id,
+                            step="validation",
+                            status="open",
+                            node_status=asdict(v_env),
+                            actions=[asdict(a) for a in (sup.actions or [])],
+                            summary_for_ui=sup.summary_for_ui,
+                        ),
+                        **_ACT,
+                    )
+
+                    ask_cycles += 1
+                    if ask_cycles > 2:
+                        L.info("      ⚠️  Supervisor ask_user cycles exceeded; stopping correction loop.")
+                        break
+
+                    self._supervisor_response_event.clear()
+                    L.info("  ⏳ Waiting for supervisor_response signal ...")
+                    await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
+
+                    ssig = self._sig_supervisor
+                    if ssig:
+                        await workflow.execute_activity(
+                            mark_supervisor_prompt_answered,
+                            MarkSupervisorPromptAnsweredInput(
+                                prompt_id=str(prompt_id),
+                                answer_payload={"chosen_action_id": ssig.chosen_action_id, "extra_data": ssig.extra_data},
+                                status="answered",
+                            ),
+                            **_ACT,
+                        )
+
+                        # If chosen action is an auto_fix action, apply it.
+                        chosen = ssig.chosen_action_id
+                        chosen_action = next((a for a in (sup.actions or []) if getattr(a, "id", None) == chosen), None)
+                        if chosen_action and getattr(chosen_action, "type", "") == "auto_fix":
+                            await workflow.execute_activity(
+                                apply_supervisor_actions,
+                                ApplySupervisorActionsInput(
+                                    project_id=project_id,
+                                    session_id=self._session_id,
+                                    step="validation",
+                                    company_slug=self._company_slug,
+                                    actions=[chosen_action],
+                                ),
+                                **_ACT,
+                            )
+
+                    # Re-run validation after user response (or no-op)
+                    v_env = await workflow.execute_activity(
+                        validate_mapped_data,
+                        ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
+                        **_ACT,
+                    )
+                    continue
+
+                # Nothing else to do (either already tried auto-fix, or no actionable items)
+                break
+
+        self._set_task("t7", "done", f"Status: {v_status or getattr(v_env, 'status', 'unknown')}")
         self._stage = "awaiting_validation_submission"
 
         # ══════════════════════════════════════════════════════════════════════

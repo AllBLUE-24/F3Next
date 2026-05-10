@@ -22,6 +22,7 @@ from sqlalchemy import select, update, delete
 
 from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import ISFieldMapping, ISMappedData, ISFieldMappingHistory
+from shared.models.is_status import NodeStatusEnvelope
 from containers.implementation.utils.llm_helper import generate_json
 
 # 🚀 Importing the prompt cleanly!
@@ -484,7 +485,7 @@ class RefineMappingInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="map_file_to_erpnext")
-async def map_file_to_erpnext(inp: MapFileInput) -> str:
+async def map_file_to_erpnext(inp: MapFileInput) -> NodeStatusEnvelope:
     activity.logger.info("▶ map_file_to_erpnext started | file=%s key=%s hint=%s",
                          inp.filename, inp.r2_manifest_url, inp.doctype_hint)
 
@@ -497,10 +498,16 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
         content = manifest.get("files", {}).get(inp.filename)
         if not content:
             activity.logger.warning("  ⚠️ File %s not found in manifest", inp.filename)
-            return "error"
+            return NodeStatusEnvelope.failed(
+                errors=[{"code": "FILE_NOT_IN_MANIFEST", "message": f"File '{inp.filename}' not found in manifest"}],
+                primary_result={"file": inp.filename},
+            )
     except Exception as e:
         activity.logger.error("❌ Failed to download manifest from R2: %s", e)
-        return "error"
+        return NodeStatusEnvelope.failed(
+            errors=[{"code": "MANIFEST_DOWNLOAD_FAILED", "message": "Failed to download manifest from R2", "details": {"error": str(e)}}],
+            primary_result={"file": inp.filename},
+        )
 
     engine = _MappingEngine()
     candidates = await _get_candidate_doctypes(inp.session_id)
@@ -773,10 +780,13 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
 
     if not mapped_doctypes:
         activity.logger.info("  ⚠️ No doctypes mapped for %s", inp.filename)
-        return "unmapped"
+        return NodeStatusEnvelope.partial(
+            primary_result={"file": inp.filename, "doctypes_mapped": []},
+            warnings=[{"code": "NO_DOCTYPES_MAPPED", "message": f"No doctypes mapped for file '{inp.filename}'"}],
+        )
 
     activity.logger.info("✅ map_file_to_erpnext done | doctypes=%s", mapped_doctypes)
-    return ",".join(mapped_doctypes)
+    return NodeStatusEnvelope.success(primary_result={"file": inp.filename, "doctypes_mapped": mapped_doctypes})
 
 
 @activity.defn(name="infer_doctype_from_columns")

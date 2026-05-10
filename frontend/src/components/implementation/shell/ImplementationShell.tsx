@@ -4,6 +4,7 @@
 
 import { StepRail } from './StepRail';
 import { IBM_Plex_Mono } from "next/font/google";
+import { SupervisorPanel } from "@/components/implementation/supervisor/SupervisorPanel";
 
 const mono = IBM_Plex_Mono({
   subsets: ["latin"],
@@ -30,6 +31,11 @@ export function ImplementationShell({ children }: Props) {
             {children}
           </div>
         </main>
+
+        {/* Right-side Supervisor panel */}
+        <aside className="hidden xl:flex w-[360px] border-l border-[var(--border-subtle)] bg-[var(--bg-shell)]">
+          <SupervisorPanel />
+        </aside>
       </div>
       
     </div>

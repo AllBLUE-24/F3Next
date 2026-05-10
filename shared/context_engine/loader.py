@@ -148,17 +148,14 @@ async def retrieve_kb_chunks(
             for row in res:
                 out.append(row[0])
             if not out and kb_source_prefix:
-                res2 = await session.execute(
-                    text("""
-                        SELECT content
-                        FROM kb_embeddings
-                        ORDER BY embedding <=> CAST(:vector AS vector)
-                        LIMIT :lim
-                    """),
-                    {"vector": query_embedding_str, "lim": top_k},
+                # Do NOT fall back to full-table search — that would return
+                # semantically unrelated chunks from other collections (contamination).
+                # Callers handle empty results via their direct JSON fallbacks.
+                logger.warning(
+                    "[retrieve_kb_chunks] prefix=%s returned 0 rows for top_k=%d "
+                    "— collection may not be seeded yet",
+                    kb_source_prefix, top_k,
                 )
-                for row in res2:
-                    out.append(row[0])
     except Exception as e:
         logger.warning("Tier3 vector search failed: %s", e)
     return out

@@ -1,12 +1,16 @@
-// PATH: src/app/[companySlug]/[userSlug]/(implementation)/layout.tsx
-// ✅ Static — no async, no fetch, no params. Turbopack-safe.
-
 import { ImplementationShell } from '@/components/implementation/shell/ImplementationShell';
+import { ImplementationServerProvider } from "@/components/implementation/ImplementationServerProvider";
 
-export default function ImplementationLayout({ children }: { children: React.ReactNode }) {
+interface Props {
+  children: React.ReactNode;
+  params: Promise<{ companySlug: string; userSlug: string }>;
+}
+
+export default async function ImplementationLayout({ children, params }: Props) {
+  const { companySlug, userSlug } = await params;
   return (
-    <ImplementationShell>
-      {children}
-    </ImplementationShell>
+    <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
+      <ImplementationShell>{children}</ImplementationShell>
+    </ImplementationServerProvider>
   );
 }

@@ -25,6 +25,7 @@ from temporalio import activity
 
 from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import ISCompanyProfile, ISTargetStructure
+from shared.models.is_status import NodeStatusEnvelope
 from containers.implementation.utils.llm_helper import generate_json
 
 # 🚀 Importing the prompt from your clean prompts.py file!
@@ -325,7 +326,7 @@ class BuildTargetInput:
 # ─── ACTIVITIES ───────────────────────────────────────────────────────────────
 
 @activity.defn(name="build_target_structure")
-async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
+async def build_target_structure(inp: BuildTargetInput) -> NodeStatusEnvelope:
     """
     Step 8: Generates the Target Structure (Blueprint) for ERPNext mapping.
 
@@ -542,7 +543,33 @@ async def build_target_structure(inp: BuildTargetInput) -> Dict[str, Any]:
     except Exception as e:
         activity.logger.error("  ❌ ISTargetStructure persistence failed: %s", e)
 
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+
+    if not seed_doctypes:
+        errors.append({
+            "code": "NO_SEED_DOCTYPES",
+            "message": "No seed doctypes found from company profile or f3iche template; target structure may be incomplete",
+            "details": {"f3iche": inp.f3iche},
+        })
+
+    if not result.get("required_doctypes"):
+        errors.append({"code": "EMPTY_REQUIRED_DOCTYPES", "message": "Target structure produced no required_doctypes"})
+
+    if graph_driven is False:
+        warnings.append({"code": "GRAPH_NOT_USED", "message": "Doctype graph not available; fell back to seed doctypes only"})
+
     activity.logger.info("✅ build_target_structure done | doctypes=%d steps=%d graph_driven=%s",
                          len(result.get("required_doctypes", [])), len(result.get("setup_steps", [])), graph_driven)
-    return result
+
+    primary = {
+        "target_structure": result,
+        "graph_driven": graph_driven,
+        "llm_enhanced": llm_enhanced,
+    }
+    if errors:
+        return NodeStatusEnvelope.failed(primary_result=primary, errors=errors, warnings=warnings)
+    if warnings:
+        return NodeStatusEnvelope.partial(primary_result=primary, warnings=warnings)
+    return NodeStatusEnvelope.success(primary_result=primary)
 

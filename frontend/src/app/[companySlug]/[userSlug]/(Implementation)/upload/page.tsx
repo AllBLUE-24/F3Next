@@ -1,4 +1,3 @@
-import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { UploadView } from '@/components/implementation/upload/UploadView';
 import { getBaseApiUrl } from '@/lib/config';
 
@@ -73,13 +72,11 @@ export default async function UploadPage({ params }: Props) {
   const context = await getProjectContext(companySlug);
 
   return (
-    <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
-      <UploadView
-        projectId={context.project_id}
-        getPresignedUrls={getPresignedUrls}
-        signalUploadComplete={signalUploadComplete}
-        analyzeHref={`/${companySlug}/${userSlug}/analyze`}
-      />
-    </ImplementationServerProvider>
+    <UploadView
+      projectId={context.project_id}
+      getPresignedUrls={getPresignedUrls}
+      signalUploadComplete={signalUploadComplete}
+      analyzeHref={`/${companySlug}/${userSlug}/analyze`}
+    />
   );
 }

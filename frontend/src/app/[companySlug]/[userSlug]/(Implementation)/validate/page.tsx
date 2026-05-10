@@ -1,7 +1,6 @@
 // PATH: src/app/[companySlug]/[userSlug]/(implementation)/validate/page.tsx
 
 import { redirect } from 'next/navigation';
-import { ImplementationServerProvider } from '@/components/implementation/ImplementationServerProvider';
 import { ValidateView } from '@/components/implementation/validate/ValidateView';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 import { getBaseApiUrl } from '@/lib/config';
@@ -84,15 +83,13 @@ export default async function ValidatePage({ params, searchParams }: Props) {
   }
 
   return (
-    <ImplementationServerProvider companySlug={companySlug} userSlug={userSlug}>
-      <ValidateView
-        jobId={jobId}
-        preview={preview}
-        submitValidation={submitValidation}
-        submitImport={submitImport}
-        sandboxHref={`/${companySlug}/${userSlug}/sandbox?jobId=${jobId}`}
-        companySlug={companySlug}
-      />
-    </ImplementationServerProvider>
+    <ValidateView
+      jobId={jobId}
+      preview={preview}
+      submitValidation={submitValidation}
+      submitImport={submitImport}
+      sandboxHref={`/${companySlug}/${userSlug}/sandbox?jobId=${jobId}`}
+      companySlug={companySlug}
+    />
   );
 }

@@ -307,3 +307,39 @@ async def get_validate_preview(
     if "error" in preview:
         raise HTTPException(status_code=404, detail=preview["error"])
     return preview
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Supervisor prompts (exception-driven conversation)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/supervisor-prompts/{project_id}", summary="Open Supervisor prompts for this project")
+async def get_supervisor_prompts(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    return {"prompts": await launcher.get_supervisor_prompts(project_id)}
+
+
+class SupervisorRespondRequest(BaseModel):
+    project_id: UUID
+    prompt_id: str
+    chosen_action_id: str
+    extra_data: Optional[Dict[str, Any]] = None
+
+
+@router.post("/supervisor-prompts/respond", summary="Answer a Supervisor prompt and signal workflow")
+async def respond_supervisor_prompt(
+    req: SupervisorRespondRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        await launcher.answer_supervisor_prompt(
+            req.project_id,
+            req.prompt_id,
+            req.chosen_action_id,
+            extra_data=req.extra_data,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True}
