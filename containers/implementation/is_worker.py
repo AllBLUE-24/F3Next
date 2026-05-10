@@ -28,7 +28,7 @@ from containers.implementation.profile_agent.activities    import build_company_
 from containers.implementation.target_agent.activities     import build_target_structure
 from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, infer_doctype_from_columns, refine_mapping_with_llm
 from containers.implementation.validation_agent.activities import validate_mapped_data
-from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase
+from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases
 from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
 from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files
 from containers.implementation.file_io.persist_profile     import persist_profile
@@ -75,6 +75,7 @@ async def main() -> None:
                         # import_agent
                         build_import_plan,
                         execute_import_phase,
+                        get_import_plan_phases,
                         # virus_scan_agent
                         virus_scan_quarantine,
                         # file_io

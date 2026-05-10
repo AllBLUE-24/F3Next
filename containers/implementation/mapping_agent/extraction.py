@@ -2,17 +2,19 @@
 Schema-locked extraction (Step B) for Mapping Agent.
 
 For unstructured text, we use provider-agnostic structured outputs with a doctype-specific
-Pydantic schema generated from the ERPNext KB.
+Pydantic schema generated from the ERPNext KB — with a live ERP fallback for doctypes
+not in the static KB.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import ValidationError
 
 from containers.implementation.mapping_agent.schema_builder import (
     build_extraction_wrapper_model,
+    build_extraction_wrapper_model_live,
 )
 from shared.structured_llm import generate_typed
 
@@ -23,8 +25,22 @@ async def extract_unstructured_records(
     content: str,
     filename: str,
     model_name: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    wrapper = build_extraction_wrapper_model(doctype)
+    """
+    Extract structured records from unstructured text for the given ERPNext doctype.
+
+    Args:
+        doctype:    Target ERPNext doctype (e.g. "Customer", "Work Order").
+        content:    Raw file content (text from .txt or .pdf).
+        filename:   Source filename (used in LLM prompt for context).
+        model_name: LLM model to use for extraction.
+        project_id: F3Next project UUID. When provided, enables live ERP schema
+                    fallback for doctypes not in the static KB.
+    """
+    # Use the live-aware wrapper: KB-hit doctypes get the fast cached model;
+    # KB-miss doctypes get a live schema from the project's ERP instance.
+    wrapper = await build_extraction_wrapper_model_live(doctype, project_id)
 
     snippet = (content or "")[:6000]
     prompt = (
@@ -67,16 +83,22 @@ async def extract_unstructured_records(
         return list(res.get("records") or [])
 
 
-def validate_records_against_schema(doctype: str, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def validate_records_against_schema(
+    doctype: str,
+    records: List[Dict[str, Any]],
+    project_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
     Local validation/normalization pass: parse via Pydantic and re-dump as JSON.
     This coerces numeric/date types deterministically.
+
+    Args:
+        project_id: When provided, enables live ERP schema fallback for KB-miss doctypes.
     """
-    wrapper = build_extraction_wrapper_model(doctype)
+    wrapper = await build_extraction_wrapper_model_live(doctype, project_id)
     try:
         obj = wrapper.model_validate({"records": records})
     except ValidationError as ve:
         # Raise to let caller decide to retry or default-inject more aggressively
         raise ve
     return list(obj.model_dump(mode="json").get("records") or [])
-

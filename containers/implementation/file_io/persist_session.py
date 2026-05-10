@@ -48,6 +48,18 @@ async def persist_session(inp: Any) -> Any:
         if "session_id" in inp:
             inp = CompleteSessionInput(**inp)
         elif "project_id" in inp:
+            # Handle the case where project_id is accidentally passed as a dictionary or stringified dictionary
+            pid = inp.get("project_id")
+            if isinstance(pid, dict):
+                inp["project_id"] = pid.get("project_id", str(pid))
+            elif isinstance(pid, str) and pid.strip().startswith("{"):
+                import ast
+                try:
+                    parsed = ast.literal_eval(pid)
+                    if isinstance(parsed, dict):
+                        inp["project_id"] = parsed.get("project_id", pid)
+                except Exception:
+                    pass
             inp = PersistSessionInput(**inp)
         else:
             raise ValueError(f"Invalid input dictionary passed to persist_session: {inp}")
@@ -106,8 +118,24 @@ async def persist_session(inp: Any) -> Any:
         
         try:
             async with AsyncSessionLocal() as session:
+                # Be absolutely sure project_id is a valid UUID string
+                project_id_val = inp.project_id
+                if isinstance(project_id_val, dict):
+                    project_id_val = project_id_val.get("project_id", str(project_id_val))
+                elif isinstance(project_id_val, str) and project_id_val.strip().startswith("{"):
+                    import ast
+                    try:
+                        parsed = ast.literal_eval(project_id_val)
+                        if isinstance(parsed, dict):
+                            project_id_val = parsed.get("project_id", project_id_val)
+                    except Exception:
+                        pass
+                
+                # Make sure it's just the UUID hex
+                clean_uuid = str(project_id_val).strip()
+                
                 stmt = select(ISSession).where(
-                    ISSession.project_id == uuid.UUID(inp.project_id)
+                    ISSession.project_id == uuid.UUID(clean_uuid)
                 ).order_by(ISSession.created_at.desc())
                 result = await session.execute(stmt)
                 existing = result.scalars().first()
@@ -123,7 +151,7 @@ async def persist_session(inp: Any) -> Any:
                     # Create new
                     new_session = ISSession(
                         id=uuid.uuid4(),
-                        project_id=uuid.UUID(inp.project_id),
+                        project_id=uuid.UUID(clean_uuid),
                         workflow_id=inp.workflow_id,
                         status=inp.status,
                         discovery_f3iche=inp.discovery_f3iche,

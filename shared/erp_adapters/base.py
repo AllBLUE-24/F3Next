@@ -153,3 +153,18 @@ class ERPAdapter(ABC):
     def normalize_field_name(self, doctype: str, field: str) -> str:
         """Hook for ERP-specific naming; default passthrough."""
         return field
+
+    async def get_doctype_schema(
+        self,
+        doctype: str,
+    ) -> list[dict]:
+        """
+        Fetch the raw field definitions for a doctype from the live ERP instance.
+
+        Returns a list of field dicts, each with at least:
+            { "fieldname": str, "fieldtype": str, "reqd": 0|1, "label": str }
+
+        Default implementation raises NotImplementedError so subclasses must
+        implement this if they support the schema API.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement get_doctype_schema")

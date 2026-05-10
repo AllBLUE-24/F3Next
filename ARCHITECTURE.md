@@ -217,6 +217,7 @@ F3Next/
 │   ├── erp_adapters/                ← ERP-specific API adapters
 │   ├── models/                      ← SQLAlchemy ORM models
 │   ├── database/                    ← DB connection (async + sync)
+│   ├── structured_llm.py            ← generate_typed: provider-agnostic structured output
 │   ├── embedding_generator.py       ← OpenAI embedding w/ key rotation
 │   ├── rag_cache.py                 ← Redis-backed RAG cache
 │   └── r2_client.py                 ← Cloudflare R2 file operations
@@ -236,9 +237,11 @@ F3Next/
 
 3. **3-Tier Context Architecture** — The Context Engine assembles company context from three layers: static ERP schema (Tier 1), industry/f3iche templates (Tier 2), and live CVS snapshots from ERPNext (Tier 3).
 
+4. **Two-Stage Deterministic Mapping** — The IS mapping pipeline separates classification (Step A: local scoring → LLM fallback) from extraction (Step B: schema-locked structured output via Pydantic). Defaults injection and child table folding are fully LLM-free and driven by `field_mappings.json`.
+
 4. **Event-Driven Context Freshness** — CVS worker listens to Frappe webhooks from customer ERPNext instances and triggers snapshot rebuilds automatically whenever data changes.
 
-5. **Provider-Agnostic LLM** — `llm_router.py` provides a single interface backed by Gemini Flash and GPT-4o-mini with automatic key rotation, quota sidetracking, and cross-provider fallback.
+5. **Provider-Agnostic LLM** — `llm_router.py` provides a single interface backed by Gemini Flash and GPT-4o-mini with automatic key rotation, quota sidetracking, and cross-provider fallback. Structured outputs (`shared/structured_llm.py`) use provider-native schema enforcement (Pydantic) to eliminate JSON parse failures.
 
 6. **Zero-Hardcode Policy** — Frontend uses only relative `/api/*` paths; all ERP URLs and credentials are resolved from the database at runtime.
 

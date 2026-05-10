@@ -667,3 +667,63 @@ class ERPNextAdapter(ERPAdapter):
                 doctype, event, e,
             )
             return False
+
+    # ── Schema Introspection ──────────────────────────────────────────────────
+
+    async def get_doctype_schema(self, doctype: str) -> list[dict]:
+        """
+        Fetch the field definitions for a doctype directly from the live ERPNext instance.
+
+        Uses: GET /api/resource/DocType/{doctype}
+              → data.fields[] contains all field definitions
+
+        Skips structural fields (Column Break, Section Break, Tab Break, HTML)
+        since they carry no data and would pollute the mapping schema.
+
+        Returns list of dicts:
+            [{"fieldname": str, "fieldtype": str, "reqd": 0|1, "label": str}, ...]
+
+        Raises ValueError if the doctype doesn't exist (404).
+        Raises RuntimeError on network/auth failure.
+        """
+        _SKIP_TYPES = {
+            "Column Break", "Section Break", "Tab Break",
+            "HTML", "Heading", "Button", "Fold",
+        }
+
+        url = self._resource_url("DocType", doctype)
+        logger.info("ERPNextAdapter.get_doctype_schema: fetching live schema for %s", doctype)
+
+        raw = await self._http_call("GET", url)
+
+        # Frappe returns: {"data": {"fields": [...], ...}} or unwrapped by _http_call → {"fields": [...]}
+        fields_raw = (
+            raw.get("fields")
+            or (raw.get("data") or {}).get("fields")
+            or []
+        )
+
+        fields: list[dict] = []
+        for f in fields_raw:
+            if not isinstance(f, dict):
+                continue
+            ft = str(f.get("fieldtype") or "").strip()
+            if ft in _SKIP_TYPES:
+                continue
+            fname = str(f.get("fieldname") or "").strip()
+            if not fname:
+                continue
+            fields.append({
+                "fieldname": fname,
+                "fieldtype": ft,
+                "reqd":      int(f.get("reqd") or 0),
+                "label":     str(f.get("label") or fname),
+                "options":   f.get("options"),   # Link target doctype
+                "default":   f.get("default"),
+            })
+
+        logger.info(
+            "ERPNextAdapter.get_doctype_schema: %s → %d fields",
+            doctype, len(fields),
+        )
+        return fields

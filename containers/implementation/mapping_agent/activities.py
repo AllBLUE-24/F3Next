@@ -535,6 +535,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
                 content=content or "",
                 filename=inp.filename,
                 model_name=os.getenv("MAPPING_EXTRACTION_MODEL"),
+                project_id=inp.project_id,
             )
         except Exception as e:
             activity.logger.warning("  ⚠️ Unstructured extraction failed for %s → %s: %s", inp.filename, doctype, e)
@@ -542,7 +543,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
 
         records = apply_defaults_and_normalize(doctype, records)
         try:
-            records = validate_records_against_schema(doctype, records)
+            records = await validate_records_against_schema(doctype, records, project_id=inp.project_id)
         except Exception as e:
             # Keep best-effort normalized records; validation engine will surface issues.
             activity.logger.info("  ⚠️ Schema validation still failing for %s → %s: %s", inp.filename, doctype, str(e)[:160])
@@ -621,8 +622,13 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
     if is_unstructured:
         try:
             async with AsyncSessionLocal() as session:
+                # Only treat a doctype as "already mapped" if a structured file actually
+                # extracted rows (total_rows > 0). A 0-row mapping (e.g. from a failed
+                # unstructured extraction) must NOT block subsequent .txt files from
+                # re-attempting the same doctype.
                 stmt = select(ISMappedData.target_doctype).where(
-                    ISMappedData.session_id == uuid.UUID(inp.session_id)
+                    ISMappedData.session_id == uuid.UUID(inp.session_id),
+                    ISMappedData.total_rows > 0,
                 )
                 res = await session.execute(stmt)
                 already_mapped_doctypes = {r[0] for r in res}
@@ -680,7 +686,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> str:
         mapped_records = fold_child_tables(doctype, mapped_records)
         mapped_records = apply_defaults_and_normalize(doctype, mapped_records)
         try:
-            mapped_records = validate_records_against_schema(doctype, mapped_records)
+            mapped_records = await validate_records_against_schema(doctype, mapped_records, project_id=inp.project_id)
         except Exception:
             pass
 

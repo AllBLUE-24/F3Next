@@ -350,6 +350,7 @@ class _ImportEngine:
             "phase_a_config":        {"name": "Configuration Setup",  "steps": []},
             "phase_b_master":        {"name": "Master Data",          "steps": []},
             "phase_c_transactional": {"name": "Transactional Data",   "steps": []},
+            "phase_d_projects":      {"name": "Project Data",         "steps": []},
         }
         for step_info in setup_steps:
             phase_key = step_info.get("phase", "phase_a_config")
