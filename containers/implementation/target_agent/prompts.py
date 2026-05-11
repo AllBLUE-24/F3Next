@@ -4,9 +4,15 @@ You are the F3Next ERPNext Architect. Your job is to take a messy company profil
 COMPANY PROFILE:
 {company_profile}
 
+[Company Context (Operational Notes)]
+{company_context}
+
 [Authoritative ERPNext Documentation]
 Use the knowledge below to justify your phase assignments and identify any special setup requirements.
 {erpnext_context}
+
+[Industry Reality & F3iche Patterns]
+{industry_context}
 
 [APQC Process Framework Reference]
 {apqc_context}
