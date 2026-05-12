@@ -44,56 +44,93 @@ F3ICHE_DIR = _HERE / "common" / "f3iches"
 
 
 
+def _chunks_from_md(file_path: Path) -> list[str]:
+    """Parse pre-generated narrative prose chunks from a Markdown file."""
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    chunks = []
+    # Split by the exact header used in our prose templates
+    for block in content.split("[F3iche]"):
+        block = block.strip()
+        if not block:
+            continue
+        chunks.append(f"[F3iche]\n{block}")
+    return chunks
+
 def _chunks_from_f3iche(defn: dict[str, Any], *, f3iche_id: str) -> list[str]:
     chunks: list[str] = []
 
-    business_reality = defn.get("business_reality")
-    if isinstance(business_reality, str) and business_reality.strip():
+    # Helper to append a chunk
+    def add_chunk(section: str, content: str):
+        if not content.strip(): return
         chunks.append(
-            "[F3iche]\n"
+            f"[F3iche]\n"
             f"F3iche ID: {f3iche_id}\n"
-            "Section: business_reality\n\n"
-            f"{business_reality.strip()}"
+            f"Section: {section}\n\n"
+            f"{content.strip()}"
         )
 
+    # 1. Handle V2 'business_reality' (Dict) or V1 (String)
+    br = defn.get("business_reality")
+    if isinstance(br, str):
+        add_chunk("business_reality", br)
+    elif isinstance(br, dict):
+        # Flatten the typical profile
+        if "typical_company_profile" in br:
+            add_chunk("business_reality.typical_company_profile", json.dumps(br["typical_company_profile"], indent=2))
+        
+        # Flatten the actual workflow
+        if "actual_workflow" in br:
+            for step_name, step_data in br["actual_workflow"].items():
+                if isinstance(step_data, dict):
+                    add_chunk(f"business_reality.actual_workflow.{step_name}", json.dumps(step_data, indent=2))
+                elif isinstance(step_data, str):
+                    add_chunk(f"business_reality.actual_workflow", step_data)
+                    
+        # Flatten pain points
+        if "key_pain_points" in br:
+            add_chunk("business_reality.key_pain_points", json.dumps(br["key_pain_points"], indent=2))
+            
+        # Flatten compliance
+        if "compliance_requirements" in br:
+            add_chunk("business_reality.compliance_requirements", json.dumps(br["compliance_requirements"], indent=2))
+
+    # 2. Handle ERPNext Masters Setup
+    masters = defn.get("erpnext_masters_setup")
+    if isinstance(masters, dict):
+        for k, v in masters.items():
+            add_chunk(f"erpnext_masters_setup.{k}", json.dumps(v, indent=2))
+
+    # 3. Handle Default Settings
+    defaults = defn.get("default_settings")
+    if isinstance(defaults, dict):
+        add_chunk("default_settings", json.dumps(defaults, indent=2))
+
+    # 4. Handle Workflow Processes
+    workflows = defn.get("workflow_processes") or defn.get("known_workflows") or defn.get("workflows")
+    if isinstance(workflows, list):
+        for idx, wf in enumerate(workflows, 1):
+            if isinstance(wf, dict):
+                add_chunk(f"workflow_processes[{idx}]: {wf.get('process_name', 'Unknown')}", json.dumps(wf, indent=2))
+            else:
+                add_chunk(f"workflow_processes[{idx}]", str(wf))
+
+    # 5. Handle Common Failures
+    failures = defn.get("common_failures")
+    if isinstance(failures, list):
+        for idx, fail in enumerate(failures, 1):
+            add_chunk(f"common_failures[{idx}]", json.dumps(fail, indent=2))
+
+    # 6. Fallback for V1 schemas
     critical_checks = defn.get("critical_checks")
     if isinstance(critical_checks, list):
         for idx, chk in enumerate(critical_checks, 1):
-            if isinstance(chk, str) and chk.strip():
-                chunks.append(
-                    "[F3iche]\n"
-                    f"F3iche ID: {f3iche_id}\n"
-                    f"Section: critical_checks[{idx}]\n\n"
-                    f"{chk.strip()}"
-                )
-            elif isinstance(chk, dict):
-                txt = json.dumps(chk, ensure_ascii=False)
-                chunks.append(
-                    "[F3iche]\n"
-                    f"F3iche ID: {f3iche_id}\n"
-                    f"Section: critical_checks[{idx}]\n\n"
-                    f"{txt}"
-                )
-
-    known_workflows = defn.get("known_workflows") or defn.get("workflows")
-    if isinstance(known_workflows, list):
-        for idx, wf in enumerate(known_workflows, 1):
-            if isinstance(wf, str) and wf.strip():
-                chunks.append(
-                    "[F3iche]\n"
-                    f"F3iche ID: {f3iche_id}\n"
-                    f"Section: known_workflows[{idx}]\n\n"
-                    f"{wf.strip()}"
-                )
-
+            add_chunk(f"critical_checks[{idx}]", str(chk))
+            
     regulatory = defn.get("regulatory_context")
-    if isinstance(regulatory, str) and regulatory.strip():
-        chunks.append(
-            "[F3iche]\n"
-            f"F3iche ID: {f3iche_id}\n"
-            "Section: regulatory_context\n\n"
-            f"{regulatory.strip()}"
-        )
+    if isinstance(regulatory, str):
+        add_chunk("regulatory_context", regulatory)
 
     return chunks
 
@@ -115,10 +152,18 @@ async def seed_database(target_file: str | None = None) -> None:
         for f in files:
             f3iche_id = f.stem
             kb_source = f"f3iche_{f3iche_id}"
-            with open(f, encoding="utf-8") as fh:
-                defn = json.load(fh)
+            
+            # Prefer pre-generated Markdown prose chunks if they exist
+            md_file = f.with_suffix(".md")
+            if md_file.exists():
+                chunks = _chunks_from_md(md_file)
+                print(f"📖 Loaded {len(chunks)} prose chunks from {md_file.name}")
+            else:
+                with open(f, encoding="utf-8") as fh:
+                    defn = json.load(fh)
+                chunks = _chunks_from_f3iche(defn, f3iche_id=f3iche_id)
+                print(f"⚙️ Loaded {len(chunks)} raw JSON chunks from {f.name}")
 
-            chunks = _chunks_from_f3iche(defn, f3iche_id=f3iche_id)
             if not chunks:
                 continue
 

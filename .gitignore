@@ -65,6 +65,8 @@ kubeconfig.yml
 #############################
 attachments/
 scripts/
+tests/
+scratch/
 
 
 #############################

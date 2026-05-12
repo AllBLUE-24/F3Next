@@ -1,8 +1,8 @@
 {
     "id": "manufacturing_project_chemical",
     "display_name": "Chemical Coatings Manufacturer & Project Installer",
-    "version": "2.0",
-    "last_updated": "2026-05-04",
+    "version": "2.1",
+    "last_updated": "2026-05-12",
     "regulatory_criticality_level": "CRITICAL",
     
     "business_reality": {
@@ -347,7 +347,24 @@
       "projects_settings": {
         "track_costs_against_project": true,
         "ignore_pricing_rule_for_project": false
-      }
+      },
+      "seeding_strategies": {
+      "default_item_group": "Raw Materials",
+      "default_tax_template": "In-State",
+      "default_warehouse_rm": "RM - Bulk Liquids",
+      "default_warehouse_wip": "WIP - Factory",
+      "default_warehouse_fg": "FG - Part A Resins",
+      "default_valuation_method": "FIFO",
+      "default_manufacturing_material_consumption": "Manual",
+      "default_enable_batch": true,
+      "default_expiry_tracking": true,
+      "default_bom_type": "Process Manufacturing",
+      "default_project_track_costs": true,
+      "default_uom_raw": "Kg",
+      "default_uom_fg": "Gallon",
+      "default_workstation": "Cowles Mixer 1",
+      "default_quality_inspection": true
+    }
     },
     
     "workflow_processes": [
