@@ -269,7 +269,7 @@ class ValidateInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="validate_mapped_data")
-async def validate_mapped_data(inp: ValidateInput) -> NodeStatusEnvelope:
+async def validate_mapped_data(inp: ValidateInput) -> Any:
     activity.logger.info("▶ validate_mapped_data started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal

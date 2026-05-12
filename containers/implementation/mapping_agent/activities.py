@@ -485,7 +485,7 @@ class RefineMappingInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="map_file_to_erpnext")
-async def map_file_to_erpnext(inp: MapFileInput) -> NodeStatusEnvelope:
+async def map_file_to_erpnext(inp: MapFileInput) -> Any:
     activity.logger.info("▶ map_file_to_erpnext started | file=%s key=%s hint=%s",
                          inp.filename, inp.r2_manifest_url, inp.doctype_hint)
 

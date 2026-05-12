@@ -29,7 +29,7 @@ class DeriveRequiredRecordsInput:
 
 
 @activity.defn(name="derive_required_records")
-async def derive_required_records(inp: DeriveRequiredRecordsInput) -> NodeStatusEnvelope:
+async def derive_required_records(inp: DeriveRequiredRecordsInput) -> Any:
     """
     Reads latest target structure and mapped data pointers.
     Writes draft derived payloads to R2 under derived_payloads/{doctype}.json.

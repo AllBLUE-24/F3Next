@@ -542,10 +542,14 @@ class ImplementationWorkflow:
                 **_ACT,
             )
             if isinstance(target_env, dict):
-                target = target_env
-                target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target})
-            else:
-                target = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
+                if "status" in target_env:
+                    target_env = NodeStatusEnvelope(**target_env)
+                else:
+                    target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target_env})
+            elif isinstance(target_env, str):
+                target_env = NodeStatusEnvelope.success(primary_result={"target_structure": {}})
+                
+            target = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
             n_doctypes = len(target.get("required_doctypes", [])) if isinstance(target, dict) else 0
             n_steps = len(target.get("setup_steps", [])) if isinstance(target, dict) else 0
             _kv(L, "required_doctypes", n_doctypes)
@@ -594,9 +598,9 @@ class ImplementationWorkflow:
 
         self._set_task("t5", "done", f"{len(target.get('required_doctypes', []))} doctypes target")
 
-        # ══════════════════════════════════════════════════════════════════════
+        # ═══════════════════����══════════════════════════════════════════════════
         # STEP 8b / 14  —  Derive Required Records (draft prerequisites)
-        # ═══════════════════════════════════════════════════════════════════���══
+        # ═���═════════════════════════════════════════════════════════════════���══
         _step_start(L, "8b", "Derive Required Records", "Deriving prerequisite doctypes when files are missing")
         try:
             derive_env = await workflow.execute_activity(
@@ -608,6 +612,12 @@ class ImplementationWorkflow:
                 ),
                 **_ACT,
             )
+            if isinstance(derive_env, dict):
+                if "status" in derive_env:
+                    derive_env = NodeStatusEnvelope(**derive_env)
+                else:
+                    derive_env = NodeStatusEnvelope.success(primary_result=derive_env)
+
             d_primary = derive_env.primary_result if hasattr(derive_env, "primary_result") else {}
             missing = (d_primary or {}).get("missing_doctypes", []) if isinstance(d_primary, dict) else []
             _kv(L, "derived", list((d_primary or {}).get("derived", {}).keys()) if isinstance(d_primary, dict) else [])
@@ -663,6 +673,15 @@ class ImplementationWorkflow:
                     ),
                     **_ACT,
                 )
+                if isinstance(mapped_env, dict):
+                    if "status" in mapped_env:
+                        mapped_env = NodeStatusEnvelope(**mapped_env)
+                    else:
+                        mapped_env = NodeStatusEnvelope.success(primary_result={"file": fname, "doctypes_mapped": [mapped_env] if mapped_env else []})
+                elif isinstance(mapped_env, str):
+                    mapped_doctypes = [mapped_env] if mapped_env not in ["error", "unmapped"] else []
+                    mapped_env = NodeStatusEnvelope.success(primary_result={"file": fname, "doctypes_mapped": mapped_doctypes})
+
                 pr = mapped_env.primary_result if hasattr(mapped_env, "primary_result") else {}
                 mapped_doctypes = (pr or {}).get("doctypes_mapped", []) if isinstance(pr, dict) else []
                 if getattr(mapped_env, "ok", False) and mapped_doctypes:
@@ -779,6 +798,14 @@ class ImplementationWorkflow:
                 ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                 **_ACT,
             )
+            if isinstance(v_env, dict):
+                if "status" in v_env:
+                    v_env = NodeStatusEnvelope(**v_env)
+                else:
+                    v_env = NodeStatusEnvelope.success(primary_result={"overall": v_env})
+            elif isinstance(v_env, str):
+                v_env = NodeStatusEnvelope.success(primary_result={"overall": v_env}) if v_env in ("passed", "success") else NodeStatusEnvelope.failed(primary_result={"overall": v_env})
+
             v_primary = v_env.primary_result if hasattr(v_env, "primary_result") else {}
             v_status = v_primary.get("overall") if isinstance(v_primary, dict) else None
             _kv(L, "overall_status", v_status or getattr(v_env, "status", "unknown"))

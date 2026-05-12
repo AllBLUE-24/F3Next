@@ -229,7 +229,7 @@ class EnrichCompanyProfileInput:
 # ── Activity definitions ─────────────────────────────────────────────────────
 
 @activity.defn(name="build_company_profile")
-async def build_company_profile(inp: BuildProfileInput) -> NodeStatusEnvelope:
+async def build_company_profile(inp: BuildProfileInput) -> Any:
     """
     Build a fresh versioned company profile snapshot, persist to Supabase + R2.
 
