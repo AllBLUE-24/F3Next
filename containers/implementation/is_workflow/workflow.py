@@ -39,7 +39,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
     from containers.implementation.supervisor_agent.activities import supervise_step, SuperviseStepInput
     from containers.implementation.supervisor_agent.activities import apply_supervisor_actions
-    from shared.models.is_status import ApplySupervisorActionsInput
+    from shared.models.is_status import ApplySupervisorActionsInput, NodeStatusEnvelope
     from containers.implementation.file_io.persist_supervisor_prompt import (
         persist_supervisor_prompt,
         PersistSupervisorPromptInput,

@@ -4,7 +4,7 @@ containers/knowledge_base/seed_industries.py
 Seeds broad Industry narrative content into kb_embeddings for RAG retrieval.
 
 kb_source convention:
-  industry_<industry_id>
+  industry_reality_<id>
 """
 
 from __future__ import annotations
@@ -38,11 +38,11 @@ def _chunks_from_md(file_path: Path) -> list[str]:
     
     chunks = []
     # Split by the exact header used in our prose templates
-    for block in content.split("[Industry]"):
+    for block in content.split("[Industry Reality]"):
         block = block.strip()
         if not block:
             continue
-        chunks.append(f"[Industry]\n{block}")
+        chunks.append(f"[Industry Reality]\n{block}")
     return chunks
 
 
@@ -65,7 +65,7 @@ async def seed_database(target_file: str | None = None) -> None:
                 continue
                 
             industry_id = f.stem
-            kb_source = f"industry_{industry_id}"
+            kb_source = f"industry_reality_{industry_id}"
             
             chunks = _chunks_from_md(f)
             if not chunks:
