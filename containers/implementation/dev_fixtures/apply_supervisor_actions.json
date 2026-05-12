@@ -1,0 +1,26 @@
+{
+  "_comment": "Applies auto_fix supervisor actions to R2 payloads. Reads/writes clean-data bucket. Set dry_run to avoid real writes.",
+  "project_id": "b6ff0b7f-a616-4179-8f68-deda9b3578af",
+  "session_id": "3145be35-2991-48dd-b43e-e59df9e86f5c",
+  "company_slug": "green-surface",
+  "step": "11",
+  "actions": [
+    {
+      "id": "auto_fix_work_order_status_pass_fail",
+      "type": "auto_fix",
+      "scope": "Work Order",
+      "changes": [
+        {
+          "target": "r2",
+          "doctype": "Work Order",
+          "op": "map_enum",
+          "field": "status",
+          "map": {"PASS": "Completed", "FAIL": "Stopped"}
+        }
+      ],
+      "question": null,
+      "options": null,
+      "metadata": {"reason": "ERPNext Work Order status enum mismatch"}
+    }
+  ]
+}

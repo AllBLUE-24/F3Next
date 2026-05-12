@@ -1,6 +1,7 @@
 {
-  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
-  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "_comment": "Builds target doctype graph from f3iche + doctype graph JSON. --mock-llm skips LLM annotation.",
+  "session_id": "3145be35-2991-48dd-b43e-e59df9e86f5c",
+  "project_id": "b6ff0b7f-a616-4179-8f68-deda9b3578af",
   "f3iche": "manufacturing_project_chemical",
-  "company_slug": "acme"
+  "company_slug": "green-surface"
 }

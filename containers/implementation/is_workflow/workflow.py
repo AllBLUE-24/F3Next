@@ -564,7 +564,8 @@ class ImplementationWorkflow:
             raise ApplicationError(f"Target structure failed: {e}")
 
         # Supervisor hook (non-blocking): persist prompt if target build not OK
-        supervisor_enabled = workflow.side_effect(lambda: os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1")
+        with workflow.unsafe.sandbox_unrestricted():
+            supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
         if supervisor_enabled and not getattr(target_env, "ok", False):
             try:
                 sup = await workflow.execute_activity(
@@ -691,7 +692,8 @@ class ImplementationWorkflow:
                     L.info("             → ⚠️  %s → %s", fname, ",".join(mapped_doctypes) if mapped_doctypes else "unmapped")
 
                 # Supervisor hook (non-blocking): persist mapping prompt for this file if needed
-                supervisor_enabled = workflow.side_effect(lambda: os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1")
+                with workflow.unsafe.sandbox_unrestricted():
+                    supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
                 if supervisor_enabled and not getattr(mapped_env, "ok", False):
                     try:
                         sup = await workflow.execute_activity(
@@ -821,7 +823,8 @@ class ImplementationWorkflow:
             raise ApplicationError(f"Validation failed: {e}")
 
         # ── Supervisor correction loop (feature-flagged) ─────────────────────
-        supervisor_enabled = workflow.side_effect(lambda: os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1")
+        with workflow.unsafe.sandbox_unrestricted():
+            supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
         if supervisor_enabled:
             auto_fix_attempted = False
             ask_cycles = 0

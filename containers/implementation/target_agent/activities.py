@@ -431,7 +431,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
         target_rag_query = (
             f"{inp.f3iche} ERPNext phase setup doctype dependencies implementation"
         )
-        erp_ctx_chunks  = await rag_retrieve(target_rag_query, "erpnext_module_docs", top_k=5)
+        erp_ctx_chunks  = await rag_retrieve(target_rag_query, "erpnext_docs", top_k=5)
         apqc_ctx_chunks = await rag_retrieve(target_rag_query, "apqc_pcf",    top_k=4)
         company_ctx_chunks = await rag_retrieve(target_rag_query, f"company_{inp.project_id}", top_k=3)
         industry_ctx_chunks = await rag_retrieve(target_rag_query, f"industry_reality_{inp.f3iche}", top_k=3)

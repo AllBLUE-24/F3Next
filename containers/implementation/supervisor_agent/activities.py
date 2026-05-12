@@ -69,7 +69,7 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                 f"industry_reality_{inp.f3iche_id}",
                 top_k=4,
             )
-        rag["erpnext_module_docs"] = await rag_retrieve(query_text, "erpnext_module_docs", top_k=5)
+        rag["erpnext_docs"] = await rag_retrieve(query_text, "erpnext_docs", top_k=5)
     except Exception as e:
         activity.logger.warning("  ⚠️ Supervisor RAG retrieval failed (non-fatal): %s", e)
 

@@ -1,0 +1,6 @@
+{
+  "_comment": "Step 8b: Derives prerequisite records (BOMs, etc.) from target structure + mapped data. Reads DB and R2. No LLM calls.",
+  "session_id": "3145be35-2991-48dd-b43e-e59df9e86f5c",
+  "project_id": "b6ff0b7f-a616-4179-8f68-deda9b3578af",
+  "company_slug": "green-surface"
+}

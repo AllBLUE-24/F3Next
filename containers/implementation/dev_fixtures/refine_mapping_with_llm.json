@@ -1,7 +1,7 @@
 {
   "_comment": "Reads current field mappings from Supabase and uses LLM to apply user feedback. Use --mock-llm to skip Gemini.",
-  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "session_id": "3145be35-2991-48dd-b43e-e59df9e86f5c",
   "user_feedback": "The 'Customer Name' column should map to customer_name, not company_name.",
-  "project_id": "PASTE-REAL-PROJECT-UUID-HERE",
+  "project_id": "b6ff0b7f-a616-4179-8f68-deda9b3578af",
   "company_slug": "acme"
 }

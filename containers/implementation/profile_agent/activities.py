@@ -83,7 +83,7 @@ class _CompanyProfileService:
 
         # ── RAG context blocks (injected from kb_embeddings) ─────────────────
         apqc_block = "\n\n".join(rag_chunks.get("apqc_pcf", [])[:3]) or "No APQC context retrieved."
-        erp_block  = "\n\n".join(rag_chunks.get("erpnext_module_docs", [])[:3]) or "No ERPNext docs retrieved."
+        erp_block  = "\n\n".join(rag_chunks.get("erpnext_docs", [])[:3]) or "No ERPNext docs retrieved."
         industry_block = "\n\n".join(rag_chunks.get("industry_reality", [])[:3]) or "No Industry Reality retrieved."
         company_block = "\n\n".join(rag_chunks.get("company", [])[:3]) or "No Company Context retrieved."
         f3_block   = "\n\n".join(rag_chunks.get("f3iche", [])[:4])
@@ -246,13 +246,13 @@ async def build_company_profile(inp: BuildProfileInput) -> Any:
     rag_chunks: Dict[str, List] = {}
     try:
         apqc_chunks   = await rag_retrieve(rag_query, "apqc_pcf",   top_k=5)
-        erp_chunks    = await rag_retrieve(rag_query, "erpnext_module_docs", top_k=5)
+        erp_chunks    = await rag_retrieve(rag_query, "erpnext_docs", top_k=5)
         f3iche_chunks = await rag_retrieve(rag_query, f"f3iche_{inp.f3iche}", top_k=6)
         industry_chunks = await rag_retrieve(rag_query, f"industry_reality_{inp.f3iche}", top_k=5)
         company_chunks = await rag_retrieve(rag_query, f"company_{inp.project_id}", top_k=3)
         rag_chunks = {
             "apqc_pcf": apqc_chunks, 
-            "erpnext_module_docs": erp_chunks, 
+            "erpnext_docs": erp_chunks, 
             "f3iche": f3iche_chunks,
             "industry_reality": industry_chunks,
             "company": company_chunks
@@ -641,7 +641,7 @@ async def retrieve_industry_knowledge(inp: RetrieveIndustryKnowledgeInput) -> Di
 
     try:
         apqc_chunks   = await rag_retrieve(search_query, "apqc_pcf",    top_k=5)
-        erp_chunks    = await rag_retrieve(search_query, "erpnext_module_docs", top_k=5)
+        erp_chunks    = await rag_retrieve(search_query, "erpnext_docs", top_k=5)
         f3iche_chunks = await rag_retrieve(search_query, f3iche_prefix, top_k=6) if f3iche_prefix else []
         industry_chunks = await rag_retrieve(search_query, f"industry_reality_{inp.f3iche_id}", top_k=5) if inp.f3iche_id else []
         company_chunks = await rag_retrieve(search_query, f"company_{inp.session_id}", top_k=3) # We don't have project_id here directly, using session_id fallback or ignoring. Actually let's ignore company chunks for generic industry queries if project_id isn't passed.
@@ -806,7 +806,7 @@ async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, An
     )
     enrich_rag_chunks: list[str] = []
     try:
-        enrich_rag_chunks += await rag_retrieve(enrich_query, "erpnext_module_docs", top_k=5)
+        enrich_rag_chunks += await rag_retrieve(enrich_query, "erpnext_docs", top_k=5)
         enrich_rag_chunks += await rag_retrieve(enrich_query, f"company_{inp.project_id}", top_k=3)
         if profile_dict.get("f3iche"):
             enrich_rag_chunks += await rag_retrieve(enrich_query, f"f3iche_{profile_dict['f3iche']}", top_k=5)

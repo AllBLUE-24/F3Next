@@ -1,6 +1,6 @@
 {
   "_comment": "Queries pgvector for industry knowledge and synthesizes with LLM. Use --mock-llm to skip Gemini.",
-  "session_id": "PASTE-REAL-SESSION-UUID-HERE",
+  "session_id": "3145be35-2991-48dd-b43e-e59df9e86f5c",
   "industry": "Wholesale Trade",
   "company_size": "Medium",
   "differentiators": "autoparts, high-volume"

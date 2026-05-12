@@ -1,0 +1,22 @@
+{
+  "_comment": "Supervisor Agent: inspects a NodeStatusEnvelope and returns actions. Use --mock-llm to skip LLM/RAG calls.",
+  "project_id": "b6ff0b7f-a616-4179-8f68-deda9b3578af",
+  "session_id": "3145be35-2991-48dd-b43e-e59df9e86f5c",
+  "node_name": "validate_mapped_data",
+  "step": "11",
+  "f3iche_id": "manufacturing_project_chemical",
+  "phase": "phase_c_transactional",
+  "doctypes_in_focus": ["Work Order", "Batch", "BOM"],
+  "status": {
+    "status": "partial",
+    "primary_result": {"validated_doctypes": ["Item", "Customer"], "failed_doctypes": ["Work Order"]},
+    "errors": [
+      {"code": "MISSING_REQUIRED_FIELD", "message": "Missing required field: bom_no", "doctype": "Work Order", "field": "bom_no"}
+    ],
+    "warnings": [
+      {"code": "ENUM_MISMATCH", "message": "invalid enum value for 'status': PASS (expected: Open, In Process, Completed, Stopped)", "doctype": "Work Order", "field": "status"}
+    ],
+    "missing_information": [],
+    "conflicts": []
+  }
+}

@@ -27,6 +27,9 @@ Steps available:
     enrich_company_profile
     merge_company_profile
     build_target_structure
+    derive_required_records       ← NEW (Plan Step 8b)
+    supervise_step                ← NEW (Supervisor Agent)
+    apply_supervisor_actions      ← NEW (Supervisor Agent)
     map_file_to_erpnext
     refine_mapping_with_llm
     validate_mapped_data
@@ -120,15 +123,16 @@ def _install_fake_activity_context() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 _LLM_MOCK_RESPONSES: Dict[str, Any] = {
-    "infer_f3iche":        {"f3iche": "trading", "confidence": 0.85, "collected_signals": ["[MOCK] mock signal"]},
-    "build_target":        {"required_doctypes": ["Customer", "Item"], "setup_steps": [], "llm_reasoning": "[MOCK]"},
-    "map_columns":         {"doctype": "Customer", "field_mapping": {"Name": "customer_name"}},
-    "map_file":            {"doctype": "Customer", "field_mapping": {}, "rows": []},
-    "build_profile":       {"business_reality": "[MOCK]", "context_flags": [], "data_quality_score": "High", "llm_confidence": 1.0},
+    "infer_f3iche":        {"f3iche": "manufacturing_project_chemical", "confidence": 0.85, "collected_signals": ["[MOCK] batch tickets", "[MOCK] warehouse"]},
+    "build_target":        {"required_doctypes": ["Item", "Customer", "BOM", "Work Order"], "setup_steps": [], "llm_reasoning": "[MOCK]"},
+    "map_columns":         {"doctype": "Item", "field_mapping": {"Name": "item_code"}},
+    "map_file":            {"doctype": "Item", "field_mapping": {}, "rows": []},
+    "build_profile":       {"business_reality": "[MOCK] Chemical manufacturer", "context_flags": [], "data_quality_score": "High", "llm_confidence": 1.0},
     "refine_mapping":      {"updated_mappings": [], "removed_mappings": [], "changes_count": 0},
-    "align_discovery":     {"alignment_score": 0.9, "mismatches": [], "recommended_f3iche": "trading", "reasoning": "[MOCK]"},
-    "industry_knowledge":  {"industry_differentiators": ["[MOCK]"], "industry_best_practices": {}},
-    "enrich_profile":      {"data_quality_score": 0.8, "completeness_score": 0.75, "data_observations": ["[MOCK]"], "recommended_customizations": []},
+    "align_discovery":     {"alignment_score": 0.9, "mismatches": [], "recommended_f3iche": "manufacturing_project_chemical", "reasoning": "[MOCK]"},
+    "industry_knowledge":  {"industry_differentiators": ["[MOCK] Batch tracking", "[MOCK] QC protocols"], "industry_best_practices": {}},
+    "enrich_profile":      {"data_quality_score": 0.8, "completeness_score": 0.75, "data_observations": ["[MOCK] batch data present"], "recommended_customizations": []},
+    "supervise_step":      {"actions": [], "summary_for_ui": "[MOCK] No issues detected.", "final_status": "resolved"},
     "generic":             {"status": "mock_ok", "result": "[MOCK LLM RESPONSE]"},
 }
 
@@ -188,6 +192,10 @@ def _install_mock_llm() -> None:
 async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: bool) -> Any:
     """Dispatch to the right activity function with the right input object."""
 
+    # Strip metadata/comment keys (e.g. "_comment") so they don't leak into
+    # dataclass constructors. All fixture annotation keys must start with "_".
+    fixture = {k: v for k, v in fixture.items() if not k.startswith("_")}
+
     # ── virus_scan_quarantine ─────────────────────────────────────────────────
     if step == "virus_scan_quarantine":
         from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
@@ -241,6 +249,30 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
         from containers.implementation.target_agent.activities import build_target_structure, BuildTargetInput
         return await build_target_structure(BuildTargetInput(**fixture))
 
+    # ── derive_required_records (Step 8b) ─────────────────────────────────────
+    elif step == "derive_required_records":
+        from containers.implementation.derive_agent.activities import derive_required_records, DeriveRequiredRecordsInput
+        return await derive_required_records(DeriveRequiredRecordsInput(**fixture))
+
+    # ── supervise_step (Supervisor Agent) ─────────────────────────────────────
+    elif step == "supervise_step":
+        from containers.implementation.supervisor_agent.activities import supervise_step, SuperviseStepInput
+        from shared.models.is_status import NodeStatusEnvelope
+        # status field is a NodeStatusEnvelope — deserialize from dict if needed
+        raw_status = fixture.pop("status", None)
+        if isinstance(raw_status, dict):
+            fixture["status"] = NodeStatusEnvelope(**raw_status)
+        return await supervise_step(SuperviseStepInput(**fixture))
+
+    # ── apply_supervisor_actions (Supervisor Agent) ───────────────────────────
+    elif step == "apply_supervisor_actions":
+        from containers.implementation.supervisor_agent.activities import apply_supervisor_actions
+        from shared.models.is_status import ApplySupervisorActionsInput, SupervisorAction
+        raw_actions = fixture.pop("actions", [])
+        actions = [SupervisorAction(**a) if isinstance(a, dict) else a for a in raw_actions]
+        fixture["actions"] = actions
+        return await apply_supervisor_actions(ApplySupervisorActionsInput(**fixture))
+
     # ── map_file_to_erpnext ───────────────────────────────────────────────────
     elif step == "map_file_to_erpnext":
         from containers.implementation.mapping_agent.activities import map_file_to_erpnext, MapFileInput
@@ -292,6 +324,9 @@ VALID_STEPS = [
     "enrich_company_profile",
     "merge_company_profile",
     "build_target_structure",
+    "derive_required_records",
+    "supervise_step",
+    "apply_supervisor_actions",
     "map_file_to_erpnext",
     "refine_mapping_with_llm",
     "validate_mapped_data",
@@ -385,6 +420,10 @@ async def _main() -> None:
         raise
 
     # ── Output result ─────────────────────────────────────────────────────────
+    # Convert dataclasses (NodeStatusEnvelope, etc.) to dicts before serializing
+    import dataclasses as _dc
+    if _dc.is_dataclass(result) and not isinstance(result, type):
+        result = _dc.asdict(result)
     result_json = json.dumps(result, indent=2, default=str)
 
     log.info("")
