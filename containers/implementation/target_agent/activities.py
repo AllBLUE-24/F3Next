@@ -326,7 +326,7 @@ class BuildTargetInput:
 # ─── ACTIVITIES ───────────────────────────────────────────────────────────────
 
 @activity.defn(name="build_target_structure")
-async def build_target_structure(inp: BuildTargetInput) -> NodeStatusEnvelope:
+async def build_target_structure(inp: BuildTargetInput) -> Any:
     """
     Step 8: Generates the Target Structure (Blueprint) for ERPNext mapping.
 

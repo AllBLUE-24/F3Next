@@ -541,7 +541,11 @@ class ImplementationWorkflow:
                 ),
                 **_ACT,
             )
-            target: Dict = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
+            if isinstance(target_env, dict):
+                target = target_env
+                target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target})
+            else:
+                target = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
             n_doctypes = len(target.get("required_doctypes", [])) if isinstance(target, dict) else 0
             n_steps = len(target.get("setup_steps", [])) if isinstance(target, dict) else 0
             _kv(L, "required_doctypes", n_doctypes)
@@ -592,7 +596,7 @@ class ImplementationWorkflow:
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 8b / 14  —  Derive Required Records (draft prerequisites)
-        # ══════════════════════════════════════════════════════════════════════
+        # ═══════════════════════════════════════════════════════════════════���══
         _step_start(L, "8b", "Derive Required Records", "Deriving prerequisite doctypes when files are missing")
         try:
             derive_env = await workflow.execute_activity(
