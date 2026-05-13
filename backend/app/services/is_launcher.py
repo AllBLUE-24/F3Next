@@ -19,7 +19,7 @@ from sqlalchemy.future import select
 
 from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import (
-    ISSession, ISCompanyProfile, ISTargetStructure,
+    ISSession, ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment,
     ISMappedData, ISValidationResult, ISValidationError,
     ISImportPlan, ISImportLog, ISSupervisorPrompt,
 )
@@ -297,6 +297,37 @@ class ImplementationLauncher:
                 "checks": checks,
                 "errors": all_errors,
                 "warnings": all_warnings,
+            }
+
+    async def get_data_readiness(self, project_id: str | UUID) -> Optional[Dict[str, Any]]:
+        """Query ISDataReadinessAssessment for this project."""
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            return None
+
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISDataReadinessAssessment)
+                .where(ISDataReadinessAssessment.session_id == is_session.id)
+                .order_by(ISDataReadinessAssessment.created_at.desc())
+                .limit(1)
+            )
+            row = (await session.execute(stmt)).scalar_one_or_none()
+            if not row:
+                return None
+
+            return {
+                "ready_doctypes": row.ready_doctypes or [],
+                "partial_doctypes": row.partial_doctypes or [],
+                "missing_doctypes": row.missing_doctypes or [],
+                "unmappable_chunks": row.unmappable_chunks or [],
+                "gap_report": row.gap_report or {},
+                "minimum_viable_possible": row.minimum_viable_possible,
+                "user_action_required": row.user_action_required,
+                "questions_for_user": row.questions_for_user or [],
+                "import_readiness_score": row.import_readiness_score,
+                "executive_summary": row.executive_summary,
+                "user_decision": row.user_decision,
             }
 
     async def get_supervisor_prompts(self, project_id: str | UUID, status: str = "open") -> List[Dict[str, Any]]:

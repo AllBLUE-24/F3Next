@@ -35,7 +35,10 @@ python -m containers.implementation.is_harness --step derive_required_records
 # 6. Test Supervisor Agent with a simulated partial validation result:
 python -m containers.implementation.is_harness --step supervise_step --mock-llm
 
-# 7. Apply the supervisor's auto_fix patches to R2 payloads:
+# 7. Test Step 8c — data readiness assessment:
+python -m containers.implementation.is_harness --step assess_data_readiness --mock-llm
+
+# 8. Apply the supervisor's auto_fix patches to R2 payloads:
 python -m containers.implementation.is_harness --step apply_supervisor_actions
 
 # 8. Save any result to a file instead of stdout:

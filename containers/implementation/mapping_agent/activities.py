@@ -454,7 +454,6 @@ async def _get_candidate_doctypes(session_id: str) -> List[str]:
     Best-practice candidate list for deterministic routing.
 
     - Prefer session-scoped ISTargetStructure.required_doctypes
-    - Intersect with KB doctypes (field_mappings.json)
     - Always include a small safe core set
     """
     core = {"Item", "Customer", "Supplier", "Employee"}
@@ -464,7 +463,8 @@ async def _get_candidate_doctypes(session_id: str) -> List[str]:
 
     candidates = set()
     if required:
-        candidates |= (required & kb_doctypes)
+        # Do NOT intersect with kb_doctypes! The live_schema engine handles KB misses dynamically.
+        candidates |= required
     candidates |= (core & kb_doctypes) if kb_doctypes else core
 
     # Stable order for determinism: sort case-insensitively but keep original

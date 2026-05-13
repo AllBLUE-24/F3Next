@@ -1,0 +1,456 @@
+"""
+data_readiness_agent/activities.py
+
+Temporal activity: assess_data_readiness (Step 8c)
+
+Pipeline:
+  1. Load ISTargetStructure from Supabase
+  2. Download manifest (all uploaded files) from R2
+  3. Load ISCompanyProfile from Supabase
+  4. Run deterministic gap_analyzer → pre_analysis dict
+  5. Call LLM (generate_typed → DataReadinessAssessment)
+  6. Persist to is_data_readiness_assessments (Supabase)
+  7. Return NodeStatusEnvelope:
+       ok=True  → minimum_viable_import_possible (pipeline advances automatically)
+       ok=False → user_action_required and not viable (UI gate shown)
+"""
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import boto3
+from botocore.config import Config
+from sqlalchemy import select
+from temporalio import activity
+
+from shared.database.db import AsyncSessionLocal
+from shared.models.is_models import (
+    ISCompanyProfile,
+    ISDataReadinessAssessment,
+    ISTargetStructure,
+)
+from shared.models.is_status import NodeStatusEnvelope
+from shared.structured_llm import generate_typed
+
+from containers.implementation.data_readiness_agent.gap_analyzer import analyze_gaps
+from containers.implementation.data_readiness_agent.models import DataReadinessAssessment
+from containers.implementation.data_readiness_agent.prompts import DATA_READINESS_PROMPT
+from containers.implementation.mapping_agent.kb import field_mappings as _kb_field_mappings
+
+
+# ── Input ─────────────────────────────────────────────────────────────────────
+
+@dataclass
+class AssessDataReadinessInput:
+    session_id: str
+    project_id: str
+    company_slug: str
+    r2_manifest_url: str
+
+
+# ── S3 helper ─────────────────────────────────────────────────────────────────
+
+def _get_s3():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
+
+
+# ── DB loaders ────────────────────────────────────────────────────────────────
+
+async def _load_target_structure(session_id: str) -> Dict[str, Any]:
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = (
+                select(ISTargetStructure)
+                .where(ISTargetStructure.session_id == uuid.UUID(session_id))
+                .order_by(ISTargetStructure.created_at.desc())
+                .limit(1)
+            )
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if not row:
+                return {}
+            required = row.required_doctypes
+            if isinstance(required, str):
+                required = json.loads(required)
+            steps = row.setup_steps
+            if isinstance(steps, str):
+                steps = json.loads(steps)
+            phases = row.import_phases
+            if isinstance(phases, str):
+                phases = json.loads(phases)
+            return {
+                "required_doctypes": required or [],
+                "setup_steps": steps or [],
+                "import_phases": phases or {},
+            }
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not load target structure: %s", e)
+        return {}
+
+
+async def _load_company_profile(session_id: str) -> Dict[str, Any]:
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = (
+                select(ISCompanyProfile)
+                .where(ISCompanyProfile.session_id == uuid.UUID(session_id))
+                .order_by(ISCompanyProfile.version.desc())
+                .limit(1)
+            )
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if not row:
+                return {}
+            return {
+                "f3iche": row.f3iche,
+                "industry": row.industry,
+                "industry_sub": row.industry_sub,
+                "company_name": row.company_name,
+                "company_size": row.company_size,
+                "business_reality": row.business_reality,
+                "data_quality_score": row.data_quality_score,
+            }
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not load company profile: %s", e)
+        return {}
+
+
+def _download_manifest(r2_manifest_url: str) -> Dict[str, str]:
+    """Download the manifest JSON from R2 and return {filename: content}."""
+    try:
+        s3 = _get_s3()
+        resp = s3.get_object(Bucket="clean-data", Key=r2_manifest_url)
+        manifest = json.loads(resp["Body"].read().decode("utf-8"))
+        return manifest.get("files", {})
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not download manifest from R2: %s", e)
+        return {}
+
+
+def _criticality_from_phase(phase: Optional[str]) -> str:
+    phase_l = (phase or "").lower()
+    if phase_l.startswith("phase_a") or phase_l.startswith("phase_b"):
+        return "critical"
+    if phase_l.startswith("phase_c"):
+        return "non_critical"
+    return "optional"
+
+
+def _has_critical_gaps(gaps: List[Dict[str, Any]]) -> bool:
+    return any(_criticality_from_phase(g.get("phase")) == "critical" for g in gaps)
+
+
+# ── Persist ───────────────────────────────────────────────────────────────────
+
+async def _persist_assessment(
+    session_id: str,
+    assessment: DataReadinessAssessment,
+) -> str:
+    """Write ISDataReadinessAssessment row and return its UUID."""
+    row_id = uuid.uuid4()
+    try:
+        async with AsyncSessionLocal() as db:
+            db.add(ISDataReadinessAssessment(
+                id=row_id,
+                session_id=uuid.UUID(session_id),
+                ready_doctypes=[r.model_dump() for r in assessment.ready_doctypes],
+                partial_doctypes=[p.model_dump() for p in assessment.partial_doctypes],
+                missing_doctypes=[m.model_dump() for m in assessment.missing_doctypes],
+                unmappable_chunks=[u.model_dump() for u in assessment.unmappable_chunks],
+                gap_report=assessment.gap_report or {
+                    "ready_doctypes": [r.model_dump() for r in assessment.ready_doctypes],
+                    "partial_doctypes": [p.model_dump() for p in assessment.partial_doctypes],
+                    "missing_doctypes": [m.model_dump() for m in assessment.missing_doctypes],
+                    "unmappable_chunks": [u.model_dump() for u in assessment.unmappable_chunks],
+                },
+                minimum_viable_possible=assessment.minimum_viable_import_possible,
+                user_action_required=assessment.user_action_required,
+                questions_for_user=[q.model_dump() for q in assessment.questions_for_user],
+                import_readiness_score=assessment.import_readiness_score,
+                executive_summary=assessment.executive_summary,
+            ))
+            await db.commit()
+        activity.logger.info("  ✅ ISDataReadinessAssessment persisted | id=%s", row_id)
+    except Exception as e:
+        activity.logger.error("  ❌ Failed to persist ISDataReadinessAssessment: %s", e)
+    return str(row_id)
+
+
+# ── Main activity ─────────────────────────────────────────────────────────────
+
+@activity.defn(name="assess_data_readiness")
+async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
+    """
+    Step 8c — Data Readiness Assessment (LLM Node 4).
+
+    Deterministically scans all uploaded files against the target structure,
+    then uses an LLM to rank gaps and generate user-facing questions.
+    """
+    activity.logger.info(
+        "▶ assess_data_readiness started | session=%s project=%s manifest=%s",
+        inp.session_id, inp.project_id, inp.r2_manifest_url,
+    )
+
+    # 1. Load target structure
+    target_structure = await _load_target_structure(inp.session_id)
+    required_doctypes = target_structure.get("required_doctypes", [])
+    activity.logger.info("  Target structure: %d required doctypes", len(required_doctypes))
+
+    if not required_doctypes:
+        activity.logger.warning("  ⚠️ No required_doctypes in target structure — skipping assessment")
+        empty = DataReadinessAssessment(
+            minimum_viable_import_possible=True,
+            user_action_required=False,
+            executive_summary="No target structure found; proceeding with best-effort mapping.",
+            import_readiness_score=1.0,
+        )
+        await _persist_assessment(inp.session_id, empty)
+        return NodeStatusEnvelope.success(primary_result={
+            "assessment": empty.model_dump(),
+            "skipped": True,
+        })
+
+    # 2. Download manifest (all uploaded file contents)
+    manifest = _download_manifest(inp.r2_manifest_url)
+    activity.logger.info("  Manifest: %d files", len(manifest))
+
+    if not manifest:
+        activity.logger.warning("  ⚠️ Empty manifest — cannot assess readiness, skipping gate")
+        empty = DataReadinessAssessment(
+            minimum_viable_import_possible=True,
+            user_action_required=False,
+            executive_summary="No uploaded files found in manifest; proceeding with best-effort mapping.",
+            import_readiness_score=0.0,
+        )
+        await _persist_assessment(inp.session_id, empty)
+        return NodeStatusEnvelope.partial(
+            primary_result={"assessment": empty.model_dump(), "skipped": True},
+            warnings=[{"code": "EMPTY_MANIFEST", "message": "No files in manifest to assess"}],
+        )
+
+    # 3. Load company profile
+    company_profile = await _load_company_profile(inp.session_id)
+
+    # 4. Deterministic gap analysis (no LLM)
+    kb = _kb_field_mappings() or {}
+    pre_analysis = analyze_gaps(
+        manifest=manifest,
+        target_structure=target_structure,
+        field_mappings_kb=kb,
+    )
+    summary = pre_analysis.get("summary", {})
+    activity.logger.info(
+        "  Gap scan: ready=%d partial=%d missing=%d unmappable=%d score=%.0f%%",
+        summary.get("n_ready", 0),
+        summary.get("n_partial", 0),
+        summary.get("n_missing", 0),
+        summary.get("n_unmappable_files", 0),
+        summary.get("raw_readiness_score", 0) * 100,
+    )
+
+    # 5. LLM ranking + question generation
+    assessment: Optional[DataReadinessAssessment] = None
+    try:
+        prompt = DATA_READINESS_PROMPT.format(
+            company_profile=json.dumps(company_profile, indent=2),
+            target_structure=json.dumps({
+                "required_doctypes": required_doctypes,
+                "import_phases": target_structure.get("import_phases", {}),
+            }, indent=2),
+            pre_analysis=json.dumps({
+                "partial_doctypes": pre_analysis.get("partial_doctypes", []),
+                "missing_doctypes": pre_analysis.get("missing_doctypes", []),
+                "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+                "summary": summary,
+            }, indent=2),
+        )
+
+        llm_raw = await generate_typed(
+            prompt=prompt,
+            schema=DataReadinessAssessment,
+            model_name=os.getenv("MAPPING_EXTRACTION_MODEL", "gpt-4o-mini"),
+            temperature=0.1,
+            max_output_tokens=4000,
+            system_instruction="Return only the JSON object. No markdown.",
+        )
+
+        # Merge LLM output with deterministic ready_doctypes (LLM may not list them)
+        from containers.implementation.data_readiness_agent.models import (
+            DoctypeGap, DoctypeReady, UnmappableChunk, UserQuestion
+        )
+
+        ready_list = [DoctypeReady(**r) for r in pre_analysis.get("ready_doctypes", [])]
+
+        deterministic_gap_report = {
+            "summary": summary,
+            "ready_doctypes": pre_analysis.get("ready_doctypes", []),
+            "partial_doctypes": pre_analysis.get("partial_doctypes", []),
+            "missing_doctypes": pre_analysis.get("missing_doctypes", []),
+            "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+        }
+        assessment = DataReadinessAssessment(
+            ready_doctypes=ready_list,
+            partial_doctypes=[
+                DoctypeGap(
+                    doctype=p.get("doctype", ""),
+                    criticality=p.get("criticality") or _criticality_from_phase(p.get("phase")),
+                    reason=p.get("reason", "Partial data coverage detected."),
+                    missing_fields=p.get("missing_fields") or p.get("missing_required_fields", []),
+                    recommendation=p.get("recommendation", "Review and supplement data before import."),
+                    can_proceed_without=bool(p.get("can_proceed_without", _criticality_from_phase(p.get("phase")) != "critical")),
+                )
+                for p in (llm_raw.get("partial_doctypes") or [])
+            ],
+            missing_doctypes=[
+                DoctypeGap(
+                    doctype=m.get("doctype", ""),
+                    criticality=m.get("criticality") or _criticality_from_phase(m.get("phase")),
+                    reason=m.get("reason", "No uploaded file covers this doctype."),
+                    missing_fields=m.get("missing_fields") or m.get("missing_required_fields", []),
+                    recommendation=m.get("recommendation", "Upload a file containing this data, or use ERPNext defaults."),
+                    can_proceed_without=bool(m.get("can_proceed_without", _criticality_from_phase(m.get("phase")) != "critical")),
+                )
+                for m in (llm_raw.get("missing_doctypes") or [])
+            ],
+            unmappable_chunks=[
+                UnmappableChunk(**u) for u in (llm_raw.get("unmappable_chunks") or [])
+            ],
+            gap_report=llm_raw.get("gap_report") or deterministic_gap_report,
+            minimum_viable_import_possible=not (
+                _has_critical_gaps(pre_analysis.get("missing_doctypes", []))
+                or _has_critical_gaps(pre_analysis.get("partial_doctypes", []))
+            ),
+            user_action_required=bool(
+                pre_analysis.get("partial_doctypes")
+                or pre_analysis.get("missing_doctypes")
+                or pre_analysis.get("unmappable_chunks")
+            ),
+            questions_for_user=[UserQuestion(**q) for q in (llm_raw.get("questions_for_user") or [])],
+            executive_summary=llm_raw.get("executive_summary", ""),
+            import_readiness_score=float(llm_raw.get("import_readiness_score", summary.get("raw_readiness_score", 1.0))),
+            user_decision=llm_raw.get("user_decision"),
+        )
+        activity.logger.info(
+            "  ✅ LLM assessment complete | score=%.0f%% viable=%s action_required=%s questions=%d",
+            assessment.import_readiness_score * 100,
+            assessment.minimum_viable_import_possible,
+            assessment.user_action_required,
+            len(assessment.questions_for_user),
+        )
+
+    except Exception as e:
+        activity.logger.warning("  ⚠️ LLM assessment failed (%s) — using deterministic fallback", e)
+        # Deterministic fallback: build a conservative assessment from the scan
+        from containers.implementation.data_readiness_agent.models import DoctypeReady, DoctypeGap, UnmappableChunk
+        ready_list = [DoctypeReady(**r) for r in pre_analysis.get("ready_doctypes", [])]
+        partial_list = [
+            DoctypeGap(
+                doctype=p["doctype"],
+                criticality=_criticality_from_phase(p.get("phase")),
+                reason="Partial data coverage detected.",
+                missing_fields=p.get("missing_required_fields", []),
+                recommendation="Review and supplement data before import.",
+                can_proceed_without=_criticality_from_phase(p.get("phase")) != "critical",
+            )
+            for p in pre_analysis.get("partial_doctypes", [])
+        ]
+        missing_list = [
+            DoctypeGap(
+                doctype=m["doctype"],
+                criticality=_criticality_from_phase(m.get("phase")),
+                reason="No uploaded file covers this doctype.",
+                missing_fields=m.get("missing_required_fields", []),
+                recommendation="Upload a file containing this data, or use ERPNext defaults.",
+                can_proceed_without=_criticality_from_phase(m.get("phase")) != "critical",
+            )
+            for m in pre_analysis.get("missing_doctypes", [])
+        ]
+        unmappable_list = [
+            UnmappableChunk(
+                filename=u["filename"],
+                description="Uploaded file with unrecognised structure.",
+                reason="No ERPNext doctype matched the file columns or content.",
+            )
+            for u in pre_analysis.get("unmappable_chunks", [])
+        ]
+        raw_score = summary.get("raw_readiness_score", 1.0)
+        critical_missing = [m for m in missing_list if m.criticality == "critical"]
+        critical_partial = [p for p in partial_list if p.criticality == "critical"]
+        assessment = DataReadinessAssessment(
+            ready_doctypes=ready_list,
+            partial_doctypes=partial_list,
+            missing_doctypes=missing_list,
+            unmappable_chunks=unmappable_list,
+            gap_report={
+                "summary": summary,
+                "ready_doctypes": pre_analysis.get("ready_doctypes", []),
+                "partial_doctypes": pre_analysis.get("partial_doctypes", []),
+                "missing_doctypes": pre_analysis.get("missing_doctypes", []),
+                "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+            },
+            minimum_viable_import_possible=len(critical_missing) == 0 and len(critical_partial) == 0,
+            user_action_required=len(partial_list) + len(missing_list) > 0 or len(unmappable_list) > 0,
+            questions_for_user=[],
+            executive_summary=(
+                f"Import readiness: {raw_score*100:.0f}%. "
+                f"{len(missing_list)} doctype(s) missing. "
+                f"{'Critical gaps detected — user action required.' if critical_missing else 'Proceeding with available data.'}"
+            ),
+            import_readiness_score=raw_score,
+        )
+
+    # 6. Persist to Supabase
+    await _persist_assessment(inp.session_id, assessment)
+
+    # 7. Audit log
+    try:
+        from containers.implementation.file_io.persist_audit import log_audit
+        await log_audit(
+            session_id=inp.session_id,
+            action="data_readiness_assessed",
+            actor="system",
+            entity_type="data_readiness",
+            details={
+                "import_readiness_score": assessment.import_readiness_score,
+                "ready_count": len(assessment.ready_doctypes),
+                "partial_count": len(assessment.partial_doctypes),
+                "missing_count": len(assessment.missing_doctypes),
+                "minimum_viable": assessment.minimum_viable_import_possible,
+                "user_action_required": assessment.user_action_required,
+            },
+            result="success",
+        )
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Audit log failed (non-fatal): %s", e)
+
+    activity.logger.info("✅ assess_data_readiness done")
+
+    assessment_dict = assessment.model_dump()
+
+    if assessment.minimum_viable_import_possible:
+        return NodeStatusEnvelope.success(primary_result={"assessment": assessment_dict})
+
+    # Not viable → return partial so Supervisor + workflow gate can act
+    return NodeStatusEnvelope.partial(
+        primary_result={"assessment": assessment_dict},
+        warnings=[
+            {
+                "code": "MINIMUM_VIABLE_NOT_MET",
+                "message": (
+                    f"Import readiness {assessment.import_readiness_score*100:.0f}% — "
+                    f"{len(assessment.missing_doctypes)} doctype(s) missing data. "
+                    "User confirmation required before mapping."
+                ),
+            }
+        ],
+    )

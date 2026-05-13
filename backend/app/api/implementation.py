@@ -279,6 +279,17 @@ async def get_validation_report(
     return {"validation_report": report}
 
 
+@router.get("/data-readiness/{project_id}", summary="Data readiness assessment")
+async def get_data_readiness(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    report = await launcher.get_data_readiness(project_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Data readiness not yet assessed")
+    return {"data_readiness": report}
+
+
 @router.get("/import-plan/{project_id}", summary="3-phase import plan")
 async def get_import_plan(
     project_id: UUID,

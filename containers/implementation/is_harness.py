@@ -28,6 +28,7 @@ Steps available:
     merge_company_profile
     build_target_structure
     derive_required_records       ← NEW (Plan Step 8b)
+    assess_data_readiness         ← NEW (Plan Step 8c)
     supervise_step                ← NEW (Supervisor Agent)
     apply_supervisor_actions      ← NEW (Supervisor Agent)
     map_file_to_erpnext
@@ -132,6 +133,49 @@ _LLM_MOCK_RESPONSES: Dict[str, Any] = {
     "align_discovery":     {"alignment_score": 0.9, "mismatches": [], "recommended_f3iche": "manufacturing_project_chemical", "reasoning": "[MOCK]"},
     "industry_knowledge":  {"industry_differentiators": ["[MOCK] Batch tracking", "[MOCK] QC protocols"], "industry_best_practices": {}},
     "enrich_profile":      {"data_quality_score": 0.8, "completeness_score": 0.75, "data_observations": ["[MOCK] batch data present"], "recommended_customizations": []},
+    "data_readiness":      {
+        "ready_doctypes": [
+            {"doctype": "Item", "source_file": "items.csv", "coverage_pct": 0.9, "mapped_fields": ["item_code"], "missing_optional_fields": []},
+        ],
+        "partial_doctypes": [
+            {
+                "doctype": "Work Order",
+                "criticality": "critical",
+                "reason": "[MOCK] Missing bom_no and required routing fields.",
+                "missing_fields": ["bom_no", "workstation"],
+                "recommendation": "Upload BOM and routing data before import.",
+                "can_proceed_without": False,
+            }
+        ],
+        "missing_doctypes": [
+            {
+                "doctype": "BOM",
+                "criticality": "critical",
+                "reason": "[MOCK] No BOM file detected.",
+                "missing_fields": ["items", "quantity"],
+                "recommendation": "Upload a BOM export.",
+                "can_proceed_without": False,
+            }
+        ],
+        "unmappable_chunks": [
+            {"filename": "notes.txt", "description": "[MOCK] Freeform notes", "reason": "No ERPNext doctype matched."}
+        ],
+        "gap_report": {"summary": {"raw_readiness_score": 0.25}},
+        "minimum_viable_import_possible": False,
+        "user_action_required": True,
+        "questions_for_user": [
+            {
+                "id": "upload_bom_data",
+                "doctype": "BOM",
+                "question": "BOM data is missing. Upload BOM files now?",
+                "options": ["Upload Missing Files", "Proceed with Partial Data", "Skip These Doctypes"],
+                "is_blocking": True,
+            }
+        ],
+        "executive_summary": "[MOCK] Readiness is low; BOM and Work Order data are missing.",
+        "import_readiness_score": 0.25,
+        "user_decision": None,
+    },
     "supervise_step":      {"actions": [], "summary_for_ui": "[MOCK] No issues detected.", "final_status": "resolved"},
     "generic":             {"status": "mock_ok", "result": "[MOCK LLM RESPONSE]"},
 }
@@ -167,6 +211,16 @@ def _install_mock_llm() -> None:
         log.info("  🤖 [MOCK LLM] returning canned response (skipping Gemini)")
         return resp
 
+    async def _mock_generate_typed(*, prompt: str, schema, **kwargs) -> Dict:
+        prompt_lower = prompt.lower()
+        schema_name = getattr(schema, "__name__", "")
+        if "data readiness analyst" in prompt_lower or schema_name == "DataReadinessAssessment":
+            resp = _LLM_MOCK_RESPONSES["data_readiness"]
+        else:
+            resp = _LLM_MOCK_RESPONSES["generic"]
+        log.info("  🤖 [MOCK LLM] returning structured canned response")
+        return resp
+
     # Patch the shared llm_helper module
     try:
         import containers.implementation.utils.llm_helper as _lh
@@ -174,10 +228,17 @@ def _install_mock_llm() -> None:
     except ImportError:
         pass
 
+    try:
+        import shared.structured_llm as _sl
+        _sl.generate_typed = _mock_generate_typed
+    except ImportError:
+        pass
+
     # Patch llm_router key_pool (used by retrieve_industry_knowledge)
     try:
         import llm_router as _lr
         _lr.key_pool = iter(["MOCK_KEY"] * 1000)
+        _lr.invoke_structured_llm = _mock_generate_typed
     except ImportError:
         pass
 
@@ -248,6 +309,11 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
     elif step == "build_target_structure":
         from containers.implementation.target_agent.activities import build_target_structure, BuildTargetInput
         return await build_target_structure(BuildTargetInput(**fixture))
+
+    # ── assess_data_readiness (Step 8c) ───────────────────────────────────────
+    elif step == "assess_data_readiness":
+        from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
+        return await assess_data_readiness(AssessDataReadinessInput(**fixture))
 
     # ── derive_required_records (Step 8b) ─────────────────────────────────────
     elif step == "derive_required_records":
@@ -325,6 +391,7 @@ VALID_STEPS = [
     "merge_company_profile",
     "build_target_structure",
     "derive_required_records",
+    "assess_data_readiness",
     "supervise_step",
     "apply_supervisor_actions",
     "map_file_to_erpnext",

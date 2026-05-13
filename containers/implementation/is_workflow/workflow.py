@@ -31,6 +31,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.profile_agent.activities    import align_discovery_and_signals, build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput, AlignDiscoverySignalsInput, RetrieveIndustryKnowledgeInput, EnrichCompanyProfileInput, retrieve_industry_knowledge, enrich_company_profile
     from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
     from containers.implementation.derive_agent.activities     import derive_required_records, DeriveRequiredRecordsInput
+    from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput
@@ -626,6 +627,205 @@ class ImplementationWorkflow:
             _step_ok(L, "8b", "Derive Required Records", f"missing={len(missing)}")
         except Exception as e:
             _step_fail(L, "8b", "Derive Required Records", str(e))
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 8c / 14  —  Data Readiness Assessment
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, "8c", "Data Readiness Assessment", "Comparing uploaded data against target structure")
+
+        readiness_env: Optional[NodeStatusEnvelope] = None
+        readiness: Dict[str, Any] = {}
+
+        try:
+            readiness_env = await workflow.execute_activity(
+                assess_data_readiness,
+                AssessDataReadinessInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                    r2_manifest_url=r2_manifest_url,
+                ),
+                **_ACT,
+            )
+            if isinstance(readiness_env, dict):
+                if "status" in readiness_env:
+                    readiness_env = NodeStatusEnvelope(**readiness_env)
+                else:
+                    readiness_env = NodeStatusEnvelope.success(primary_result=readiness_env)
+            elif isinstance(readiness_env, str):
+                readiness_env = NodeStatusEnvelope.success(primary_result={"assessment": {}})
+
+            readiness = (readiness_env.primary_result or {}).get("assessment", {}) if isinstance(readiness_env.primary_result, dict) else {}
+            score = float(readiness.get("import_readiness_score", 0.0) or 0.0)
+            _kv(L, "import_readiness_score", f"{score*100:.0f}%")
+            _kv(L, "ready_doctypes", len(readiness.get("ready_doctypes", [])))
+            _kv(L, "partial_doctypes", len(readiness.get("partial_doctypes", [])))
+            _kv(L, "missing_doctypes", len(readiness.get("missing_doctypes", [])))
+            _kv(L, "unmappable_chunks", len(readiness.get("unmappable_chunks", [])))
+            _kv(L, "minimum_viable_possible", readiness.get("minimum_viable_import_possible"))
+            _kv(L, "user_action_required", readiness.get("user_action_required"))
+            _step_ok(
+                L,
+                "8c",
+                "Data Readiness Assessment",
+                f"score={score*100:.0f}% | viable={readiness.get('minimum_viable_import_possible')}",
+            )
+        except Exception as e:
+            _step_fail(L, "8c", "Data Readiness Assessment", str(e))
+            readiness_env = NodeStatusEnvelope.failed(
+                errors=[{"code": "READINESS_FAILED", "message": str(e)}],
+                primary_result={"assessment": {}},
+            )
+            readiness = {}
+
+        with workflow.unsafe.sandbox_unrestricted():
+            supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
+
+        readiness_needs_input = not bool(readiness.get("minimum_viable_import_possible", True))
+        readiness_failed = getattr(readiness_env, "status", "") == "failed"
+        readiness_prompt_id: Optional[str] = None
+
+        if supervisor_enabled and readiness_env and readiness and not readiness_failed:
+            try:
+                sup = await workflow.execute_activity(
+                    supervise_step,
+                    SuperviseStepInput(
+                        project_id=project_id,
+                        session_id=self._session_id,
+                        node_name="assess_data_readiness",
+                        step="8c",
+                        f3iche_id=conf.f3iche_user,
+                        phase="pre_mapping",
+                        doctypes_in_focus=[
+                            *(g.get("doctype", "") for g in (readiness.get("missing_doctypes", []) or [])),
+                            *(g.get("doctype", "") for g in (readiness.get("partial_doctypes", []) or [])),
+                        ],
+                        status=readiness_env,
+                    ),
+                    **_ACT,
+                )
+
+                if readiness_needs_input or (sup.actions or []):
+                    readiness_prompt_id = await workflow.execute_activity(
+                        persist_supervisor_prompt,
+                        PersistSupervisorPromptInput(
+                            session_id=self._session_id,
+                            step="data_readiness",
+                            status="open",
+                            node_status=asdict(readiness_env),
+                            actions=[asdict(a) for a in (sup.actions or [])],
+                            summary_for_ui=sup.summary_for_ui,
+                        ),
+                        **_ACT,
+                    )
+
+                if readiness_needs_input:
+                    self._stage = "awaiting_data_readiness_confirmation"
+                    await workflow.execute_activity(
+                        persist_session,
+                        PersistSessionInput(
+                            project_id=project_id,
+                            workflow_id=workflow_id,
+                            status=self._stage,
+                        ),
+                        **_ACT,
+                    )
+
+                    readiness_cycle = 0
+                    while readiness_needs_input:
+                        readiness_cycle += 1
+                        _signal_banner(L, "data_readiness_prompt", f"prompt_id={readiness_prompt_id}")
+                        self._supervisor_response_event.clear()
+                        L.info("  ⏳ Waiting for supervisor_response signal ...")
+                        await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
+
+                        ssig = self._sig_supervisor
+                        selected_option = ""
+                        if ssig:
+                            selected_option = str((ssig.extra_data or {}).get("selected_option", ""))
+                            await workflow.execute_activity(
+                                mark_supervisor_prompt_answered,
+                                MarkSupervisorPromptAnsweredInput(
+                                    prompt_id=str(readiness_prompt_id),
+                                    answer_payload={
+                                        "chosen_action_id": ssig.chosen_action_id,
+                                        "extra_data": ssig.extra_data,
+                                    },
+                                    status="answered",
+                                ),
+                                **_ACT,
+                            )
+
+                        chosen_action = next(
+                            (a for a in (sup.actions or []) if getattr(a, "id", None) == (ssig.chosen_action_id if ssig else "")),
+                            None,
+                        )
+
+                        if selected_option.lower().startswith("upload") and readiness_cycle <= 1:
+                            self._files_uploaded_event.clear()
+                            L.info("  ⏳ Waiting for additional files_uploaded signal ...")
+                            await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
+
+                            updated_files = (self._sig_files.uploaded_files if self._sig_files else sig.uploaded_files)
+                            fetch_results = await workflow.execute_activity(
+                                fetch_clean_files,
+                                FetchCleanFilesInput(
+                                    uploaded_files=updated_files,
+                                    project_id=project_id,
+                                    company_slug=self._company_slug,
+                                ),
+                                **_ACT,
+                            )
+                            r2_manifest_url = fetch_results.get("manifest_url", r2_manifest_url)
+                            self._parsed_files = fetch_results.get("parsed_files", self._parsed_files)
+
+                            readiness_env = await workflow.execute_activity(
+                                assess_data_readiness,
+                                AssessDataReadinessInput(
+                                    session_id=self._session_id,
+                                    project_id=project_id,
+                                    company_slug=self._company_slug,
+                                    r2_manifest_url=r2_manifest_url,
+                                ),
+                                **_ACT,
+                            )
+                            if isinstance(readiness_env, dict):
+                                if "status" in readiness_env:
+                                    readiness_env = NodeStatusEnvelope(**readiness_env)
+                                else:
+                                    readiness_env = NodeStatusEnvelope.success(primary_result=readiness_env)
+                            readiness = (readiness_env.primary_result or {}).get("assessment", {}) if isinstance(readiness_env.primary_result, dict) else {}
+                            readiness_needs_input = not bool(readiness.get("minimum_viable_import_possible", True))
+                            if not readiness_needs_input:
+                                _step_ok(L, "8c", "Data Readiness Recheck", "Fresh files make minimum viable import possible")
+                                break
+                            L.info("      ⚠️  Readiness still not viable after re-upload; proceeding with the user's decision path.")
+                            break
+
+                        # Proceed / skip / anything else continues to mapping.
+                        if chosen_action and getattr(chosen_action, "type", "") == "auto_fix":
+                            await workflow.execute_activity(
+                                apply_supervisor_actions,
+                                ApplySupervisorActionsInput(
+                                    project_id=project_id,
+                                    session_id=self._session_id,
+                                    step="data_readiness",
+                                    company_slug=self._company_slug,
+                                    actions=[chosen_action],
+                                ),
+                                **_ACT,
+                            )
+                        break
+            except Exception as e:
+                L.info("      ⚠️  Supervisor hook for data_readiness failed (non-fatal): %s", e)
+        elif readiness_failed:
+            L.info("  ⚠️  Readiness assessment failed — proceeding without gate")
+        elif not readiness_needs_input:
+            L.info("  ✅ Minimum viable data confirmed — proceeding to mapping without gate")
+        else:
+            L.info("  ⚠️  Supervisor disabled — proceeding despite readiness gaps")
+
+        self._stage = "mapping"
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 8 / 14  —  Update Session to Mapping

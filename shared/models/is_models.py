@@ -5,20 +5,21 @@ PostgreSQL tables for the Implementation System (IS) — v2 Schema.
 Normalised from 4 JSONB-heavy tables to 13 queryable, relational tables.
 
 Tables:
-  is_sessions             — orchestration tracking (slimmed, no JSONB blobs)
-  is_files                — file lifecycle with tri-bucket tracking
-  is_file_signals         — WHY a pattern was detected in a file
-  is_f3iche_scores        — ALL candidate niche scores (not just the winner)
-  is_company_profiles     — versioned company profile snapshots
-  is_target_structures    — ERPNext doctype requirements
-  is_field_mappings       — column → ERPNext field mappings (one row per mapping)
-  is_mapped_data          — references to R2 extracted/mapped payloads
-  is_validation_results   — overall validation status per mapped doctype
-  is_validation_errors    — individual queryable errors/warnings
-  is_import_plans         — 3-phase import plans
-  is_import_logs          — step-by-step import execution log
-  is_audit_trail          — full history of every action
-  is_supervisor_prompts   — exception-driven Supervisor prompts (conversation loop)
+  is_sessions                    — orchestration tracking (slimmed, no JSONB blobs)
+  is_files                       — file lifecycle with tri-bucket tracking
+  is_file_signals                — WHY a pattern was detected in a file
+  is_f3iche_scores               — ALL candidate niche scores (not just the winner)
+  is_company_profiles            — versioned company profile snapshots
+  is_target_structures           — ERPNext doctype requirements
+  is_data_readiness_assessments  — Step 8c gap analysis (data vs target structure)
+  is_field_mappings              — column → ERPNext field mappings (one row per mapping)
+  is_mapped_data                 — references to R2 extracted/mapped payloads
+  is_validation_results          — overall validation status per mapped doctype
+  is_validation_errors           — individual queryable errors/warnings
+  is_import_plans                — 3-phase import plans
+  is_import_logs                 — step-by-step import execution log
+  is_audit_trail                 — full history of every action
+  is_supervisor_prompts          — exception-driven Supervisor prompts (conversation loop)
 """
 
 from __future__ import annotations
@@ -278,7 +279,42 @@ class ISTargetStructure(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 7. ISFieldMapping — Column → ERPNext Field Mappings
+# 7. ISDataReadinessAssessment — Step 8c Gap Analysis
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ISDataReadinessAssessment(Base):
+    __tablename__ = "is_data_readiness_assessments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("is_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    ready_doctypes = Column(JSONB, nullable=True)
+    partial_doctypes = Column(JSONB, nullable=True)
+    missing_doctypes = Column(JSONB, nullable=True)
+    unmappable_chunks = Column(JSONB, nullable=True)
+    gap_report = Column(JSONB, nullable=True)
+
+    minimum_viable_possible = Column(Boolean, default=True)
+    user_action_required = Column(Boolean, default=False)
+    questions_for_user = Column(JSONB, nullable=True)
+    import_readiness_score = Column(Float, default=1.0)
+    executive_summary = Column(Text, nullable=True)
+    user_decision = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_data_readiness_session", "session_id"),
+        Index("idx_data_readiness_created", "created_at"),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. ISFieldMapping — Column → ERPNext Field Mappings
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISFieldMapping(Base):
@@ -329,7 +365,7 @@ class ISFieldMapping(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 8. ISMappedData — References to R2 Extracted/Mapped Payloads
+# 9. ISMappedData — References to R2 Extracted/Mapped Payloads
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISMappedData(Base):
@@ -373,7 +409,7 @@ class ISMappedData(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 9. ISValidationResult — Overall Validation Status Per Doctype
+# 10. ISValidationResult — Overall Validation Status Per Doctype
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISValidationResult(Base):
@@ -414,7 +450,7 @@ class ISValidationResult(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 10. ISValidationError — Individual Queryable Errors
+# 11. ISValidationError — Individual Queryable Errors
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISValidationError(Base):
@@ -459,7 +495,7 @@ class ISValidationError(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 11. ISImportPlan — 3-Phase Import Plans
+# 12. ISImportPlan — 3-Phase Import Plans
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISImportPlan(Base):
@@ -497,7 +533,7 @@ class ISImportPlan(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 12. ISImportLog — Step-by-Step Import Execution Log
+# 13. ISImportLog — Step-by-Step Import Execution Log
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISImportLog(Base):
@@ -543,7 +579,7 @@ class ISImportLog(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 13. ISAuditTrail — Full History
+# 14. ISAuditTrail — Full History
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISAuditTrail(Base):
@@ -584,7 +620,7 @@ class ISAuditTrail(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 14. ISSupervisorPrompt — Exception-driven user prompts
+# 15. ISSupervisorPrompt — Exception-driven user prompts
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ISSupervisorPrompt(Base):

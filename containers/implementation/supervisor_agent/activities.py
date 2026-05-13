@@ -76,7 +76,7 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
     actions: List[SupervisorAction] = []
     final_status: str = "resolved"
 
-    # v1 logic: only handle validate_mapped_data in a deterministic, rules-based way.
+    # v1 logic: handle validation plus readiness in a deterministic, rules-based way.
     if inp.node_name == "validate_mapped_data":
         missing_required: List[str] = []
         enum_status_bad = False
@@ -152,6 +152,66 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                         "Proceed anyway (not recommended)",
                     ],
                     metadata={"missing_required_fields": sorted(set(missing_required))},
+                )
+            )
+
+    elif inp.node_name == "assess_data_readiness":
+        assessment = (st.primary_result or {}).get("assessment", {}) if isinstance(st.primary_result, dict) else {}
+
+        missing_doctypes = assessment.get("missing_doctypes", []) or []
+        partial_doctypes = assessment.get("partial_doctypes", []) or []
+        unmappable_chunks = assessment.get("unmappable_chunks", []) or []
+
+        critical_missing = [
+            g for g in missing_doctypes
+            if str(g.get("criticality", "")).lower() == "critical"
+        ]
+        noncritical_missing = [
+            g for g in missing_doctypes
+            if str(g.get("criticality", "")).lower() in ("non_critical", "optional")
+            or bool(g.get("can_proceed_without", False))
+        ]
+        critical_partial = [
+            g for g in partial_doctypes
+            if str(g.get("criticality", "")).lower() == "critical"
+        ]
+
+        if critical_missing or critical_partial or noncritical_missing:
+            missing_names = sorted({
+                g.get("doctype", "")
+                for g in (*critical_missing, *critical_partial, *noncritical_missing)
+                if g.get("doctype", "")
+            })
+            q_prefix = "Critical" if (critical_missing or critical_partial) else "Non-critical"
+            question = (
+                f"{q_prefix} data is missing for: {', '.join([n for n in missing_names if n])}. "
+                "How would you like to proceed?"
+            )
+
+            options = [
+                "Upload Missing Files",
+                "Proceed with Partial Data",
+                "Skip These Doctypes",
+            ]
+            if unmappable_chunks:
+                question += f" {len(unmappable_chunks)} uploaded file section(s) could not be matched to ERPNext doctypes."
+
+            if critical_missing or critical_partial:
+                final_status = "needs_user_input"
+
+            actions.append(
+                SupervisorAction(
+                    id="ask_user_data_readiness",
+                    type="ask_user",
+                    scope="data_readiness",
+                    question=question,
+                    options=options,
+                    metadata={
+                        "critical_missing": critical_missing,
+                        "critical_partial": critical_partial,
+                        "noncritical_missing": noncritical_missing,
+                        "unmappable_chunks": unmappable_chunks,
+                    },
                 )
             )
 

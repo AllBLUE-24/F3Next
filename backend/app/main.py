@@ -18,7 +18,7 @@ from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
 from shared.models.is_models import (
     ISSession, ISFile, ISFileSignal, ISF3icheScore,
-    ISCompanyProfile, ISTargetStructure, ISFieldMapping, ISMappedData,
+    ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment, ISFieldMapping, ISMappedData,
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
 )
 from shared.models.cvs_models import ContextSnapshot, ContextEvent
@@ -60,7 +60,7 @@ async def prometheus_metrics():
 _all_models = [
     Base, Client, Project, ProjectStatus, Hook,
     ISSession, ISFile, ISFileSignal, ISF3icheScore,
-    ISCompanyProfile, ISTargetStructure, ISFieldMapping, ISMappedData,
+    ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment, ISFieldMapping, ISMappedData,
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
     ContextSnapshot, ContextEvent, F3icheDefinition,
 ]
