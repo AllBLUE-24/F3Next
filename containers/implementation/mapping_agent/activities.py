@@ -534,6 +534,12 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             doctype = cls.get("doctype")
             cls_meta = cls
 
+        if doctype == "Unmapped_Irrelevant":
+            activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping extraction.", inp.filename)
+            return NodeStatusEnvelope.success(
+                primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
+            )
+
         # Step B: schema-locked extraction
         records: List[Dict[str, Any]] = []
         try:
@@ -593,6 +599,10 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     )
                     group_doctype = cls.get("doctype")
 
+                if group_doctype == "Unmapped_Irrelevant":
+                    activity.logger.info("  ⏭️ Group %s classified as Unmapped_Irrelevant, skipping.", entity_type)
+                    continue
+
                 field_mapping = engine.map_columns(columns, group_doctype, sample_row=group_rows[0] if group_rows else None)
                 results.append({
                     "doctype": group_doctype,
@@ -614,6 +624,13 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
                 )
                 doctype = cls.get("doctype")
+
+            if doctype == "Unmapped_Irrelevant":
+                activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping mapping.", inp.filename)
+                return NodeStatusEnvelope.success(
+                    primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
+                )
+
             field_mapping = engine.map_columns(columns, doctype, sample_row=clean_rows[0] if clean_rows else None)
             results = [{
                 "doctype": doctype,

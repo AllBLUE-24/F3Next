@@ -600,7 +600,7 @@ class ImplementationWorkflow:
 
         self._set_task("t5", "done", f"{len(target.get('required_doctypes', []))} doctypes target")
 
-        # ═══════════════════����══════════════════════════════════════════════════
+        # ═══════════════════������══════════════════════════════════════════════════
         # STEP 8b / 14  —  Derive Required Records (draft prerequisites)
         # ═���═════════════════════════════════════════════════════════════════���══
         _step_start(L, "8b", "Derive Required Records", "Deriving prerequisite doctypes when files are missing")
@@ -1068,6 +1068,7 @@ class ImplementationWorkflow:
                         ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                         **_ACT,
                     )
+                    v_env = NodeStatusEnvelope(**v_env) if isinstance(v_env, dict) else v_env
                     continue
 
                 if sup.final_status in ("needs_user_input", "hard_block"):
@@ -1128,6 +1129,7 @@ class ImplementationWorkflow:
                         ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                         **_ACT,
                     )
+                    v_env = NodeStatusEnvelope(**v_env) if isinstance(v_env, dict) else v_env
                     continue
 
                 # Nothing else to do (either already tried auto-fix, or no actionable items)

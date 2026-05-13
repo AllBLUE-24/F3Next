@@ -182,7 +182,8 @@ async def classify_doctype(
         }
 
     # LLM fallback — classification ONLY
-    DoctypeLiteral = Literal.__getitem__(tuple(candidates))
+    candidates_with_escape = list(candidates) + ["Unmapped_Irrelevant"]
+    DoctypeLiteral = Literal.__getitem__(tuple(candidates_with_escape))
     ClassificationSchema = create_model(  # type: ignore[misc]
         "DocTypeClassification",
         __config__=ConfigDict(extra="forbid"),
@@ -200,7 +201,7 @@ async def classify_doctype(
     )
     if columns:
         prompt += f"Columns: {columns[:60]}\n"
-    prompt += f"\nContent snippet:\n{snippet}\n\nCandidate doctypes:\n{candidates}\n\nReturn strictly the JSON schema."
+    prompt += f"\nContent snippet:\n{snippet}\n\nCandidate doctypes:\n{candidates_with_escape}\n\nReturn strictly the JSON schema."
 
     try:
         res = await generate_typed(
@@ -212,7 +213,7 @@ async def classify_doctype(
             system_instruction="Return only the JSON object. No markdown.",
         )
         chosen = res.get("doctype") or best
-        if chosen not in candidates:
+        if chosen not in candidates_with_escape:
             chosen = best
         conf = float(res.get("confidence") or 0.6)
         return {
