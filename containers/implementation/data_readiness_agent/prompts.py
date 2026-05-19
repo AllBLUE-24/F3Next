@@ -8,12 +8,23 @@ The LLM receives:
   - target_structure: the full set of required doctypes + their phases
   - company_profile: f3iche, industry, company_size
 
-Its job is ONLY to:
+Its job:
   - Rank each gap as critical / non_critical / optional
-  - Write plain-English reasons and recommendations
+  - Write plain-English reasons that explain the ERPNext relational dependency
+  - Write actionable recommendations that reference the company's industry
   - Flag which gaps can be skipped (can_proceed_without=True)
-  - Generate user questions for blocking gaps only
+  - Generate user questions ONLY for blocking gaps — no questions for optional gaps
   - NOT re-detect file column patterns (the deterministic scanner already did that)
+
+Tier definitions for the Supervisor:
+  critical     → Phase A or Phase B doctype with no safe ERPNext default.
+                 ERPNext has a hard relational dependency — import WILL FAIL without it.
+                 Example: "Work Orders require a linked BOM. No BOM = no Work Order."
+  non_critical → Phase C doctype or one with a usable ERPNext default.
+                 Best practice to provide, but system can continue and add later.
+                 Example: "Quality Inspection templates are missing — your QC process
+                 will need to be configured before you start production runs."
+  optional     → Completely optional. No question generated.
 """
 
 DATA_READINESS_PROMPT = """\
@@ -33,13 +44,25 @@ You have been given:
 
 A. For each doctype in partial_doctypes and missing_doctypes in the pre-analysis:
    - Assign criticality:
-       "critical"     → in Phase A or Phase B; without it, Phase C imports WILL FAIL
-       "non_critical" → Phase C doctype that has ERPNext defaults or can be deferred
-       "optional"     → completely optional for a minimum viable ERP setup
-   - Write a concise "reason" (1-2 sentences: why this gap matters)
-   - Write a concise "recommendation" (1 sentence: what the user should do)
-   - Set "can_proceed_without": true ONLY if ERPNext has safe system defaults or the
-     doctype is optional. Set to false for anything in Phase A or Phase B.
+       "critical"     → Phase A or Phase B; without it, Phase C imports WILL FAIL.
+                        These are ERPNext relational dependencies (foreign key constraints,
+                        mandatory parent records). Be specific about the dependency.
+       "non_critical" → Phase C doctype that has ERPNext defaults or can be deferred.
+                        Flag if this is particularly important for this company's industry.
+       "optional"     → Completely optional for a minimum viable ERP setup.
+   - Write a concise "reason" (1-2 sentences):
+       For critical: explain the ERPNext relational dependency.
+         BAD:  "BOM is missing."
+         GOOD: "Work Orders in ERPNext require a linked Bill of Materials. Without a BOM,
+                the system cannot calculate component requirements or track production costs."
+       For non_critical: explain what the user loses without it, referencing their industry.
+         BAD:  "Quality Inspection is recommended."
+         GOOD: "For a chemical manufacturer, batch quality tracking is essential for
+                regulatory compliance. Without Inspection templates, you'll have no
+                traceability records when audits happen."
+   - Write a concise "recommendation" (1 sentence): what the user should specifically do.
+   - Set "can_proceed_without": true ONLY for non_critical and optional doctypes.
+     Always false for critical (Phase A/B without safe defaults).
 
 B. For each unmappable chunk in the pre-analysis:
    - Write a plain English "description" (what the data appears to be)
@@ -50,9 +73,11 @@ C. Generate "questions_for_user" ONLY for critical and non_critical gaps.
    Each question must have:
    - id: snake_case identifier
    - doctype: the doctype name
-   - question: a short, direct user-facing question
-   - options: 2-4 concrete choices the user can pick
-   - is_blocking: true only if the import literally cannot start without this doctype
+   - question: a short, direct user-facing question (mention the specific dependency)
+   - options: 2-3 choices MAX. Do NOT include "Skip" or "Proceed without" options
+     for critical gaps. For non_critical, you may include one carefully worded option
+     like "Continue without this for now (I'll configure it before go-live)"
+   - is_blocking: true for critical gaps, false for non_critical
 
 D. Set "minimum_viable_import_possible":
    - true  → all Phase A and Phase B doctypes are either ready or have safe defaults
@@ -63,9 +88,9 @@ E. Set "user_action_required":
    - false → only optional gaps or everything is ready
 
 F. Write "executive_summary" (≤3 sentences):
-   - State the import readiness score as a percentage
-   - Name the most critical missing item (if any)
-   - State what the user should do next
+   - State the import readiness score as a percentage.
+   - Name the most critical missing item (if any) and WHY it matters (the dependency).
+   - State what the user must do next to unblock the import.
 
 G. Set "import_readiness_score":
    - (number of ready_doctypes) / (total required doctypes)

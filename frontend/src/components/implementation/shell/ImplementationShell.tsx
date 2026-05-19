@@ -5,6 +5,7 @@
 import { StepRail } from './StepRail';
 import { IBM_Plex_Mono } from "next/font/google";
 import { SupervisorPanel } from "@/components/implementation/supervisor/SupervisorPanel";
+import { SupervisorAttentionBanner } from "@/components/implementation/supervisor/SupervisorAttentionBanner";
 
 const mono = IBM_Plex_Mono({
   subsets: ["latin"],
@@ -21,6 +22,9 @@ export function ImplementationShell({ children }: Props) {
   return (
     <div className={`flex flex-col h-full min-h-full w-full ${mono.variable}`} style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
       
+      {/* Full-width attention banner — appears above everything when user input needed */}
+      <SupervisorAttentionBanner />
+
       <div className="flex flex-1 overflow-hidden">
         {/* Secondary Sidebar (Implementation Steps) */}
         <StepRail />

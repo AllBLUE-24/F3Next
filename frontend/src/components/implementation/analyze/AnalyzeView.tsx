@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, CheckCircle, Sparkles, ChevronDown } from 'lucide-react';
+import { ArrowRight, CheckCircle, Sparkles, ChevronDown, AlertTriangle, Info, Upload } from 'lucide-react';
 import { useAnalysis } from '@/hooks/implementation/useAnalysis';
 import { BrainVisualizer } from './BrainVisualizer';
 import { TaskStream } from './TaskStream';
@@ -27,11 +27,247 @@ const NICHE_DISPLAY: Record<string, { label: string; industry: string }> = {
 
 const ALL_NICHES = Object.keys(NICHE_DISPLAY);
 
+// ── DataReadinessGateCard ──────────────────────────────────────────────────
+// Shown inline in the main content area when stage === 'awaiting_data_readiness_confirmation'.
+// Fetches open supervisor prompts and renders tiered CRITICAL / IMPORTANT cards
+// so the user never has to find the sidebar.
+
+type DRAction = {
+  id: string;
+  type: string;
+  scope?: string;
+  question?: string;
+  options?: string[];
+  metadata?: {
+    tier?: string;
+    critical_gaps?: Array<{ doctype: string; reason: string }>;
+    important_gaps?: Array<{ doctype: string; reason: string }>;
+  };
+};
+
+type DRPrompt = {
+  id: string;
+  step: string;
+  status: string;
+  actions?: DRAction[];
+};
+
+function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+  const [prompts, setPrompts] = useState<DRPrompt[]>([]);
+  const [responding, setResponding] = useState(false);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const base = getBaseApiUrl();
+      const res = await fetch(`${base}/api/implementation/supervisor-prompts/${jobId}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const open = (Array.isArray(data?.prompts) ? data.prompts : []).filter(
+        (p: DRPrompt) => p.status === 'open',
+      );
+      setPrompts(open);
+    } catch { /* best-effort */ }
+  }, [jobId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const respond = async (prompt: DRPrompt, action: DRAction, option: string) => {
+    setResponding(true);
+    setFetchErr(null);
+    try {
+      const base = getBaseApiUrl();
+      const res = await fetch(`${base}/api/implementation/supervisor-prompts/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: jobId,
+          prompt_id: prompt.id,
+          chosen_action_id: action.id,
+          extra_data: { selected_option: option },
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onDone();
+    } catch (e: unknown) {
+      setFetchErr(e instanceof Error ? e.message : 'Failed to submit');
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  if (prompts.length === 0) {
+    // No open prompts yet — loading or all resolved
+    return (
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 flex items-center gap-3 animate-pulse">
+        <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+        <span className="text-sm text-gray-500">Loading data readiness assessment…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Section header */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-white/[0.06]" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
+          Your input is needed
+        </span>
+        <div className="flex-1 h-px bg-white/[0.06]" />
+      </div>
+
+      {prompts.map((p) => {
+        const critAct = (p.actions || []).find((a) => a.type === 'ask_user' && a.metadata?.tier === 'critical');
+        const impAct  = (p.actions || []).find((a) => a.type === 'ask_user' && a.metadata?.tier === 'important');
+        const fallAct = (p.actions || []).find((a) => a.type === 'ask_user');
+
+        return (
+          <div key={p.id} className="space-y-3">
+            {/* ── CRITICAL card ─────────────────────────────── */}
+            {critAct && critAct.question && (
+              <div className="rounded-2xl border border-red-500/25 bg-gradient-to-br from-red-950/40 via-transparent to-transparent p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-red-400 bg-red-500/15 border border-red-500/25 px-2 py-0.5 rounded-full">
+                        Critical — Required
+                      </span>
+                    </div>
+                    <p className="text-white text-sm leading-relaxed">{critAct.question}</p>
+                  </div>
+                </div>
+
+                {/* Affected doctypes */}
+                {critAct.metadata?.critical_gaps && critAct.metadata.critical_gaps.length > 0 && (
+                  <div className="ml-12 flex flex-wrap gap-2">
+                    {critAct.metadata.critical_gaps.map((g) => (
+                      <span
+                        key={g.doctype}
+                        className="text-xs bg-red-500/10 border border-red-500/20 text-red-300 px-3 py-1 rounded-full"
+                      >
+                        {g.doctype}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Actions — critical: no skip */}
+                <div className="ml-12 space-y-2">
+                  {(critAct.options || ['Upload the missing files']).map((opt) => (
+                    <button
+                      key={opt}
+                      disabled={responding}
+                      onClick={() => respond(p, critAct, opt)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-100 text-sm font-semibold transition-all disabled:opacity-50"
+                    >
+                      <Upload className="w-4 h-4 shrink-0" />
+                      {responding ? 'Submitting…' : opt}
+                      <ArrowRight className="w-4 h-4 ml-auto opacity-50" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── IMPORTANT card ────────────────────────────── */}
+            {impAct && impAct.question && (
+              <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-950/30 via-transparent to-transparent p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
+                    <Info className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full">
+                        Recommended — Industry best practice
+                      </span>
+                    </div>
+                    <p className="text-gray-300 text-sm leading-relaxed">{impAct.question}</p>
+                  </div>
+                </div>
+
+                {impAct.metadata?.important_gaps && impAct.metadata.important_gaps.length > 0 && (
+                  <div className="ml-12 flex flex-wrap gap-2">
+                    {impAct.metadata.important_gaps.map((g) => (
+                      <span
+                        key={g.doctype}
+                        className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-300 px-3 py-1 rounded-full"
+                      >
+                        {g.doctype}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="ml-12 space-y-2">
+                  {(impAct.options || []).map((opt) => {
+                    const isUpload = opt.toLowerCase().includes('upload');
+                    return (
+                      <button
+                        key={opt}
+                        disabled={responding}
+                        onClick={() => respond(p, impAct, opt)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 ${
+                          isUpload
+                            ? 'bg-amber-500/10 border border-amber-500/25 hover:bg-amber-500/20 text-amber-100'
+                            : 'bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] text-gray-400'
+                        }`}
+                      >
+                        {isUpload ? <Upload className="w-4 h-4 shrink-0" /> : <ArrowRight className="w-4 h-4 shrink-0" />}
+                        {responding ? 'Submitting…' : opt}
+                        {!isUpload && (
+                          <span className="ml-auto text-[10px] text-gray-600 font-normal normal-case">
+                            not recommended
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Fallback: no tiered actions */}
+            {!critAct && !impAct && fallAct && fallAct.question && (
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 space-y-4">
+                <p className="text-white text-sm leading-relaxed">{fallAct.question}</p>
+                <div className="space-y-2">
+                  {(fallAct.options || []).map((opt) => (
+                    <button
+                      key={opt}
+                      disabled={responding}
+                      onClick={() => respond(p, fallAct, opt)}
+                      className="w-full text-left px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] text-gray-200 text-sm transition-all disabled:opacity-50"
+                    >
+                      {responding ? 'Submitting…' : opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {fetchErr && (
+        <p className="text-xs text-red-400 font-mono px-1">{fetchErr}</p>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface Props {
   jobId: string;
   validateHref: string;
   devTasks?: AnalysisTask[]; // injected in dev mode — bypasses polling
 }
+
 
 export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   const live = useAnalysis(devTasks ? null : jobId); // skip polling if devTasks provided
@@ -143,6 +379,15 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
 
       {/* Task stream */}
       <TaskStream tasks={tasks} />
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          DATA READINESS GATE — appears inline when the workflow is blocked
+          waiting for the user to provide or confirm missing data.
+         ══════════════════════════════════════════════════════════════════ */}
+      {stage === 'awaiting_data_readiness_confirmation' && (
+        <DataReadinessGateCard jobId={jobId} onDone={live.refresh} />
+      )}
+
 
       {/* ══════════════════════════════════════════════════════════════════════
           F3ICHE CONFIRMATION CARD — appears when workflow is waiting for signal

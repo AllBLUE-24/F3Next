@@ -1,14 +1,23 @@
 """
 Supervisor Agent — Temporal activities for supervised correction loops.
 
-v0 skeleton:
-- Retrieves explanatory context from pgvector collections (via rag_helper),
-  but makes no decisions and applies no patches yet.
-- Returns SupervisorResult with empty actions by default.
+v2 — LLM-driven natural language supervisor messages.
+
+Key changes from v1:
+- assess_data_readiness node: calls an LLM (with RAG context) to generate a single,
+  clear natural-language message per gap tier rather than generic MCQ options.
+- Two tiers:
+    CRITICAL  — relational dependency; import literally cannot proceed without it.
+    IMPORTANT — industry best-practice gap; can proceed but shouldn't (bad idea).
+- Removed: "Skip These Doctypes", "Proceed with Partial Data" options (harmful UX).
+- Actions are: "Upload Missing Files" (critical) OR "Continue Anyway" with a
+  clear consequence warning (important gaps only).
 """
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -35,11 +44,114 @@ class SuperviseStepInput:
     status: Optional[NodeStatusEnvelope] = None
 
 
+# ── LLM prompt for natural-language supervisor messages ────────────────────────
+
+_SUPERVISOR_MESSAGE_PROMPT = """\
+You are the Implementation Supervisor for an ERP onboarding system.
+A company is importing their data into ERPNext. The data readiness scan has found gaps.
+Your job is to write clear, friendly, specific messages to guide the user.
+
+COMPANY CONTEXT:
+{company_context}
+
+INDUSTRY KNOWLEDGE:
+{industry_context}
+
+GAP ANALYSIS:
+{gap_analysis}
+
+INSTRUCTIONS:
+Write two messages (only include a tier if it has gaps):
+
+1. CRITICAL_MESSAGE (for critical gaps — relational dependencies ERPNext cannot function without):
+   - Be direct but not alarming. Example: "You've uploaded Work Orders but we couldn't find
+     any Bills of Materials (BOMs). In ERPNext, every Work Order requires a linked BOM — without
+     it, the system literally cannot create the work order. Please upload your BOM data before we continue."
+   - Explain WHY it's relational (the ERPNext dependency reason).
+   - List each missing item specifically by name.
+   - DO NOT say "skip" or suggest ignoring this.
+
+2. IMPORTANT_MESSAGE (for non-critical gaps — industry best practices the company should set up):
+   - Frame as a recommendation. Example: "For a chemical manufacturing company like yours,
+     you'd typically also want to set up your Quality Control Inspection templates and
+     Batch/Lot tracking before going live. These aren't blockers today, but skipping them
+     means you'll need to retroactively configure them once you're live — which is painful."
+   - Reference their specific industry/business type where relevant.
+   - You CAN mention they can continue without these (but should strongly recommend against it).
+
+RULES:
+- Be specific — name actual doctypes and explain each one's purpose in plain English.
+- Do NOT use jargon without explanation.
+- Do NOT suggest skipping critical items.
+- Keep each message under 4 sentences.
+- If there are no critical gaps, return empty string for CRITICAL_MESSAGE.
+- If there are no important gaps, return empty string for IMPORTANT_MESSAGE.
+
+Return ONLY valid JSON:
+{{
+  "critical_message": "<message or empty string>",
+  "important_message": "<message or empty string>",
+  "critical_doctypes": ["<list of critical missing doctype names>"],
+  "important_doctypes": ["<list of important missing doctype names>"]
+}}
+"""
+
+
+async def _call_supervisor_llm(
+    gap_analysis: Dict[str, Any],
+    rag: Dict[str, List[str]],
+    f3iche_id: str,
+) -> Dict[str, Any]:
+    """Call an LLM to generate rich natural-language supervisor messages."""
+    company_ctx = "\n".join(rag.get("company", [])) or "No company context available."
+    industry_ctx = "\n".join(
+        rag.get("f3iche", []) + rag.get("industry_reality", [])
+    ) or "No industry context available."
+
+    prompt = _SUPERVISOR_MESSAGE_PROMPT.format(
+        company_context=company_ctx[:1500],
+        industry_context=industry_ctx[:1500],
+        gap_analysis=json.dumps(gap_analysis, indent=2)[:2000],
+    )
+
+    try:
+        from shared.structured_llm import generate_typed
+
+        result = await generate_typed(
+            prompt=prompt,
+            schema=None,
+            model_name=os.getenv("SUPERVISOR_MODEL", os.getenv("MAPPING_EXTRACTION_MODEL", "gpt-4o-mini")),
+            temperature=0.2,
+            max_output_tokens=800,
+            system_instruction=(
+                "You are an ERP implementation supervisor. Return ONLY valid JSON. "
+                "No markdown fences. No explanation text outside the JSON object."
+            ),
+        )
+        if isinstance(result, dict):
+            return result
+        if isinstance(result, str):
+            return json.loads(result)
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Supervisor LLM call failed: %s", e)
+
+    return {
+        "critical_message": "",
+        "important_message": "",
+        "critical_doctypes": [],
+        "important_doctypes": [],
+    }
+
+
 @activity.defn(name="supervise_step")
 async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
     """
-    Inspect a node's NodeStatusEnvelope and retrieve relevant KB chunks for
-    explanation. Decision-making is intentionally no-op in this skeleton.
+    Inspect a node's NodeStatusEnvelope, retrieve relevant KB chunks via RAG,
+    then use an LLM to generate clear natural-language supervisor messages.
+
+    Two-tier gap classification:
+      CRITICAL  — ERPNext relational dependency; pipeline cannot continue without it.
+      IMPORTANT — Industry best-practice gap; can continue but strongly inadvisable.
     """
 
     st = inp.status or NodeStatusEnvelope.partial(primary_result=None)
@@ -52,14 +164,13 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         len(st.warnings),
     )
 
-    # Retrieve context (best-effort). This is used for future explanation/prompting.
+    # ── RAG retrieval (best-effort) ─────────────────────────────────────────
     rag: Dict[str, List[str]] = {}
     query_text = f"{inp.node_name} {inp.f3iche_id} {' '.join(inp.doctypes_in_focus)}"
 
     try:
         from containers.implementation.utils.rag_helper import rag_retrieve
 
-        # pgvector_kb_design.md expects these kb_source prefixes.
         if inp.project_id:
             rag["company"] = await rag_retrieve(query_text, f"company_{inp.project_id}", top_k=3)
         if inp.f3iche_id:
@@ -76,13 +187,14 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
     actions: List[SupervisorAction] = []
     final_status: str = "resolved"
 
-    # v1 logic: handle validation plus readiness in a deterministic, rules-based way.
+    # ══════════════════════════════════════════════════════════════════════════
+    # NODE: validate_mapped_data
+    # ══════════════════════════════════════════════════════════════════════════
     if inp.node_name == "validate_mapped_data":
         missing_required: List[str] = []
         enum_status_bad = False
         units_in_numeric = False
 
-        # Parse error/warning messages emitted by Validation Agent.
         for e in (st.errors or []):
             msg = str(e.get("message", ""))
             if "Missing required field:" in msg:
@@ -95,7 +207,7 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
             if "Non-numeric value" in msg and ("qty" in msg or "amount" in msg or "rate" in msg):
                 units_in_numeric = True
 
-        # Safe auto-fixes (patch R2 mapped payloads).
+        # Auto-fixes (safe, no user needed)
         if enum_status_bad:
             actions.append(
                 SupervisorAction(
@@ -133,87 +245,170 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                 )
             )
 
-        # Blocking gaps → ask user (Supervisor prompt)
+        # Missing required fields → LLM-driven message
         if missing_required:
             final_status = "needs_user_input"
+            unique_missing = sorted(set(missing_required))
+
+            # Try to get an LLM-enriched explanation
+            llm_result = await _call_supervisor_llm(
+                gap_analysis={
+                    "type": "missing_required_fields",
+                    "missing_fields": unique_missing,
+                    "node": "validate_mapped_data",
+                },
+                rag=rag,
+                f3iche_id=inp.f3iche_id,
+            )
+
+            critical_msg = llm_result.get("critical_message") or (
+                f"The following required fields are missing and must be provided before "
+                f"import can continue: {', '.join(unique_missing)}. "
+                "Please upload a file containing this data or provide the values directly."
+            )
+
             actions.append(
                 SupervisorAction(
                     id="ask_user_missing_required_fields",
                     type="ask_user",
                     scope="validation",
-                    question=(
-                        "Some required fields are missing for import. "
-                        f"Missing: {', '.join(sorted(set(missing_required)))}. "
-                        "How should we resolve these?"
-                    ),
-                    options=[
-                        "Provide defaults where possible (warehouses/company), and re-run validation",
-                        "I will upload the missing prerequisite data (e.g., BOMs) and re-run validation",
-                        "Proceed anyway (not recommended)",
-                    ],
-                    metadata={"missing_required_fields": sorted(set(missing_required))},
+                    question=critical_msg,
+                    options=["Upload the missing data files", "Provide defaults for warehouse/company fields"],
+                    metadata={
+                        "missing_required_fields": unique_missing,
+                        "tier": "critical",
+                    },
                 )
             )
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # NODE: assess_data_readiness
+    # ══════════════════════════════════════════════════════════════════════════
     elif inp.node_name == "assess_data_readiness":
-        assessment = (st.primary_result or {}).get("assessment", {}) if isinstance(st.primary_result, dict) else {}
+        assessment = (
+            (st.primary_result or {}).get("assessment", {})
+            if isinstance(st.primary_result, dict)
+            else {}
+        )
 
         missing_doctypes = assessment.get("missing_doctypes", []) or []
         partial_doctypes = assessment.get("partial_doctypes", []) or []
         unmappable_chunks = assessment.get("unmappable_chunks", []) or []
 
-        critical_missing = [
-            g for g in missing_doctypes
+        # Two-tier classification
+        critical_gaps = [
+            g for g in (*missing_doctypes, *partial_doctypes)
             if str(g.get("criticality", "")).lower() == "critical"
+            and not bool(g.get("can_proceed_without", False))
         ]
-        noncritical_missing = [
-            g for g in missing_doctypes
-            if str(g.get("criticality", "")).lower() in ("non_critical", "optional")
-            or bool(g.get("can_proceed_without", False))
+        important_gaps = [
+            g for g in (*missing_doctypes, *partial_doctypes)
+            if str(g.get("criticality", "")).lower() in ("non_critical",)
+            and not bool(g.get("can_proceed_without", True))
         ]
-        critical_partial = [
-            g for g in partial_doctypes
-            if str(g.get("criticality", "")).lower() == "critical"
-        ]
+        # "optional" gaps are silently skipped — no action required
 
-        if critical_missing or critical_partial or noncritical_missing:
-            missing_names = sorted({
-                g.get("doctype", "")
-                for g in (*critical_missing, *critical_partial, *noncritical_missing)
-                if g.get("doctype", "")
-            })
-            q_prefix = "Critical" if (critical_missing or critical_partial) else "Non-critical"
-            question = (
-                f"{q_prefix} data is missing for: {', '.join([n for n in missing_names if n])}. "
-                "How would you like to proceed?"
+        has_critical = bool(critical_gaps)
+        has_important = bool(important_gaps)
+
+        if has_critical or has_important:
+            gap_summary_for_llm = {
+                "critical_gaps": [
+                    {
+                        "doctype": g.get("doctype", ""),
+                        "reason": g.get("reason", ""),
+                        "missing_fields": g.get("missing_fields", []),
+                        "recommendation": g.get("recommendation", ""),
+                    }
+                    for g in critical_gaps
+                ],
+                "important_gaps": [
+                    {
+                        "doctype": g.get("doctype", ""),
+                        "reason": g.get("reason", ""),
+                        "recommendation": g.get("recommendation", ""),
+                    }
+                    for g in important_gaps
+                ],
+                "unmappable_files": [u.get("filename", "") for u in unmappable_chunks],
+            }
+
+            # Call LLM to generate rich natural-language messages
+            llm_result = await _call_supervisor_llm(
+                gap_analysis=gap_summary_for_llm,
+                rag=rag,
+                f3iche_id=inp.f3iche_id,
             )
 
-            options = [
-                "Upload Missing Files",
-                "Proceed with Partial Data",
-                "Skip These Doctypes",
-            ]
-            if unmappable_chunks:
-                question += f" {len(unmappable_chunks)} uploaded file section(s) could not be matched to ERPNext doctypes."
+            critical_msg = llm_result.get("critical_message", "")
+            important_msg = llm_result.get("important_message", "")
 
-            if critical_missing or critical_partial:
-                final_status = "needs_user_input"
-
-            actions.append(
-                SupervisorAction(
-                    id="ask_user_data_readiness",
-                    type="ask_user",
-                    scope="data_readiness",
-                    question=question,
-                    options=options,
-                    metadata={
-                        "critical_missing": critical_missing,
-                        "critical_partial": critical_partial,
-                        "noncritical_missing": noncritical_missing,
-                        "unmappable_chunks": unmappable_chunks,
-                    },
+            # Fallback messages if LLM fails
+            if not critical_msg and critical_gaps:
+                critical_doctype_names = ", ".join(
+                    g.get("doctype", "") for g in critical_gaps if g.get("doctype")
                 )
-            )
+                critical_msg = (
+                    f"We couldn't find data for: {critical_doctype_names}. "
+                    "These are required by ERPNext and cannot be skipped — the import will fail without them. "
+                    "Please upload files containing this data before we continue."
+                )
+
+            if not important_msg and important_gaps:
+                important_doctype_names = ", ".join(
+                    g.get("doctype", "") for g in important_gaps if g.get("doctype")
+                )
+                important_msg = (
+                    f"We also noticed that {important_doctype_names} are missing. "
+                    "Based on your industry, these are strongly recommended before going live. "
+                    "You can continue without them today, but you'll need to set them up before production use."
+                )
+
+            # CRITICAL action — no "skip" option
+            if has_critical:
+                final_status = "needs_user_input"
+                actions.append(
+                    SupervisorAction(
+                        id="ask_user_critical_data_missing",
+                        type="ask_user",
+                        scope="data_readiness_critical",
+                        question=critical_msg,
+                        options=["Upload the missing files"],
+                        metadata={
+                            "tier": "critical",
+                            "critical_gaps": [
+                                {"doctype": g.get("doctype", ""), "reason": g.get("reason", "")}
+                                for g in critical_gaps
+                            ],
+                            "unmappable_chunks": unmappable_chunks,
+                        },
+                    )
+                )
+
+            # IMPORTANT action — user CAN continue but with warning
+            if has_important:
+                if not has_critical:
+                    # Only block if there are no critical gaps making it block already
+                    final_status = "needs_user_input"
+                actions.append(
+                    SupervisorAction(
+                        id="ask_user_important_data_recommended",
+                        type="ask_user",
+                        scope="data_readiness_important",
+                        question=important_msg,
+                        options=[
+                            "Upload recommended files before continuing",
+                            "Continue without them (I understand the risk)",
+                        ],
+                        metadata={
+                            "tier": "important",
+                            "important_gaps": [
+                                {"doctype": g.get("doctype", ""), "reason": g.get("reason", "")}
+                                for g in important_gaps
+                            ],
+                        },
+                    )
+                )
 
     retrieved_blocks = ", ".join(sorted([k for k, v in rag.items() if v])) or "none"
     summary = (
@@ -221,14 +416,17 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         f"Retrieved context blocks: {retrieved_blocks}."
     )
 
-    activity.logger.info("✅ supervise_step done | final_status=%s actions=%d", final_status, len(actions))
+    activity.logger.info(
+        "✅ supervise_step done | final_status=%s actions=%d", final_status, len(actions)
+    )
     return SupervisorResult(actions=actions, summary_for_ui=summary, final_status=final_status)  # type: ignore[arg-type]
 
 
 @activity.defn(name="apply_supervisor_actions")
 async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyActionsResult:
     """
-    v0 skeleton: does not apply any patches yet.
+    Apply auto_fix patches to R2 mapped payloads.
+    ask_user actions are handled by the workflow signal loop — not here.
     """
 
     activity.logger.info(
@@ -244,7 +442,6 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
 
     company_slug = inp.company_slug or "unknown"
 
-    # Best-effort patching of R2 mapped payloads for supported transforms.
     for act in inp.actions or []:
         if act.type != "auto_fix":
             skipped.append({"id": act.id, "type": act.type, "scope": act.scope, "reason": "not_auto_fix"})
@@ -321,4 +518,3 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
         len(errors),
     )
     return ApplyActionsResult(applied=applied, skipped=skipped, errors=errors)
-

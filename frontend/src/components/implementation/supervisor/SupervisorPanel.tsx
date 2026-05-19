@@ -1,8 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+/**
+ * SupervisorPanel — right-side assistant panel for the Implementation shell.
+ *
+ * v2 — rich two-tier gap display:
+ *   🔴 CRITICAL  — relational ERPNext dependency; pipeline blocked.
+ *   🟡 IMPORTANT — industry best-practice gap; can continue but not recommended.
+ *
+ * Design philosophy:
+ *   - Natural-language messages from the Supervisor LLM (no raw MCQ dump).
+ *   - Critical items have ONE action: "Upload missing files". No skip option.
+ *   - Important items offer "Upload recommended files" OR a clearly-warned "Continue".
+ *   - Data readiness summary is always shown when available (score + tier counts).
+ *   - Open prompts that need user input are visually emphasized at the top.
+ */
+
+import { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  AlertTriangle, Info, CheckCircle2, Upload,
+  ArrowRight, RefreshCw, Sparkles, ChevronDown, ChevronUp,
+} from "lucide-react";
 import { getBaseApiUrl } from "@/lib/config";
 import { useImplementation } from "@/contexts/ImplementationContext";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type ActionTier = "critical" | "important" | string;
 
 type SupervisorAction = {
   id: string;
@@ -10,6 +33,13 @@ type SupervisorAction = {
   scope?: string;
   question?: string;
   options?: string[];
+  metadata?: {
+    tier?: ActionTier;
+    critical_gaps?: Array<{ doctype: string; reason: string }>;
+    important_gaps?: Array<{ doctype: string; reason: string }>;
+    missing_required_fields?: string[];
+    unmappable_chunks?: unknown[];
+  };
 };
 
 type SupervisorPrompt = {
@@ -27,8 +57,6 @@ type DataReadinessGap = {
   reason?: string;
   recommendation?: string;
   missing_fields?: string[];
-  source_file?: string;
-  description?: string;
   can_proceed_without?: boolean;
 };
 
@@ -37,13 +65,270 @@ type DataReadinessReport = {
   partial_doctypes?: DataReadinessGap[];
   missing_doctypes?: DataReadinessGap[];
   unmappable_chunks?: Array<{ filename?: string; description?: string; reason?: string }>;
-  gap_report?: Record<string, unknown>;
   minimum_viable_possible?: boolean;
   user_action_required?: boolean;
-  questions_for_user?: Array<{ id: string; question: string; options: string[] }>;
   import_readiness_score?: number;
   executive_summary?: string | null;
 };
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function ScoreBadge({ score }: { score: number }) {
+  const pct = Math.round(score * 100);
+  const color =
+    pct >= 80 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+    : pct >= 50 ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
+    : "text-red-400 border-red-500/30 bg-red-500/10";
+  return (
+    <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${color}`}>
+      {pct}%
+    </span>
+  );
+}
+
+function TierBadge({ tier }: { tier: ActionTier }) {
+  if (tier === "critical") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25">
+        <AlertTriangle className="w-2.5 h-2.5" /> Critical
+      </span>
+    );
+  }
+  if (tier === "important" || tier === "non_critical") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+        <Info className="w-2.5 h-2.5" /> Important
+      </span>
+    );
+  }
+  return null;
+}
+
+function GapList({
+  gaps,
+  tier,
+  collapsed,
+}: {
+  gaps: DataReadinessGap[];
+  tier: "critical" | "important";
+  collapsed?: boolean;
+}) {
+  const [open, setOpen] = useState(!collapsed);
+  const borderColor = tier === "critical" ? "border-red-500/15" : "border-amber-500/15";
+  const dotColor = tier === "critical" ? "bg-red-400" : "bg-amber-400";
+
+  return (
+    <div className={`rounded-lg border ${borderColor} overflow-hidden`}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.02] transition-colors text-left"
+      >
+        <span className="text-[11px] font-semibold text-zinc-300">
+          {tier === "critical" ? "Must provide" : "Recommended"}{" "}
+          <span className="text-zinc-500 font-normal">({gaps.length})</span>
+        </span>
+        {open ? (
+          <ChevronUp className="w-3 h-3 text-zinc-600" />
+        ) : (
+          <ChevronDown className="w-3 h-3 text-zinc-600" />
+        )}
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 space-y-2">
+          {gaps.map((gap) => (
+            <div key={gap.doctype} className="flex items-start gap-2">
+              <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-zinc-200">{gap.doctype}</p>
+                {gap.reason && (
+                  <p className="text-[11px] text-zinc-500 leading-relaxed mt-0.5">{gap.reason}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PromptCard({
+  prompt,
+  onRespond,
+  responding,
+}: {
+  prompt: SupervisorPrompt;
+  onRespond: (prompt: SupervisorPrompt, action: SupervisorAction, option?: string) => void;
+  responding: boolean;
+}) {
+  const criticalAction = (prompt.actions || []).find(
+    (a) => a.type === "ask_user" && a.metadata?.tier === "critical"
+  );
+  const importantAction = (prompt.actions || []).find(
+    (a) => a.type === "ask_user" && a.metadata?.tier === "important"
+  );
+  const genericAskAction = (prompt.actions || []).find(
+    (a) => a.type === "ask_user" && !a.metadata?.tier
+  );
+
+  // Prefer tiered actions; fall back to generic ask_user
+  const hasStructured = criticalAction || importantAction;
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[var(--bg-card)] overflow-hidden">
+      {/* Header strip */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bg-white/[0.02]">
+        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <span className="text-xs font-semibold text-zinc-200">Implementation Assistant</span>
+        <span className="ml-auto text-[10px] text-zinc-600 font-mono">{prompt.step}</span>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* ── CRITICAL block ─────────────────────────────── */}
+        {criticalAction && criticalAction.question && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 w-7 h-7 rounded-lg bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+              </div>
+              <div className="min-w-0">
+                <TierBadge tier="critical" />
+                <p className="mt-1.5 text-[12px] text-zinc-200 leading-relaxed">
+                  {criticalAction.question}
+                </p>
+              </div>
+            </div>
+
+            {/* Affected doctypes detail */}
+            {criticalAction.metadata?.critical_gaps && criticalAction.metadata.critical_gaps.length > 0 && (
+              <div className="ml-9 space-y-1">
+                {criticalAction.metadata.critical_gaps.map((g) => (
+                  <div key={g.doctype} className="flex items-start gap-1.5">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0" />
+                    <span className="text-[11px] font-semibold text-red-300">{g.doctype}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Missing fields (validation node) */}
+            {criticalAction.metadata?.missing_required_fields && criticalAction.metadata.missing_required_fields.length > 0 && (
+              <div className="ml-9 bg-red-500/[0.07] rounded-lg px-3 py-2">
+                <p className="text-[10px] text-red-400/70 uppercase tracking-wide font-medium mb-1.5">Missing fields</p>
+                <div className="flex flex-wrap gap-1">
+                  {criticalAction.metadata.missing_required_fields.map((f) => (
+                    <span key={f} className="text-[10px] font-mono bg-red-500/15 text-red-300 px-1.5 py-0.5 rounded">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons — critical: only upload, no skip */}
+            <div className="ml-9 space-y-2">
+              {(criticalAction.options || ["Upload the missing files"]).map((opt) => (
+                <button
+                  key={opt}
+                  disabled={responding}
+                  onClick={() => onRespond(prompt, criticalAction, opt)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-200 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  <span className="flex items-center gap-2">
+                    <Upload className="w-3.5 h-3.5" />
+                    {opt}
+                  </span>
+                  <ArrowRight className="w-3 h-3 opacity-60" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Divider when both tiers present */}
+        {criticalAction && importantAction && (
+          <div className="border-t border-white/[0.05]" />
+        )}
+
+        {/* ── IMPORTANT block ────────────────────────────── */}
+        {importantAction && importantAction.question && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
+                <Info className="w-3.5 h-3.5 text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <TierBadge tier="important" />
+                <p className="mt-1.5 text-[12px] text-zinc-300 leading-relaxed">
+                  {importantAction.question}
+                </p>
+              </div>
+            </div>
+
+            {importantAction.metadata?.important_gaps && importantAction.metadata.important_gaps.length > 0 && (
+              <div className="ml-9 space-y-1">
+                {importantAction.metadata.important_gaps.map((g) => (
+                  <div key={g.doctype} className="flex items-start gap-1.5">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400/60 flex-shrink-0" />
+                    <span className="text-[11px] font-semibold text-amber-300">{g.doctype}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Action buttons — important: upload OR continue with warning */}
+            <div className="ml-9 space-y-2">
+              {(importantAction.options || []).map((opt, idx) => {
+                const isUpload = opt.toLowerCase().includes("upload");
+                const isContinue = !isUpload;
+                return (
+                  <button
+                    key={opt}
+                    disabled={responding}
+                    onClick={() => onRespond(prompt, importantAction, opt)}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
+                      isUpload
+                        ? "bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20 text-amber-200"
+                        : "bg-white/[0.03] border-white/[0.07] hover:bg-white/[0.06] text-zinc-400"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {isUpload ? <Upload className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                      {opt}
+                    </span>
+                    {isContinue && (
+                      <span className="text-[9px] text-zinc-600 ml-1 normal-case font-normal">not recommended</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Generic fallback (no tiered actions) ──────── */}
+        {!hasStructured && genericAskAction && genericAskAction.question && (
+          <div className="space-y-3">
+            <p className="text-[12px] text-zinc-300 leading-relaxed">{genericAskAction.question}</p>
+            {(genericAskAction.options || []).map((opt) => (
+              <button
+                key={opt}
+                disabled={responding}
+                onClick={() => onRespond(prompt, genericAskAction, opt)}
+                className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-[var(--border-subtle)] hover:bg-white/[0.04] text-zinc-200 disabled:opacity-50 transition-colors"
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main panel ────────────────────────────────────────────────────────────────
 
 export function SupervisorPanel() {
   const { session } = useImplementation();
@@ -55,9 +340,12 @@ export function SupervisorPanel() {
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  const openPrompts = useMemo(() => prompts.filter((p) => p.status === "open"), [prompts]);
+  const openPrompts = useMemo(
+    () => prompts.filter((p) => p.status === "open"),
+    [prompts]
+  );
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -78,211 +366,198 @@ export function SupervisorPanel() {
         throw new Error(await readinessRes.text());
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load supervisor prompts");
+      setError(e instanceof Error ? e.message : "Failed to load supervisor data");
     } finally {
       setLoading(false);
     }
-  }
+  }, [projectId]);
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 3000);
+    const interval = setInterval(refresh, 4000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [refresh]);
 
-  async function respond(prompt: SupervisorPrompt, action: SupervisorAction, selectedOption?: string) {
-    setRespondingId(prompt.id);
-    try {
-      const base = getBaseApiUrl();
-      const res = await fetch(`${base}/api/implementation/supervisor-prompts/respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: projectId,
-          prompt_id: prompt.id,
-          chosen_action_id: action.id,
-          extra_data: selectedOption ? { selected_option: selectedOption } : {},
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      await refresh();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to respond");
-    } finally {
-      setRespondingId(null);
-    }
-  }
+  const respond = useCallback(
+    async (prompt: SupervisorPrompt, action: SupervisorAction, selectedOption?: string) => {
+      setRespondingId(prompt.id);
+      try {
+        const base = getBaseApiUrl();
+        const res = await fetch(`${base}/api/implementation/supervisor-prompts/respond`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_id: projectId,
+            prompt_id: prompt.id,
+            chosen_action_id: action.id,
+            extra_data: selectedOption ? { selected_option: selectedOption } : {},
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await refresh();
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to respond");
+      } finally {
+        setRespondingId(null);
+      }
+    },
+    [projectId, refresh]
+  );
+
+  // Derived readiness stats
+  const criticalGaps = useMemo(
+    () =>
+      [
+        ...(readiness?.missing_doctypes || []),
+        ...(readiness?.partial_doctypes || []),
+      ].filter((g) => g.criticality === "critical"),
+    [readiness]
+  );
+  const importantGaps = useMemo(
+    () =>
+      [
+        ...(readiness?.missing_doctypes || []),
+        ...(readiness?.partial_doctypes || []),
+      ].filter((g) => g.criticality === "non_critical"),
+    [readiness]
+  );
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-shell)]">
-        <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col text-sm">
+      {/* ── Header ────────────────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-amber-400" />
           <div>
-            <div className="text-sm font-semibold text-zinc-200">Implementation Assistant</div>
-            <div className="text-[11px] text-zinc-500">Supervisor prompts</div>
+            <div className="text-xs font-semibold text-zinc-200">Implementation Assistant</div>
+            {openPrompts.length > 0 && (
+              <div className="text-[10px] text-amber-400 font-medium">
+                {openPrompts.length} item{openPrompts.length > 1 ? "s" : ""} need your input
+              </div>
+            )}
+            {openPrompts.length === 0 && (
+              <div className="text-[10px] text-zinc-600">Monitoring your import</div>
+            )}
           </div>
-          <button
-            onClick={refresh}
-            className="text-xs px-2 py-1 rounded-md border border-[var(--border-subtle)] text-zinc-300 hover:bg-white/[0.04]"
-            disabled={loading}
-          >
-            Refresh
-          </button>
         </div>
+        <button
+          onClick={refresh}
+          disabled={loading}
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+          title="Refresh"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      {/* ── Scrollable body ───────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {error && (
-          <div className="text-xs text-red-300 border border-red-500/20 bg-red-500/10 rounded-lg px-3 py-2">
+          <div className="text-[11px] text-red-300 border border-red-500/20 bg-red-500/10 rounded-lg px-3 py-2">
             {error}
           </div>
         )}
 
+        {/* Open prompts — shown first, most urgent */}
+        {openPrompts.map((p) => (
+          <PromptCard
+            key={p.id}
+            prompt={p}
+            onRespond={respond}
+            responding={respondingId === p.id}
+          />
+        ))}
+
+        {/* Data readiness summary card */}
         {readiness && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 space-y-3">
-            <div className="flex items-start justify-between gap-3">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
+            {/* Summary header */}
+            <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-zinc-500">Data readiness</div>
-                <div className="text-sm font-semibold text-zinc-200">Pre-mapping assessment</div>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Data readiness</p>
+                <p className="text-xs font-semibold text-zinc-200 mt-0.5">Pre-mapping assessment</p>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wide">Score</div>
-                <div className="text-sm font-mono text-zinc-200">
-                  {Math.round((readiness.import_readiness_score ?? 0) * 100)}%
-                </div>
-              </div>
+              <ScoreBadge score={readiness.import_readiness_score ?? 0} />
             </div>
 
-            {readiness.executive_summary && (
-              <div className="text-xs text-zinc-300 leading-relaxed">{readiness.executive_summary}</div>
-            )}
+            <div className="p-4 space-y-3">
+              {/* Score bar */}
+              <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${Math.round((readiness.import_readiness_score ?? 0) * 100)}%`,
+                    background:
+                      (readiness.import_readiness_score ?? 0) >= 0.8
+                        ? "rgb(52 211 153)"
+                        : (readiness.import_readiness_score ?? 0) >= 0.5
+                        ? "rgb(251 191 36)"
+                        : "rgb(239 68 68)",
+                  }}
+                />
+              </div>
 
-            <div className="h-2 rounded-full bg-white/[0.05] overflow-hidden">
-              <div
-                className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                style={{ width: `${Math.round((readiness.import_readiness_score ?? 0) * 100)}%` }}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-[11px]">
-              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-2">
-                <div className="text-emerald-200 font-medium">Ready</div>
-                <div className="text-emerald-100/80 font-mono">
-                  {Array.isArray(readiness.ready_doctypes) ? readiness.ready_doctypes.length : 0}
+              {/* Tier counts */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-emerald-500/[0.08] border border-emerald-500/15 px-2.5 py-2 text-center">
+                  <p className="text-[10px] text-emerald-400/70 font-medium">Ready</p>
+                  <p className="text-sm font-mono text-emerald-300 mt-0.5">
+                    {Array.isArray(readiness.ready_doctypes) ? readiness.ready_doctypes.length : 0}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/15 px-2.5 py-2 text-center">
+                  <p className="text-[10px] text-amber-400/70 font-medium">Important</p>
+                  <p className="text-sm font-mono text-amber-300 mt-0.5">{importantGaps.length}</p>
+                </div>
+                <div className="rounded-lg bg-red-500/[0.08] border border-red-500/15 px-2.5 py-2 text-center">
+                  <p className="text-[10px] text-red-400/70 font-medium">Critical</p>
+                  <p className="text-sm font-mono text-red-300 mt-0.5">{criticalGaps.length}</p>
                 </div>
               </div>
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-2">
-                <div className="text-amber-200 font-medium">Partial</div>
-                <div className="text-amber-100/80 font-mono">{readiness.partial_doctypes?.length ?? 0}</div>
-              </div>
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-2">
-                <div className="text-red-200 font-medium">Missing</div>
-                <div className="text-red-100/80 font-mono">{readiness.missing_doctypes?.length ?? 0}</div>
-              </div>
-            </div>
 
-            {readiness.user_action_required && (
-              <div className="text-[11px] rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-2 text-amber-100">
-                Action required before mapping can safely continue.
-              </div>
-            )}
-
-            {!!readiness.partial_doctypes?.length && (
-              <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Partial</div>
-                {readiness.partial_doctypes.slice(0, 3).map((gap) => (
-                  <div key={`${gap.doctype}-${gap.reason ?? ""}`} className="text-[11px] rounded-lg border border-white/5 bg-white/[0.03] px-2 py-2">
-                    <div className="font-medium text-zinc-200">{gap.doctype}</div>
-                    <div className="text-zinc-400">{gap.reason}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!!readiness.missing_doctypes?.length && (
-              <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Missing</div>
-                {readiness.missing_doctypes.slice(0, 3).map((gap) => (
-                  <div key={`${gap.doctype}-${gap.reason ?? ""}`} className="text-[11px] rounded-lg border border-white/5 bg-white/[0.03] px-2 py-2">
-                    <div className="font-medium text-zinc-200">{gap.doctype}</div>
-                    <div className="text-zinc-400">{gap.reason}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!!readiness.unmappable_chunks?.length && (
-              <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Unmappable</div>
-                {readiness.unmappable_chunks.slice(0, 3).map((chunk, idx) => (
-                  <div key={`${chunk.filename ?? "chunk"}-${idx}`} className="text-[11px] rounded-lg border border-white/5 bg-white/[0.03] px-2 py-2">
-                    <div className="font-medium text-zinc-200">{chunk.filename ?? "Unknown file"}</div>
-                    <div className="text-zinc-400">{chunk.reason ?? chunk.description ?? "No ERPNext match"}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {openPrompts.length === 0 && !loading && (
-          <div className="text-xs text-zinc-500">
-            No open prompts. If the system detects issues, they’ll appear here.
-          </div>
-        )}
-
-        {openPrompts.map((p) => {
-          const ask = (p.actions || []).find((a) => a.type === "ask_user");
-          const hard = (p.actions || []).find((a) => a.type === "hard_block");
-          const title = hard ? "Blocked" : ask ? "Needs input" : "Notice";
-
-          return (
-            <div
-              key={p.id}
-              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 space-y-2"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] text-zinc-500">{p.step}</div>
-                  <div className="text-sm font-semibold text-zinc-200">{title}</div>
-                </div>
-                <div className="text-[10px] text-zinc-500 font-mono">{p.id.slice(0, 8)}</div>
-              </div>
-
-              {p.summary_for_ui && (
-                <div className="text-xs text-zinc-300 leading-relaxed">{p.summary_for_ui}</div>
+              {/* Executive summary */}
+              {readiness.executive_summary && (
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  {readiness.executive_summary}
+                </p>
               )}
 
-              {ask?.question && (
-                <div className="text-xs text-zinc-200 leading-relaxed">{ask.question}</div>
+              {/* Gap details — collapsed by default when prompts also shown */}
+              {criticalGaps.length > 0 && (
+                <GapList gaps={criticalGaps} tier="critical" collapsed={openPrompts.length > 0} />
+              )}
+              {importantGaps.length > 0 && (
+                <GapList gaps={importantGaps} tier="important" collapsed={openPrompts.length > 0} />
               )}
 
-              {ask?.options && ask.options.length > 0 && (
-                <div className="space-y-2 pt-1">
-                  {ask.options.map((opt) => (
-                    <button
-                      key={opt}
-                      disabled={respondingId === p.id}
-                      onClick={() => respond(p, ask, opt)}
-                      className="w-full text-left text-xs px-3 py-2 rounded-lg border border-[var(--border-subtle)] hover:bg-white/[0.04] text-zinc-200 disabled:opacity-50"
-                    >
-                      {opt}
-                    </button>
+              {/* Unmappable files */}
+              {!!readiness.unmappable_chunks?.length && (
+                <div className="rounded-lg border border-zinc-700/40 bg-zinc-800/20 px-3 py-2.5 space-y-1">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-medium">
+                    Unrecognised files ({readiness.unmappable_chunks.length})
+                  </p>
+                  {readiness.unmappable_chunks.slice(0, 3).map((chunk, idx) => (
+                    <div key={`${chunk.filename ?? "chunk"}-${idx}`}>
+                      <p className="text-[11px] font-medium text-zinc-300">{chunk.filename ?? "Unknown file"}</p>
+                      <p className="text-[10px] text-zinc-500">{chunk.reason ?? chunk.description ?? "No ERPNext match found"}</p>
+                    </div>
                   ))}
                 </div>
               )}
-
-              {!ask && p.actions && p.actions.length > 0 && (
-                <div className="text-[11px] text-zinc-500">
-                  Actions: {p.actions.map((a) => a.type).join(", ")}
-                </div>
-              )}
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {openPrompts.length === 0 && !readiness && !loading && (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <CheckCircle2 className="w-8 h-8 text-zinc-700" />
+            <p className="text-xs text-zinc-600 leading-relaxed max-w-[200px]">
+              No issues detected. The assistant will alert you here if anything needs your attention.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

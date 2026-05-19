@@ -12,6 +12,7 @@ import type { AnalysisTask, CompanyProfile } from '@/types/implementation';
 const TERMINAL_STAGES = new Set(['complete', 'infected_halt', 'error']);
 const NEEDS_INPUT_STAGES = new Set([
   'awaiting_f3iche_confirmation',
+  'awaiting_data_readiness_confirmation',
   'awaiting_file_mapping',
   'awaiting_validation_submission',
   'awaiting_sandbox_approval',
