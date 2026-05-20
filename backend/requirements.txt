@@ -24,3 +24,4 @@ requests
 httpx
 python-multipart
 pandas
+sentry-sdk[fastapi]

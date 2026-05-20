@@ -14,6 +14,20 @@ from app.api.auth import router as auth_router
 from dotenv import load_dotenv
 load_dotenv()
 
+import os
+import sentry_sdk
+
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        traces_sample_rate=1.0,
+        profile_session_sample_rate=1.0,
+        profile_lifecycle="trace",
+        send_default_pii=True,  # captures LLM inputs/outputs
+        enable_logs=True,
+    )
+
 from shared.models.core import Client, Project, ProjectStatus
 from shared.models.hooks import Hook
 from shared.models.is_models import (

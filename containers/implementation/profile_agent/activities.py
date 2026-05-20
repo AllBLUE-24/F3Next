@@ -576,11 +576,15 @@ async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[s
             f3iche = discovery_data.get("f3iche") if isinstance(discovery_data, dict) else None
             industry = discovery_data.get("industry") if isinstance(discovery_data, dict) else None
             company_size = discovery_data.get("company_size") if isinstance(discovery_data, dict) else None
+            mvp_focus = discovery_data.get("mvp_focus") if isinstance(discovery_data, dict) else None
 
             update_vals = {}
             if f3iche: update_vals["discovery_f3iche"] = f3iche
             if industry: update_vals["discovery_industry"] = industry
             if company_size: update_vals["discovery_company_size"] = company_size
+            if mvp_focus: 
+                update_vals["mvp_focus"] = mvp_focus
+                activity.logger.info("  ✅ MVP focus extracted: %s", mvp_focus.get("primary_bottleneck"))
 
             # Update is_sessions table if we have discovery data
             if update_vals:

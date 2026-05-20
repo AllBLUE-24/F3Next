@@ -340,17 +340,17 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
     """
     activity.logger.info("▶ build_target_structure started | session=%s f3iche=%s", inp.session_id, inp.f3iche)
 
-    # 1. Fetch the enriched Company Profile from DB
+    # 1. Fetch the enriched Company Profile and Session from DB
     profile_dict = {}
+    mvp_focus = None
     try:
         async with AsyncSessionLocal() as session:
-            stmt = select(ISCompanyProfile).where(
+            # Profile
+            stmt_prof = select(ISCompanyProfile).where(
                 ISCompanyProfile.session_id == uuid.UUID(inp.session_id)
             ).order_by(ISCompanyProfile.version.desc()).limit(1)
-
-            res = await session.execute(stmt)
-            latest = res.scalar_one_or_none()
-
+            res_prof = await session.execute(stmt_prof)
+            latest = res_prof.scalar_one_or_none()
             if latest:
                 profile_dict = {
                     "industry":                latest.industry,
@@ -360,28 +360,68 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
                     "data_quality_score":      latest.data_quality_score,
                     "completeness_score":      latest.completeness_score,
                 }
+            
+            # Session (for mvp_focus)
+            stmt_sess = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+            res_sess = await session.execute(stmt_sess)
+            sess_row = res_sess.scalar_one_or_none()
+            if sess_row and sess_row.mvp_focus:
+                mvp_focus = sess_row.mvp_focus
     except Exception as e:
-        activity.logger.error("  ❌ Failed to fetch profile from DB: %s", e)
+        activity.logger.error("  ❌ Failed to fetch profile/session from DB: %s", e)
 
-    # ── FALLBACK: load seed doctypes from f3iche template if profile is empty ──
-    if not profile_dict.get("required_doctypes"):
-        f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
-        if f3iche_path.exists():
-            try:
-                with open(f3iche_path, "r", encoding="utf-8") as f:
-                    f3iche_data = json.load(f)
-                template_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
-                template_modules  = f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))
-                if template_doctypes:
-                    profile_dict["required_doctypes"] = template_doctypes
-                    activity.logger.info("  📋 Loaded %d required_doctypes from f3iche template '%s'",
-                                         len(template_doctypes), inp.f3iche)
-                if template_modules and not profile_dict.get("required_modules"):
-                    profile_dict["required_modules"] = template_modules
-            except Exception as e:
-                activity.logger.warning("  ⚠️ Could not load f3iche template: %s", e)
+    seed_doctypes: List[str] = []
+    
+    # ── MVP MODE: LLM Translation Node ──
+    if mvp_focus and mvp_focus.get("functional_requirements"):
+        activity.logger.info("  🎯 MVP mode active. Translating functional requirements: %s", mvp_focus["functional_requirements"])
+        from containers.implementation.target_agent.prompts import MVP_TRANSLATION_PROMPT
+        from containers.implementation.utils.llm_helper import generate_json
+        
+        # We can grab a little ERPNext context to help the LLM
+        from containers.implementation.utils.rag_helper import rag_retrieve
+        erp_context = ""
+        try:
+            req_str = " ".join(mvp_focus["functional_requirements"])
+            chunks = await rag_retrieve(f"ERPNext {req_str} doctypes modules", "erpnext_docs", top_k=3)
+            erp_context = "\n".join(chunks)
+        except Exception:
+            pass
 
-    seed_doctypes: List[str] = profile_dict.get("required_doctypes") or []
+        prompt = MVP_TRANSLATION_PROMPT.format(
+            primary_bottleneck=mvp_focus.get("primary_bottleneck", "General Operations"),
+            functional_requirements=json.dumps(mvp_focus["functional_requirements"]),
+            erpnext_context=erp_context
+        )
+        
+        try:
+            translation = generate_json(prompt, temperature=0.1)
+            seed_doctypes = translation.get("seed_doctypes", [])
+            activity.logger.info("  ✅ MVP Translation Node output %d seed doctypes: %s", len(seed_doctypes), seed_doctypes)
+        except Exception as e:
+            activity.logger.warning("  ⚠️ MVP Translation failed: %s", e)
+    
+    # ── FALLBACK: load seed doctypes from profile or f3iche template ──
+    if not seed_doctypes:
+        activity.logger.info("  📋 Full mode: Falling back to f3iche template required_doctypes")
+        if not profile_dict.get("required_doctypes"):
+            f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
+            if f3iche_path.exists():
+                try:
+                    with open(f3iche_path, "r", encoding="utf-8") as f:
+                        f3iche_data = json.load(f)
+                    template_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
+                    template_modules  = f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))
+                    if template_doctypes:
+                        profile_dict["required_doctypes"] = template_doctypes
+                        activity.logger.info("  📋 Loaded %d required_doctypes from f3iche template '%s'",
+                                             len(template_doctypes), inp.f3iche)
+                    if template_modules and not profile_dict.get("required_modules"):
+                        profile_dict["required_modules"] = template_modules
+                except Exception as e:
+                    activity.logger.warning("  ⚠️ Could not load f3iche template: %s", e)
+
+        seed_doctypes = profile_dict.get("required_doctypes") or []
 
     # ── 2. GRAPH RESOLUTION ───────────────────────────────────────────────────
     graph    = _load_doctype_graph()

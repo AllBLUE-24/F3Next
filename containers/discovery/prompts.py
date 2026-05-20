@@ -85,8 +85,7 @@ Strategy:  #Strat_MakeToStock, #Strat_MakeToOrder, #Strat_JobWork,
 Scale:     #Scale_Micro (<2Cr), #Scale_SMB (2-50Cr), #Scale_Large (50Cr+)
 System:    #Legacy_Excel, #Legacy_Tally, #Legacy_Busy, #Legacy_Zoho,
            #Legacy_SAP, #Legacy_Oracle, #Legacy_CustomERP, #Legacy_None
-Pain:      #Goal_Inventory, #Goal_Costing, #Goal_Efficiency,
-           #Goal_Compliance, #Goal_Billing, #Goal_MRP
+Pain:      Do not use tags for Pain Point. Instead, capture the exact business bottleneck in natural language in the coverage value.
 
 ---
 
@@ -101,7 +100,7 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
     "strategy":       {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
     "scale":          {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
     "legacy_system":  {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
-    "pain_point":     {{"status": "confirmed"|"partial"|null, "value": "string or null"}}
+    "pain_point":     {{"status": "confirmed"|"partial"|null, "value": "Concise natural language description of their bottleneck (e.g., 'Subcontractor material loss' or 'Inability to track job costs')"}}
   }},
   "bot_response":     "Adi's next message (max 3 sentences)",
   "is_complete":      false,
@@ -130,6 +129,9 @@ CLIENT DISCOVERY TAGS:
 COVERAGE SUMMARY:
 {coverage_summary}
 
+RAG BOTTLENECK CONTEXT (Agnostic Solutions):
+{rag_context}
+
 YOUR TASKS:
 
 1. ANALYZE FIT
@@ -148,9 +150,15 @@ YOUR TASKS:
 3. GENERATE PITCH
    - Score 0-100: How well does ERPNext fit?
    - Headline: One punchy line
-   - Reasoning: 2 sentences specific to their pain point (#Goal_...) and industry
+   - Reasoning: 2 sentences specific to their pain point and industry
 
-4. CLASSIFY
+4. DETERMINE MVP FOCUS (Functional Requirements)
+   - Read the provided "RAG BOTTLENECK CONTEXT" (if any).
+   - If a provided RAG bottleneck perfectly describes the client's problem, use its `functional_requirements`.
+   - If no RAG context matches, generate 3-5 generic, agnostic functional requirements (e.g., ["inventory_tracking", "procurement", "subcontracting"]).
+   - State the `primary_bottleneck` in natural language.
+
+5. CLASSIFY
    - f3iche: "trading" | "manufacturing" | "service"
    - industry: specific sector string (e.g., "Automotive Components", "FMCG")
    - price_plan: "Starter" | "Standard" | "Enterprise"
@@ -163,6 +171,10 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
   "reasoning":       "string",
   "f3iche":          "trading|manufacturing|service",
   "industry":        "string",
-  "price_plan":      "Starter|Standard|Enterprise"
+  "price_plan":      "Starter|Standard|Enterprise",
+  "mvp_focus": {{
+    "primary_bottleneck": "string",
+    "functional_requirements": ["string", "string"]
+  }}
 }}
 """

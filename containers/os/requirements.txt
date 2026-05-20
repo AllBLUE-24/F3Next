@@ -10,3 +10,4 @@ langchain-core
 langchain-google-genai
 google-genai
 asyncpg
+sentry-sdk

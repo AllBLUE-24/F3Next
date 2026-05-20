@@ -63,6 +63,7 @@ class ISSession(Base):
     discovery_f3iche = Column(String, nullable=True)
     discovery_industry = Column(String, nullable=True)
     discovery_company_size = Column(String, nullable=True)
+    mvp_focus = Column(JSONB, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

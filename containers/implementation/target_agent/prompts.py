@@ -36,4 +36,29 @@ Return EXACTLY this JSON structure:
   ],
   "llm_reasoning": "Reasoning citing ERPNext docs and APQC references where applicable."
 }}
-"""
+"""
+
+MVP_TRANSLATION_PROMPT = """
+You are the F3Next ERPNext Technical Translator. Your job is to bridge the gap between business discovery and ERPNext system implementation.
+
+The Discovery Agent has identified the client's primary bottleneck and provided a generic, ERP-agnostic list of Functional Requirements to solve it.
+
+PRIMARY BOTTLENECK:
+{primary_bottleneck}
+
+FUNCTIONAL REQUIREMENTS:
+{functional_requirements}
+
+[ERPNext Context]
+{erpnext_context}
+
+YOUR INSTRUCTIONS:
+Translate the generic Functional Requirements into the MINIMUM necessary ERPNext seed doctypes.
+Do NOT list prerequisite doctypes like Company, Fiscal Year, UOM, or Currency. The underlying graph engine will automatically resolve prerequisites.
+Only list the 4-6 high-level "Seed Doctypes" required to deliver the functional requirements (e.g., 'Item', 'Sales Invoice', 'BOM', 'Work Order').
+
+Return EXACTLY this JSON structure:
+{{
+  "seed_doctypes": ["Doctype1", "Doctype2", "Doctype3"]
+}}
+"""

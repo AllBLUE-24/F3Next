@@ -238,8 +238,19 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             warnings=[{"code": "EMPTY_MANIFEST", "message": "No files in manifest to assess"}],
         )
 
-    # 3. Load company profile
+    # 3. Load company profile and session mvp_focus
     company_profile = await _load_company_profile(inp.session_id)
+    
+    mvp_focus = None
+    try:
+        from shared.models.is_models import ISSession
+        async with AsyncSessionLocal() as db:
+            stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+            sess_row = (await db.execute(stmt)).scalar_one_or_none()
+            if sess_row and sess_row.mvp_focus:
+                mvp_focus = sess_row.mvp_focus
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not load session mvp_focus: %s", e)
 
     # 4. Deterministic gap analysis (no LLM)
     kb = _kb_field_mappings() or {}
@@ -263,6 +274,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     try:
         prompt = DATA_READINESS_PROMPT.format(
             company_profile=json.dumps(company_profile, indent=2),
+            mvp_primary_bottleneck=mvp_focus.get("primary_bottleneck", "General Operations") if mvp_focus else "General Operations",
             target_structure=json.dumps({
                 "required_doctypes": required_doctypes,
                 "import_phases": target_structure.get("import_phases", {}),

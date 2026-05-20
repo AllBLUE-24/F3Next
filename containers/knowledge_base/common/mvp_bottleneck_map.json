@@ -1,0 +1,27 @@
+{
+  "_comment": "Fast-path resolution for common bottlenecks. Used as a baseline for 'direct foundings' before falling back to pgvector semantic search.",
+  "basic_inventory": {
+    "primary_bottleneck": "Basic stockouts and inventory visibility",
+    "functional_requirements": ["inventory_tracking", "warehouse_management", "stock_reconciliation"]
+  },
+  "scrap_wastage": {
+    "primary_bottleneck": "Unaccounted scrap and material wastage",
+    "functional_requirements": ["scrap_tracking", "inventory_adjustments", "quality_control"]
+  },
+  "invoicing_receivables": {
+    "primary_bottleneck": "Delayed customer billing and collections",
+    "functional_requirements": ["accounts_receivable", "invoicing", "payment_tracking"]
+  },
+  "basic_costing": {
+    "primary_bottleneck": "Inability to track basic job or product costs",
+    "functional_requirements": ["product_costing", "bill_of_materials", "expense_tracking"]
+  },
+  "basic_purchasing": {
+    "primary_bottleneck": "Manual procurement and untracked supplier orders",
+    "functional_requirements": ["purchase_orders", "supplier_management", "goods_receipt"]
+  },
+  "_fallback": {
+    "primary_bottleneck": "General operations",
+    "functional_requirements": ["general_ledger", "inventory_tracking", "sales_order_management", "purchasing"]
+  }
+}

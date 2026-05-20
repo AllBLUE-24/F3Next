@@ -254,17 +254,43 @@ async def save_discovery_state(data: dict):
 async def generate_erp_recommendation(data: dict) -> dict:
     """
     Final step: generate the ERP score & pitch using all accumulated signals.
-    Now receives both tags AND the coverage summary for richer context.
+    Now uses pgvector RAG to map the bottleneck to functional_requirements.
     """
     tags     = data.get("tags", [])
     coverage = data.get("coverage", EMPTY_COVERAGE)
 
     tag_str          = ", ".join(tags) if isinstance(tags, list) else str(tags)
     coverage_summary = _build_coverage_summary(coverage)
+    
+    primary_bottleneck = coverage.get("pain_point", {}).get("value") or ""
+    
+    rag_context = ""
+    if primary_bottleneck:
+        try:
+            from containers.implementation.utils.rag_helper import rag_retrieve
+            chunks = await rag_retrieve(
+                primary_bottleneck, 
+                "business_bottlenecks", 
+                top_k=2
+            )
+            rag_context = "\n\n".join(chunks)
+        except Exception as e:
+            print(f"⚠️ RAG Retrieval failed for bottleneck: {e!r}")
+            # Try fallback to fast-path json
+            import os
+            try:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                map_path = os.path.join(base_dir, "..", "knowledge_base", "common", "mvp_bottleneck_map.json")
+                if os.path.exists(map_path):
+                    with open(map_path, 'r') as f:
+                        rag_context = f"FALLBACK MAP:\n{f.read()}"
+            except Exception:
+                pass
 
     formatted_prompt = RECOMMENDATION_PROMPT.format(
         extracted_tags  = tag_str,
         coverage_summary= coverage_summary,
+        rag_context     = rag_context
     )
 
     try:
@@ -322,6 +348,7 @@ async def save_discovery_metadata(data: dict):
                     "price_plan":       rec.get("price_plan", "Standard"),
                     "recommended_erp":  rec.get("recommended_erp"),
                     "fit_score":        rec.get("fit_score"),
+                    "mvp_focus":        rec.get("mvp_focus")
                 }
             )
         )

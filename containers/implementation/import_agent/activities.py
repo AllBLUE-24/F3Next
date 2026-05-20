@@ -328,6 +328,7 @@ class _ImportEngine:
         setup_steps: List[Dict],
         mapped_data_dict: Dict[str, Dict],
         validation_status: str,
+        playbook_context: str = "",
     ) -> Dict[str, Any]:
         
         if validation_status == "fail":
@@ -335,6 +336,15 @@ class _ImportEngine:
                 "status": "blocked",
                 "reason": "Validation failed. Fix errors before import.",
             }
+
+        _PHASE_A_AUTO_SETUP = {
+            "Company":             "auto_company_setup",
+            "Chart of Accounts":   "auto_from_company",
+            "Cost Center":         "auto_from_company",
+            "Fiscal Year":         "seed_from_config",
+            "Currency":            "seed_from_baseline",
+            "Warehouse":           "auto_from_company",
+        }
 
         # ── PROTOCOL-COMPLIANT: Phases are derived from setup_steps data. ────────────
         # Pre-seed the 3 standard phases so existing plans never break.
@@ -375,7 +385,12 @@ class _ImportEngine:
             # Read the planner's action from Step 8 — do NOT discard it
             planner_action = step_info.get("action", "must_create")
 
-            if is_mapped:
+            if dt in _PHASE_A_AUTO_SETUP:
+                # Override action — never ask user for files for these
+                exec_action = _PHASE_A_AUTO_SETUP[dt]
+                data_source = "auto"
+                record_count = 0
+            elif is_mapped:
                 # User has provided a data file — import it row by row
                 exec_action  = "create"
                 data_source  = mapped_data_dict[dt]["r2_path"]
@@ -484,9 +499,30 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         if md.validation_status == "failed":
             validation_status = "fail"
 
+    # ── Fetch professional implementation sequence from pgvector ──────────
+    playbook_context = ""
+    try:
+        from containers.implementation.utils.rag_helper import rag_retrieve
+        from shared.models.is_models import ISCompanyProfile
+        
+        async with AsyncSessionLocal() as session:
+            stmt = select(ISCompanyProfile).where(ISCompanyProfile.session_id == uuid.UUID(inp.session_id)).order_by(ISCompanyProfile.version.desc()).limit(1)
+            prof = (await session.execute(stmt)).scalar_one_or_none()
+            f3iche = prof.f3iche if prof else "universal"
+
+        playbook_chunks = await rag_retrieve(
+            f"{f3iche} ERPNext Phase A foundation setup professional sequence",
+            "erp_implementation_playbook",
+            top_k=4,
+        )
+        playbook_context = "\n\n".join(playbook_chunks)
+        activity.logger.info("  📚 Fetched %d playbook chunks for import plan", len(playbook_chunks))
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Playbook RAG retrieval failed (non-fatal): %s", e)
+
     # ── BUILD THE 3-PHASE IMPORT PLAN ─────────────────────────────────────────
     engine = _ImportEngine()
-    plan = engine.build_plan(setup_steps, mapped_data_dict, validation_status)
+    plan = engine.build_plan(setup_steps, mapped_data_dict, validation_status, playbook_context)
     plan_status = plan.get("status", "blocked")
 
     slug = inp.company_slug or "unknown"

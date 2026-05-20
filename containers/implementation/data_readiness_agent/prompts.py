@@ -40,6 +40,13 @@ You have been given:
 
 3. COMPANY PROFILE — business type (f3iche), industry, company size.
 
+MVP SCOPE CONTEXT:
+The client's stated primary bottleneck is: {mvp_primary_bottleneck}
+The pipeline is currently in MVP mode. Only assess data readiness for the doctypes in the
+TARGET STRUCTURE below. Any uploaded files mapping to doctypes NOT in this target structure
+should be marked as "extra_data" — do NOT flag them as gaps. They will be imported in a
+later phase.
+
 ─── YOUR TASKS ────────────────────────────────────────────────────────────────
 
 A. For each doctype in partial_doctypes and missing_doctypes in the pre-analysis:

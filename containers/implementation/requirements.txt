@@ -10,3 +10,4 @@ pandas
 requests
 httpx
 asyncpg
+sentry-sdk
