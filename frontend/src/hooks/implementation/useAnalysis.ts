@@ -21,6 +21,18 @@ const NEEDS_INPUT_STAGES = new Set([
 interface AnalysisState {
   tasks: AnalysisTask[];
   profile: CompanyProfile | null;
+  session: {
+    status?: string | null;
+    user_import_note?: string | null;
+    total_files?: number;
+    batch_count?: number;
+    file_batches?: Array<{
+      batch_index?: number;
+      uploaded_at?: string;
+      note?: string;
+      files?: Array<{ file_name?: string; object_path?: string }>;
+    }>;
+  } | null;
   /** Raw stage string from the workflow */
   stage: string;
   /** Inferred F3iche ID (e.g. "trading_fmcg_distributor") */
@@ -36,6 +48,7 @@ export function useAnalysis(jobId: string | null) {
   const [state, setState] = useState<AnalysisState>({
     tasks: [],
     profile: null,
+    session: null,
     stage: '',
     inferredNiche: null,
     confidence: null,
@@ -59,6 +72,7 @@ export function useAnalysis(jobId: string | null) {
       setState({
         tasks: data.analysis_tasks || [],
         profile: data.profile || null,
+        session: data.session || null,
         stage,
         inferredNiche: data.profile?.f3iche_signals || null,
         confidence: data.profile?.confidence ?? null,

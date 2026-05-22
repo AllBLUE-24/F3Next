@@ -416,6 +416,31 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         f"Retrieved context blocks: {retrieved_blocks}."
     )
 
+    # Safety net: if the workflow is in a non-resolved state but we built zero actions,
+    # the UI has nothing to render and the workflow deadlocks waiting for a signal that
+    # can never arrive. Add a generic continue action to unblock.
+    if not actions and st.status in ("partial", "WARNING", "needs_user_input") and inp.node_name == "assess_data_readiness":
+        final_status = "needs_user_input"
+        actions.append(
+            SupervisorAction(
+                id="ask_user_data_readiness_continue",
+                type="ask_user",
+                scope="data_readiness_continue",
+                question=(
+                    "Your data has been assessed. Some recommended ERPNext configuration data "
+                    "(like Company setup, UOM, Warehouses) may be missing, but ERPNext can "
+                    "auto-create defaults for most of these. Would you like to continue with "
+                    "what you've provided, or upload additional files first?"
+                ),
+                options=[
+                    "Continue with my current files",
+                    "Let me upload more files first",
+                ],
+                metadata={"tier": "important"},
+            )
+        )
+        activity.logger.info("  Added fallback continue action (no critical gaps detected but status was partial)")
+
     activity.logger.info(
         "✅ supervise_step done | final_status=%s actions=%d", final_status, len(actions)
     )

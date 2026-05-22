@@ -15,6 +15,7 @@
   "f3iche_match_status": "matched",
   "uploaded_files": [],
   "r2_manifest_url": "",
+  "user_import_note": "This import combines customer, supplier, and item master sheets from the same ERP export. Treat the corpus as a single onboarding package, not one doctype per file.",
   "collected_signals": ["Has product catalog", "Has customer list"],
   "discovery_alignment_score": null
 }

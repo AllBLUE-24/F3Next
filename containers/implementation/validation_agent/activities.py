@@ -209,14 +209,22 @@ class _ValidationEngine:
                     f"{doctype}: records have only {fields_per_record} non-empty field(s) — critically sparse data"
                 )
 
-        # Required-field check
+        # Required-field check: scan first 10 rows, not just row 0.
+        # A field is only truly missing if it is absent from ALL sample rows
+        # (avoids false positives when the first record comes from a partial mapping).
         required = self._get_required_fields(doctype)
         if rows and required:
-            sample = rows[0]
+            sample_rows = rows[:10]
             for field in required:
-                if field not in sample and not any(field in str(k) for k in sample.keys()):
+                field_present_in_any = any(
+                    field in row or any(field in str(k) for k in row.keys())
+                    for row in sample_rows
+                    if isinstance(row, dict)
+                )
+                if not field_present_in_any:
                     check["errors"].append(f"Missing required field: {field}")
                     check["status"] = "fail"
+
 
         # ── ENUM VALUE VALIDATION ──
         enum_rules = self._get_enum_rules(doctype)
@@ -319,9 +327,35 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         try:
             response = s3.get_object(Bucket="clean-data", Key=r2_key)
             payload_json = json.loads(response["Body"].read().decode("utf-8"))
-            mapped_data[doctype] = payload_json
-            mapped_data_map[doctype] = md_row
-            activity.logger.info("  ✅ Loaded payload for %s from R2", doctype)
+            incoming_records = payload_json.get("records", [])
+
+            if doctype not in mapped_data:
+                # First payload for this doctype — use it directly
+                mapped_data[doctype] = payload_json
+                mapped_data_map[doctype] = md_row
+                activity.logger.info("  ✅ Loaded payload for %s from R2 (%d records)", doctype, len(incoming_records))
+            else:
+                # Merge: append records from subsequent source files.
+                # Keep the source file with the most fields per row as the "primary" payload,
+                # so the validation engine sees the richest records first.
+                existing_records = mapped_data[doctype].get("records", [])
+                existing_fields = len(existing_records[0]) if existing_records else 0
+                incoming_fields = len(incoming_records[0]) if incoming_records else 0
+
+                if incoming_fields > existing_fields:
+                    # Incoming is richer — swap and prepend existing
+                    merged = incoming_records + existing_records
+                    mapped_data[doctype] = {**payload_json, "records": merged}
+                    mapped_data_map[doctype] = md_row  # point to richer source
+                else:
+                    merged = existing_records + incoming_records
+                    mapped_data[doctype]["records"] = merged
+
+                activity.logger.info(
+                    "  🔀 Merged payloads for %s: %d + %d = %d records",
+                    doctype, len(existing_records), len(incoming_records), len(merged)
+                )
+
         except Exception as e:
             activity.logger.error("  ❌ Failed to load payload for %s: %s", doctype, e)
 

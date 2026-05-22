@@ -23,6 +23,8 @@ import {
 import { getBaseApiUrl } from "@/lib/config";
 import { useImplementation } from "@/contexts/ImplementationContext";
 
+import { SupervisorInlineUploader } from "./SupervisorInlineUploader";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActionTier = "critical" | "important" | string;
@@ -50,6 +52,19 @@ type SupervisorPrompt = {
   actions?: SupervisorAction[];
   created_at?: string | null;
 };
+
+type SessionSummary = {
+  status?: string | null;
+  user_import_note?: string | null;
+  total_files?: number;
+  batch_count?: number;
+  file_batches?: Array<{
+    batch_index?: number;
+    uploaded_at?: string;
+    note?: string;
+    files?: Array<{ file_name?: string; object_path?: string }>;
+  }>;
+} | null;
 
 type DataReadinessGap = {
   doctype: string;
@@ -157,11 +172,18 @@ function PromptCard({
   prompt,
   onRespond,
   responding,
+  projectId,
+  companySlug,
 }: {
   prompt: SupervisorPrompt;
-  onRespond: (prompt: SupervisorPrompt, action: SupervisorAction, option?: string) => void;
+  onRespond: (prompt: SupervisorPrompt, action: SupervisorAction, option?: string, userNote?: string) => void;
   responding: boolean;
+  projectId: string;
+  companySlug: string;
 }) {
+  const [activeUpload, setActiveUpload] = useState<{ actionId: string; selectedOption: string; userNote?: string } | null>(null);
+  const [userNote, setUserNote] = useState("");
+
   const criticalAction = (prompt.actions || []).find(
     (a) => a.type === "ask_user" && a.metadata?.tier === "critical"
   );
@@ -228,20 +250,42 @@ function PromptCard({
 
             {/* Action buttons — critical: only upload, no skip */}
             <div className="ml-9 space-y-2">
-              {(criticalAction.options || ["Upload the missing files"]).map((opt) => (
-                <button
-                  key={opt}
-                  disabled={responding}
-                  onClick={() => onRespond(prompt, criticalAction, opt)}
-                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-200 text-xs font-medium transition-colors disabled:opacity-50"
-                >
-                  <span className="flex items-center gap-2">
-                    <Upload className="w-3.5 h-3.5" />
-                    {opt}
-                  </span>
-                  <ArrowRight className="w-3 h-3 opacity-60" />
-                </button>
-              ))}
+              {activeUpload?.actionId === criticalAction.id ? (
+                <SupervisorInlineUploader
+                  projectId={projectId}
+                  companySlug={companySlug}
+                  promptId={prompt.id}
+                  actionId={criticalAction.id}
+                  selectedOption={activeUpload.selectedOption}
+                  userNote={activeUpload.userNote || ""}
+                  onSuccess={() => {
+                    setActiveUpload(null);
+                    setUserNote("");
+                  }}
+                  onCancel={() => setActiveUpload(null)}
+                />
+              ) : (
+                (criticalAction.options || ["Upload the missing files"]).map((opt) => (
+                  <button
+                    key={opt}
+                    disabled={responding}
+                    onClick={() => {
+                      if (opt.toLowerCase().includes("upload")) {
+                        setActiveUpload({ actionId: criticalAction.id, selectedOption: opt, userNote: userNote.trim() });
+                      } else {
+                        onRespond(prompt, criticalAction, opt, userNote.trim());
+                      }
+                    }}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-200 text-xs font-medium transition-colors disabled:opacity-50"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Upload className="w-3.5 h-3.5" />
+                      {opt}
+                    </span>
+                    <ArrowRight className="w-3 h-3 opacity-60" />
+                  </button>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -279,30 +323,52 @@ function PromptCard({
 
             {/* Action buttons — important: upload OR continue with warning */}
             <div className="ml-9 space-y-2">
-              {(importantAction.options || []).map((opt, idx) => {
-                const isUpload = opt.toLowerCase().includes("upload");
-                const isContinue = !isUpload;
-                return (
-                  <button
-                    key={opt}
-                    disabled={responding}
-                    onClick={() => onRespond(prompt, importantAction, opt)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
-                      isUpload
-                        ? "bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20 text-amber-200"
-                        : "bg-white/[0.03] border-white/[0.07] hover:bg-white/[0.06] text-zinc-400"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {isUpload ? <Upload className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
-                      {opt}
-                    </span>
-                    {isContinue && (
-                      <span className="text-[9px] text-zinc-600 ml-1 normal-case font-normal">not recommended</span>
-                    )}
-                  </button>
-                );
-              })}
+              {activeUpload?.actionId === importantAction.id ? (
+                <SupervisorInlineUploader
+                  projectId={projectId}
+                  companySlug={companySlug}
+                  promptId={prompt.id}
+                  actionId={importantAction.id}
+                  selectedOption={activeUpload.selectedOption}
+                  userNote={activeUpload.userNote || ""}
+                  onSuccess={() => {
+                    setActiveUpload(null);
+                    setUserNote("");
+                  }}
+                  onCancel={() => setActiveUpload(null)}
+                />
+              ) : (
+                (importantAction.options || []).map((opt) => {
+                  const isUpload = opt.toLowerCase().includes("upload");
+                  const isContinue = !isUpload;
+                  return (
+                    <button
+                      key={opt}
+                      disabled={responding}
+                      onClick={() => {
+                        if (isUpload) {
+                          setActiveUpload({ actionId: importantAction.id, selectedOption: opt, userNote: userNote.trim() });
+                        } else {
+                          onRespond(prompt, importantAction, opt, userNote.trim());
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
+                        isUpload
+                          ? "bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20 text-amber-200"
+                          : "bg-white/[0.03] border-white/[0.07] hover:bg-white/[0.06] text-zinc-400"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {isUpload ? <Upload className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                        {opt}
+                      </span>
+                      {isContinue && (
+                        <span className="text-[9px] text-zinc-600 ml-1 normal-case font-normal">not recommended</span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -315,7 +381,7 @@ function PromptCard({
               <button
                 key={opt}
                 disabled={responding}
-                onClick={() => onRespond(prompt, genericAskAction, opt)}
+                onClick={() => onRespond(prompt, genericAskAction, opt, userNote.trim())}
                 className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-[var(--border-subtle)] hover:bg-white/[0.04] text-zinc-200 disabled:opacity-50 transition-colors"
               >
                 {opt}
@@ -323,6 +389,18 @@ function PromptCard({
             ))}
           </div>
         )}
+        <div className="space-y-1.5">
+          <label className="block text-[10px] uppercase tracking-wider text-zinc-600">
+            Add a note for the assistant
+          </label>
+          <textarea
+            value={userNote}
+            onChange={(e) => setUserNote(e.target.value)}
+            placeholder="Optional clarification before you respond."
+            maxLength={800}
+            className="w-full min-h-[70px] rounded-lg bg-black/20 border border-white/[0.06] px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-amber-500/40 resize-y"
+          />
+        </div>
       </div>
     </div>
   );
@@ -336,6 +414,7 @@ export function SupervisorPanel() {
 
   const [prompts, setPrompts] = useState<SupervisorPrompt[]>([]);
   const [readiness, setReadiness] = useState<DataReadinessReport | null>(null);
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
@@ -344,15 +423,18 @@ export function SupervisorPanel() {
     () => prompts.filter((p) => p.status === "open"),
     [prompts]
   );
+  const totalFiles = sessionSummary?.total_files ?? 0;
+  const batchCount = sessionSummary?.batch_count ?? 0;
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const base = getBaseApiUrl();
-      const [promptsRes, readinessRes] = await Promise.all([
+      const [promptsRes, readinessRes, stateRes] = await Promise.all([
         fetch(`${base}/api/implementation/supervisor-prompts/${projectId}`, { cache: "no-store" }),
         fetch(`${base}/api/implementation/data-readiness/${projectId}`, { cache: "no-store" }),
+        fetch(`${base}/api/implementation/state/${projectId}`, { cache: "no-store" }),
       ]);
       if (!promptsRes.ok) throw new Error(await promptsRes.text());
       const promptsData = await promptsRes.json();
@@ -364,6 +446,10 @@ export function SupervisorPanel() {
         setReadiness(null);
       } else {
         throw new Error(await readinessRes.text());
+      }
+      if (stateRes.ok) {
+        const stateData = await stateRes.json();
+        setSessionSummary(stateData?.session ?? null);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load supervisor data");
@@ -379,7 +465,7 @@ export function SupervisorPanel() {
   }, [refresh]);
 
   const respond = useCallback(
-    async (prompt: SupervisorPrompt, action: SupervisorAction, selectedOption?: string) => {
+    async (prompt: SupervisorPrompt, action: SupervisorAction, selectedOption?: string, userNote?: string) => {
       setRespondingId(prompt.id);
       try {
         const base = getBaseApiUrl();
@@ -390,7 +476,10 @@ export function SupervisorPanel() {
             project_id: projectId,
             prompt_id: prompt.id,
             chosen_action_id: action.id,
-            extra_data: selectedOption ? { selected_option: selectedOption } : {},
+            extra_data: {
+              ...(selectedOption ? { selected_option: selectedOption } : {}),
+              ...(userNote ? { user_note: userNote } : {}),
+            },
           }),
         });
         if (!res.ok) throw new Error(await res.text());
@@ -438,6 +527,11 @@ export function SupervisorPanel() {
             {openPrompts.length === 0 && (
               <div className="text-[10px] text-zinc-600">Monitoring your import</div>
             )}
+            {batchCount > 1 && (
+              <div className="text-[10px] text-amber-400 font-medium">
+                Re-upload round {batchCount} in progress · {totalFiles} files tracked
+              </div>
+            )}
           </div>
         </div>
         <button
@@ -465,6 +559,8 @@ export function SupervisorPanel() {
             prompt={p}
             onRespond={respond}
             responding={respondingId === p.id}
+            projectId={projectId}
+            companySlug={session.companySlug}
           />
         ))}
 

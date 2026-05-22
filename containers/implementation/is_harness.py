@@ -359,6 +359,11 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
         from containers.implementation.import_agent.activities import build_import_plan, BuildImportPlanInput
         return await build_import_plan(BuildImportPlanInput(**fixture))
 
+    # ── finalize_import_plan ──────────────────────────────────────────────────
+    elif step == "finalize_import_plan":
+        from containers.implementation.import_agent.activities import finalize_import_plan, FinalizeImportPlanInput
+        return await finalize_import_plan(FinalizeImportPlanInput(**fixture))
+
     # ── execute_import_phase ──────────────────────────────────────────────────
     elif step == "execute_import_phase":
         from containers.implementation.import_agent.activities import execute_import_phase, ExecutePhaseInput
@@ -398,6 +403,7 @@ VALID_STEPS = [
     "refine_mapping_with_llm",
     "validate_mapped_data",
     "build_import_plan",
+    "finalize_import_plan",
     "execute_import_phase",
 ]
 

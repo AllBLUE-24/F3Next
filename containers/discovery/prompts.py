@@ -50,8 +50,10 @@ STEP A — ANSWER QUALITY ASSESSMENT
 STEP B — SIGNAL EXTRACTION (only if "clear" or "vague")
    Extract EVERY signal the answer contains, even across multiple coverage areas.
    Use only the approved taxonomy tags.
-   - If the answer is "clear" → mark those coverage areas as "confirmed"
-   - If the answer is "vague" → mark those coverage areas as "partial"
+   - If the answer is "clear" → mark those coverage areas as "confirmed" AND set a real value
+   - If the answer is "vague" → mark those coverage areas as "partial" AND set a real value
+   - CRITICAL: NEVER set status to "partial" or "confirmed" unless the user's answer ACTUALLY mentioned something about that dimension. Setting status without a real value is forbidden.
+   - NEVER guess or infer dimensions that were not mentioned — only extract what was explicitly said.
    - Do NOT re-ask about already "confirmed" areas
    - A single message like "We manufacture auto parts for Tata and Mahindra on order"
      covers industry (confirmed), strategy (confirmed), and gives scale hints (partial).
@@ -60,10 +62,10 @@ STEP C — RESPONSE GENERATION
    Write Adi's next message. It must:
    1. Briefly acknowledge what you just learned (1 sentence, conversational)
    2. Ask ONLY about the most important UNCOVERED dimension remaining
-   3. If quality is "vague" → ask a natural clarifying follow-up instead
+   3. If quality is "vague" → ask a natural clarifying follow-up about that same dimension
    4. If quality is "gibberish"/"evasive" → gently redirect without sounding robotic
-   5. If all 5 areas have at least "partial" signal → write a wrap-up that
-      summarizes what you've learned and says you're generating a recommendation.
+   5. NEVER wrap up or say you're generating a recommendation unless the system tells you all 5 areas are covered.
+      Keep asking about the remaining uncovered dimension(s) naturally.
 
    TONE RULES:
    - Sound like a consultant, not a chatbot
@@ -96,11 +98,11 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
   "reason":           "Internal logic log (not shown to user)",
   "extracted_tags":   ["#Tag1", "#Tag2"],
   "updated_coverage": {{
-    "industry":       {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
-    "strategy":       {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
-    "scale":          {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
-    "legacy_system":  {{"status": "confirmed"|"partial"|null, "value": "string or null"}},
-    "pain_point":     {{"status": "confirmed"|"partial"|null, "value": "Concise natural language description of their bottleneck (e.g., 'Subcontractor material loss' or 'Inability to track job costs')"}}
+    "industry":       {{"status": "confirmed"|"partial"|null, "value": "MUST be a real string describing what user said, or null if not mentioned"}},
+    "strategy":       {{"status": "confirmed"|"partial"|null, "value": "MUST be a real string describing what user said, or null if not mentioned"}},
+    "scale":          {{"status": "confirmed"|"partial"|null, "value": "MUST be a real string describing what user said, or null if not mentioned"}},
+    "legacy_system":  {{"status": "confirmed"|"partial"|null, "value": "MUST be a real string describing what user said, or null if not mentioned"}},
+    "pain_point":     {{"status": "confirmed"|"partial"|null, "value": "Concise natural language description of their actual bottleneck (e.g., 'Subcontractor material loss'), or null if not mentioned"}}
   }},
   "bot_response":     "Adi's next message (max 3 sentences)",
   "is_complete":      false,
@@ -108,10 +110,12 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
   "f3iche_hint":      "trading|manufacturing|service|null"
 }}
 
-Only set "is_complete": true when ALL 5 areas have at least "partial" status,
-OR when this is turn 7 or 8 (graceful exit).
-When "is_complete" is true, "status" must be "SUCCESS".
-When "status" is "RETRY", keep "is_complete": false and do NOT advance coverage.
+CRITICAL RULES:
+- ALWAYS set "is_complete": false. The system decides when to end — never set it to true yourself.
+- A dimension can only have status "partial" or "confirmed" if its value is a real non-empty string from what the user said.
+- If a user never mentioned their software system, legacy_system value MUST be null and status MUST be null.
+- If a user never mentioned their pain point, pain_point value MUST be null and status MUST be null.
+When "status" is "RETRY", do NOT advance coverage.
 """
 
 # ------------------------------------------------------------------

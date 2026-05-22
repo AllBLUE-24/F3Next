@@ -15,6 +15,7 @@ import uuid
 
 import boto3
 from botocore.config import Config
+from sqlalchemy import select
 from temporalio import activity
 
 from shared.models.is_status import NodeStatusEnvelope
@@ -81,6 +82,32 @@ class _CompanyProfileService:
             snippet = txt[:1500] if txt else "(empty file)"
             file_summaries.append(f"Filename: {fname}\nSample Data:\n{snippet}\n---")
 
+        user_import_note = ""
+        session_id = kwargs.get("session_id")
+        if session_id:
+            try:
+                from shared.database.db import AsyncSessionLocal
+                from shared.models.is_models import ISSession
+
+                async with AsyncSessionLocal() as db:
+                    stmt = select(ISSession).where(ISSession.id == uuid.UUID(str(session_id)))
+                    row = (await db.execute(stmt)).scalar_one_or_none()
+                    if row:
+                        note_lines: List[str] = []
+                        if row.user_import_note:
+                            note_lines.append(f"Initial upload: {row.user_import_note}")
+                        for entry in row.user_notes or []:
+                            if isinstance(entry, dict) and entry.get("note"):
+                                note_lines.append(f"{entry.get('type', 'note')}: {entry['note']}")
+                        user_import_note = "\n".join(note_lines)
+            except Exception:
+                user_import_note = ""
+        if kwargs.get("user_import_note"):
+            if user_import_note:
+                user_import_note = f"{user_import_note}\n{kwargs.get('user_import_note')}"
+            else:
+                user_import_note = str(kwargs.get("user_import_note"))
+
         # ── RAG context blocks (injected from kb_embeddings) ─────────────────
         apqc_block = "\n\n".join(rag_chunks.get("apqc_pcf", [])[:3]) or "No APQC context retrieved."
         erp_block  = "\n\n".join(rag_chunks.get("erpnext_docs", [])[:3]) or "No ERPNext docs retrieved."
@@ -115,6 +142,9 @@ Deterministic template constraints for this niche:
 
 [Layer 4: Industry Reality]
 {industry_block}
+
+User import note:
+{user_import_note or "No explicit import note provided."}
 
 Company's uploaded data:
 {"".join(file_summaries)}
@@ -191,6 +221,7 @@ class BuildProfileInput:
     f3iche_match_status: str = "matched"
     uploaded_files: List[Dict] = field(default_factory=list)
     r2_manifest_url: str = ""          # R2 manifest URL instead of raw file_contents
+    user_import_note: Optional[str] = None
     collected_signals: List[str] = field(default_factory=list)
     target_structure: Optional[Dict] = None
     field_mappings: Optional[Dict] = None
@@ -279,6 +310,7 @@ async def build_company_profile(inp: BuildProfileInput) -> Any:
         f3iche_match_status=inp.f3iche_match_status,
         uploaded_files=inp.uploaded_files,
         r2_manifest_url=inp.r2_manifest_url,
+        user_import_note=inp.user_import_note,
         collected_signals=inp.collected_signals,
         target_structure=inp.target_structure,
         field_mappings=inp.field_mappings,

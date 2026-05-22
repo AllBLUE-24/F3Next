@@ -65,6 +65,11 @@ class ISSession(Base):
     discovery_company_size = Column(String, nullable=True)
     mvp_focus = Column(JSONB, nullable=True)
 
+    # Implementation intake context
+    user_import_note = Column(Text, nullable=True)
+    file_batches = Column(JSONB, nullable=True, default=list)
+    user_notes = Column(JSONB, nullable=True, default=list)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)

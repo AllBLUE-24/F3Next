@@ -24,7 +24,7 @@ from sqlalchemy import select
 from temporalio import activity
 
 from shared.database.db import AsyncSessionLocal
-from shared.models.is_models import ISCompanyProfile, ISTargetStructure
+from shared.models.is_models import ISCompanyProfile, ISTargetStructure, ISSession
 from shared.models.is_status import NodeStatusEnvelope
 from containers.implementation.utils.llm_helper import generate_json
 
@@ -321,6 +321,7 @@ class BuildTargetInput:
     project_id: str
     f3iche: str
     company_slug: str = "unknown"
+    user_import_note: Optional[str] = None
 
 
 # ─── ACTIVITIES ───────────────────────────────────────────────────────────────
@@ -367,6 +368,17 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
             sess_row = res_sess.scalar_one_or_none()
             if sess_row and sess_row.mvp_focus:
                 mvp_focus = sess_row.mvp_focus
+            if sess_row:
+                note_lines: List[str] = []
+                if sess_row.user_import_note:
+                    note_lines.append(f"Initial upload: {sess_row.user_import_note}")
+                for entry in sess_row.user_notes or []:
+                    if isinstance(entry, dict) and entry.get("note"):
+                        note_lines.append(f"{entry.get('type', 'note')}: {entry['note']}")
+                if inp.user_import_note:
+                    note_lines.append(f"Fixture note: {inp.user_import_note}")
+                if note_lines:
+                    profile_dict["user_import_note"] = "\n".join(note_lines)
     except Exception as e:
         activity.logger.error("  ❌ Failed to fetch profile/session from DB: %s", e)
 
@@ -487,6 +499,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
 
         prompt  = TARGET_STRUCTURE_PROMPT.format(
             company_profile=json.dumps(profile_dict, indent=2),
+            user_import_note=profile_dict.get("user_import_note", ""),
             erpnext_context=erp_ctx_str,
             apqc_context=apqc_ctx_str,
             company_context=company_ctx_str,

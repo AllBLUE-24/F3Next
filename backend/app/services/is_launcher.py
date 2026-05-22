@@ -10,12 +10,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from temporalio.client import Client, WorkflowHandle
 from temporalio.exceptions import WorkflowAlreadyStartedError
-from sqlalchemy.future import select
+from sqlalchemy import select, update
 
 from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import (
@@ -122,11 +123,49 @@ class ImplementationLauncher:
         project_id: str | UUID,
         uploaded_files: List[Dict],
         company_slug: Optional[str] = None,
+        user_note: Optional[str] = None,
     ) -> None:
+        is_session = await self._get_session(project_id)
+        if is_session:
+            file_batches = list(is_session.file_batches or [])
+            batch_index = len(file_batches) + 1
+            file_batches.append({
+                "batch_index": batch_index,
+                "uploaded_at": datetime.utcnow().isoformat() + "Z",
+                "files": uploaded_files,
+                "note": user_note or "",
+            })
+
+            user_notes = list(is_session.user_notes or [])
+            if user_note:
+                user_notes.append({
+                    "type": "initial_upload",
+                    "batch_index": batch_index,
+                    "note": user_note,
+                    "uploaded_at": datetime.utcnow().isoformat() + "Z",
+                })
+
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    update(ISSession)
+                    .where(ISSession.id == is_session.id)
+                    .values(
+                        file_batches=file_batches,
+                        user_notes=user_notes,
+                        user_import_note=user_note or is_session.user_import_note,
+                        updated_at=datetime.utcnow(),
+                    )
+                )
+                await session.commit()
+
         handle = await self._handle(project_id)
         await handle.signal(
             ImplementationWorkflow.files_uploaded,
-            FilesUploadedSignal(uploaded_files=uploaded_files, company_slug=company_slug),
+            FilesUploadedSignal(
+                uploaded_files=uploaded_files,
+                company_slug=company_slug,
+                user_note=user_note,
+            ),
         )
 
     async def signal_f3iche_confirmed(
@@ -404,15 +443,34 @@ class ImplementationLauncher:
             raise ValueError("Implementation session not found")
 
         answer_payload = {"chosen_action_id": chosen_action_id, "extra_data": extra_data or {}}
+        user_note = (extra_data or {}).get("user_note")
 
         from sqlalchemy import update
 
         async with AsyncSessionLocal() as session:
+            stmt = select(ISSession).where(ISSession.id == is_session.id)
+            row = (await session.execute(stmt)).scalar_one_or_none()
             await session.execute(
                 update(ISSupervisorPrompt)
                 .where(ISSupervisorPrompt.id == UUID(prompt_id))
                 .values(status="answered", answer_payload=answer_payload)
             )
+
+            if user_note:
+                if row:
+                    notes = list(row.user_notes or [])
+                    notes.append({
+                        "type": "supervisor_prompt",
+                        "prompt_id": prompt_id,
+                        "chosen_action_id": chosen_action_id,
+                        "note": user_note,
+                        "answered_at": datetime.utcnow().isoformat() + "Z",
+                    })
+                    await session.execute(
+                        update(ISSession)
+                        .where(ISSession.id == is_session.id)
+                        .values(user_notes=notes, updated_at=datetime.utcnow())
+                    )
             await session.commit()
 
         await self.signal_supervisor_response(project_id, prompt_id, chosen_action_id, extra_data=extra_data)
@@ -613,8 +671,21 @@ class ImplementationLauncher:
             h.query(ImplementationWorkflow.get_stage),
             h.query(ImplementationWorkflow.get_analysis_tasks),
         )
+        session = await self._get_session(project_id)
+        file_batches = list(session.file_batches or []) if session else []
+        total_files = sum(len((batch or {}).get("files") or []) for batch in file_batches)
         return {
             "stage": stage, 
             "profile": await self.get_profile(project_id), 
-            "analysis_tasks": tasks
+            "analysis_tasks": tasks,
+            "session": {
+                "status": session.status if session else None,
+                "user_import_note": session.user_import_note if session else None,
+                "file_batches": file_batches,
+                "user_notes": list(session.user_notes or []) if session else [],
+                "total_files": total_files,
+                "batch_count": len(file_batches),
+                "completed_at": session.completed_at.isoformat() if session and session.completed_at else None,
+                "updated_at": session.updated_at.isoformat() if session and session.updated_at else None,
+            } if session else None,
         }

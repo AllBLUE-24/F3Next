@@ -23,7 +23,12 @@ export async function getPresignedUrls(projectId: string, fileNames: string[]) {
 
 // Action 2: Tell FastAPI/Temporal the files are in R2
 // Action 2: Tell FastAPI/Temporal the files are in R2
-export async function signalUploadComplete(projectId: string, companySlug: string, uploadedFiles: { file_name: string, object_path: string }[]) {
+export async function signalUploadComplete(
+  projectId: string,
+  companySlug: string,
+  uploadedFiles: { file_name: string, object_path: string }[],
+  userNote: string = ""
+) {
   'use server';
   const base = getBaseApiUrl();
   
@@ -48,6 +53,7 @@ export async function signalUploadComplete(projectId: string, companySlug: strin
       project_id: projectId,
       uploaded_files: uploadedFiles,
       company_slug: companySlug,
+      user_note: userNote,
     }),
   });
 

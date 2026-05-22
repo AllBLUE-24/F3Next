@@ -2,13 +2,14 @@
 // PATH: src/components/implementation/analyze/AnalyzeView.tsx
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { ArrowRight, CheckCircle, Sparkles, ChevronDown, AlertTriangle, Info, Upload } from 'lucide-react';
 import { useAnalysis } from '@/hooks/implementation/useAnalysis';
 import { BrainVisualizer } from './BrainVisualizer';
 import { TaskStream } from './TaskStream';
 import type { AnalysisTask } from '@/types/implementation';
 import { getBaseApiUrl } from '@/lib/config';
+import { SupervisorInlineUploader } from '../supervisor/SupervisorInlineUploader';
 
 // ── Niche display lookup ────────────────────────────────────────────────────
 const NICHE_DISPLAY: Record<string, { label: string; industry: string }> = {
@@ -52,10 +53,27 @@ type DRPrompt = {
   actions?: DRAction[];
 };
 
-function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+type SessionSummary = {
+  batch_count?: number;
+  total_files?: number;
+  user_import_note?: string | null;
+  file_batches?: Array<{
+    batch_index?: number;
+    uploaded_at?: string;
+    note?: string;
+    files?: Array<{ file_name?: string; object_path?: string }>;
+  }>;
+} | null;
+
+function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: string; onDone: () => void; sessionSummary?: SessionSummary }) {
   const [prompts, setPrompts] = useState<DRPrompt[]>([]);
   const [responding, setResponding] = useState(false);
   const [fetchErr, setFetchErr] = useState<string | null>(null);
+  const [activeUpload, setActiveUpload] = useState<{ promptId: string; actionId: string; selectedOption: string } | null>(null);
+  const [assistantNote, setAssistantNote] = useState("");
+
+  const params = useParams<{ companySlug: string }>();
+  const companySlug = params?.companySlug || 'unknown';
 
   const load = useCallback(async () => {
     try {
@@ -84,7 +102,10 @@ function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () =>
           project_id: jobId,
           prompt_id: prompt.id,
           chosen_action_id: action.id,
-          extra_data: { selected_option: option },
+          extra_data: {
+            selected_option: option,
+            ...(assistantNote.trim() ? { user_note: assistantNote.trim() } : {}),
+          },
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -107,7 +128,7 @@ function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () =>
   }
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Section header */}
       <div className="flex items-center gap-3">
         <div className="flex-1 h-px bg-white/[0.06]" />
@@ -124,6 +145,11 @@ function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () =>
 
         return (
           <div key={p.id} className="space-y-3">
+            {sessionSummary && (sessionSummary.batch_count ?? 0) > 1 && (
+              <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.05] px-4 py-3 text-[11px] text-amber-200">
+                Re-upload round {sessionSummary.batch_count} is active. {sessionSummary.total_files ?? 0} files are currently in the union.
+              </div>
+            )}
             {/* ── CRITICAL card ─────────────────────────────── */}
             {critAct && critAct.question && (
               <div className="rounded-2xl border border-red-500/25 bg-gradient-to-br from-red-950/40 via-transparent to-transparent p-6 space-y-4">
@@ -157,18 +183,41 @@ function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () =>
 
                 {/* Actions — critical: no skip */}
                 <div className="ml-12 space-y-2">
-                  {(critAct.options || ['Upload the missing files']).map((opt) => (
-                    <button
-                      key={opt}
-                      disabled={responding}
-                      onClick={() => respond(p, critAct, opt)}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-100 text-sm font-semibold transition-all disabled:opacity-50"
-                    >
-                      <Upload className="w-4 h-4 shrink-0" />
-                      {responding ? 'Submitting…' : opt}
-                      <ArrowRight className="w-4 h-4 ml-auto opacity-50" />
-                    </button>
-                  ))}
+                  {activeUpload?.promptId === p.id && activeUpload?.actionId === critAct.id ? (
+                    <SupervisorInlineUploader
+                      projectId={jobId}
+                      companySlug={companySlug}
+                      promptId={p.id}
+                      actionId={critAct.id}
+                      selectedOption={activeUpload.selectedOption}
+                      userNote={assistantNote.trim()}
+                      onSuccess={() => {
+                        setActiveUpload(null);
+                        setAssistantNote("");
+                        onDone();
+                      }}
+                      onCancel={() => setActiveUpload(null)}
+                    />
+                  ) : (
+                    (critAct.options || ['Upload the missing files']).map((opt) => (
+                      <button
+                        key={opt}
+                        disabled={responding}
+                        onClick={() => {
+                          if (opt.toLowerCase().includes("upload")) {
+                            setActiveUpload({ promptId: p.id, actionId: critAct.id, selectedOption: opt });
+                          } else {
+                            respond(p, critAct, opt);
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-100 text-sm font-semibold transition-all disabled:opacity-50"
+                      >
+                        <Upload className="w-4 h-4 shrink-0" />
+                        {responding ? 'Submitting…' : opt}
+                        <ArrowRight className="w-4 h-4 ml-auto opacity-50" />
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -204,29 +253,52 @@ function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () =>
                 )}
 
                 <div className="ml-12 space-y-2">
-                  {(impAct.options || []).map((opt) => {
-                    const isUpload = opt.toLowerCase().includes('upload');
-                    return (
-                      <button
-                        key={opt}
-                        disabled={responding}
-                        onClick={() => respond(p, impAct, opt)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 ${
-                          isUpload
-                            ? 'bg-amber-500/10 border border-amber-500/25 hover:bg-amber-500/20 text-amber-100'
-                            : 'bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] text-gray-400'
-                        }`}
-                      >
-                        {isUpload ? <Upload className="w-4 h-4 shrink-0" /> : <ArrowRight className="w-4 h-4 shrink-0" />}
-                        {responding ? 'Submitting…' : opt}
-                        {!isUpload && (
-                          <span className="ml-auto text-[10px] text-gray-600 font-normal normal-case">
-                            not recommended
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {activeUpload?.promptId === p.id && activeUpload?.actionId === impAct.id ? (
+                    <SupervisorInlineUploader
+                      projectId={jobId}
+                      companySlug={companySlug}
+                      promptId={p.id}
+                      actionId={impAct.id}
+                      selectedOption={activeUpload.selectedOption}
+                      userNote={assistantNote.trim()}
+                      onSuccess={() => {
+                        setActiveUpload(null);
+                        setAssistantNote("");
+                        onDone();
+                      }}
+                      onCancel={() => setActiveUpload(null)}
+                    />
+                  ) : (
+                    (impAct.options || []).map((opt) => {
+                      const isUpload = opt.toLowerCase().includes('upload');
+                      return (
+                        <button
+                          key={opt}
+                          disabled={responding}
+                          onClick={() => {
+                            if (isUpload) {
+                            setActiveUpload({ promptId: p.id, actionId: impAct.id, selectedOption: opt });
+                            } else {
+                            respond(p, impAct, opt);
+                            }
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 ${
+                            isUpload
+                              ? 'bg-amber-500/10 border border-amber-500/25 hover:bg-amber-500/20 text-amber-100'
+                              : 'bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] text-gray-400'
+                          }`}
+                        >
+                          {isUpload ? <Upload className="w-4 h-4 shrink-0" /> : <ArrowRight className="w-4 h-4 shrink-0" />}
+                          {responding ? 'Submitting…' : opt}
+                          {!isUpload && (
+                            <span className="ml-auto text-[10px] text-gray-600 font-normal normal-case">
+                              not recommended
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -249,6 +321,18 @@ function DataReadinessGateCard({ jobId, onDone }: { jobId: string; onDone: () =>
                 </div>
               </div>
             )}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] uppercase tracking-wider text-gray-600">
+                Add a note for the assistant
+              </label>
+              <textarea
+                value={assistantNote}
+                onChange={(e) => setAssistantNote(e.target.value)}
+                placeholder="Optional clarification before you respond."
+                maxLength={800}
+                className="w-full min-h-[72px] rounded-xl bg-black/20 border border-white/[0.08] px-3 py-2 text-sm text-white placeholder:text-gray-600 outline-none focus:border-amber-500/40 resize-y"
+              />
+            </div>
           </div>
         );
       })}
@@ -380,12 +464,18 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
       {/* Task stream */}
       <TaskStream tasks={tasks} />
 
+      {live.session && (live.session.batch_count ?? 0) > 1 && (
+        <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.05] px-4 py-3 text-sm text-amber-100">
+          Re-upload round {live.session.batch_count} detected. The workflow is using {live.session.total_files ?? 0} files across all upload waves.
+        </div>
+      )}
+
       {/* ══════════════════════════════════════════════════════════════════════
           DATA READINESS GATE — appears inline when the workflow is blocked
           waiting for the user to provide or confirm missing data.
          ══════════════════════════════════════════════════════════════════ */}
       {stage === 'awaiting_data_readiness_confirmation' && (
-        <DataReadinessGateCard jobId={jobId} onDone={live.refresh} />
+        <DataReadinessGateCard jobId={jobId} onDone={live.refresh} sessionSummary={live.session} />
       )}
 
 

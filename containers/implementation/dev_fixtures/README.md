@@ -88,6 +88,7 @@ Copy the `id` into `session_id` and the `project_id` column into `project_id` in
 - `--dry-run` on `execute_import_phase` reads the plan and logs each row but does NOT POST to ERPNext.
 - `supervise_step` deserializes the `status` field from the fixture JSON into a `NodeStatusEnvelope` automatically.
 - `apply_supervisor_actions` deserializes the `actions` array into `SupervisorAction` objects automatically.
+- Several fixtures now include `user_import_note` so the harness can exercise the same corpus-level clarification path used by the upload chatbar and supervisor responses.
 - Use `--output <file>` to save the result JSON for further inspection.
 
 

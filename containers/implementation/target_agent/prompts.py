@@ -4,6 +4,9 @@ You are the F3Next ERPNext Architect. Your job is to take a messy company profil
 COMPANY PROFILE:
 {company_profile}
 
+[User Import Note]
+{user_import_note}
+
 [Company Context (Operational Notes)]
 {company_context}
 

@@ -1,6 +1,10 @@
 # Implementation System — Architecture & Flow
 
-> The Implementation System (IS) is F3Next's automated ERP onboarding pipeline. It takes a company's raw data files (CSVs, XLSXs, TXTs, PDFs), intelligently maps them to ERPNext's data model via a **two-stage deterministic + LLM pipeline**, and executes a phased import. The full pipeline runs as a single 14-step Temporal workflow with 5 human-in-the-loop signal gates.
+> The Implementation System (IS) is F3Next's automated ERP onboarding pipeline. It takes a company's raw data files (CSVs, XLSXs, TXTs, PDFs), intelligently maps them to ERPNext's data model via a **two-stage deterministic + LLM pipeline**, and executes a phased import. The full pipeline runs as a Temporal workflow with **6 human-in-the-loop signal gates** (including a Supervisor gate between Data Readiness and Validation).
+>
+> **Supervisor Agent** sits cross-cutting across the pipeline. After each major node (data readiness, validation), it evaluates the node output, classifies gaps as `critical / important / optional`, calls an LLM for rich natural-language messages, and emits `ask_user` or `auto_fix` actions that the UI renders as interactive prompts. The workflow waits on a `supervisor_response` signal before proceeding.
+>
+> The current implementation treats uploads as a **corpus**, not a one-file/one-doctype contract: all files in the active upload wave are parsed, upload notes are carried forward into profile/target/readiness prompts, and if the user re-uploads after a supervisor-critical gap the workflow re-runs on the **union of prior + new files**.
 
 ---
 
@@ -10,7 +14,7 @@
 containers/implementation/
 ├── is_worker.py                   ← Worker entrypoint — is-queue
 ├── is_workflow/
-│   └── workflow.py                ← ImplementationWorkflow (14 steps)
+│   └── workflow.py                ← ImplementationWorkflow (steps + signal gates)
 ├── virus_scan_agent/
 │   └── activities.py              ← virus_scan_quarantine
 ├── file_io/
@@ -27,6 +31,8 @@ containers/implementation/
 │                                     merge_company_profile
 ├── target_agent/
 │   └── activities.py              ← build_target_structure
+│                                     ⚠️ reads mvp_focus from ISSession to bound
+│                                        required_doctypes to MVP scope
 ├── mapping_agent/                 ← ⭐ Upgraded modular pipeline
 │   ├── activities.py              ← map_file_to_erpnext, refine_mapping_with_llm,
 │   │                                 infer_doctype_from_columns
@@ -39,8 +45,23 @@ containers/implementation/
 │   ├── schema_builder.py          ← Builds doctype-specific Pydantic schemas from KB
 │   ├── kb.py                      ← KB loaders (field_mappings, baseline_defaults)
 │   └── prompts.py                 ← REFINE_MAPPING_PROMPT template
+├── data_readiness_agent/          ← ⭐ Gap analysis before validation
+│   ├── activities.py              ← assess_data_readiness
+│   │                                 Deterministic scan → LLM enrichment → gap_report
+│   │                                 Writes: is_data_readiness_assessments
+│   ├── gap_analyzer.py            ← Pre-analysis: maps files to required doctypes
+│   ├── models.py                  ← DataReadinessAssessment, DoctypeGap, DoctypeReady
+│   └── prompts.py                 ← DATA_READINESS_PROMPT
+├── supervisor_agent/              ← ⭐ Cross-cutting quality gate
+│   ├── activities.py              ← supervise_step, apply_supervisor_actions
+│   │                                 Evaluates node output → classifies gaps
+│   │                                 → LLM generates messages → emits SupervisorActions
+│   │                                 Writes: is_supervisor_prompts
+│   └── prompts.py                 ← SUPERVISOR_PROMPT
 ├── validation_agent/
 │   └── activities.py              ← validate_mapped_data
+│                                     ⚠️ Multi-file payload merge (not overwrite)
+│                                     ⚠️ Required-field check spans 10 rows (not 1)
 ├── import_agent/
 │   └── activities.py              ← build_import_plan, execute_import_phase,
 │                                     get_import_plan_phases
@@ -319,6 +340,7 @@ flowchart TD
 | **Defaults injection is LLM-free** | `apply_defaults_and_normalize()` never calls an LLM; all defaults come from `field_mappings.json` + `erpnext_defaults_baseline.json` |
 | **NLP dedup** | Unstructured files skip doctypes already mapped by a structured file in the same session, preventing duplicate imports |
 | **`link_fields` metadata** | Passed in the R2 payload so `execute_import_phase` Pass 2 knows which fields need pre-seeding |
+| **BOM in KB** | `field_mappings.json` includes a full BOM entry with child-field synonyms (`child_item_code`, `child_qty`, `child_uom`, `child_rate`). Without this, BOM CSV columns match Item synonyms and produce ghost Item records without `item_name`. |
 
 ---
 
@@ -645,7 +667,7 @@ Step 11 → validation_report.json, per-field errors        (R2 + is_validation_
 
 **Pipeline inputs available:**
 - `target_structure` from `ISTargetStructure` (Step 8: `required_doctypes[]`, `validation_rules{}`)
-- `mapped_payloads/{doctype}.json` from R2 (Step 9 output)
+- `mapped_payloads/{doctype}.json` from R2 (Step 9 output) — **merged** across all source files
 
 **Strict KB needed:**
 - 📂 `erpnext_doctype_graph.json` → `required_fields` per doctype (hardcoded fallback if not in graph)
@@ -654,6 +676,13 @@ Step 11 → validation_report.json, per-field errors        (R2 + is_validation_
 **Semantic KB needed:** *(none — validation is fully deterministic)*
 
 **Context Engine call:** *(not called)*
+
+**Critical Implementation Rules:**
+
+| Rule | Detail |
+|------|--------|
+| **Multi-file payload merge** | When multiple source files map to the same doctype (e.g. `01_gs_master_items.csv` AND `03_gs_bom_recipes.csv` both produce Item records), payloads are **merged** — richest records (most fields per row) go first. The old behaviour of silently overwriting the previous payload caused valid `item_name` records to be replaced by BOM child rows that had no `item_name`. |
+| **Required-field check spans 10 rows** | The required-field check scans the first 10 records, not just `rows[0]`. A field is only flagged missing if it is absent from **all** sample rows. This prevents false positives when the first record comes from a partial mapping (e.g. a BOM child row merged before the master items rows). |
 
 > ⚠️ **Gap:** `erpnext/schema/validation_rules.json` exists but is not consumed. Should become the primary source for both required fields and enum rules, replacing the hardcoded `_REQUIRED_FIELDS_FALLBACK` and `_ENUM_FIELDS_FALLBACK` dicts.
 
@@ -668,6 +697,7 @@ Step 11 → validation_report.json, per-field errors        (R2 + is_validation_
 | `erpnext_doctype_graph.json` | Nodes 6, 7, 8 | 📂 Direct | ✅ Active (core) |
 | `erpnext_deafaults_baseline.json` | Nodes 6, 7 | 📂 Direct | ✅ Active |
 | `field_mappings.json` | Nodes 7, 8 | 📂 Direct (cached) | ✅ Active (core) |
+| `field_mappings.json → BOM entry` | Node 7 (map_file_to_erpnext) | 📂 Direct (cached) | ✅ **Added** — child_item_code, child_qty, child_uom, child_rate synonyms |
 | `pgvector: apqc_pcf` | Nodes 3, 4, 6 | 🔍 RAG | ✅ Seeded |
 | `pgvector: erpnext_docs` | Nodes 3, 4, 5, 6 | 🔍 RAG | ✅ Seeded (scraped) |
 | `pgvector: f3iche_*` | Nodes 1, 3, 4, 5 | 🔍 RAG | ✅ Seeded |
@@ -783,6 +813,60 @@ flowchart TD
 | `erpnext/schema/validation_rules.json` | ⚠️ Gap — exists | Should feed `validate_mapped_data` as primary rules source (currently fallback hardcoded in `_REQUIRED_FIELDS_FALLBACK`) |
 | `common/intent_definitions.json` | ✅ Used by OS Agent / Discovery | Not part of IS pipeline |
 | `common/command_patterns.json` | ✅ Used by OS Agent | Not part of IS pipeline |
+
+---
+
+## 🐛 Bugs Fixed (Session Log)
+
+This section tracks bugs that were silent — no code crash, no LLM failure — but produced wrong results. Documented here so each becomes a regression test assertion.
+
+| # | Component | Bug | Root Cause | Fix |
+|---|-----------|-----|-----------|-----|
+| 1 | `target_agent` | `mvp_focus` never read → 793 doctypes instead of MVP-scoped set | `ISSession` not imported in `activities.py` | Added `from shared.models.is_models import ISSession` |
+| 2 | `supervisor_agent` | Workflow deadlocked waiting for `supervisor_response` signal | `actions: []` in DB → UI had nothing to render → signal could never arrive | Added fallback `ask_user` action when `assess_data_readiness` produces no actions; gap_report now stores `criticality` field |
+| 3 | `data_readiness_agent` | `critical_gaps` and `important_gaps` always empty → supervisor skipped all actions | `gap_report` stored raw `pre_analysis` dicts which have no `criticality` key; supervisor filter `g.get("criticality") == "critical"` always returned `False` | `gap_report` now stores enriched `DoctypeGap` objects with `criticality` set via `_criticality_from_phase()` |
+| 4 | `validation_agent` | `item_name` reported missing even though `01_gs_master_items.csv` has it | Two files both mapped to Item doctype; second file's payload **overwrote** first file's payload (`mapped_data[doctype] = payload_json`); second file (BOM) had no `item_name` column | Payloads are now **merged** — richest records (most fields per row) placed first |
+| 5 | `validation_agent` | `item_name` still missing even after merge fix | Required-field check only inspected `rows[0]`; if first merged record was a BOM child row with no `item_name`, the entire doctype was flagged | Check now scans first 10 rows; field is only missing if absent from ALL of them |
+| 6 | `mapping_agent` + `field_mappings.json` | BOM CSV (`03_gs_bom_recipes.csv`) produced ghost Item records without `item_name` | BOM had **no entry** in `field_mappings.json`; `map_columns(columns, "BOM")` returned empty dict; BOM CSV columns (`item`, `quantity`, `uom`) matched Item synonyms exactly and were classified as Item instead | Added full BOM doctype entry to `field_mappings.json` with parent + child field synonyms |
+
+---
+
+## 🔭 Pipeline Correctness Layer (Planned)
+
+> **The Tier 3 observability gap** — Sentry catches code crashes. Langsmith tracks LLM quality. But neither catches silent logic errors: code runs clean, LLM responds correctly, output is wrong.
+
+Every bug in the table above was a Tier 3 failure. The solution is **Step-Level Assertion Checkpoints**.
+
+### Design
+
+Each Temporal activity extends `NodeStatusEnvelope` with a `telemetry` block:
+
+```python
+class StepAssertion(BaseModel):
+    name: str           # e.g. "item_name_present_in_records"
+    expected: str       # e.g. "present in >= 80% of rows"
+    actual: str         # e.g. "present in 0% of rows (BOM file overwrote master)"
+    passed: bool
+    severity: Literal["critical", "warning", "info"]
+```
+
+Assertions are persisted to `is_step_telemetry` (planned table) and visualised in a **Pipeline Inspector** UI — a step timeline showing each node as green/amber/red with click-to-expand input→output diffs.
+
+### Assertion Examples per Agent
+
+| Agent | Assertion | Would have caught |
+|-------|-----------|-------------------|
+| `target_agent` | `mvp_focus_loaded: mvp_focus is not None` | Bug #1 |
+| `supervisor_agent` | `actions_not_empty_when_status_partial` | Bug #2 |
+| `data_readiness_agent` | `criticality_set_on_all_gaps` | Bug #3 |
+| `validation_agent` | `no_payload_lost: after_count >= before_count` | Bug #4 |
+| `validation_agent` | `required_field_coverage_per_field: item_name in >= 80% rows` | Bug #5 |
+| `mapping_agent` | `bom_doctype_has_kb_entry` | Bug #6 |
+
+### Implementation Plan
+- **Phase 1** — Add `is_step_telemetry` table + `StepAssertion` to `NodeStatusEnvelope`; instrument mapping, validation, supervisor
+- **Phase 2** — Pipeline Inspector UI at `/implementation/[id]/health`
+- **Phase 3** — Alerting: webhook on `severity=critical` assertion failures; each bug above becomes a permanent assertion
 
 ---
 

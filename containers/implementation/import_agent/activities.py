@@ -461,10 +461,12 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
     activity.logger.info("▶ build_import_plan started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISTargetStructure, ISMappedData, ISImportPlan
+    from shared.models.is_models import ISTargetStructure, ISDataReadinessAssessment, ISImportPlan
     from sqlalchemy import select
 
     setup_steps = []
+    ready_doctypes = []
+    partial_doctypes = []
     
     async with AsyncSessionLocal() as session:
         stmt = (
@@ -484,20 +486,43 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         except Exception:
             setup_steps = []
 
-        stmt = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
-        result = await session.execute(stmt)
-        mapped_data_rows = result.scalars().all()
+        stmt_readiness = (
+            select(ISDataReadinessAssessment)
+            .where(ISDataReadinessAssessment.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISDataReadinessAssessment.created_at.desc())
+            .limit(1)
+        )
+        result_readiness = await session.execute(stmt_readiness)
+        readiness_row = result_readiness.scalar_one_or_none()
+        if readiness_row:
+            ready_doctypes = readiness_row.ready_doctypes or []
+            partial_doctypes = readiness_row.partial_doctypes or []
 
+    # Map target_doctype to ready/partial indicators
     mapped_data_dict = {}
     validation_status = "pass"
     
-    for md in mapped_data_rows:
-        mapped_data_dict[md.target_doctype] = {
-            "r2_path": md.mapped_payload_r2_path,
-            "total_rows": md.total_rows or 0
-        }
-        if md.validation_status == "failed":
-            validation_status = "fail"
+    def _extract_doctype_names(doctypes_list):
+        names = []
+        for item in doctypes_list:
+            if isinstance(item, dict):
+                names.append(item.get("doctype"))
+            elif hasattr(item, "doctype"):
+                names.append(item.doctype)
+            elif isinstance(item, str):
+                names.append(item)
+        return names
+
+    ready_names = _extract_doctype_names(ready_doctypes)
+    partial_names = _extract_doctype_names(partial_doctypes)
+    ready_or_partial = set(ready_names) | set(partial_names)
+
+    for dt in ready_or_partial:
+        if dt:
+            mapped_data_dict[dt] = {
+                "r2_path": "pending_mapping",
+                "total_rows": 0
+            }
 
     # ── Fetch professional implementation sequence from pgvector ──────────
     playbook_context = ""
@@ -578,6 +603,141 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         )
     except Exception:
         pass
+
+    return plan_status
+
+
+@dataclass
+class FinalizeImportPlanInput:
+    session_id: str
+    project_id: str
+    company_slug: str = "unknown"
+
+
+@activity.defn(name="finalize_import_plan")
+async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
+    """
+    Step 12b: Post-mapping/validation step. Reads the existing ISImportPlan,
+    resolves the pending_mapping actions using the actual ISMappedData records,
+    checks if validation failed, and updates the plan in R2 and DB.
+    """
+    activity.logger.info("▶ finalize_import_plan started | session=%s", inp.session_id)
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISImportPlan, ISMappedData, ISValidationResult
+    from sqlalchemy import select, update
+    import uuid
+    import json
+
+    async with AsyncSessionLocal() as session:
+        # 1. Fetch latest import plan
+        stmt = (
+            select(ISImportPlan)
+            .where(ISImportPlan.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISImportPlan.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        plan_row = result.scalar_one_or_none()
+
+        if not plan_row:
+            activity.logger.warning("  ⚠️ No import plan found to finalize.")
+            return "error:no_import_plan"
+
+        # 2. Fetch all mapped data for this session
+        stmt_mapped = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
+        result_mapped = await session.execute(stmt_mapped)
+        mapped_rows = result_mapped.scalars().all()
+        
+        mapped_dict = {
+            m.target_doctype: {
+                "r2_path": m.mapped_payload_r2_path,
+                "total_rows": m.total_rows or 0,
+                "validation_status": m.validation_status
+            }
+            for m in mapped_rows
+        }
+
+        # 3. Fetch session validation errors
+        stmt_val = select(ISValidationResult).where(ISValidationResult.session_id == uuid.UUID(inp.session_id))
+        result_val = await session.execute(stmt_val)
+        val_rows = result_val.scalars().all()
+        has_validation_failures = any(v.overall_status == "fail" for v in val_rows)
+
+        # 4. Update the steps in the plan
+        phases = plan_row.phases or {}
+        plan_status = "ready"
+        if has_validation_failures:
+            plan_status = "blocked"
+
+        updated_phases = {}
+        for phase_id, phase_data in phases.items():
+            steps = phase_data.get("steps", [])
+            updated_steps = []
+            for step in steps:
+                dt = step.get("doctype")
+                action = step.get("action")
+                
+                if action == "create" or step.get("data_source") == "pending_mapping":
+                    if dt in mapped_dict:
+                        step["data_source"] = mapped_dict[dt]["r2_path"]
+                        step["records"] = mapped_dict[dt]["total_rows"]
+                        if mapped_dict[dt]["validation_status"] == "failed":
+                            plan_status = "blocked"
+                    else:
+                        # File was scheduled for create, but not mapped
+                        step["action"] = "data_gap"
+                        step["data_source"] = "none"
+                        step["records"] = 0
+                        plan_status = "blocked" # Gaps must block readiness
+                
+                updated_steps.append(step)
+            
+            updated_phases[phase_id] = {
+                "name": phase_data.get("name"),
+                "steps": updated_steps
+            }
+
+        # 5. Upload finalized json plan to R2
+        slug = inp.company_slug or "unknown"
+        plan_key = f"{slug}/{inp.project_id}/_import_plan/plan.json"
+        
+        final_plan_json = {
+            "session_id": inp.session_id,
+            "status": plan_status,
+            "total_phases": plan_row.total_phases,
+            "total_steps": plan_row.total_steps,
+            "estimated_duration_minutes": plan_row.estimated_duration_minutes,
+            "phases": updated_phases
+        }
+
+        try:
+            s3 = _get_s3_client()
+            s3.put_object(
+                Bucket="clean-data",
+                Key=plan_key,
+                Body=json.dumps(final_plan_json, indent=2, default=str).encode("utf-8"),
+                ContentType="application/json",
+            )
+            activity.logger.info("  ✅ Finalized R2 plan uploaded.")
+        except Exception as e:
+            activity.logger.error("  ❌ R2 finalized plan upload failed: %s", e)
+
+        # 6. Update ISImportPlan database record
+        try:
+            stmt_update = (
+                update(ISImportPlan)
+                .where(ISImportPlan.id == plan_row.id)
+                .values(
+                    phases=updated_phases,
+                    status=plan_status,
+                )
+            )
+            await session.execute(stmt_update)
+            await session.commit()
+            activity.logger.info("  ✅ Finalized ISImportPlan database record updated | id=%s status=%s", plan_row.id, plan_status)
+        except Exception as e:
+            activity.logger.error("  ❌ Supabase ISImportPlan update failed: %s", e)
 
     return plan_status
 

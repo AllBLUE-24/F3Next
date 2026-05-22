@@ -32,6 +32,7 @@ from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import (
     ISCompanyProfile,
     ISDataReadinessAssessment,
+    ISSession,
     ISTargetStructure,
 )
 from shared.models.is_status import NodeStatusEnvelope
@@ -51,6 +52,7 @@ class AssessDataReadinessInput:
     project_id: str
     company_slug: str
     r2_manifest_url: str
+    user_import_note: Optional[str] = None
 
 
 # ── S3 helper ─────────────────────────────────────────────────────────────────
@@ -122,6 +124,30 @@ async def _load_company_profile(session_id: str) -> Dict[str, Any]:
             }
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not load company profile: %s", e)
+        return {}
+
+
+async def _load_session_context(session_id: str) -> Dict[str, Any]:
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(ISSession).where(ISSession.id == uuid.UUID(session_id))
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if not row:
+                return {}
+            note_lines: List[str] = []
+            if row.user_import_note:
+                note_lines.append(f"Initial upload: {row.user_import_note}")
+            for entry in row.user_notes or []:
+                if isinstance(entry, dict) and entry.get("note"):
+                    note_type = entry.get("type", "note")
+                    note_lines.append(f"{note_type}: {entry['note']}")
+            return {
+                "user_import_note": "\n".join(note_lines) or "",
+                "user_notes": row.user_notes or [],
+                "file_batches": row.file_batches or [],
+            }
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not load session context: %s", e)
         return {}
 
 
@@ -238,8 +264,13 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             warnings=[{"code": "EMPTY_MANIFEST", "message": "No files in manifest to assess"}],
         )
 
-    # 3. Load company profile and session mvp_focus
+    # 3. Load company profile and session context
     company_profile = await _load_company_profile(inp.session_id)
+    session_context = await _load_session_context(inp.session_id)
+    if inp.user_import_note:
+        session_context["user_import_note"] = (
+            f"{session_context.get('user_import_note', '')}\n{inp.user_import_note}".strip()
+        )
     
     mvp_focus = None
     try:
@@ -274,6 +305,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     try:
         prompt = DATA_READINESS_PROMPT.format(
             company_profile=json.dumps(company_profile, indent=2),
+            user_import_note=session_context.get("user_import_note", "") or "No user note provided.",
             mvp_primary_bottleneck=mvp_focus.get("primary_bottleneck", "General Operations") if mvp_focus else "General Operations",
             target_structure=json.dumps({
                 "required_doctypes": required_doctypes,
@@ -310,6 +342,8 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             "missing_doctypes": pre_analysis.get("missing_doctypes", []),
             "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
         }
+        # Always use the enriched DoctypeGap objects (with criticality) in gap_report
+        # so the supervisor can correctly filter critical vs important gaps.
         assessment = DataReadinessAssessment(
             ready_doctypes=ready_list,
             partial_doctypes=[
@@ -337,7 +371,36 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             unmappable_chunks=[
                 UnmappableChunk(**u) for u in (llm_raw.get("unmappable_chunks") or [])
             ],
-            gap_report=llm_raw.get("gap_report") or deterministic_gap_report,
+            # Use enriched objects for gap_report too — supervisor reads from here
+            gap_report={
+                "summary": summary,
+                "ready_doctypes": [r.model_dump() for r in ready_list],
+                "partial_doctypes": [
+                    {
+                        "doctype": p.get("doctype", ""),
+                        "phase": p.get("phase"),
+                        "criticality": p.get("criticality") or _criticality_from_phase(p.get("phase")),
+                        "reason": p.get("reason", ""),
+                        "recommendation": p.get("recommendation", ""),
+                        "missing_fields": p.get("missing_fields") or p.get("missing_required_fields", []),
+                        "can_proceed_without": _criticality_from_phase(p.get("phase")) != "critical",
+                    }
+                    for p in (llm_raw.get("partial_doctypes") or [])
+                ],
+                "missing_doctypes": [
+                    {
+                        "doctype": m.get("doctype", ""),
+                        "phase": m.get("phase"),
+                        "criticality": m.get("criticality") or _criticality_from_phase(m.get("phase")),
+                        "reason": m.get("reason", ""),
+                        "recommendation": m.get("recommendation", ""),
+                        "missing_fields": m.get("missing_fields") or m.get("missing_required_fields", []),
+                        "can_proceed_without": _criticality_from_phase(m.get("phase")) != "critical",
+                    }
+                    for m in (llm_raw.get("missing_doctypes") or [])
+                ],
+                "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+            },
             minimum_viable_import_possible=not (
                 _has_critical_gaps(pre_analysis.get("missing_doctypes", []))
                 or _has_critical_gaps(pre_analysis.get("partial_doctypes", []))

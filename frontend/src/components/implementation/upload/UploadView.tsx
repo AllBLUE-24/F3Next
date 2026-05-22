@@ -16,7 +16,12 @@ interface FileEntry {
 interface Props {
   projectId: string; // We need this to tell R2 and Temporal which project this is!
   getPresignedUrls: (projectId: string, fileNames: string[]) => Promise<{ urls: { file_name: string, upload_url: string, object_path: string }[] }>;
-  signalUploadComplete: (projectId: string, companySlug: string, uploadedFiles: { file_name: string, object_path: string }[]) => Promise<any>;
+  signalUploadComplete: (
+    projectId: string,
+    companySlug: string,
+    uploadedFiles: { file_name: string, object_path: string }[],
+    userNote?: string
+  ) => Promise<any>;
   analyzeHref: string;
 }
 
@@ -25,6 +30,7 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false); // Swapped useTransition for reliable client-side async loading
   const [error, setError] = useState<string | null>(null);
+  const [importNote, setImportNote] = useState("");
   const router = useRouter();
   const params = useParams<{ companySlug: string }>();
   const [isDeploying, setIsDeploying] = useState(false);
@@ -115,7 +121,7 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
       );
 
       // 3. Tell FastAPI/Temporal that the files are safe in the quarantine bucket
-      await signalUploadComplete(projectId, params?.companySlug || 'unknown', uploadedFilesData);
+      await signalUploadComplete(projectId, params?.companySlug || 'unknown', uploadedFilesData, importNote.trim());
 
       // 4. Move to the next stage
       router.push(`${analyzeHref}?jobId=${projectId}`);
@@ -143,6 +149,23 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
           Drop in any files you have — ERP backups, Excel exports, CSVs, or mixed formats.
           Our system will figure out the rest.
         </p>
+
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 mb-4 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-white font-bold text-sm">Anything specific we should know?</h3>
+            <span className="text-[10px] uppercase tracking-wider text-gray-600">Optional</span>
+          </div>
+          <textarea
+            value={importNote}
+            onChange={(e) => setImportNote(e.target.value)}
+            placeholder="Example: These files include both master data and transactional exports. Treat BOM rows as child data, not separate items."
+            maxLength={800}
+            className="w-full min-h-[88px] rounded-lg bg-black/20 border border-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-gray-600 outline-none focus:border-amber-500/40 resize-y"
+          />
+          <p className="text-[11px] text-gray-600 leading-relaxed">
+            This helps the assistant understand what the files mean before it starts mapping them.
+          </p>
+        </div>
 
         {/* --- DEPLOY INSTANCE BUTTON --- */}
         <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5 flex items-center justify-between mb-4">

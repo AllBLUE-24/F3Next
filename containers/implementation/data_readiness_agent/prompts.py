@@ -40,6 +40,9 @@ You have been given:
 
 3. COMPANY PROFILE — business type (f3iche), industry, company size.
 
+4. USER IMPORT NOTE — optional clarifying intent from the initial upload
+   or a later supervisor-assisted re-upload.
+
 MVP SCOPE CONTEXT:
 The client's stated primary bottleneck is: {mvp_primary_bottleneck}
 The pipeline is currently in MVP mode. Only assess data readiness for the doctypes in the
@@ -110,6 +113,9 @@ H. If the schema includes "gap_report" or "user_decision", preserve the determin
 
 COMPANY PROFILE:
 {company_profile}
+
+USER IMPORT NOTE:
+{user_import_note}
 
 TARGET STRUCTURE (required doctypes by phase):
 {target_structure}

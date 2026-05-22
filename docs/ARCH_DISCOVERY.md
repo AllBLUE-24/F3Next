@@ -171,27 +171,24 @@ The coverage system tracks how well Adi understands each dimension of the busine
 ```mermaid
 graph LR
     subgraph COVERAGE_DIMENSIONS["Coverage Dimensions (EMPTY_COVERAGE)"]
-        D1["business_type\n(what they do)"]
-        D2["industry\n(sector/vertical)"]
-        D3["company_size\n(headcount/revenue)"]
-        D4["data_systems\n(existing software)"]
-        D5["pain_points\n(current problems)"]
-        D6["erp_requirements\n(must-have features)"]
-        D7["geographic_scope\n(local/national/global)"]
-        D8["transaction_volume\n(orders/month)"]
+        D1["industry\n(business type)"]
+        D2["strategy\n(fulfillment)"]
+        D3["scale\n(turnover/headcount)"]
+        D4["legacy_system\n(current software)"]
+        D5["pain_point\n(operational challenge)"]
     end
 
     subgraph SCORING["Coverage Scoring"]
-        LOW["0.0 — Not mentioned"]
-        MED["0.5 — Partially understood"]
-        HIGH["1.0 — Fully covered"]
+        LOW["None — Not mentioned"]
+        MED["partial — Partially understood"]
+        HIGH["confirmed — Fully covered"]
     end
 
     subgraph COMPLETION["Completion Check\n_coverage_is_complete()"]
-        ALL_HIGH["All dimensions ≥ 0.7\nOR turn_count ≥ MAX_TURNS"]
+        ALL_HIGH["All 5 dimensions covered\n(status in partial/confirmed)\nOR turn_count ≥ MAX_TURNS"]
     end
 
-    D1 & D2 & D3 & D4 & D5 & D6 & D7 & D8 --> SCORING
+    D1 & D2 & D3 & D4 & D5 --> SCORING
     SCORING --> ALL_HIGH
 ```
 

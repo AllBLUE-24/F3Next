@@ -111,6 +111,7 @@ def _kv(logger, key: str, value: Any):
 class FilesUploadedSignal:
     uploaded_files: List[Dict]
     company_slug: Optional[str] = None
+    user_note: Optional[str] = None
 
 
 @dataclass
@@ -162,6 +163,7 @@ class ImplementationWorkflow:
         self._analysis_tasks: List[Dict] = []
         self._company_slug: str = "unknown"
         self._all_uploaded_files: List[Dict] = []
+        self._latest_upload_note: Optional[str] = None
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -184,6 +186,7 @@ class ImplementationWorkflow:
     @workflow.signal
     async def files_uploaded(self, sig: FilesUploadedSignal) -> None:
         self._sig_files = sig
+        self._latest_upload_note = sig.user_note
         self._files_uploaded_event.set()
 
     @workflow.signal
@@ -297,6 +300,8 @@ class ImplementationWorkflow:
         sig = self._sig_files
         self._all_uploaded_files = list(sig.uploaded_files) if sig else []
         _signal_banner(L, "files_uploaded", f"{len(sig.uploaded_files)} files | slug={sig.company_slug}")
+        if self._latest_upload_note:
+            _kv(L, "user_note", self._latest_upload_note[:160])
         self._set_task("t1", "running")
 
         # ══════════════════════════════════════════════════════════════════════
@@ -787,6 +792,7 @@ class ImplementationWorkflow:
                                 all_files_map[f["file_name"]] = f
                             self._all_uploaded_files = list(all_files_map.values())
                             updated_files = self._all_uploaded_files
+                            L.info("      ✅ Re-running readiness with %d total file(s) after union merge", len(updated_files))
 
                             fetch_results = await workflow.execute_activity(
                                 fetch_clean_files,

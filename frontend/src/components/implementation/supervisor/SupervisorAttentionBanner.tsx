@@ -20,9 +20,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Info, Upload, ChevronDown, ChevronUp, ArrowRight, X } from "lucide-react";
+import { AlertTriangle, Info, Upload, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import { getBaseApiUrl } from "@/lib/config";
 import { useImplementation } from "@/contexts/ImplementationContext";
+import { SupervisorInlineUploader } from "./SupervisorInlineUploader";
 
 type ActionTier = "critical" | "important" | string;
 
@@ -48,6 +49,11 @@ type SupervisorPrompt = {
   actions?: SupervisorAction[];
 };
 
+type SessionSummary = {
+  batch_count?: number;
+  total_files?: number;
+} | null;
+
 export function SupervisorAttentionBanner() {
   const { session } = useImplementation();
   const projectId = session.id;
@@ -56,6 +62,9 @@ export function SupervisorAttentionBanner() {
   const [expanded, setExpanded] = useState(false);
   const [responding, setResponding] = useState(false);
   const [respondError, setRespondError] = useState<string | null>(null);
+  const [activeUpload, setActiveUpload] = useState<{ promptId: string; actionId: string; selectedOption: string } | null>(null);
+  const [assistantNote, setAssistantNote] = useState("");
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary>(null);
 
   const openPrompts = useMemo(
     () => prompts.filter((p) => p.status === "open"),
@@ -66,13 +75,17 @@ export function SupervisorAttentionBanner() {
     if (!projectId) return;
     try {
       const base = getBaseApiUrl();
-      const res = await fetch(
-        `${base}/api/implementation/supervisor-prompts/${projectId}`,
-        { cache: "no-store" }
-      );
+      const [res, stateRes] = await Promise.all([
+        fetch(`${base}/api/implementation/supervisor-prompts/${projectId}`, { cache: "no-store" }),
+        fetch(`${base}/api/implementation/state/${projectId}`, { cache: "no-store" }),
+      ]);
       if (!res.ok) return;
       const data = await res.json();
       setPrompts(Array.isArray(data?.prompts) ? data.prompts : []);
+      if (stateRes.ok) {
+        const stateData = await stateRes.json();
+        setSessionSummary(stateData?.session ?? null);
+      }
     } catch {
       // silent — banner is best-effort, never blocks the main flow
     }
@@ -97,7 +110,10 @@ export function SupervisorAttentionBanner() {
             project_id: projectId,
             prompt_id: prompt.id,
             chosen_action_id: action.id,
-            extra_data: option ? { selected_option: option } : {},
+            extra_data: {
+              ...(option ? { selected_option: option } : {}),
+              ...(assistantNote.trim() ? { user_note: assistantNote.trim() } : {}),
+            },
           }),
         });
         if (!res.ok) throw new Error(await res.text());
@@ -109,7 +125,7 @@ export function SupervisorAttentionBanner() {
         setResponding(false);
       }
     },
-    [projectId, poll]
+    [assistantNote, projectId, poll]
   );
 
   // Nothing to show
@@ -165,6 +181,11 @@ export function SupervisorAttentionBanner() {
             {isCritical ? "Action required" : "Recommendation"}
           </span>
           <p className="text-sm text-white/90 truncate">{shortMsg}</p>
+          {sessionSummary && (sessionSummary.batch_count ?? 0) > 1 && (
+            <span className="text-[10px] font-mono text-amber-300/80">
+              {sessionSummary.batch_count} upload waves · {sessionSummary.total_files ?? 0} files
+            </span>
+          )}
         </div>
 
         {/* Count badge */}
@@ -232,18 +253,44 @@ export function SupervisorAttentionBanner() {
                       </div>
                     </div>
                     {/* Critical: only upload option */}
-                    <div className="ml-6.5 flex flex-wrap gap-2">
-                      {(cAction.options || ["Upload the missing files"]).map((opt) => (
-                        <button
-                          key={opt}
-                          disabled={responding}
-                          onClick={() => respond(p, cAction, opt)}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/15 border border-red-500/30 hover:bg-red-500/25 text-red-200 text-sm font-medium transition-colors disabled:opacity-50"
-                        >
-                          <Upload className="w-4 h-4" />
-                          {responding ? "Submitting…" : opt}
-                        </button>
-                      ))}
+                    <div className="ml-6.5 max-w-md w-full">
+                      {activeUpload?.promptId === p.id && activeUpload?.actionId === cAction.id ? (
+                        <SupervisorInlineUploader
+                          projectId={projectId}
+                          companySlug={session.companySlug}
+                          promptId={p.id}
+                          actionId={cAction.id}
+                          selectedOption={activeUpload.selectedOption}
+                          userNote={assistantNote.trim()}
+                          onSuccess={() => {
+                            setActiveUpload(null);
+                            setAssistantNote("");
+                            poll();
+                            setExpanded(false);
+                          }}
+                          onCancel={() => setActiveUpload(null)}
+                        />
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {(cAction.options || ["Upload the missing files"]).map((opt) => (
+                            <button
+                              key={opt}
+                              disabled={responding}
+                              onClick={() => {
+                                if (opt.toLowerCase().includes("upload")) {
+                                  setActiveUpload({ promptId: p.id, actionId: cAction.id, selectedOption: opt });
+                                } else {
+                                  respond(p, cAction, opt);
+                                }
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/15 border border-red-500/30 hover:bg-red-500/25 text-red-200 text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                              <Upload className="w-4 h-4" />
+                              {responding ? "Submitting…" : opt}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -277,25 +324,51 @@ export function SupervisorAttentionBanner() {
                         )}
                       </div>
                     </div>
-                    <div className="ml-6.5 flex flex-wrap gap-2">
-                      {(iAction.options || []).map((opt) => {
-                        const isUpload = opt.toLowerCase().includes("upload");
-                        return (
-                          <button
-                            key={opt}
-                            disabled={responding}
-                            onClick={() => respond(p, iAction, opt)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                              isUpload
-                                ? "bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-200"
-                                : "bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] text-zinc-400"
-                            }`}
-                          >
-                            {isUpload ? <Upload className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-                            {responding ? "Submitting…" : opt}
-                          </button>
-                        );
-                      })}
+                    <div className="ml-6.5 max-w-md w-full">
+                      {activeUpload?.promptId === p.id && activeUpload?.actionId === iAction.id ? (
+                        <SupervisorInlineUploader
+                          projectId={projectId}
+                          companySlug={session.companySlug}
+                          promptId={p.id}
+                          actionId={iAction.id}
+                          selectedOption={activeUpload.selectedOption}
+                          userNote={assistantNote.trim()}
+                          onSuccess={() => {
+                            setActiveUpload(null);
+                            setAssistantNote("");
+                            poll();
+                            setExpanded(false);
+                          }}
+                          onCancel={() => setActiveUpload(null)}
+                        />
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {(iAction.options || []).map((opt) => {
+                            const isUpload = opt.toLowerCase().includes("upload");
+                            return (
+                              <button
+                                key={opt}
+                                disabled={responding}
+                                onClick={() => {
+                                  if (isUpload) {
+                                    setActiveUpload({ promptId: p.id, actionId: iAction.id, selectedOption: opt });
+                                  } else {
+                                  respond(p, iAction, opt);
+                                  }
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                                  isUpload
+                                    ? "bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-200"
+                                    : "bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] text-zinc-400"
+                                }`}
+                              >
+                                {isUpload ? <Upload className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                                {responding ? "Submitting…" : opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -318,6 +391,18 @@ export function SupervisorAttentionBanner() {
                     </div>
                   </div>
                 )}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] uppercase tracking-wider text-zinc-500">
+                    Add a note for the assistant
+                  </label>
+                  <textarea
+                    value={assistantNote}
+                    onChange={(e) => setAssistantNote(e.target.value)}
+                    placeholder="Optional clarification before you respond."
+                    maxLength={800}
+                    className="w-full min-h-[70px] rounded-lg bg-black/20 border border-white/[0.08] px-3 py-2 text-sm text-white placeholder:text-gray-600 outline-none focus:border-amber-500/40 resize-y"
+                  />
+                </div>
               </div>
             );
           })}

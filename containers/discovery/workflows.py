@@ -43,13 +43,13 @@ class DiscoveryChatWorkflow:
 
         while not self._is_complete:
 
-            # 1. Persist current state (bot question + coverage) to DB
+            # 1. Persist current bot message to DB (so frontend can poll and display it)
             await workflow.execute_activity(
                 save_discovery_state,
                 {
                     "project_id":  project_id,
                     "message":     bot_message,
-                    "step":        self._turn_count + 1,    # for backward-compat UI polling
+                    "step":        self._turn_count + 1,
                     "tags":        self._extracted_tags,
                     "coverage":    self._coverage,
                     "turn_count":  self._turn_count,
@@ -76,15 +76,12 @@ class DiscoveryChatWorkflow:
 
             # 4. Update workflow state
             if analysis.get("status") == "SUCCESS":
-                # Merge coverage (activities._merge_coverage already ran inside the activity)
                 updated_cov = analysis.get("updated_coverage", self._coverage)
                 self._coverage = updated_cov
 
-                # Accumulate + deduplicate tags
                 new_tags = analysis.get("extracted_tags", [])
                 self._extracted_tags = list(set(self._extracted_tags + new_tags))
 
-                # Append to conversation history (keep last 16 messages)
                 self._conversation_history.append(f"User: {self._user_reply}")
                 self._conversation_history.append(f"Adi: {analysis.get('message', '')}")
                 if len(self._conversation_history) > 16:
@@ -92,13 +89,29 @@ class DiscoveryChatWorkflow:
 
                 self._turn_count += 1
 
-                # Check completion via coverage or max-turn guardrail
-                if analysis.get("is_complete") or _coverage_is_complete(self._coverage, self._turn_count):
+                # Programmatic check is the SOLE gatekeeper — never trust LLM's is_complete
+                if _coverage_is_complete(self._coverage, self._turn_count):
                     self._is_complete = True
 
-            # 5. Even on RETRY, update the bot message and clear the reply slot
-            bot_message        = analysis.get("message", "Could you say that again?")
-            self._user_reply   = None
+            # 5. Prepare next bot message and clear reply slot
+            bot_message      = analysis.get("message", "Could you say that again?")
+            self._user_reply = None
+
+            # 6. IMMEDIATELY save Adi's response to DB so frontend sees it right away
+            #    (don't wait until next loop iteration — that causes the "Adi is thinking" stall)
+            await workflow.execute_activity(
+                save_discovery_state,
+                {
+                    "project_id":  project_id,
+                    "message":     bot_message,
+                    "step":        self._turn_count + 1,
+                    "tags":        self._extracted_tags,
+                    "coverage":    self._coverage,
+                    "turn_count":  self._turn_count,
+                    "is_complete": self._is_complete,
+                },
+                start_to_close_timeout=timedelta(seconds=10),
+            )
 
         # -------------------------------------------------------
         # Final recommendation (runs after the conversation loop)

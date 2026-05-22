@@ -97,6 +97,7 @@ class FilesUploadedRequest(BaseModel):
     project_id: UUID
     uploaded_files: List[Dict[str, Any]]         # [{file_name, object_path}]
     company_slug: Optional[str] = None
+    user_note: Optional[str] = None
 
 
 @router.post("/signal/files-uploaded", summary="Notify workflow that files have been uploaded")
@@ -147,9 +148,10 @@ async def signal_files_uploaded(
 
     # 3. Trigger the files_uploaded signal to the Temporal workflow
     await launcher.signal_files_uploaded(
-        req.project_id, 
-        req.uploaded_files, 
-        req.company_slug
+        req.project_id,
+        req.uploaded_files,
+        req.company_slug,
+        req.user_note,
     )
     return {"ok": True, "signal": "files_uploaded"}
 

@@ -63,18 +63,23 @@ def _merge_coverage(existing: dict, updated: dict) -> dict:
     Merges LLM-returned updated_coverage into existing coverage.
     Only overrides a dimension if the new status is non-null.
     'confirmed' always wins over 'partial'.
+    Safely skips any dimension where the LLM returned null instead of a dict.
     """
     result = {dim: dict(entry) for dim, entry in existing.items()}
 
     for dim, new_entry in updated.items():
         if dim not in result:
             continue
+        # LLM sometimes returns null for untouched dimensions — skip those safely
+        if not isinstance(new_entry, dict):
+            continue
+
         new_status = new_entry.get("status")
         new_value  = new_entry.get("value")
 
         old_status = result[dim].get("status")
 
-        # Never downgrade confirmed → partial
+        # Never downgrade confirmed -> partial
         if old_status == "confirmed" and new_status == "partial":
             continue
 
@@ -89,14 +94,16 @@ def _merge_coverage(existing: dict, updated: dict) -> dict:
 def _coverage_is_complete(coverage: dict, turn: int) -> bool:
     """
     Discovery is considered complete when:
-      - 4 or more dimensions have at least 'partial' status, OR
+      - All 5 dimensions have at least 'partial' or 'confirmed' status AND a non-empty value, OR
       - We've hit the max turn guardrail.
     """
     filled = sum(
         1 for v in coverage.values()
-        if v.get("status") in ("partial", "confirmed")
+        if isinstance(v, dict)
+        and v.get("status") in ("partial", "confirmed")
+        and v.get("value") not in (None, "")
     )
-    return filled >= 4 or turn >= MAX_TURNS
+    return filled >= 5 or turn >= MAX_TURNS
 
 
 def _smart_fallback_response(coverage: dict, turn: int, user_answer: str) -> dict:
@@ -114,9 +121,10 @@ def _smart_fallback_response(coverage: dict, turn: int, user_answer: str) -> dic
         "pain_point":    templates["vague_pain"],
     }
 
-    # Find the first dimension that's still unknown
+    # Find the first dimension that's genuinely uncovered (no real value)
     for dim in ["industry", "strategy", "scale", "legacy_system", "pain_point"]:
-        if coverage.get(dim, {}).get("status") is None:
+        entry = coverage.get(dim, {})
+        if entry.get("status") is None or entry.get("value") in (None, ""):
             question = dim_questions[dim]
             return {
                 "status":           "SUCCESS",
@@ -196,16 +204,28 @@ async def analyze_discovery_turn(data: dict) -> dict:
         result = json.loads(clean_json)
 
         # Merge coverage (don't trust LLM to give us the full object, just diffs)
-        llm_updated = result.get("updated_coverage", {})
+        llm_updated = result.get("updated_coverage") or {}
         merged_coverage = _merge_coverage(current_coverage, llm_updated)
+
+        # Sanitize: strip status from any dimension where value is null/empty
+        # (prevents LLM hallucinating "partial" with no actual data to sneak past the gate)
+        # Also guards against LLM returning null for a whole dimension dict
+        for dim_key, dim_entry in merged_coverage.items():
+            if not isinstance(dim_entry, dict):
+                # Repair corrupted entry — reset to empty
+                merged_coverage[dim_key] = {"status": None, "value": None}
+            elif dim_entry.get("value") in (None, ""):
+                dim_entry["status"] = None
 
         # Safety: ensure is_complete logic is consistent
         result["updated_coverage"] = merged_coverage
         result["message"] = result.get("bot_response", "")
 
-        # Override is_complete using our own completeness logic if LLM missed it
-        if _coverage_is_complete(merged_coverage, turn_count + 1):
-            result["is_complete"] = True
+        # Enforce is_complete using our own completeness logic as the single source of truth
+        result["is_complete"] = _coverage_is_complete(merged_coverage, turn_count + 1)
+
+        filled_dims = [dim for dim, v in merged_coverage.items() if isinstance(v, dict) and v.get("value")]
+        print(f"[Adi turn {turn_count}] filled={len(filled_dims)} {filled_dims} | complete={result['is_complete']}")
 
         return result
 
