@@ -16,6 +16,7 @@ const NEEDS_INPUT_STAGES = new Set([
   'awaiting_file_mapping',
   'awaiting_validation_submission',
   'awaiting_sandbox_approval',
+  'awaiting_mapping_confirmation',
 ]);
 
 interface AnalysisState {
@@ -81,14 +82,14 @@ export function useAnalysis(jobId: string | null) {
         error: null,
       });
 
-      // Stop Auto-polling on terminal or needs-input stages, but we can still manually refresh
-      if (TERMINAL_STAGES.has(stage) || NEEDS_INPUT_STAGES.has(stage)) {
+      // Stop Auto-polling ONLY on terminal stages
+      if (TERMINAL_STAGES.has(stage)) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
       } else {
-        // Ensure polling is running if we are in an active stage
+        // Ensure polling is running if we are in any active/non-terminal stage
         if (!intervalRef.current) {
           intervalRef.current = setInterval(poll, 3000);
         }

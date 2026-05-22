@@ -990,6 +990,19 @@ class ImplementationWorkflow:
         # AWAIT SIGNAL: mapping_confirmed
         # ══════════════════════════════════════════════════════════════════════
         self._stage = "awaiting_mapping_confirmation"
+        try:
+            await workflow.execute_activity(
+                persist_session,
+                PersistSessionInput(
+                    project_id=project_id,
+                    workflow_id=workflow_id,
+                    status=self._stage,
+                ),
+                **_ACT,
+            )
+            _kv(L, "status", self._stage)
+        except Exception as e:
+            L.info("      ⚠️  Failed to persist session status: %s", e)
         
         while True:
             self._mapping_confirmed_event.clear()
@@ -1011,6 +1024,19 @@ class ImplementationWorkflow:
                 _step_start(L, 10, "Conversational Mapping Refinement", "Refining mappings based on user feedback.")
                 self._stage = "refining_mapping"
                 try:
+                    await workflow.execute_activity(
+                        persist_session,
+                        PersistSessionInput(
+                            project_id=project_id,
+                            workflow_id=workflow_id,
+                            status=self._stage,
+                        ),
+                        **_ACT,
+                    )
+                except Exception as e:
+                    L.info("      ⚠️  Failed to persist session status: %s", e)
+
+                try:
                     ref_res = await workflow.execute_activity(
                         refine_mapping_with_llm,
                         RefineMappingInput(
@@ -1030,6 +1056,18 @@ class ImplementationWorkflow:
                         break
                     else:
                         self._stage = "awaiting_mapping_confirmation"
+                        try:
+                            await workflow.execute_activity(
+                                persist_session,
+                                PersistSessionInput(
+                                    project_id=project_id,
+                                    workflow_id=workflow_id,
+                                    status=self._stage,
+                                ),
+                                **_ACT,
+                            )
+                        except Exception as e:
+                            pass
                         continue
                 except Exception as e:
                     _step_fail(L, 10, "Conversational Mapping Refinement", str(e))
