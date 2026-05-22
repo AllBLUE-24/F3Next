@@ -36,18 +36,25 @@ def _score_by_columns(doctype: str, columns: List[str], kb: Dict[str, Any]) -> f
         return 0.0
 
     score = 0.0
-    for _, fcfg in fmap.items():
-        synonyms = list(fcfg.get("user_input_synonyms") or [])
-        synonyms.append(fcfg.get("fieldname") or "")
-        synonyms = [_norm(x) for x in synonyms if x]
-        for syn in synonyms:
-            for c in cols:
-                if c == syn:
-                    score += 3.0
-                    break
-                if syn and syn in c and len(syn) >= 3:
-                    score += 1.5
-                    break
+
+    def _process_fields(fields: Dict[str, Any]):
+        nonlocal score
+        for _, fcfg in fields.items():
+            synonyms = list(fcfg.get("user_input_synonyms") or [])
+            synonyms.append(fcfg.get("fieldname") or "")
+            synonyms = [_norm(x) for x in synonyms if x]
+            for syn in synonyms:
+                for c in cols:
+                    if c == syn:
+                        score += 3.0
+                        break
+                    if syn and syn in c and len(syn) >= 3:
+                        score += 1.5
+                        break
+            if "child_fields" in fcfg:
+                _process_fields(fcfg["child_fields"])
+
+    _process_fields(fmap)
     return score
 
 
@@ -56,13 +63,14 @@ def _keyword_hints_score(text: str, filename: str, candidates: List[str], kb: Di
     Supports BOTH shapes:
     - {keyword: Doctype}   (current KB)
     - {Doctype: {keywords:[...], min_score:N}}  (future-proof)
+    Also reads per-doctype doctype_classifier_hints arrays from field_mappings.json.
     """
     text_l = _norm(text)
     fname_l = _norm(filename)
     hints = kb.get("doctype_keyword_hints") or {}
     scores: Dict[str, float] = {c: 0.0 for c in candidates}
 
-    # Shape A: keyword -> doctype
+    # Shape A: keyword -> doctype  (top-level doctype_keyword_hints dict)
     if hints and all(isinstance(k, str) and isinstance(v, str) for k, v in hints.items()):
         for kw, dt in hints.items():
             if dt not in scores:
@@ -74,10 +82,9 @@ def _keyword_hints_score(text: str, filename: str, candidates: List[str], kb: Di
                 scores[dt] += 1.0
             if kw_l in fname_l:
                 scores[dt] += 0.7
-        return scores
 
-    # Shape B: doctype -> {keywords, min_score}
-    if hints and all(isinstance(v, dict) for v in hints.values()):
+    # Shape B: doctype -> {keywords, min_score}  (future-proof nested hints)
+    elif hints and all(isinstance(v, dict) for v in hints.values()):
         for dt, cfg in hints.items():
             if dt not in scores:
                 continue
@@ -86,7 +93,23 @@ def _keyword_hints_score(text: str, filename: str, candidates: List[str], kb: Di
                 kw_l = _norm(kw)
                 if kw_l and kw_l in text_l:
                     scores[dt] += 1.0
-        return scores
+
+    # Shape C: per-doctype doctype_classifier_hints from field_mappings.json doctypes section.
+    # These are the most specific hints (e.g., BOM: ["bill of materials", "recipe", "bom_recipe"])
+    # and should contribute both on the content snippet and the filename.
+    doctypes_kb = kb.get("doctypes") or {}
+    for dt, dt_cfg in doctypes_kb.items():
+        if dt not in scores:
+            continue
+        per_doc_hints = dt_cfg.get("doctype_classifier_hints") or []
+        for kw in per_doc_hints:
+            kw_l = _norm(kw)
+            if not kw_l:
+                continue
+            if kw_l in text_l:
+                scores[dt] += 1.2
+            if kw_l in fname_l:
+                scores[dt] += 1.0
 
     return scores
 

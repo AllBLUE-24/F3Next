@@ -228,21 +228,65 @@ class _MappingEngine:
         
         result: Dict[str, str] = {}
         unmapped_cols = []
+
+        def _col_matches_synonym(col_l: str, synonym: str) -> bool:
+            """
+            True when the column name is an exact or equivalent match for the synonym.
+            Uses exact equality only — NOT substring — so that a column named
+            "child_item_code" doesn't accidentally match the synonym "item".
+            """
+            syn_l = synonym.lower().strip()
+            if not syn_l:
+                return False
+            # Exact match (covers both identical and normalised variants)
+            if col_l == syn_l:
+                return True
+            # Normalise underscores ↔ spaces (e.g. "item code" == "item_code")
+            if col_l.replace(" ", "_") == syn_l.replace(" ", "_"):
+                return True
+            return False
         
         for col in columns:
             if col is None:
                 continue
-            col_lower = col.lower()
+            col_lower = col.lower().strip()
             matched = False
+
+            # Pass 1: match against top-level fields (exact/token match only).
             for field, fconfig in field_mappings.items():
-                synonyms = fconfig.get("user_input_synonyms", [])
+                synonyms = list(fconfig.get("user_input_synonyms", []))
                 erp_fieldname = fconfig.get("fieldname", field)
                 synonyms.append(erp_fieldname)
                 
-                if any(syn.lower() in col_lower or col_lower in syn.lower() for syn in synonyms):
+                if any(_col_matches_synonym(col_lower, syn) for syn in synonyms):
                     result[col] = erp_fieldname
                     matched = True
                     break
+
+            if matched:
+                continue
+
+            # Pass 2: match against child_fields inside Table entries.
+            # Child synonyms are specific (e.g., "child_item_code") so the original
+            # relaxed substring match is safe here.
+            # When found, store as "<table_fieldname>.<child_fieldname>" so
+            # fold_child_tables can later peel this apart correctly.
+            for field, fconfig in field_mappings.items():
+                if str(fconfig.get("fieldtype") or "").strip().lower() != "table":
+                    continue
+                table_fieldname = fconfig.get("fieldname", field)
+                child_fields = fconfig.get("child_fields") or {}
+                for child_key, cfcfg in child_fields.items():
+                    child_synonyms = list(cfcfg.get("user_input_synonyms") or [])
+                    child_erp_fieldname = cfcfg.get("fieldname", child_key)
+                    child_synonyms.append(child_erp_fieldname)
+                    if any(syn.lower() in col_lower or col_lower in syn.lower() for syn in child_synonyms):
+                        result[col] = f"{table_fieldname}.{child_erp_fieldname}"
+                        matched = True
+                        break
+                if matched:
+                    break
+
             if not matched:
                 unmapped_cols.append(col)
                 
@@ -482,8 +526,41 @@ class RefineMappingInput:
     project_id: str
     company_slug: str = "unknown"
 
-# ── Activity definitions ─────────────────────────────────────────────────────
+async def _should_map_doctype(session_id: str, doctype: str) -> bool:
+    """Check if the latest import plan has scheduled mapping (action == "create") for this doctype.
+    If no plan exists yet (fallback), default to True.
+    """
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISImportPlan
+    from sqlalchemy import select
+    import uuid
 
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISImportPlan)
+                .where(ISImportPlan.session_id == uuid.UUID(session_id))
+                .order_by(ISImportPlan.created_at.desc())
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            plan = res.scalar_one_or_none()
+            if not plan or not plan.phases:
+                return True
+
+            for phase_id, phase_data in plan.phases.items():
+                steps = phase_data.get("steps", [])
+                for step in steps:
+                    if step.get("doctype") == doctype:
+                        action = step.get("action")
+                        return action in ("create", "pending_mapping")
+            return False
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not check import plan: %s", e)
+        return True
+
+
+# ── Activity definitions ─────────────────────────────────────────────────────
 @activity.defn(name="map_file_to_erpnext")
 async def map_file_to_erpnext(inp: MapFileInput) -> Any:
     activity.logger.info("▶ map_file_to_erpnext started | file=%s key=%s hint=%s",
@@ -538,6 +615,12 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping extraction.", inp.filename)
             return NodeStatusEnvelope.success(
                 primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
+            )
+
+        if not await _should_map_doctype(inp.session_id, doctype):
+            activity.logger.info("  ⏭️ Skipping unstructured mapping for %s → %s (not scheduled as 'create' in plan)", inp.filename, doctype)
+            return NodeStatusEnvelope.success(
+                primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
             )
 
         # Step B: schema-locked extraction
@@ -603,6 +686,10 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     activity.logger.info("  ⏭️ Group %s classified as Unmapped_Irrelevant, skipping.", entity_type)
                     continue
 
+                if not await _should_map_doctype(inp.session_id, group_doctype):
+                    activity.logger.info("  ⏭️ Skipping split group %s → %s (not scheduled as 'create' in plan)", entity_type, group_doctype)
+                    continue
+
                 field_mapping = engine.map_columns(columns, group_doctype, sample_row=group_rows[0] if group_rows else None)
                 results.append({
                     "doctype": group_doctype,
@@ -629,6 +716,12 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping mapping.", inp.filename)
                 return NodeStatusEnvelope.success(
                     primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
+                )
+
+            if not await _should_map_doctype(inp.session_id, doctype):
+                activity.logger.info("  ⏭️ Skipping structured mapping for %s → %s (not scheduled as 'create' in plan)", inp.filename, doctype)
+                return NodeStatusEnvelope.success(
+                    primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
                 )
 
             field_mapping = engine.map_columns(columns, doctype, sample_row=clean_rows[0] if clean_rows else None)

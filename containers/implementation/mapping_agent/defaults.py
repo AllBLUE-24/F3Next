@@ -117,6 +117,12 @@ def fold_child_tables(doctype: str, records: List[Dict[str, Any]]) -> List[Dict[
     For structured sources that provide item-level columns at top-level,
     fold them into the correct child table arrays (e.g., items[]).
 
+    Handles two styles produced by map_columns:
+    1. Bare child fieldnames directly on the record — e.g., {"item_code": "RM-X", "qty": 5}
+       (these come from synonym matching where the child fieldname was mapped directly)
+    2. Namespaced keys — e.g., {"items.item_code": "RM-X", "items.qty": 5}
+       (produced when map_columns matched via Pass 2 / child_fields recursion)
+
     Also groups records that belong to the same parent document by merging
     their child rows.
     """
@@ -139,17 +145,29 @@ def fold_child_tables(doctype: str, records: List[Dict[str, Any]]) -> List[Dict[
             if not child_fieldnames and table_name == "items":
                 child_fieldnames = ["item_code", "qty", "rate", "warehouse", "uom"]
 
+            child_row: Dict[str, Any] = {}
+
+            # Style 1: namespaced keys like "items.item_code" produced by map_columns Pass 2.
+            namespace_prefix = f"{table_name}."
+            for key in list(r.keys()):
+                if str(key).startswith(namespace_prefix):
+                    child_field = key[len(namespace_prefix):]
+                    val = r.pop(key)
+                    if val not in (None, ""):
+                        child_row[child_field] = val
+
+            # Style 2: bare child fieldnames sitting directly on the record.
+            # These come from synonym matching that happened to produce bare ERPNext field names.
             present = [f for f in child_fieldnames if f in r and r.get(f) not in (None, "")]
-            if not present:
+            for f in present:
+                if f not in child_row:  # don't overwrite a namespace-matched value
+                    child_row[f] = r.pop(f)
+
+            if not child_row:
                 # Ensure the array exists for schema compliance (defaults injection may fill later)
                 r[table_name] = []
-                continue
-
-            child_row: Dict[str, Any] = {}
-            for f in child_fieldnames:
-                if f in r:
-                    child_row[f] = r.pop(f)
-            r[table_name] = [child_row]
+            else:
+                r[table_name] = [child_row]
 
         folded.append(r)
 
