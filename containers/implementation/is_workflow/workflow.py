@@ -34,7 +34,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
-    from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput
+    from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
@@ -161,6 +161,7 @@ class ImplementationWorkflow:
         self._stage: str = "awaiting_files"
         self._analysis_tasks: List[Dict] = []
         self._company_slug: str = "unknown"
+        self._all_uploaded_files: List[Dict] = []
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -294,6 +295,7 @@ class ImplementationWorkflow:
         await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
 
         sig = self._sig_files
+        self._all_uploaded_files = list(sig.uploaded_files) if sig else []
         _signal_banner(L, "files_uploaded", f"{len(sig.uploaded_files)} files | slug={sig.company_slug}")
         self._set_task("t1", "running")
 
@@ -766,7 +768,26 @@ class ImplementationWorkflow:
                             L.info("  ⏳ Waiting for additional files_uploaded signal ...")
                             await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
 
-                            updated_files = (self._sig_files.uploaded_files if self._sig_files else sig.uploaded_files)
+                            newly_uploaded = self._sig_files.uploaded_files if self._sig_files else []
+                            L.info("      ▶ Running virus scan on %d newly uploaded files...", len(newly_uploaded))
+                            
+                            scan_res = await workflow.execute_activity(
+                                virus_scan_quarantine,
+                                args=[newly_uploaded, self._session_id],
+                                **_ACT,
+                            )
+                            if not scan_res.get("safe", False):
+                                _step_fail(L, "8c_scan", "Virus Scan", "INFECTED FILES DETECTED — halting workflow")
+                                self._stage = "infected_halt"
+                                raise ApplicationError("Implementation halted due to malicious payload.")
+
+                            # Deduplicate and combine by file_name
+                            all_files_map = {f["file_name"]: f for f in self._all_uploaded_files}
+                            for f in newly_uploaded:
+                                all_files_map[f["file_name"]] = f
+                            self._all_uploaded_files = list(all_files_map.values())
+                            updated_files = self._all_uploaded_files
+
                             fetch_results = await workflow.execute_activity(
                                 fetch_clean_files,
                                 FetchCleanFilesInput(
@@ -824,6 +845,30 @@ class ImplementationWorkflow:
             L.info("  ✅ Minimum viable data confirmed — proceeding to mapping without gate")
         else:
             L.info("  ⚠️  Supervisor disabled — proceeding despite readiness gaps")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 8d / 14  —  Build Blueprint Import Plan
+        # ══════════════════════════════════════════════════════════════════════
+        self._set_task("t8", "running")
+        _step_start(L, "8d", "Build Blueprint Import Plan",
+                    "3-phase plan: Config → Master Data → Transactional")
+
+        try:
+            plan_status: str = await workflow.execute_activity(
+                build_import_plan,
+                BuildImportPlanInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
+                **_ACT,
+            )
+            _kv(L, "plan_status", plan_status)
+            _kv(L, "reads from", "is_target_structures, is_data_readiness_assessments")
+            _kv(L, "table", "is_import_plans")
+            _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_import_plan/plan.json")
+            _kv(L, "audit", "is_audit_trail → import_plan_created")
+            _step_ok(L, "8d", "Build Blueprint Import Plan", f"status={plan_status}")
+            self._set_task("t8", "done", f"Plan: {plan_status}")
+        except Exception as e:
+            _step_fail(L, "8d", "Build Blueprint Import Plan", str(e))
+            self._set_task("t8", "failed", str(e))
 
         self._stage = "mapping"
 
@@ -1172,36 +1217,35 @@ class ImplementationWorkflow:
             _step_ok(L, "11a", "Merge Profile Edits", "SKIPPED (no edits)")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 12 / 14  —  Build Import Plan
+        # STEP 12 / 14  —  Finalize Import Plan
         # ══════════════════════════════════════════════════════════════════════
         self._set_task("t8", "running")
 
-        _step_start(L, 12, "Build Import Plan",
-                    "3-phase plan: Config → Master Data → Transactional")
+        _step_start(L, 12, "Finalize Import Plan",
+                    "Updating import plan with mapped paths and row counts")
 
         try:
             plan_status: str = await workflow.execute_activity(
-                build_import_plan,
-                BuildImportPlanInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
+                finalize_import_plan,
+                FinalizeImportPlanInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
                 **_ACT,
             )
             _kv(L, "plan_status", plan_status)
-            _kv(L, "reads from", "is_target_structures, is_mapped_data")
-            _kv(L, "table", "is_import_plans")
+            _kv(L, "reads from", "is_import_plans, is_mapped_data, is_validation_results")
+            _kv(L, "table", "is_import_plans (updated)")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_import_plan/plan.json")
-            _kv(L, "audit", "is_audit_trail → import_plan_created")
 
             if plan_status == "blocked":
                 L.info("")
-                L.info("      ⚠️  Plan is BLOCKED — validation failures must be resolved first")
+                L.info("      ⚠️  Plan is BLOCKED — gaps or validation failures must be resolved first")
 
-            _step_ok(L, 12, "Build Import Plan", f"status={plan_status}")
+            _step_ok(L, 12, "Finalize Import Plan", f"status={plan_status}")
         except Exception as e:
-            _step_fail(L, 12, "Build Import Plan", str(e))
+            _step_fail(L, 12, "Finalize Import Plan", str(e))
             self._stage = "error"
-            raise ApplicationError(f"Import plan build failed: {e}")
+            raise ApplicationError(f"Import plan finalization failed: {e}")
 
-        self._set_task("t8", "done", f"Status: {plan_status}")
+        self._set_task("t8", "done", f"Finalized Status: {plan_status}")
         self._stage = "awaiting_sandbox_approval"
 
         # ══════════════════════════════════════════════════════════════════════
