@@ -60,7 +60,7 @@ class _CompanyProfileService:
             return json.load(f)
 
     @classmethod
-    def build(
+    async def build(
         cls,
         project_id: str,
         version: int,
@@ -295,7 +295,7 @@ async def build_company_profile(inp: BuildProfileInput) -> Any:
     except Exception as e:
         activity.logger.warning("  RAG fetch failed (non-fatal): %s", e)
 
-    profile = _CompanyProfileService.build(
+    profile = await _CompanyProfileService.build(
         project_id=inp.project_id,
         version=inp.version,
         f3iche=inp.f3iche,
