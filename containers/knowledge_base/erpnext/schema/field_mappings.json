@@ -328,6 +328,7 @@
               "Material Transfer for Manufacture"
             ],
             "mandatory": true,
+            "user_input_synonyms": ["entry_type", "purpose", "type"],
             "inference_rules": {
               "transfer": "Material Transfer",
               "issue": "Material Issue",
