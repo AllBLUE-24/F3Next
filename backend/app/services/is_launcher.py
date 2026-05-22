@@ -57,19 +57,44 @@ class ImplementationLauncher:
     def __init__(self):
         pass
 
+    async def _resolve_project_id(self, input_id: str | UUID) -> UUID:
+        """
+        Accepts either a project_id or a session_id.
+        Queries the database to check if input_id is a session_id.
+        If yes, returns the corresponding project_id.
+        Otherwise, returns the input_id as a UUID.
+        """
+        try:
+            val_uuid = UUID(str(input_id))
+        except ValueError:
+            return input_id
+
+        async with AsyncSessionLocal() as session:
+            # Check if there is a session with this ID
+            stmt = select(ISSession).where(ISSession.id == val_uuid)
+            res = await session.execute(stmt)
+            is_session = res.scalar_one_or_none()
+            if is_session:
+                return is_session.project_id
+            
+            # If not a session ID, assume it is a project ID
+            return val_uuid
+
     async def _handle(self, project_id: str | UUID) -> WorkflowHandle:
+        resolved_project_id = await self._resolve_project_id(project_id)
         client = await _get_client()
-        return client.get_workflow_handle(_wf_id(project_id))
+        return client.get_workflow_handle(_wf_id(resolved_project_id))
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self, project_id: str | UUID) -> Dict[str, Any]:
+        resolved_project_id = await self._resolve_project_id(project_id)
         client = await _get_client()
-        wf_id = _wf_id(project_id)
+        wf_id = _wf_id(resolved_project_id)
         
         discovery_meta = None
         async with AsyncSessionLocal() as session:
-            stmt = select(Hook).where(Hook.project_id == UUID(str(project_id)))
+            stmt = select(Hook).where(Hook.project_id == UUID(str(resolved_project_id)))
             res = await session.execute(stmt)
             hook = res.scalar_one_or_none()
             if hook and hook.discovery_metadata:
@@ -78,7 +103,7 @@ class ImplementationLauncher:
         try:
             handle = await client.start_workflow(
                 ImplementationWorkflow.run,
-                args=[str(project_id), discovery_meta],
+                args=[str(resolved_project_id), discovery_meta],
                 id=wf_id,
                 task_queue=TASK_QUEUE,
             )
@@ -208,10 +233,11 @@ class ImplementationLauncher:
     # ── Supabase State Reading (v2 schema) ────────────────────────────────────
 
     async def _get_session(self, project_id: str | UUID) -> Optional[ISSession]:
+        resolved_project_id = await self._resolve_project_id(project_id)
         async with AsyncSessionLocal() as session:
             stmt = (
                 select(ISSession)
-                .where(ISSession.project_id == UUID(str(project_id)))
+                .where(ISSession.project_id == UUID(str(resolved_project_id)))
                 .order_by(ISSession.created_at.desc())
                 .limit(1)
             )
