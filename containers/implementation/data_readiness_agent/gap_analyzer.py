@@ -138,13 +138,16 @@ def analyze_gaps(
     setup_steps: List[Dict] = target_structure.get("setup_steps") or []
     import_phases: Dict[str, Any] = target_structure.get("import_phases") or {}
 
-    # Build doctype → phase lookup
+    # Build doctype → phase and action lookup
     doctype_phase: Dict[str, str] = {}
+    doctype_action: Dict[str, str] = {}
     for step in setup_steps:
         dt = step.get("doctype")
         ph = step.get("phase", "unknown")
+        act = step.get("action", "must_create")
         if dt:
             doctype_phase[dt] = ph
+            doctype_action[dt] = act
 
     # Pre-parse all files
     file_meta: Dict[str, Dict] = {}
@@ -169,6 +172,7 @@ def analyze_gaps(
 
     for doctype in required_doctypes:
         phase = doctype_phase.get(doctype, "unknown")
+        action = doctype_action.get(doctype, "must_create")
         best_score = 0.0
         best_file = None
         best_matched: List[str] = []
@@ -197,6 +201,19 @@ def analyze_gaps(
                 "coverage_pct": round(best_score, 3),
                 "mapped_fields": best_matched,
                 "missing_optional_fields": best_missing,
+                "phase": phase,
+            })
+        elif action in ("use_default", "auto_created_by_erpnext"):
+            # Automatically ready via system defaults or auto-provisioning
+            source_file = "System Auto-provisioning" if action == "auto_created_by_erpnext" else "ERPNext Defaults Baseline"
+            if best_file:
+                source_file = f"{best_file} / {source_file}"
+            ready_doctypes.append({
+                "doctype": doctype,
+                "source_file": source_file,
+                "coverage_pct": 1.0,
+                "mapped_fields": best_matched,
+                "missing_optional_fields": [],
                 "phase": phase,
             })
         elif best_score >= _CANDIDATE_THRESHOLD and best_file:
