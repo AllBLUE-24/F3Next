@@ -12,6 +12,7 @@ import json
 import os
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -21,7 +22,7 @@ from temporalio import activity
 from sqlalchemy import select, update, delete
 
 from shared.database.db import AsyncSessionLocal
-from shared.models.is_models import ISFieldMapping, ISMappedData, ISFieldMappingHistory
+from shared.models.is_models import ISFieldMapping, ISMappedData, ISFieldMappingHistory, ISSession
 from shared.models.is_status import NodeStatusEnvelope
 from containers.implementation.utils.llm_helper import generate_json
 
@@ -145,8 +146,35 @@ class _MappingEngine:
         """
         data = self._load_field_mappings()
         synonyms = data.get("party_type_synonyms")
-        if synonyms:
-            return {k: [s.lower() for s in v] for k, v in synonyms.items()}
+        if isinstance(synonyms, dict) and synonyms:
+            # Support both shapes:
+            # - {alias: canonical} from the KB JSON
+            # - {canonical: [aliases]} from older runtime expectations
+            normalized: Dict[str, List[str]] = {}
+            if all(isinstance(v, str) for v in synonyms.values()):
+                for alias, canonical in synonyms.items():
+                    canonical_name = str(canonical).strip()
+                    alias_name = str(alias).strip().lower()
+                    if not canonical_name:
+                        continue
+                    normalized.setdefault(canonical_name, [])
+                    if alias_name and alias_name not in normalized[canonical_name]:
+                        normalized[canonical_name].append(alias_name)
+            else:
+                for canonical, aliases in synonyms.items():
+                    canonical_name = str(canonical).strip()
+                    if not canonical_name:
+                        continue
+                    normalized.setdefault(canonical_name, [])
+                    for alias in aliases or []:
+                        alias_name = str(alias).strip().lower()
+                        if alias_name and alias_name not in normalized[canonical_name]:
+                            normalized[canonical_name].append(alias_name)
+            for canonical_name, aliases in normalized.items():
+                canonical_alias = canonical_name.lower()
+                if canonical_alias not in aliases:
+                    aliases.append(canonical_alias)
+            return normalized
         # Fallback: replicate old hardcoded behaviour
         return {
             "Customer": ["customer", "client", "buyer"],
@@ -175,9 +203,10 @@ class _MappingEngine:
         }
 
         type_col = None
-        type_synonyms = {"type", "entity type", "entity_type", "record type", "party type"}
+        type_synonyms = {"type", "entity type", "entity_type", "record type", "party type", "party_type"}
         for c in columns:
-            if c and c.lower().strip() in type_synonyms:
+            normalized_column = c.lower().strip().replace("_", " ")
+            if c and (normalized_column in type_synonyms or c.lower().strip() in type_synonyms):
                 type_col = c
                 break
 
@@ -460,6 +489,7 @@ class MapFileInput:
     company_slug: str
     session_id: str
     doctype_hint: Optional[str] = None
+    corpus_assignment: Optional[Dict[str, Any]] = None
 
 
 async def _load_session_required_doctypes(session_id: str) -> List[str]:
@@ -493,6 +523,23 @@ async def _load_session_required_doctypes(session_id: str) -> List[str]:
         return []
 
 
+async def _load_session_context(session_id: str) -> Dict[str, Any]:
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(ISSession).where(ISSession.id == uuid.UUID(session_id))
+            res = await session.execute(stmt)
+            row = res.scalar_one_or_none()
+            if not row:
+                return {}
+            return {
+                "user_import_note": row.user_import_note or "",
+                "file_batches": row.file_batches or [],
+                "user_notes": row.user_notes or [],
+            }
+    except Exception:
+        return {}
+
+
 async def _get_candidate_doctypes(session_id: str) -> List[str]:
     """
     Best-practice candidate list for deterministic routing.
@@ -500,7 +547,20 @@ async def _get_candidate_doctypes(session_id: str) -> List[str]:
     - Prefer session-scoped ISTargetStructure.required_doctypes
     - Always include a small safe core set
     """
-    core = {"Item", "Customer", "Supplier", "Employee"}
+    core = {
+        "Item",
+        "Customer",
+        "Supplier",
+        "Employee",
+        "Sales Order",
+        "Purchase Order",
+        "Project",
+        "BOM",
+        "Work Order",
+        "Stock Entry",
+        "Purchase Receipt",
+        "Delivery Note",
+    }
     kb = _kb_field_mappings() or {}
     kb_doctypes = set((kb.get("doctypes") or {}).keys())
     required = set(await _load_session_required_doctypes(session_id))
@@ -526,12 +586,19 @@ class RefineMappingInput:
     project_id: str
     company_slug: str = "unknown"
 
+@dataclass
+class AssignCorpusDoctypesInput:
+    session_id: str
+    project_id: str
+    r2_manifest_url: str
+    company_slug: str = "unknown"
+
 async def _should_map_doctype(session_id: str, doctype: str) -> bool:
     """Check if the latest import plan has scheduled mapping (action == "create") for this doctype.
     If no plan exists yet (fallback), default to True.
     """
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISImportPlan
+    from shared.models.is_models import ISImportPlan, ISTargetStructure, ISDataReadinessAssessment
     from sqlalchemy import select
     import uuid
 
@@ -545,19 +612,184 @@ async def _should_map_doctype(session_id: str, doctype: str) -> bool:
             )
             res = await session.execute(stmt)
             plan = res.scalar_one_or_none()
-            if not plan or not plan.phases:
-                return True
+            if plan and plan.phases:
+                for phase_data in plan.phases.values():
+                    steps = phase_data.get("steps", [])
+                    for step in steps:
+                        if step.get("doctype") == doctype:
+                            action = step.get("action")
+                            return action in ("create", "pending_mapping")
 
-            for phase_id, phase_data in plan.phases.items():
-                steps = phase_data.get("steps", [])
-                for step in steps:
-                    if step.get("doctype") == doctype:
-                        action = step.get("action")
-                        return action in ("create", "pending_mapping")
+            target_stmt = (
+                select(ISTargetStructure)
+                .where(ISTargetStructure.session_id == uuid.UUID(session_id))
+                .order_by(ISTargetStructure.created_at.desc())
+                .limit(1)
+            )
+            target_res = await session.execute(target_stmt)
+            target = target_res.scalar_one_or_none()
+            if target:
+                setup_steps = target.setup_steps
+                if isinstance(setup_steps, str):
+                    try:
+                        setup_steps = json.loads(setup_steps)
+                    except Exception:
+                        setup_steps = []
+                if isinstance(setup_steps, list):
+                    for step in setup_steps:
+                        if isinstance(step, dict) and step.get("doctype") == doctype:
+                            action = step.get("action") or step.get("planner_action") or ""
+                            if action in ("create", "pending_mapping", "must_create"):
+                                return True
+                            if action in ("use_default", "auto_created_by_erpnext", "skip"):
+                                return False
+                    required = target.required_doctypes
+                    if isinstance(required, str):
+                        try:
+                            required = json.loads(required)
+                        except Exception:
+                            required = []
+                    if isinstance(required, list) and doctype in required:
+                        return True
+
+            readiness_stmt = (
+                select(ISDataReadinessAssessment)
+                .where(ISDataReadinessAssessment.session_id == uuid.UUID(session_id))
+                .order_by(ISDataReadinessAssessment.created_at.desc())
+                .limit(1)
+            )
+            readiness_res = await session.execute(readiness_stmt)
+            readiness = readiness_res.scalar_one_or_none()
+            if readiness:
+                ready_names = []
+                for item in (readiness.ready_doctypes or []) + (readiness.partial_doctypes or []):
+                    if isinstance(item, dict) and item.get("doctype"):
+                        ready_names.append(str(item["doctype"]))
+                    elif isinstance(item, str):
+                        ready_names.append(item)
+                if doctype in ready_names:
+                    return True
             return False
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not check import plan: %s", e)
         return True
+
+
+# ── Activity definitions ─────────────────────────────────────────────────────
+@activity.defn(name="assign_corpus_doctypes")
+async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
+    activity.logger.info("▶ assign_corpus_doctypes started | session=%s manifest=%s", inp.session_id, inp.r2_manifest_url)
+
+    s3 = _get_s3_client()
+    session_context = await _load_session_context(inp.session_id)
+
+    try:
+        response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
+        raw = response["Body"].read()
+        manifest = json.loads(raw.decode("utf-8"))
+    except Exception as e:
+        activity.logger.error("❌ Failed to download manifest for corpus assignment: %s", e)
+        return NodeStatusEnvelope.failed(
+            errors=[{"code": "MANIFEST_DOWNLOAD_FAILED", "message": "Failed to download manifest from R2", "details": {"error": str(e)}}],
+            primary_result={"assignments": []},
+        )
+
+    engine = _MappingEngine()
+    candidates = await _get_candidate_doctypes(inp.session_id)
+    user_note = session_context.get("user_import_note", "")
+    assignments: List[Dict[str, Any]] = []
+
+    for filename, content in (manifest.get("files") or {}).items():
+        if not content:
+            continue
+        is_unstructured = filename.lower().endswith(".txt") or filename.lower().endswith(".pdf")
+        if is_unstructured:
+            cls = await classify_doctype(
+                filename=filename,
+                content_snippet=(content or "")[:2000],
+                columns=None,
+                candidates=candidates,
+                user_import_note=user_note,
+                model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+            )
+            assignments.append({
+                "file": filename,
+                "doctypes": [cls.get("doctype")] if cls.get("doctype") else [],
+                "classification": cls,
+            })
+            continue
+
+        rows = list(csv.DictReader(io.StringIO(content)))
+        clean_rows = [{k: v for k, v in r.items() if k is not None} for r in rows]
+        columns = [c for c in list(clean_rows[0].keys()) if c is not None] if clean_rows else []
+        split_groups = engine._split_by_entity_type(clean_rows, columns) if clean_rows else None
+
+        if split_groups:
+            group_assignments: Dict[str, Any] = {}
+            group_doctypes: List[str] = []
+            for entity_type, group_rows in split_groups.items():
+                group_doctype = None
+                kb = engine._load_field_mappings()
+                for dt_name in kb.get("doctypes", {}).keys():
+                    if entity_type.lower() == dt_name.lower():
+                        group_doctype = dt_name
+                        break
+                if not group_doctype:
+                    cls = await classify_doctype(
+                        filename=filename,
+                        content_snippet=str(entity_type),
+                        columns=columns,
+                        candidates=candidates,
+                        user_import_note=user_note,
+                        model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                    )
+                    group_doctype = cls.get("doctype")
+                if group_doctype and group_doctype not in group_doctypes:
+                    group_doctypes.append(group_doctype)
+                group_assignments[entity_type] = {
+                    "doctype": group_doctype,
+                    "rows": len(group_rows),
+                }
+            assignments.append({
+                "file": filename,
+                "doctypes": group_doctypes,
+                "split": group_assignments,
+            })
+            continue
+
+        cls = await classify_doctype(
+            filename=filename,
+            content_snippet="",
+            columns=columns,
+            candidates=candidates,
+            user_import_note=user_note,
+            model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+        )
+        assignments.append({
+            "file": filename,
+            "doctypes": [cls.get("doctype")] if cls.get("doctype") else [],
+            "classification": cls,
+        })
+
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if row:
+                batches = list(row.file_batches or [])
+                if batches:
+                    batches[-1]["corpus_assignments"] = assignments
+                await db.execute(
+                    update(ISSession)
+                    .where(ISSession.id == row.id)
+                    .values(file_batches=batches, updated_at=datetime.utcnow())
+                )
+                await db.commit()
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not persist corpus assignments: %s", e)
+
+    activity.logger.info("✅ assign_corpus_doctypes done | files=%d", len(assignments))
+    return NodeStatusEnvelope.success(primary_result={"assignments": assignments})
 
 
 # ── Activity definitions ─────────────────────────────────────────────────────
@@ -567,6 +799,10 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                          inp.filename, inp.r2_manifest_url, inp.doctype_hint)
 
     s3 = _get_s3_client()
+    session_context = await _load_session_context(inp.session_id)
+    user_note = session_context.get("user_import_note", "")
+    assignment_doctypes = list((inp.corpus_assignment or {}).get("doctypes") or [])
+    assignment_split = (inp.corpus_assignment or {}).get("split") or {}
 
     try:
         response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
@@ -597,8 +833,9 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
     results: List[Dict[str, Any]] = []
     if is_unstructured:
         snippet = (content or "")[:2000]
-        if inp.doctype_hint and inp.doctype_hint in candidates:
-            doctype = inp.doctype_hint
+        hinted_doctype = inp.doctype_hint or (assignment_doctypes[0] if assignment_doctypes else None)
+        if hinted_doctype and hinted_doctype in candidates:
+            doctype = hinted_doctype
             cls_meta = {"method": "hint", "confidence": 1.0, "signals": ["doctype_hint"]}
         else:
             cls = await classify_doctype(
@@ -606,6 +843,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 content_snippet=snippet,
                 columns=None,
                 candidates=candidates,
+                user_import_note=user_note,
                 model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
             )
             doctype = cls.get("doctype")
@@ -678,9 +916,15 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                         content_snippet=str(entity_type),
                         columns=columns,
                         candidates=candidates,
+                    user_import_note=user_note,
                         model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
                     )
                     group_doctype = cls.get("doctype")
+                if not group_doctype:
+                    for split_key, split_val in assignment_split.items():
+                        if str(split_key).strip().lower() == str(entity_type).strip().lower():
+                            group_doctype = (split_val or {}).get("doctype")
+                            break
 
                 if group_doctype == "Unmapped_Irrelevant":
                     activity.logger.info("  ⏭️ Group %s classified as Unmapped_Irrelevant, skipping.", entity_type)
@@ -708,9 +952,12 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     content_snippet="",
                     columns=columns,
                     candidates=candidates,
+                    user_import_note=user_note,
                     model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
                 )
                 doctype = cls.get("doctype")
+                if not doctype and assignment_doctypes:
+                    doctype = assignment_doctypes[0]
 
             if doctype == "Unmapped_Irrelevant":
                 activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping mapping.", inp.filename)

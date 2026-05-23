@@ -55,6 +55,56 @@ def _load_defaults_baseline() -> Dict[str, List]:
     return {}
 
 
+def _normalize_doctype_name(name: str) -> str:
+    return " ".join(str(name or "").replace("_", " ").replace("-", " ").split()).strip().lower()
+
+
+def _load_kb_doctypes() -> Dict[str, Any]:
+    kb_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "schema" / "field_mappings.json"
+    if kb_path.exists():
+        try:
+            with open(kb_path, "r", encoding="utf-8") as f:
+                return json.load(f).get("doctypes", {})
+        except Exception:
+            return {}
+    return {}
+
+
+def _canonicalize_doctypes(doctypes: List[str], graph: Dict[str, Any]) -> List[str]:
+    graph_doctypes = graph.get("doctypes", {}) if isinstance(graph, dict) else {}
+    kb_doctypes = _load_kb_doctypes()
+
+    alias_map: Dict[str, str] = {}
+
+    def _register(alias: str, canonical: str) -> None:
+        alias_key = _normalize_doctype_name(alias)
+        canonical_name = str(canonical or "").strip()
+        if alias_key and canonical_name and alias_key not in alias_map:
+            alias_map[alias_key] = canonical_name
+
+    for dt_name in graph_doctypes.keys():
+        _register(dt_name, dt_name)
+
+    for dt_name, dt_cfg in kb_doctypes.items():
+        canonical_name = dt_cfg.get("doctype_name") or dt_name
+        _register(dt_name, canonical_name)
+        _register(canonical_name, canonical_name)
+        for hint in dt_cfg.get("doctype_classifier_hints") or []:
+            _register(hint, canonical_name)
+
+    canonicalized: List[str] = []
+    seen: Set[str] = set()
+    for dt in doctypes:
+        dt_name = str(dt or "").strip()
+        if not dt_name:
+            continue
+        resolved = alias_map.get(_normalize_doctype_name(dt_name), dt_name)
+        if resolved not in seen:
+            seen.add(resolved)
+            canonicalized.append(resolved)
+    return canonicalized
+
+
 _LAYER_ORDER = [
     "layer_0_system",
     "layer_1_config",
@@ -322,6 +372,7 @@ class BuildTargetInput:
     f3iche: str
     company_slug: str = "unknown"
     user_import_note: Optional[str] = None
+    r2_manifest_url: Optional[str] = None
 
 
 # ─── ACTIVITIES ───────────────────────────────────────────────────────────────
@@ -369,6 +420,24 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
             if sess_row and sess_row.mvp_focus:
                 mvp_focus = sess_row.mvp_focus
             if sess_row:
+                corpus_lines: List[str] = []
+                for batch in sess_row.file_batches or []:
+                    if not isinstance(batch, dict):
+                        continue
+                    batch_files = []
+                    for file_entry in batch.get("files") or []:
+                        if isinstance(file_entry, dict):
+                            batch_files.append(file_entry.get("file_name") or file_entry.get("name") or file_entry.get("original_filename"))
+                        elif isinstance(file_entry, str):
+                            batch_files.append(file_entry)
+                    batch_files = [str(name) for name in batch_files if name]
+                    if batch_files:
+                        corpus_lines.append(f"Batch {batch.get('batch_index', '?')}: {', '.join(batch_files)}")
+                if sess_row.user_import_note:
+                    corpus_lines.append(f"User note: {sess_row.user_import_note}")
+                if corpus_lines:
+                    profile_dict["uploaded_corpus_summary"] = "\n".join(corpus_lines)
+
                 note_lines: List[str] = []
                 if sess_row.user_import_note:
                     note_lines.append(f"Initial upload: {sess_row.user_import_note}")
@@ -379,6 +448,38 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
                     note_lines.append(f"Fixture note: {inp.user_import_note}")
                 if note_lines:
                     profile_dict["user_import_note"] = "\n".join(note_lines)
+
+        if inp.r2_manifest_url:
+            try:
+                s3 = boto3.client(
+                    "s3",
+                    endpoint_url=os.getenv("R2_ENDPOINT"),
+                    aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+                    aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+                    config=Config(signature_version="s3v4"),
+                    region_name="auto",
+                )
+                response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
+                manifest = json.loads(response["Body"].read().decode("utf-8"))
+                corpus_lines = [profile_dict.get("uploaded_corpus_summary", "").strip()] if profile_dict.get("uploaded_corpus_summary") else []
+                for filename, content in (manifest.get("files") or {}).items():
+                    if not content:
+                        continue
+                    if filename.lower().endswith((".csv", ".tsv")):
+                        try:
+                            import csv as _csv
+                            import io as _io
+                            rows = list(_csv.DictReader(_io.StringIO(content)))
+                            columns = list(rows[0].keys()) if rows else []
+                            corpus_lines.append(f"{filename}: {', '.join(columns[:10])}")
+                        except Exception:
+                            corpus_lines.append(filename)
+                    else:
+                        corpus_lines.append(filename)
+                if corpus_lines:
+                    profile_dict["uploaded_corpus_summary"] = "\n".join([line for line in corpus_lines if line])
+            except Exception as e:
+                activity.logger.warning("  ⚠️ Could not build uploaded corpus summary: %s", e)
     except Exception as e:
         activity.logger.error("  ❌ Failed to fetch profile/session from DB: %s", e)
 
@@ -438,6 +539,8 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
     # ── 2. GRAPH RESOLUTION ───────────────────────────────────────────────────
     graph    = _load_doctype_graph()
     baseline = _load_defaults_baseline()
+    seed_doctypes = _canonicalize_doctypes(seed_doctypes, graph)
+    profile_dict["required_doctypes"] = seed_doctypes
 
     graph_driven          = False
     setup_steps: List[Dict]    = []
@@ -499,6 +602,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
 
         prompt  = TARGET_STRUCTURE_PROMPT.format(
             company_profile=json.dumps(profile_dict, indent=2),
+            uploaded_corpus_summary=profile_dict.get("uploaded_corpus_summary", "No corpus summary available."),
             user_import_note=profile_dict.get("user_import_note", ""),
             erpnext_context=erp_ctx_str,
             apqc_context=apqc_ctx_str,

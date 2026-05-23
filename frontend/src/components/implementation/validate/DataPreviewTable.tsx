@@ -33,6 +33,52 @@ export function DataPreviewTable({ data, defaultOpen = false }: Props) {
 
   const hasMore = data.records.length > visibleRows;
 
+  const renderCellValue = (value: unknown) => {
+    if (value == null || value === '') {
+      return <span className="text-gray-700 italic">—</span>;
+    }
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (Array.isArray(value)) {
+      if (!value.length) {
+        return <span className="text-gray-500 italic">[]</span>;
+      }
+      const preview = value.slice(0, 2).map((item) => {
+        if (item == null) return '—';
+        if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') return String(item);
+        if (typeof item === 'object') {
+          const rec = item as Record<string, unknown>;
+          const label = rec.item_code ?? rec.name ?? rec.doctype ?? rec.fieldname;
+          const qty = rec.qty ?? rec.quantity;
+          const uom = rec.uom ?? rec.stock_uom;
+          const pieces = [label, qty != null ? `x ${qty}` : null, uom].filter(Boolean);
+          if (pieces.length > 0) return pieces.join(' ');
+          try {
+            return JSON.stringify(item);
+          } catch {
+            return '[object Object]';
+          }
+        }
+        return String(item);
+      }).join(', ');
+      return `${value.length} item${value.length !== 1 ? 's' : ''}${preview ? `: ${preview}${value.length > 2 ? '…' : ''}` : ''}`;
+    }
+
+    if (typeof value === 'object') {
+      try {
+        const json = JSON.stringify(value);
+        return json.length > 120 ? `${json.slice(0, 117)}…` : json;
+      } catch {
+        return String(value);
+      }
+    }
+
+    return String(value);
+  };
+
   return (
     <div className={`rounded-2xl border border-white/[0.07] bg-white/[0.02] overflow-hidden transition-all duration-300 ${status.bg}`}>
       {/* Header */}
@@ -127,7 +173,7 @@ export function DataPreviewTable({ data, defaultOpen = false }: Props) {
                       <td className="px-4 py-2 text-gray-700 font-mono">{rowIdx + 1}</td>
                       {data.columns.map((col) => (
                         <td key={col} className="px-4 py-2 text-gray-300 whitespace-nowrap max-w-[200px] truncate">
-                          {row[col] != null ? String(row[col]) : <span className="text-gray-700 italic">—</span>}
+                          {renderCellValue(row[col])}
                         </td>
                       ))}
                     </tr>

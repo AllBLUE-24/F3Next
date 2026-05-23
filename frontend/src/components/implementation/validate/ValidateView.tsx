@@ -162,7 +162,7 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
           Data Preview — {totalDoctypes} Doctypes
         </h2>
         {preview.doctypes.map((dt, idx) => (
-          <DataPreviewTable key={dt.doctype} data={dt} defaultOpen={idx === 0} />
+          <DataPreviewTable key={`${dt.doctype}-${dt.source_file ?? idx}`} data={dt} defaultOpen={idx === 0} />
         ))}
       </div>
 

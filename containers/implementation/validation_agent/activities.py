@@ -145,7 +145,23 @@ class _ValidationEngine:
         enum_rules: Dict[str, List[str]] = {}
         for _fn, cfg in dt_fields.items():
             if cfg.get("fieldtype") == "Select" and cfg.get("options"):
-                opts = [o.strip() for o in str(cfg["options"]).split("\n") if o.strip()]
+                opts_raw = cfg["options"]
+                if isinstance(opts_raw, list):
+                    opts = [str(o).strip() for o in opts_raw if str(o).strip()]
+                elif isinstance(opts_raw, str):
+                    parsed_opts = None
+                    try:
+                        maybe_json = json.loads(opts_raw)
+                        if isinstance(maybe_json, list):
+                            parsed_opts = maybe_json
+                    except Exception:
+                        parsed_opts = None
+                    if parsed_opts is not None:
+                        opts = [str(o).strip() for o in parsed_opts if str(o).strip()]
+                    else:
+                        opts = [o.strip() for o in opts_raw.split("\n") if o.strip()]
+                else:
+                    opts = [str(opts_raw).strip()] if str(opts_raw).strip() else []
                 if opts:
                     enum_rules[cfg.get("fieldname", _fn)] = opts
         if enum_rules:

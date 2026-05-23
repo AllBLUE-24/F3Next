@@ -173,6 +173,7 @@ async def classify_doctype(
     content_snippet: str,
     columns: Optional[List[str]],
     candidates: List[str],
+    user_import_note: Optional[str] = None,
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -182,9 +183,13 @@ async def classify_doctype(
     if not candidates:
         return {"doctype": None, "confidence": 0.0, "method": "none", "scores": {}, "signals": ["no_candidates"]}
 
+    scoring_snippet = content_snippet or ""
+    if user_import_note:
+        scoring_snippet = f"{scoring_snippet}\n\n{user_import_note}".strip()
+
     best, scores = _local_classify(
         filename=filename,
-        content_snippet=content_snippet or "",
+        content_snippet=scoring_snippet,
         columns=columns,
         candidates=candidates,
     )
@@ -215,7 +220,8 @@ async def classify_doctype(
         signals=(List[str], Field(default_factory=list)),
     )
 
-    snippet = (content_snippet or "")[:1200]
+    snippet_source = scoring_snippet
+    snippet = (snippet_source or "")[:1200]
     prompt = (
         "You are an ERPNext doctype classifier.\n"
         "Task: pick the SINGLE best matching doctype from the provided candidate list.\n"
@@ -224,6 +230,8 @@ async def classify_doctype(
     )
     if columns:
         prompt += f"Columns: {columns[:60]}\n"
+    if user_import_note:
+        prompt += f"User import note: {user_import_note[:1200]}\n"
     prompt += f"\nContent snippet:\n{snippet}\n\nCandidate doctypes:\n{candidates_with_escape}\n\nReturn strictly the JSON schema."
 
     try:

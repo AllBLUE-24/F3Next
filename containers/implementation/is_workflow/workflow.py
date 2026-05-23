@@ -32,7 +32,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
     from containers.implementation.derive_agent.activities     import derive_required_records, DeriveRequiredRecordsInput
     from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
-    from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput
+    from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput, assign_corpus_doctypes, AssignCorpusDoctypesInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
@@ -164,6 +164,7 @@ class ImplementationWorkflow:
         self._company_slug: str = "unknown"
         self._all_uploaded_files: List[Dict] = []
         self._latest_upload_note: Optional[str] = None
+        self._corpus_assignments: Dict[str, Dict[str, Any]] = {}
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -546,6 +547,7 @@ class ImplementationWorkflow:
                     project_id=project_id,
                     f3iche=conf.f3iche_user,
                     company_slug=self._company_slug,
+                    r2_manifest_url=r2_manifest_url,
                 ),
                 **_ACT,
             )
@@ -876,6 +878,35 @@ class ImplementationWorkflow:
             _step_fail(L, "8d", "Build Blueprint Import Plan", str(e))
             self._set_task("t8", "failed", str(e))
 
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 8e / 14  —  Corpus Doctype Assignment
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, "8e", "Corpus Doctype Assignment", "Classifying uploaded files using corpus context")
+        try:
+            corpus_env = await workflow.execute_activity(
+                assign_corpus_doctypes,
+                AssignCorpusDoctypesInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    r2_manifest_url=r2_manifest_url,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            if isinstance(corpus_env, dict):
+                if "status" in corpus_env:
+                    corpus_env = NodeStatusEnvelope(**corpus_env)
+                else:
+                    corpus_env = NodeStatusEnvelope.success(primary_result=corpus_env)
+            assignments = (corpus_env.primary_result or {}).get("assignments", []) if hasattr(corpus_env, "primary_result") else []
+            self._corpus_assignments = {
+                a.get("file"): a for a in assignments if isinstance(a, dict) and a.get("file")
+            }
+            _kv(L, "assignments", len(self._corpus_assignments))
+            _step_ok(L, "8e", "Corpus Doctype Assignment", f"{len(self._corpus_assignments)} files classified")
+        except Exception as e:
+            _step_fail(L, "8e", "Corpus Doctype Assignment", str(e))
+
         self._stage = "mapping"
 
         # ══════════════════════════════════════════════════════════════════════
@@ -922,6 +953,7 @@ class ImplementationWorkflow:
                         project_id=project_id,
                         company_slug=self._company_slug,
                         session_id=self._session_id,
+                        corpus_assignment=self._corpus_assignments.get(fname),
                     ),
                     **_ACT,
                 )
