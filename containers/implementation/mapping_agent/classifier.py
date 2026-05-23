@@ -10,7 +10,7 @@ Design:
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from typing import Literal
@@ -118,7 +118,7 @@ def _filename_priors(filename: str, candidates: List[str]) -> Dict[str, float]:
     f = _norm(filename)
     scores: Dict[str, float] = {c: 0.0 for c in candidates}
     # Strong priors from common abbreviations / keywords
-    priors: List[Tuple[str, str, float]] = [
+    priors: List[tuple[str, str, float]] = [
         ("so", "Sales Order", 1.5),
         ("sales order", "Sales Order", 2.0),
         ("po", "Purchase Order", 1.5),
@@ -142,7 +142,7 @@ def _local_classify(
     content_snippet: str,
     columns: Optional[List[str]],
     candidates: List[str],
-) -> Tuple[str, Dict[str, float]]:
+) -> tuple[str, Dict[str, float]]:
     kb = _field_mappings() or {}
 
     scores: Dict[str, float] = {c: 0.0 for c in candidates}

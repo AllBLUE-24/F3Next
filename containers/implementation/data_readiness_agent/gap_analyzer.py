@@ -17,7 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 # ─── helpers (replicated from classifier.py to avoid cross-agent imports) ─────
 
@@ -30,7 +30,7 @@ def _tokenise(s: str) -> List[str]:
     return [t for t in re.split(r"[^a-z0-9]+", s) if t]
 
 
-def _score_columns_vs_doctype(columns: List[str], doctype: str, kb: Dict[str, Any]) -> Tuple[float, List[str], List[str]]:
+def _score_columns_vs_doctype(columns: List[str], doctype: str, kb: Dict[str, Any]) -> tuple[float, List[str], List[str]]:
     """
     Score how well a list of file columns covers a doctype's required fields.
 

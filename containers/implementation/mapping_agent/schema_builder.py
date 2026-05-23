@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from typing import Literal
@@ -106,7 +106,7 @@ def _fallback_child_type(child_field: str):
 def _build_child_model(doctype: str, table_fieldname: str, table_cfg: Dict[str, Any]) -> Type[BaseModel]:
     child_fields_cfg = table_cfg.get("child_fields") or {}
 
-    fields: Dict[str, Tuple[Any, Any]] = {}
+    fields: Dict[str, tuple[Any, Any]] = {}
     required: set[str] = set()
 
     if child_fields_cfg:
@@ -154,7 +154,7 @@ def build_doctype_record_model(doctype: str) -> Type[BaseModel]:
     fmap = dt_cfg.get("field_mappings") or {}
 
     mandatory_fields = set(dt_cfg.get("mandatory_fields") or [])
-    fields: Dict[str, Tuple[Any, Any]] = {}
+    fields: Dict[str, tuple[Any, Any]] = {}
     table_fields: Dict[str, Dict[str, Any]] = {}
 
     # First pass: classify table vs scalar fields
@@ -263,7 +263,7 @@ async def build_extraction_wrapper_model_live(
     )
 
     # Build field dict from live schema
-    fields: Dict[str, Tuple[Any, Any]] = {}
+    fields: Dict[str, tuple[Any, Any]] = {}
     for f in live_fields:
         fname = (f.get("fieldname") or "").strip()
         if not fname or str(f.get("fieldtype") or "").strip().lower() == "table":
