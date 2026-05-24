@@ -67,7 +67,8 @@ attachments/
 scripts/
 tests/
 scratch/
-
+phase_c_result.json
+*_harness_result.json
 
 #############################
 # SYSTEM / EDITORS

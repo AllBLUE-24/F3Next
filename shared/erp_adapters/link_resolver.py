@@ -11,6 +11,30 @@ from shared.erp_adapters.base import ERPAdapter
 
 logger = logging.getLogger(__name__)
 
+# Common ERPNext warehouse abbreviations vs full names (Green Surface uses full names).
+_BASE_ALIASES: dict[str, list[str]] = {
+    "WIP": ["Work In Progress"],
+    "Work In Progress": ["WIP"],
+    "FG": ["Finished Goods"],
+    "Finished Goods": ["FG"],
+}
+
+
+def _suffix_candidates(base: str, known_names: list[str]) -> list[str]:
+    """Find ERPNext names matching base or known aliases, e.g. WIP -> Work In Progress - GS."""
+    bases = [base]
+    for alt in _BASE_ALIASES.get(base, []):
+        if alt not in bases:
+            bases.append(alt)
+    seen: set[str] = set()
+    candidates: list[str] = []
+    for b in bases:
+        for name in known_names:
+            if name.startswith(f"{b} - ") and name not in seen:
+                seen.add(name)
+                candidates.append(name)
+    return candidates
+
 
 @dataclass
 class ResolutionResult:
@@ -60,9 +84,9 @@ def resolve_single(val: str, known_names: list[str]) -> ResolutionResult:
 
     if " - " in val:
         base = val.split(" - ")[0].strip()
-        candidates = [n for n in known_names if n.startswith(f"{base} - ")]
+        candidates = _suffix_candidates(base, known_names)
     else:
-        candidates = [n for n in known_names if n.startswith(f"{val} - ")]
+        candidates = _suffix_candidates(val, known_names)
 
     if len(candidates) == 1:
         return ResolutionResult(original=val, resolved=candidates[0])
@@ -211,19 +235,19 @@ class BulkLinkResolver:
                     target_dt = effective_link_fields.get(field_name)
                     if not target_dt:
                         continue
-                    canonical = resolution_map.resolved.get(target_doctype, {}).get(field_value)
+                    canonical = resolution_map.resolved.get(target_dt, {}).get(field_value)
                     if canonical and canonical != field_value:
                         obj[field_name] = canonical
                         corrections.append({
                             "field": field_name,
-                            "target_doctype": target_doctype,
+                            "target_doctype": target_dt,
                             "original": field_value,
                             "corrected": canonical,
                         })
-                    elif field_value in resolution_map.unresolvable.get(target_doctype, []):
+                    elif field_value in resolution_map.unresolvable.get(target_dt, []):
                         unresolvable_hits.append({
                             "field": field_name,
-                            "target_doctype": target_doctype,
+                            "target_doctype": target_dt,
                             "value": field_value,
                         })
                 elif isinstance(field_value, list):
