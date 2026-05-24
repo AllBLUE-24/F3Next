@@ -181,6 +181,14 @@ async def _execute_step(
             doc_name = step_payload.get("docname") or step_payload.get("name")
             if not doc_name:
                 raise ValueError(f"Submit action requires 'docname' or 'name' field")
+
+            from shared.erp_policies.action_risk import classify_action_risk
+            risk = classify_action_risk(step_doctype, "submit", context="os")
+            if risk in ("high", "critical"):
+                activity.logger.warning(
+                    "  ⚠️  step %d: %s submit on %s (%s risk) — confirmation gate should have approved this",
+                    step_num, step_action, step_doctype, risk,
+                )
             
             data = await adapter.submit_document(step_doctype, str(doc_name))
             activity.logger.info(

@@ -410,6 +410,51 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                     )
                 )
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # NODE: execute_import_phase / preflight_import (execution gate)
+    # ══════════════════════════════════════════════════════════════════════════
+    elif inp.node_name in ("execute_import_phase", "preflight_import"):
+        preflight = (
+            (st.primary_result or {}).get("preflight", st.primary_result or {})
+            if isinstance(st.primary_result, dict)
+            else {}
+        )
+        preview = preflight.get("confirmation_preview") or {}
+        draft_parents = preflight.get("draft_parents") or []
+        warnings = preview.get("warnings") or preflight.get("blockers") or []
+        high_risk = preview.get("high_risk_doctypes") or []
+
+        if preflight.get("requires_execution_gate") or preflight.get("requires_confirmation"):
+            final_status = "needs_user_input"
+            question_parts = [preview.get("message") or "Confirm before writing to ERPNext."]
+            if draft_parents:
+                question_parts.append(
+                    f"{len(draft_parents)} draft parent document(s) may block this import."
+                )
+            if high_risk:
+                question_parts.append(
+                    f"Financial/high-risk doctypes: {', '.join(high_risk)}."
+                )
+
+            actions.append(
+                SupervisorAction(
+                    id="ask_user_confirm_import_execution",
+                    type="ask_user",
+                    scope=inp.phase or inp.node_name,
+                    question=" ".join(question_parts),
+                    options=[
+                        "Confirm and run import",
+                        "Cancel — review in ERPNext first",
+                    ],
+                    metadata={
+                        "tier": "critical" if high_risk else "important",
+                        "preflight": preflight,
+                        "warnings": warnings,
+                        "draft_parents": draft_parents,
+                    },
+                )
+            )
+
     retrieved_blocks = ", ".join(sorted([k for k, v in rag.items() if v])) or "none"
     summary = (
         f"{inp.node_name}: status={st.status}, errors={len(st.errors)}, warnings={len(st.warnings)}. "

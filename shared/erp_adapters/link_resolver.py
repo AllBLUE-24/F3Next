@@ -11,6 +11,13 @@ from shared.erp_adapters.base import ERPAdapter
 
 logger = logging.getLogger(__name__)
 
+# Doctypes where ERPNext rejects disabled in list API queries.
+_DOCTYPES_WITHOUT_DISABLED: frozenset[str] = frozenset({
+    "BOM",
+    "Item Group",
+    "UOM",
+})
+
 # Common ERPNext warehouse abbreviations vs full names (Green Surface uses full names).
 _BASE_ALIASES: dict[str, list[str]] = {
     "WIP": ["Work In Progress"],
@@ -131,11 +138,14 @@ class BulkLinkResolver:
 
             known_names: list[str] = []
             try:
-                records = await adapter.list_records(
-                    target_doctype,
-                    ["name", "disabled"],
-                    filters=[["disabled", "=", 0]],
-                )
+                if target_doctype in _DOCTYPES_WITHOUT_DISABLED:
+                    records = await adapter.list_records(target_doctype, ["name"], limit=2000)
+                else:
+                    records = await adapter.list_records(
+                        target_doctype,
+                        ["name", "disabled"],
+                        filters=[["disabled", "=", 0]],
+                    )
                 known_names = [r["name"] for r in records if r.get("name")]
             except Exception as e:
                 log.warning(

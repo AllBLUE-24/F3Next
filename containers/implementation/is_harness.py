@@ -10,7 +10,7 @@ Usage:
 Options:
     --step          Required. Name of the activity to run (see list below).
     --fixture       Path to a JSON input file. Defaults to dev_fixtures/<step>.json.
-    --phase         For execute_import_phase only: which phase to run.
+    --phase         For execute_import_phase / preflight_import: which phase to run.
                     One of: phase_a_config | phase_b_master | phase_c_transactional
     --mock-llm      Stub all LLM calls with a canned no-op response (saves tokens).
     --dry-run       Forward dry_run=True to execute_import_phase (no ERPNext writes).
@@ -43,6 +43,12 @@ Examples:
 
     # Dry-run Phase A without touching ERPNext:
     python -m containers.implementation.is_harness --step execute_import_phase --phase phase_a_config --dry-run
+
+    # Preflight Phase C (read-only — no writes):
+    python -m containers.implementation.is_harness --step preflight_import --phase phase_c_transactional
+
+    # Live Phase C after user confirmed gate (harness bypass):
+    python -m containers.implementation.is_harness --step execute_import_phase --phase phase_c_transactional --confirm-execution
 
     # Test target structure without burning Gemini tokens:
     python -m containers.implementation.is_harness --step build_target_structure --mock-llm
@@ -250,7 +256,7 @@ def _install_mock_llm() -> None:
 # The fixture is loaded and destructured into the activity's input dataclass.
 # ══════════════════════════════════════════════════════════════════════════════
 
-async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: bool) -> Any:
+async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: bool, confirm_execution: bool = False) -> Any:
     """Dispatch to the right activity function with the right input object."""
 
     # Strip metadata/comment keys (e.g. "_comment") so they don't leak into
@@ -364,6 +370,13 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
         from containers.implementation.import_agent.activities import finalize_import_plan, FinalizeImportPlanInput
         return await finalize_import_plan(FinalizeImportPlanInput(**fixture))
 
+    # ── preflight_import ──────────────────────────────────────────────────────
+    elif step == "preflight_import":
+        from containers.implementation.import_agent.activities import preflight_import, PreflightImportInput
+        if phase:
+            fixture["phase_id"] = phase
+        return await preflight_import(PreflightImportInput(**fixture))
+
     # ── execute_import_phase ──────────────────────────────────────────────────
     elif step == "execute_import_phase":
         from containers.implementation.import_agent.activities import execute_import_phase, ExecutePhaseInput
@@ -372,6 +385,9 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
             fixture["phase_id"] = phase
         if dry_run:
             fixture["dry_run"] = True
+        if confirm_execution:
+            fixture["execution_confirmed"] = True
+            fixture["skip_execution_gate"] = True
         return await execute_import_phase(ExecutePhaseInput(**fixture))
 
     else:
@@ -404,6 +420,7 @@ VALID_STEPS = [
     "validate_mapped_data",
     "build_import_plan",
     "finalize_import_plan",
+    "preflight_import",
     "execute_import_phase",
 ]
 
@@ -420,11 +437,13 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="JSON file with input data. Default: dev_fixtures/<step>.json")
     p.add_argument("--phase", default=None,
                    choices=["phase_a_config", "phase_b_master", "phase_c_transactional", "phase_d_projects"],
-                   help="(execute_import_phase only) Which phase to run.")
+                   help="(execute_import_phase / preflight_import) Which phase to run.")
     p.add_argument("--mock-llm", action="store_true",
                    help="Replace all Gemini calls with canned responses. Saves tokens during iteration.")
     p.add_argument("--dry-run", action="store_true",
                    help="(execute_import_phase) Skip actual ERPNext API writes.")
+    p.add_argument("--confirm-execution", action="store_true",
+                   help="(execute_import_phase) Bypass execution gate after preflight review.")
     p.add_argument("--output", default=None, metavar="PATH",
                    help="Write JSON result to this file instead of stdout.")
     p.add_argument("--log-level", default="INFO",
@@ -485,6 +504,7 @@ async def _main() -> None:
             fixture=fixture,
             phase=args.phase,
             dry_run=args.dry_run,
+            confirm_execution=getattr(args, "confirm_execution", False),
         )
     except Exception as exc:
         log.error("")

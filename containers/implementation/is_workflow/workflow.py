@@ -34,7 +34,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput, assign_corpus_doctypes, AssignCorpusDoctypesInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
-    from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput
+    from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput, PreflightImportInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
@@ -1354,6 +1354,103 @@ class ImplementationWorkflow:
         for phase_id, phase_label in phases:
             L.info("      ┌── %s ──┐", phase_label)
             try:
+                execution_confirmed = False
+                skip_gate = sb.dry_run or phase_id not in ("phase_c_transactional", "phase_b_master")
+
+                if not skip_gate:
+                    try:
+                        supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
+                    except Exception:
+                        supervisor_enabled = False
+
+                    preflight = await workflow.execute_activity(
+                        preflight_import,
+                        PreflightImportInput(
+                            session_id=self._session_id,
+                            phase_id=phase_id,
+                            project_id=project_id,
+                            company_slug=self._company_slug,
+                            erpnext_base_url=sb.erpnext_base_url,
+                            erpnext_api_key=sb.erpnext_api_key,
+                        ),
+                        **_ACT,
+                    )
+
+                    if preflight.get("requires_execution_gate") and supervisor_enabled:
+                        gate_env = NodeStatusEnvelope(
+                            status="needs_user_input",
+                            primary_result={"preflight": preflight},
+                            errors=[],
+                            warnings=preflight.get("confirmation_preview", {}).get("warnings", []),
+                        )
+                        sup_gate = await workflow.execute_activity(
+                            supervise_step,
+                            SuperviseStepInput(
+                                project_id=project_id,
+                                session_id=self._session_id,
+                                node_name="execute_import_phase",
+                                step="13",
+                                f3iche_id=self._f3iche_id or "",
+                                phase=phase_id,
+                                doctypes_in_focus=[
+                                    s.get("doctype", "")
+                                    for s in preflight.get("confirmation_preview", {}).get("create_steps", [])
+                                ],
+                                status=gate_env,
+                            ),
+                            **_ACT,
+                        )
+                        if sup_gate.actions:
+                            gate_prompt_id = await workflow.execute_activity(
+                                persist_supervisor_prompt,
+                                PersistSupervisorPromptInput(
+                                    session_id=self._session_id,
+                                    step="import_execution",
+                                    status="open",
+                                    node_status={
+                                        "status": gate_env.status,
+                                        "primary_result": gate_env.primary_result,
+                                    },
+                                    actions=[a.model_dump() if hasattr(a, "model_dump") else dict(a) for a in sup_gate.actions],
+                                    summary_for_ui=sup_gate.summary_for_ui,
+                                ),
+                                **_ACT,
+                            )
+                            self._supervisor_response_event.clear()
+                            L.info("  ⏳ Waiting for import execution confirmation ...")
+                            await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
+                            ssig = self._sig_supervisor
+                            selected_option = str((ssig.extra_data or {}).get("selected_option", "")) if ssig else ""
+                            if ssig:
+                                await workflow.execute_activity(
+                                    mark_supervisor_prompt_answered,
+                                    MarkSupervisorPromptAnsweredInput(
+                                        prompt_id=str(gate_prompt_id),
+                                        answer_payload={
+                                            "chosen_action_id": ssig.chosen_action_id,
+                                            "extra_data": ssig.extra_data,
+                                        },
+                                        status="answered",
+                                    ),
+                                    **_ACT,
+                                )
+                            confirm_ids = ("ask_user_confirm_import_execution",)
+                            confirm_options = ("Confirm and run import", "confirm", "yes", "continue")
+                            if (
+                                ssig
+                                and (
+                                    ssig.chosen_action_id in confirm_ids
+                                    or selected_option in confirm_options
+                                )
+                            ):
+                                execution_confirmed = True
+                            else:
+                                raise ApplicationError(
+                                    f"Import phase {phase_label} cancelled by user at execution gate"
+                                )
+                    elif preflight.get("requires_execution_gate"):
+                        execution_confirmed = True
+
                 result = await workflow.execute_activity(
                     execute_import_phase,
                     ExecutePhaseInput(
@@ -1364,9 +1461,15 @@ class ImplementationWorkflow:
                         dry_run=sb.dry_run,
                         erpnext_base_url=sb.erpnext_base_url,
                         erpnext_api_key=sb.erpnext_api_key,
+                        execution_confirmed=execution_confirmed,
+                        skip_execution_gate=skip_gate or execution_confirmed,
                     ),
                     **_LONG,
                 )
+                if isinstance(result, dict) and result.get("status") == "awaiting_confirmation":
+                    raise ApplicationError(
+                        f"Import phase {phase_label} blocked at execution gate — enable supervisor or use harness --confirm-execution"
+                    )
                 L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)

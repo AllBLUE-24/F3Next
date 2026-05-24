@@ -422,6 +422,111 @@ async def _bulk_pre_resolve_phase_rows(
     return pre_resolved_cache, step_summaries
 
 
+async def _submit_after_create_if_needed(
+    adapter,
+    doctype: str,
+    create_result: dict,
+    auto_submit_override: Optional[bool],
+    logger,
+) -> Optional[dict]:
+    """Pass 2.6: submit document after create when lifecycle policy allows."""
+    from shared.erp_policies.lifecycle import get_lifecycle_config, should_auto_submit_on_import
+
+    if not isinstance(create_result, dict):
+        return None
+    doc_name = create_result.get("name")
+    if not doc_name:
+        return None
+
+    cfg = get_lifecycle_config(doctype)
+    if not cfg.get("is_submittable"):
+        return None
+
+    docstatus = create_result.get("docstatus", 0)
+    if docstatus == 1:
+        return {"doctype": doctype, "name": doc_name, "action": "already_submitted"}
+
+    policy = cfg.get("auto_submit_on_import", "skip")
+    if auto_submit_override is False:
+        return None
+    if not should_auto_submit_on_import(doctype, override=auto_submit_override):
+        if policy == "ask_user":
+            logger.info(
+                "  Pass 2.6: %s '%s' left as draft (auto_submit=ask_user)",
+                doctype,
+                doc_name,
+            )
+        return None
+
+    try:
+        submitted = await adapter.submit_document(doctype, str(doc_name))
+        logger.info("  Pass 2.6: submitted %s '%s'", doctype, doc_name)
+        return {
+            "doctype": doctype,
+            "name": doc_name,
+            "action": "submitted",
+            "docstatus": submitted.get("docstatus", 1),
+        }
+    except Exception as exc:
+        logger.warning("  Pass 2.6: submit failed for %s '%s': %s", doctype, doc_name, exc)
+        return {
+            "doctype": doctype,
+            "name": doc_name,
+            "action": "submit_failed",
+            "error": str(exc),
+        }
+
+
+async def _resolve_erp_adapter(inp, logger):
+    """Build ERPNext adapter from input + Project.deployment_details."""
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.core import Project
+    from shared.erp_adapters.registry import get_adapter
+    from sqlalchemy import select
+
+    base_url = (getattr(inp, "erpnext_base_url", None) or "").rstrip("/")
+    api_token = getattr(inp, "erpnext_api_key", None) or ""
+    verify_ssl = True
+    allow_insecure_ssl = True
+    project_id = getattr(inp, "project_id", None)
+
+    if project_id:
+        try:
+            async with AsyncSessionLocal() as db:
+                stmt = select(Project).where(Project.id == uuid.UUID(project_id))
+                res = await db.execute(stmt)
+                project = res.scalar_one_or_none()
+                if project and project.deployment_details:
+                    details = project.deployment_details
+                    if not base_url:
+                        base_url = (details.get("site_url", "") or "").rstrip("/")
+                        logger.info("  🔑 Auto-resolved base_url from Project.deployment_details: %s", base_url)
+                    if not api_token:
+                        dk = details.get("api_key", "")
+                        ds = details.get("api_secret", "")
+                        if dk and ds:
+                            api_token = f"{dk}:{ds}"
+                            logger.info("  🔑 Auto-resolved API credentials from Project.deployment_details")
+                    v_ssl = details.get("verify_ssl")
+                    if v_ssl is not None:
+                        verify_ssl = str(v_ssl).lower() not in ("false", "0", "no")
+                    a_ssl = details.get("allow_insecure_ssl")
+                    if a_ssl is not None:
+                        allow_insecure_ssl = str(a_ssl).lower() not in ("false", "0", "no")
+        except Exception as e:
+            logger.error("  ❌ Failed to auto-resolve credentials from Project: %s", e)
+
+    adapter_profile = {
+        "erp_type": "erpnext",
+        "erp_url": base_url,
+        "api_key": api_token.split(":")[0] if ":" in api_token else "",
+        "api_secret": api_token.split(":")[1] if ":" in api_token else "",
+        "verify_ssl": verify_ssl,
+        "allow_insecure_ssl": allow_insecure_ssl,
+    }
+    return base_url, get_adapter(adapter_profile)
+
+
 # ── Embedded service logic ────────────────────────────────────────────────────
 
 class _ImportEngine:
@@ -548,6 +653,19 @@ class ExecutePhaseInput:
     project_id: str
     company_slug: str = "unknown"
     dry_run: bool = False  # Default to live execution — safety is via double-confirm signals
+    erpnext_base_url: Optional[str] = None
+    erpnext_api_key: Optional[str] = None
+    auto_submit: Optional[bool] = None  # None = follow KB lifecycle policy
+    execution_confirmed: bool = False   # True when user approved execution gate
+    skip_execution_gate: bool = False   # Harness/dev bypass for execution gate
+
+
+@dataclass
+class PreflightImportInput:
+    session_id: str
+    phase_id: str
+    project_id: str
+    company_slug: str = "unknown"
     erpnext_base_url: Optional[str] = None
     erpnext_api_key: Optional[str] = None
 
@@ -885,6 +1003,68 @@ async def get_import_plan_phases(inp: GetImportPlanPhasesInput) -> List[tuple[st
     return phase_list
 
 
+@activity.defn(name="preflight_import")
+async def preflight_import(inp: PreflightImportInput) -> Dict[str, Any]:
+    """
+    Read-only preflight for an import phase: link resolution dry-run,
+    draft parent scan, financial warnings, execution gate preview.
+    """
+    activity.logger.info(
+        "▶ preflight_import started | session=%s phase=%s",
+        inp.session_id,
+        inp.phase_id,
+    )
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISImportPlan
+    from sqlalchemy import select
+    from containers.implementation.import_agent.preflight import run_import_preflight
+
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(ISImportPlan)
+            .where(ISImportPlan.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISImportPlan.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        import_plan = result.scalar_one_or_none()
+
+    if not import_plan:
+        return {"status": "error", "error": "Import plan not found."}
+
+    phases = import_plan.phases or {}
+    phase_def = phases.get(inp.phase_id)
+    if not phase_def:
+        return {"status": "error", "error": f"Phase {inp.phase_id} not in plan."}
+
+    steps = phase_def.get("steps", [])
+    base_url, adapter = await _resolve_erp_adapter(inp, activity.logger)
+    s3 = _get_s3_client()
+
+    if not base_url:
+        return {
+            "status": "error",
+            "error": "ERPNext base URL not configured.",
+            "phase_id": inp.phase_id,
+        }
+
+    report = await run_import_preflight(
+        phase_id=inp.phase_id,
+        steps=steps,
+        s3=s3,
+        adapter=adapter,
+        known_link_fields=_KNOWN_LINK_FIELDS,
+        log=activity.logger,
+    )
+    activity.logger.info(
+        "✅ preflight_import done | phase=%s requires_gate=%s",
+        inp.phase_id,
+        report.get("requires_execution_gate"),
+    )
+    return report
+
+
 @activity.defn(name="execute_import_phase")
 async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     """
@@ -918,6 +1098,39 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
 
     steps = phase_def.get("steps", [])
 
+    s3 = _get_s3_client()
+    base_url, adapter = await _resolve_erp_adapter(inp, activity.logger)
+
+    # ── EXECUTION GATE (Phase B/C live writes) ─────────────────────────────
+    if (
+        not inp.dry_run
+        and base_url
+        and not inp.execution_confirmed
+        and not inp.skip_execution_gate
+        and inp.phase_id in ("phase_c_transactional", "phase_b_master")
+    ):
+        from containers.implementation.import_agent.preflight import run_import_preflight
+
+        preflight = await run_import_preflight(
+            phase_id=inp.phase_id,
+            steps=steps,
+            s3=s3,
+            adapter=adapter,
+            known_link_fields=_KNOWN_LINK_FIELDS,
+            log=activity.logger,
+        )
+        if preflight.get("requires_execution_gate"):
+            activity.logger.warning(
+                "  ⛔ EXECUTION GATE: confirmation required before %s",
+                inp.phase_id,
+            )
+            return {
+                "phase": inp.phase_id,
+                "status": "awaiting_confirmation",
+                "preflight": preflight,
+                "message": preflight.get("confirmation_preview", {}).get("message"),
+            }
+
     # Update plan status
     async with AsyncSessionLocal() as session:
         await session.execute(
@@ -928,72 +1141,12 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
         await session.commit()
 
     # ── 2. Execute Steps ─────────────────────────────────────────────────────
-    s3 = _get_s3_client()
     slug = inp.company_slug or "unknown"
     
     execution_logs = []
     total_records_created = 0
     steps_completed = 0
     steps_failed = 0
-
-    # Ensure clean Base URL — auto-resolve from Project.deployment_details if not provided
-    base_url = (inp.erpnext_base_url or "").rstrip("/")
-    api_token = inp.erpnext_api_key or ""
-    verify_ssl = True
-    allow_insecure_ssl = True
-
-    # ── AUTO-RESOLVE: Fetch credentials from Project.deployment_details if missing ──
-    if inp.project_id:
-        try:
-            from shared.models.core import Project
-            async with AsyncSessionLocal() as db:
-                stmt = select(Project).where(Project.id == uuid.UUID(inp.project_id))
-                res = await db.execute(stmt)
-                project = res.scalar_one_or_none()
-                if project and project.deployment_details:
-                    details = project.deployment_details
-                    if not base_url:
-                        base_url = (details.get("site_url", "") or "").rstrip("/")
-                        activity.logger.info("  🔑 Auto-resolved base_url from Project.deployment_details: %s", base_url)
-                    if not api_token:
-                        dk = details.get("api_key", "")
-                        ds = details.get("api_secret", "")
-                        if dk and ds:
-                            api_token = f"{dk}:{ds}"
-                            activity.logger.info("  🔑 Auto-resolved API credentials from Project.deployment_details")
-                        else:
-                            activity.logger.warning("  ⚠️ Project.deployment_details has no api_key/api_secret")
-                            
-                    v_ssl = details.get("verify_ssl")
-                    if v_ssl is not None:
-                        verify_ssl = str(v_ssl).lower() not in ("false", "0", "no")
-                    a_ssl = details.get("allow_insecure_ssl")
-                    if a_ssl is not None:
-                        allow_insecure_ssl = str(a_ssl).lower() not in ("false", "0", "no")
-                else:
-                    activity.logger.warning("  ⚠️ No Project or deployment_details found for project_id=%s", inp.project_id)
-        except Exception as e:
-            activity.logger.error("  ❌ Failed to auto-resolve credentials from Project: %s", e)
-
-    headers = {
-        "Authorization": f"token {api_token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    } if api_token else {}
-
-    # Build ERPAdapter for all ERP operations
-    from shared.erp_adapters.registry import get_adapter
-    
-    adapter_profile = {
-        "erp_type":           "erpnext",
-        "erp_url":            base_url,
-        "api_key":            api_token.split(":")[0] if ":" in api_token else "",
-        "api_secret":         api_token.split(":")[1] if ":" in api_token else "",
-        "verify_ssl":         verify_ssl,
-        "allow_insecure_ssl": allow_insecure_ssl,
-    }
-    
-    adapter = get_adapter(adapter_profile)
 
     # ── PRE-FLIGHT SEEDER ─────────────────────────────────────────────────
     # Runs BEFORE the main import loop.
@@ -1236,6 +1389,7 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             continue
 
         resolution_summary = _step_resolution_summaries.get(r2_key, {}) if r2_key else {}
+        submit_summary: List[dict] = []
 
         records_attempted = len(rows)
         records_succeeded = 0
@@ -1249,8 +1403,10 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             steps_completed += 1
             status = "success"
             erpnext_responses = ["DRY_RUN_MOCK_SUCCESS"] * records_succeeded
+            submit_summary = []
         else:
             # 🚀 LIVE IMPORT: Row-by-Row via ERPAdapter
+            submit_summary = []
             for row_idx, row in enumerate(rows):
                 # ── Runtime normalization: fix known invalid Select values ──
                 row = dict(row)  # shallow copy — don't mutate original
@@ -1268,12 +1424,28 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                     records_succeeded += 1
                     erpnext_responses.append(data)
 
+                    submit_entry = await _submit_after_create_if_needed(
+                        adapter,
+                        dt,
+                        data if isinstance(data, dict) else {},
+                        inp.auto_submit,
+                        activity.logger,
+                    )
+                    if submit_entry:
+                        submit_summary.append(submit_entry)
+
                 except ValueError as exc:
                     # Adapter raises ValueError for 4xx errors (including duplicates)
                     err_msg = str(exc)
                     if "already exist" in err_msg.lower() or "duplicate" in err_msg.lower():
                         records_succeeded += 1
-                        erpnext_responses.append({"_status": "already_exists"})
+                        existing = {"_status": "already_exists"}
+                        erpnext_responses.append(existing)
+                        submit_entry = await _submit_after_create_if_needed(
+                            adapter, dt, existing, inp.auto_submit, activity.logger,
+                        )
+                        if submit_entry:
+                            submit_summary.append(submit_entry)
                     else:
                         records_failed += 1
                         error_details.append({"row_index": row_idx, "error": err_msg})
@@ -1304,6 +1476,10 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             "records_failed": records_failed,
             "duration_seconds": int(duration_sec),
             "resolution_summary": resolution_summary,
+            "submit_summary": {
+                "submitted_count": sum(1 for s in submit_summary if s.get("action") == "submitted"),
+                "actions": submit_summary,
+            },
         }
         execution_logs.append(log_entry)
 

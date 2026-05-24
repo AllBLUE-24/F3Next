@@ -43,7 +43,7 @@ from containers.implementation.target_agent.activities     import build_target_s
 from containers.implementation.data_readiness_agent.activities import assess_data_readiness
 from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, infer_doctype_from_columns, refine_mapping_with_llm
 from containers.implementation.validation_agent.activities import validate_mapped_data
-from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan
+from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import
 from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
 from containers.implementation.supervisor_agent.activities import supervise_step, apply_supervisor_actions
 from containers.implementation.derive_agent.activities import derive_required_records
@@ -103,6 +103,7 @@ async def main() -> None:
                         # import_agent
                         build_import_plan,
                         finalize_import_plan,
+                        preflight_import,
                         execute_import_phase,
                         get_import_plan_phases,
                         # virus_scan_agent

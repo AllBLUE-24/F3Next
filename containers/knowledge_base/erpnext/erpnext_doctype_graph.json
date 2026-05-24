@@ -361,7 +361,13 @@
         "BOM for finished good but not for sub-assemblies (multi-layer only)",
         "Scrap/waste percentage not defined"
       ],
-      "notes": "If company has NO BOM file — they do not know their material costs. Must be built from scratch via discovery questions. This is the most common critical gap in manufacturing SMEs."
+      "notes": "If company has NO BOM file — they do not know their material costs. Must be built from scratch via discovery questions. This is the most common critical gap in manufacturing SMEs.",
+      "lifecycle": {
+        "is_submittable": true,
+        "auto_submit_on_import": "auto",
+        "children_requiring_submitted": ["Work Order"],
+        "import_risk_tier": "medium"
+      }
     },
 
     "Purchase Order": {
@@ -466,7 +472,12 @@
       "key_settings": ["Manufacturing Settings → default_wip_warehouse", "Manufacturing Settings → default_fg_warehouse"],
       "signal_in_files": ["production order files", "batch production sheets", "job number columns", "work order number columns"],
       "sme_relevance": "conditional — manufacturers only",
-      "notes": "For make-to-stock: Work Order is standalone. For make-to-order / job shop: Work Order is linked to Sales Order. If no BOM exists, Work Order cannot be created."
+      "notes": "For make-to-stock: Work Order is standalone. For make-to-order / job shop: Work Order is linked to Sales Order. If no BOM exists, Work Order cannot be created.",
+      "lifecycle": {
+        "is_submittable": true,
+        "auto_submit_on_import": "skip",
+        "import_risk_tier": "medium"
+      }
     },
 
     "Job Card": {
