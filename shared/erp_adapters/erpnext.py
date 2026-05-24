@@ -31,6 +31,8 @@ class ERPNextAdapter(ERPAdapter):
         self._master_cb = AsyncCircuitBreaker("erpnext_master", 5, 60.0)
         self._txn_cb = AsyncCircuitBreaker("erpnext_txn", 5, 60.0)
         self._crud_cb = AsyncCircuitBreaker("erpnext_crud", 5, 60.0)
+        self._schema_cache: dict[str, list[dict]] = {}
+        self._link_names_cache: dict[str, list[str]] = {}
 
     # ── Internal Helpers ──────────────────────────────────────────────────────
     
@@ -778,60 +780,107 @@ class ERPNextAdapter(ERPAdapter):
         )
         return fields
 
-    async def _resolve_link_references(self, doctype: str, data: dict[str, Any]) -> dict[str, Any]:
+    async def _get_cached_doctype_schema(
+        self,
+        doctype: str,
+        schema_cache: Optional[dict[str, list[dict]]] = None,
+    ) -> list[dict]:
+        cache = schema_cache if schema_cache is not None else self._schema_cache
+        if doctype in cache:
+            return cache[doctype]
+        schema_fields = await self.get_doctype_schema(doctype)
+        cache[doctype] = schema_fields
+        return schema_fields
+
+    async def _get_cached_link_names(self, target_doctype: str) -> list[str]:
+        if target_doctype in self._link_names_cache:
+            return self._link_names_cache[target_doctype]
+
+        try:
+            records = await self.list_records(
+                target_doctype,
+                ["name", "disabled"],
+                filters=[["disabled", "=", 0]],
+            )
+        except Exception:
+            records = await self.list_records(target_doctype, ["name"], limit=2000)
+
+        known_names = [r["name"] for r in records if r.get("name")]
+        self._link_names_cache[target_doctype] = known_names
+        return known_names
+
+    async def _resolve_link_references(
+        self,
+        doctype: str,
+        data: dict[str, Any],
+        schema_cache: Optional[dict[str, list[dict]]] = None,
+    ) -> dict[str, Any]:
         """
-        Inspects the DocType schema for any Link fields. If a referenced value
-        does not exist exactly, it dynamically queries the target doctype to see
-        if a company-abbreviated suffix (like 'Main - GS') exists, or if a base
-        value match (like 'WIP - Factory' -> 'WIP - GS') exists, and updates the reference.
+        Inspects the DocType schema for Link fields (including child tables).
+        Resolves mismatched names via suffix/base-name matching against live ERP data.
         """
+        from shared.erp_adapters.link_resolver import resolve_single
+
         if doctype == "DocType":
             return data
 
         try:
-            schema_fields = await self.get_doctype_schema(doctype)
-            link_fields = {f["fieldname"]: f["options"] for f in schema_fields if f.get("fieldtype") == "Link" and f.get("options")}
-            
+            schema_fields = await self._get_cached_doctype_schema(doctype, schema_cache)
+            link_fields = {
+                f["fieldname"]: f["options"]
+                for f in schema_fields
+                if f.get("fieldtype") == "Link" and f.get("options")
+            }
+            table_fields = {
+                f["fieldname"]: f["options"]
+                for f in schema_fields
+                if f.get("fieldtype") == "Table" and f.get("options")
+            }
+
             for fieldname, target_dt in link_fields.items():
                 val = data.get(fieldname)
                 if not val or not isinstance(val, str):
                     continue
-                
-                # 1. Check if it already exists exactly as is
-                exists = await self.list_records(target_dt, ["name"], filters=[["name", "=", val]], limit=1)
-                if exists:
-                    continue
-                
-                # 2. Check if a suffix match exists (e.g. 'Main' -> 'Main - GS')
-                suffix_match = await self.list_records(
-                    target_dt,
-                    ["name"],
-                    filters=[["name", "like", f"{val} - %"]],
-                    limit=1
-                )
-                if suffix_match and suffix_match[0].get("name"):
-                    matched_name = suffix_match[0]["name"]
-                    logger.info("Dynamically resolved link reference for %s.%s: '%s' -> '%s'", doctype, fieldname, val, matched_name)
-                    data[fieldname] = matched_name
+
+                known_names = await self._get_cached_link_names(target_dt)
+                if val in known_names:
                     continue
 
-                # 3. Check if base name splits match (e.g. 'WIP - Factory' -> 'WIP - GS')
-                if " - " in val:
-                    base_val = val.split(" - ")[0].strip()
-                    base_match = await self.list_records(
-                        target_dt,
-                        ["name"],
-                        filters=[["name", "like", f"{base_val} - %"]],
-                        limit=1
-                    )
-                    if base_match and base_match[0].get("name"):
-                        matched_name = base_match[0]["name"]
-                        logger.info("Dynamically resolved base link reference for %s.%s: '%s' -> '%s'", doctype, fieldname, val, matched_name)
-                        data[fieldname] = matched_name
-                        continue
+                res = resolve_single(val, known_names)
+                if res.resolved and res.resolved != val:
+                    if res.ambiguous:
+                        logger.warning(
+                            "Ambiguous link reference for %s.%s: '%s' -> picked '%s' from %s",
+                            doctype,
+                            fieldname,
+                            val,
+                            res.resolved,
+                            res.ambiguous_candidates,
+                        )
+                    else:
+                        logger.info(
+                            "Dynamically resolved link reference for %s.%s: '%s' -> '%s'",
+                            doctype,
+                            fieldname,
+                            val,
+                            res.resolved,
+                        )
+                    data[fieldname] = res.resolved
+
+            for fieldname, child_doctype in table_fields.items():
+                child_rows = data.get(fieldname)
+                if not isinstance(child_rows, list):
+                    continue
+                for idx, child_row in enumerate(child_rows):
+                    if isinstance(child_row, dict):
+                        data[fieldname][idx] = await self._resolve_link_references(
+                            child_doctype,
+                            child_row,
+                            schema_cache,
+                        )
         except Exception as e:
-            logger.debug("Failed to resolve link references for %s: %s", doctype, e)
-            
+            logger.warning("Failed to resolve link references for %s: %s", doctype, e)
+
         return data
 
     async def seed_from_config(self, doctype: str, project_details: dict[str, Any]) -> None:

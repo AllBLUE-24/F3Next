@@ -334,6 +334,94 @@ async def _dynamic_seed_doctype(
     return {"seeded": seeded, "already": already, "failed": failed}
 
 
+async def _bulk_pre_resolve_phase_rows(
+    steps: List[Dict],
+    s3,
+    adapter,
+    known_link_fields: Dict[str, str],
+    logger,
+) -> tuple[Dict[str, List[Dict]], Dict[str, Dict[str, Any]]]:
+    """
+    Pass 2.5: bulk pre-resolve link fields for all create-action steps in a phase.
+
+    Returns:
+        pre_resolved_cache: {r2_key: [rewritten rows]}
+        step_summaries: {r2_key: resolution_summary}
+    """
+    from shared.erp_adapters.link_resolver import BulkLinkResolver
+
+    pre_resolved_cache: Dict[str, List[Dict]] = {}
+    step_summaries: Dict[str, Dict[str, Any]] = {}
+    all_link_targets: Dict[str, set] = {}
+    step_payloads: List[tuple] = []
+
+    for step in steps:
+        if step.get("action") != "create":
+            continue
+        r2_key = step.get("data_source")
+        if not r2_key or r2_key in ("none", "pending_mapping"):
+            continue
+        try:
+            resp = s3.get_object(Bucket="clean-data", Key=r2_key)
+            payload = json.loads(resp["Body"].read().decode("utf-8"))
+            rows = payload.get("records", [])
+        except Exception as e:
+            logger.warning("  Pass 2.5: could not read R2 key %s: %s", r2_key, e)
+            continue
+
+        payload_link_fields: Dict[str, str] = payload.get("link_fields", {})
+        effective_link_fields: Dict[str, str] = {**known_link_fields, **payload_link_fields}
+        targets = BulkLinkResolver.collect_link_targets_from_rows(rows, effective_link_fields)
+        for target_dt, vals in targets.items():
+            all_link_targets.setdefault(target_dt, set()).update(vals)
+        step_payloads.append((r2_key, step.get("doctype", ""), rows, effective_link_fields))
+
+    if not all_link_targets:
+        logger.info("  Pass 2.5 — No link targets to resolve")
+        return pre_resolved_cache, step_summaries
+
+    logger.info(
+        "  Pass 2.5 — Bulk resolving %d doctype(s): %s",
+        len(all_link_targets),
+        ", ".join(sorted(all_link_targets.keys())),
+    )
+
+    resolution_map = await BulkLinkResolver.build_resolution_map(
+        adapter,
+        all_link_targets,
+        logger,
+    )
+
+    for r2_key, step_dt, rows, effective_link_fields in step_payloads:
+        rewritten, summary = BulkLinkResolver.apply_resolution_map_to_rows(
+            rows,
+            effective_link_fields,
+            resolution_map,
+        )
+        pre_resolved_cache[r2_key] = rewritten
+        summary["doctype"] = step_dt
+        step_summaries[r2_key] = summary
+
+        for hit in summary.get("unresolvable_values", []):
+            logger.warning(
+                "  Pass 2.5: unresolvable %s.%s = '%s' (target %s)",
+                step_dt,
+                hit.get("field"),
+                hit.get("value"),
+                hit.get("target_doctype"),
+            )
+        for corr in summary.get("corrections", []):
+            logger.info(
+                "  Pass 2.5: resolved %s.%s '%s' -> '%s'",
+                step_dt,
+                corr.get("field"),
+                corr.get("original"),
+                corr.get("corrected"),
+            )
+
+    return pre_resolved_cache, step_summaries
+
+
 # ── Embedded service logic ────────────────────────────────────────────────────
 
 class _ImportEngine:
@@ -1082,6 +1170,22 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     activity.logger.info("")
     # ── END PASS 2 ────────────────────────────────────────────────────────
 
+    # ── PASS 2.5: Bulk link pre-resolution ────────────────────────────────
+    _pre_resolved_cache: Dict[str, List[Dict]] = {}
+    _step_resolution_summaries: Dict[str, Dict[str, Any]] = {}
+
+    if not inp.dry_run and base_url:
+        activity.logger.info("  🔗  PASS 2.5 — Bulk link pre-resolution")
+        _pre_resolved_cache, _step_resolution_summaries = await _bulk_pre_resolve_phase_rows(
+            steps,
+            s3,
+            adapter,
+            _KNOWN_LINK_FIELDS,
+            activity.logger,
+        )
+        activity.logger.info("")
+    # ── END PASS 2.5 ─────────────────────────────────────────────────────
+
     for step_idx, step in enumerate(steps):
         dt = step.get("doctype", "")
         action = step.get("action", "")
@@ -1117,17 +1221,21 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                     activity.logger.error("  ❌ Failed to execute seed_from_config for %s: %s", dt, e)
             continue
 
-        # Download payload from R2
+        # Download payload from R2 (prefer Pass 2.5 pre-resolved cache)
         rows = []
+        r2_key = step.get("data_source")
         try:
-            # data_source contains the R2 path we mapped in build_plan
-            r2_key = step.get("data_source")
-            response = s3.get_object(Bucket="clean-data", Key=r2_key)
-            payload = json.loads(response["Body"].read().decode("utf-8"))
-            rows = payload.get("records", [])
-        except Exception as e:
+            if r2_key and r2_key in _pre_resolved_cache:
+                rows = [dict(r) for r in _pre_resolved_cache[r2_key]]
+            else:
+                response = s3.get_object(Bucket="clean-data", Key=r2_key)
+                payload = json.loads(response["Body"].read().decode("utf-8"))
+                rows = payload.get("records", [])
+        except Exception:
             activity.logger.warning("  No R2 data found for %s — skipping", dt)
             continue
+
+        resolution_summary = _step_resolution_summaries.get(r2_key, {}) if r2_key else {}
 
         records_attempted = len(rows)
         records_succeeded = 0
@@ -1194,7 +1302,8 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             "records_attempted": records_attempted,
             "records_succeeded": records_succeeded,
             "records_failed": records_failed,
-            "duration_seconds": int(duration_sec)
+            "duration_seconds": int(duration_sec),
+            "resolution_summary": resolution_summary,
         }
         execution_logs.append(log_entry)
 
