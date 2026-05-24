@@ -177,18 +177,18 @@ services:
       - 1.1.1.1
 
 ### isko hatana mangta mama - ye run ich nahi karta
-  knowledge_base_seeder:
-    build:
-      context: .
-      dockerfile: containers/knowledge_base/Dockerfile
-    container_name: f3_kb_seeder
-    env_file:
-      - .env
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_HOST=temporal:7233
-    # No restart policy here so it only runs once per deployment to seed the DB
+ # knowledge_base_seeder:
+ #   build:
+ #     context: .
+ #     dockerfile: containers/knowledge_base/Dockerfile
+ #   container_name: f3_kb_seeder
+ #   env_file:
+ #     - .env
+ #   depends_on:
+ #     - temporal
+ #   environment:
+ #     - TEMPORAL_HOST=temporal:7233
+ #   # No restart policy here so it only runs once per deployment to seed the DB
 
     # 5. Application Servers (Backend API & Frontend Web)
   backend_api:

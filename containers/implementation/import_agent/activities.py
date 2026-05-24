@@ -96,6 +96,20 @@ def _build_baseline_record(doctype: str, value: str) -> Dict[str, Any]:
             }],
         }
 
+    # ── Special-case: Fiscal Year needs start and end dates
+    if doctype == "Fiscal Year":
+        if value == "2026-2027":
+            return {
+                "year": value,
+                "year_start_date": "2026-04-01",
+                "year_end_date": "2027-03-31",
+            }
+        return {
+            "year": value,
+            "year_start_date": f"{value}-01-01",
+            "year_end_date": f"{value}-12-31",
+        }
+
     name_field = _DT_NAME_FIELD.get(doctype)
     if name_field:
         return {name_field: value}
@@ -343,7 +357,7 @@ class _ImportEngine:
             "Cost Center":         "auto_from_company",
             "Fiscal Year":         "seed_from_config",
             "Currency":            "seed_from_baseline",
-            "Warehouse":           "auto_from_company",
+            "Warehouse":           "seed_from_config",
         }
 
         # ── PROTOCOL-COMPLIANT: Phases are derived from setup_steps data. ────────────
@@ -967,6 +981,8 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     # Payment Terms Template that require structured child-table records.
     if not inp.dry_run and base_url:
         for _supp_dt, _supp_vals in _baseline_data.items():
+            if _supp_dt in ("Cost Center", "Warehouse", "Account", "Company"):
+                continue  # Structural/auto-provisioned doctypes must never be manually seeded
             if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
                 seeded, already, failed = 0, 0, 0
                 for _sv in _supp_vals:
@@ -1077,6 +1093,28 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                 activity.logger.warning(
                     "  ⚠️  DATA GAP: %s has no mapped data file and no baseline — skipping", dt
                 )
+            continue
+
+        if action == "seed_from_config":
+            project_details = {}
+            if inp.project_id:
+                try:
+                    from shared.models.core import Project
+                    async with AsyncSessionLocal() as db:
+                        stmt = select(Project).where(Project.id == uuid.UUID(inp.project_id))
+                        res = await db.execute(stmt)
+                        project = res.scalar_one_or_none()
+                        if project and project.deployment_details:
+                            project_details = project.deployment_details
+                except Exception as e:
+                    activity.logger.warning("  ⚠️ Failed to read project details: %s", e)
+
+            if not inp.dry_run and base_url:
+                try:
+                    await adapter.seed_from_config(dt, project_details)
+                    activity.logger.info("  🌱  Executed seed_from_config for %s successfully", dt)
+                except Exception as e:
+                    activity.logger.error("  ❌ Failed to execute seed_from_config for %s: %s", dt, e)
             continue
 
         # Download payload from R2

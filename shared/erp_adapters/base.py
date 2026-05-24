@@ -154,6 +154,10 @@ class ERPAdapter(ABC):
         """Hook for ERP-specific naming; default passthrough."""
         return field
 
+    async def seed_from_config(self, doctype: str, project_details: dict[str, Any]) -> None:
+        """Hook for seeding/initializing configuration doctypes from project settings."""
+        pass
+
     async def get_doctype_schema(
         self,
         doctype: str,

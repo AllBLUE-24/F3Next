@@ -436,9 +436,59 @@ class ERPNextAdapter(ERPAdapter):
     ) -> dict[str, Any]:
         """Create a new document via POST /api/resource/{Doctype}."""
         async def _run():
+            # 1. Resolve link references dynamically (e.g. Main -> Main - GS)
+            resolved_data = await self._resolve_link_references(doctype, data)
+
+            # 2. Check if the record already exists first to avoid duplicate inserts
+            name_val = resolved_data.get("name")
+            if not name_val:
+                _DT_NAME_FIELD = {
+                    "UOM":                      "uom_name",
+                    "Item Group":               "item_group_name",
+                    "Customer Group":           "customer_group_name",
+                    "Supplier Group":           "supplier_group_name",
+                    "Territory":                "territory_name",
+                    "Price List":               "price_list_name",
+                    "Currency":                 "currency_name",
+                    "Country":                  "country_name",
+                    "Department":               "department_name",
+                    "Designation":              "designation_name",
+                    "Sales Stage":              "stage_name",
+                    "Lead Source":              "source_name",
+                    "Incoterm":                 "incoterm",
+                    "Industry Type":            "industry",
+                    "Item Attribute":           "attribute_name",
+                    "Fiscal Year":              "year",
+                    "Sales Person":             "sales_person_name",
+                    "Payment Terms Template":   "template_name",
+                    "Mode of Payment":          "mode_of_payment",
+                    "Warehouse Type":           "warehouse_type_name",
+                }
+                name_field = _DT_NAME_FIELD.get(doctype)
+                if not name_field:
+                    try:
+                        schema = await self.get_doctype_schema(doctype)
+                        for f in schema:
+                            if f.get("reqd") == 1 and f.get("fieldtype") in ("Data", "Link"):
+                                name_field = f["fieldname"]
+                                break
+                    except Exception:
+                        pass
+                if name_field:
+                    name_val = resolved_data.get(name_field)
+
+            if name_val:
+                try:
+                    exists = await self.list_records(doctype, ["name"], filters=[["name", "=", name_val]], limit=1)
+                    if exists:
+                        logger.info("Record %s '%s' already exists — skipping creation", doctype, name_val)
+                        return exists[0]
+                except Exception:
+                    pass
+
             url = self._resource_url(doctype)
             logger.debug("ERPNextAdapter.create_record: %s", doctype)
-            return await self._http_call("POST", url, json_data=data)
+            return await self._http_call("POST", url, json_data=resolved_data)
         
         return await self._crud_cb.call(_run)
 
@@ -727,3 +777,130 @@ class ERPNextAdapter(ERPAdapter):
             doctype, len(fields),
         )
         return fields
+
+    async def _resolve_link_references(self, doctype: str, data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Inspects the DocType schema for any Link fields. If a referenced value
+        does not exist exactly, it dynamically queries the target doctype to see
+        if a company-abbreviated suffix (like 'Main - GS') exists, or if a base
+        value match (like 'WIP - Factory' -> 'WIP - GS') exists, and updates the reference.
+        """
+        if doctype == "DocType":
+            return data
+
+        try:
+            schema_fields = await self.get_doctype_schema(doctype)
+            link_fields = {f["fieldname"]: f["options"] for f in schema_fields if f.get("fieldtype") == "Link" and f.get("options")}
+            
+            for fieldname, target_dt in link_fields.items():
+                val = data.get(fieldname)
+                if not val or not isinstance(val, str):
+                    continue
+                
+                # 1. Check if it already exists exactly as is
+                exists = await self.list_records(target_dt, ["name"], filters=[["name", "=", val]], limit=1)
+                if exists:
+                    continue
+                
+                # 2. Check if a suffix match exists (e.g. 'Main' -> 'Main - GS')
+                suffix_match = await self.list_records(
+                    target_dt,
+                    ["name"],
+                    filters=[["name", "like", f"{val} - %"]],
+                    limit=1
+                )
+                if suffix_match and suffix_match[0].get("name"):
+                    matched_name = suffix_match[0]["name"]
+                    logger.info("Dynamically resolved link reference for %s.%s: '%s' -> '%s'", doctype, fieldname, val, matched_name)
+                    data[fieldname] = matched_name
+                    continue
+
+                # 3. Check if base name splits match (e.g. 'WIP - Factory' -> 'WIP - GS')
+                if " - " in val:
+                    base_val = val.split(" - ")[0].strip()
+                    base_match = await self.list_records(
+                        target_dt,
+                        ["name"],
+                        filters=[["name", "like", f"{base_val} - %"]],
+                        limit=1
+                    )
+                    if base_match and base_match[0].get("name"):
+                        matched_name = base_match[0]["name"]
+                        logger.info("Dynamically resolved base link reference for %s.%s: '%s' -> '%s'", doctype, fieldname, val, matched_name)
+                        data[fieldname] = matched_name
+                        continue
+        except Exception as e:
+            logger.debug("Failed to resolve link references for %s: %s", doctype, e)
+            
+        return data
+
+    async def seed_from_config(self, doctype: str, project_details: dict[str, Any]) -> None:
+        """ERPNext-specific logic to seed/initialize configuration doctypes like Fiscal Year and Warehouses."""
+        if doctype == "Fiscal Year":
+            country = project_details.get("country") or "India"
+            fiscal_year_val = "2026-2027"
+            if country == "India":
+                start_date = "2026-04-01"
+                end_date = "2027-03-31"
+            else:
+                start_date = "2026-01-01"
+                end_date = "2026-12-31"
+                fiscal_year_val = "2026"
+
+            record = {
+                "year": fiscal_year_val,
+                "year_start_date": start_date,
+                "year_end_date": end_date,
+            }
+
+            # Check if already exists first
+            exists = await self.list_records("Fiscal Year", ["name"], filters=[["name", "=", fiscal_year_val]], limit=1)
+            if not exists:
+                try:
+                    await self.create_record("Fiscal Year", record)
+                    logger.info("Seeded Fiscal Year %s (%s to %s) successfully from config", fiscal_year_val, start_date, end_date)
+                except Exception as e:
+                    logger.error("Failed to seed Fiscal Year %s: %s", fiscal_year_val, e)
+            else:
+                logger.info("Fiscal Year %s already exists — skipping", fiscal_year_val)
+
+        elif doctype == "Warehouse":
+            existing_whs = await self.list_records("Warehouse", ["name", "company", "is_group"])
+            if not existing_whs:
+                logger.warning("No warehouses found to seed children from")
+                return
+
+            company = existing_whs[0].get("company")
+            parent_wh = None
+            abbr = ""
+            for wh in existing_whs:
+                if wh.get("is_group") == 1 or "all warehouses" in wh.get("name", "").lower():
+                    parent_wh = wh["name"]
+                    if " - " in parent_wh:
+                        abbr = parent_wh.split(" - ")[-1].strip()
+                    break
+            
+            if not parent_wh:
+                parent_wh = existing_whs[0]["name"]
+                if " - " in parent_wh:
+                    abbr = parent_wh.split(" - ")[-1].strip()
+
+            if not abbr and company:
+                abbr = "".join([w[0] for w in company.split() if w]).upper()
+
+            # Seed standard manufacturing child warehouses (Stores and WIP) under the parent group
+            for wh_base in ("Stores", "WIP"):
+                wh_name = f"{wh_base} - {abbr}" if abbr else wh_base
+                exists = await self.list_records("Warehouse", ["name"], filters=[["name", "=", wh_name]], limit=1)
+                if not exists:
+                    wh_record = {
+                        "warehouse_name": wh_base,
+                        "company": company,
+                        "parent_warehouse": parent_wh,
+                        "is_group": 0
+                    }
+                    try:
+                        await self.create_record("Warehouse", wh_record)
+                        logger.info("Auto-seeded manufacturing child warehouse '%s' successfully under parent '%s'", wh_name, parent_wh)
+                    except Exception as e:
+                        logger.error("Failed to seed child warehouse %s: %s", wh_name, e)

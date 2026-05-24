@@ -32,6 +32,9 @@ class AsyncCircuitBreaker:
 
         try:
             out = await fn()
+        except ValueError:
+            # Client errors (4xx) should not trip the circuit breaker
+            raise
         except Exception:
             self._failures += 1
             if self._failures >= self._failure_threshold:
