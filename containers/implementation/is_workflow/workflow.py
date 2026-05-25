@@ -856,6 +856,15 @@ class ImplementationWorkflow:
         else:
             L.info("  ⚠️  Supervisor disabled — proceeding despite readiness gaps")
 
+        try:
+            await workflow.execute_activity(
+                obsolete_supervisor_prompts,
+                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                **_ACT,
+            )
+        except Exception as e:
+            L.info("      ⚠️  obsolete_supervisor_prompts after readiness failed: %s", e)
+
         # ══════════════════════════════════════════════════════════════════════
         # STEP 8d / 14  —  Build Blueprint Import Plan
         # ══════════════════════════════════════════════════════════════════════
@@ -1019,6 +1028,15 @@ class ImplementationWorkflow:
         _step_ok(L, 9, "File Mapping", f"{mapped_count}/{len(self._parsed_files)} files mapped")
 
         self._set_task("t6", "done", f"{mapped_count} files mapped")
+
+        try:
+            await workflow.execute_activity(
+                obsolete_supervisor_prompts,
+                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                **_ACT,
+            )
+        except Exception as e:
+            L.info("      ⚠️  obsolete_supervisor_prompts after mapping failed: %s", e)
 
         # ══════════════════════════════════════════════════════════════════════
         # AWAIT SIGNAL: mapping_confirmed

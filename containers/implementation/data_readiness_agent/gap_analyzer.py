@@ -41,10 +41,11 @@ def _score_columns_vs_doctype(columns: List[str], doctype: str, kb: Dict[str, An
     """
     dt_cfg = (kb.get("doctypes") or {}).get(doctype) or {}
     fmap = dt_cfg.get("field_mappings") or {}
+    mandatory_root = set(dt_cfg.get("mandatory_fields") or [])
     required_fields = [
         fcfg.get("fieldname", fn)
         for fn, fcfg in fmap.items()
-        if fcfg.get("reqd") or fcfg.get("in_list_view")
+        if fcfg.get("mandatory") or fcfg.get("reqd") or fcfg.get("fieldname") in mandatory_root
     ]
 
     cols = [_norm(c) for c in columns if c]
@@ -187,6 +188,16 @@ def analyze_gaps(
                 score = _keyword_score_text(meta["content_snippet"], doctype, field_mappings_kb)
                 matched, missing = [], []
 
+            # Filename priors (align with mapping classifier)
+            try:
+                from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
+                from containers.implementation.shared.doctype_resolver import resolve_doctype
+
+                fscores = filename_prior_scores(fname)
+                score += float(fscores.get(resolve_doctype(doctype), 0.0) or 0.0)
+            except Exception:
+                pass
+
             if score > best_score:
                 best_score = score
                 best_file = fname
@@ -233,9 +244,38 @@ def analyze_gaps(
                 "missing_required_fields": best_missing,
             })
 
+    kb_doctypes = set((field_mappings_kb.get("doctypes") or {}).keys())
+
+    # ── Corpus expansion: strong filename priors for KB doctypes ─────────────
+    try:
+        from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
+        from containers.implementation.shared.doctype_resolver import resolve_doctype
+
+        seen_ready = {resolve_doctype(r["doctype"]) for r in ready_doctypes}
+        seen_partial = {resolve_doctype(p["doctype"]) for p in partial_doctypes}
+        for fname in file_meta:
+            implied = filename_implied_doctype(fname)
+            if not implied:
+                continue
+            canon = resolve_doctype(implied)
+            if canon in seen_ready or canon in seen_partial:
+                continue
+            if canon not in kb_doctypes:
+                continue
+            ready_doctypes.append({
+                "doctype": canon,
+                "source_file": fname,
+                "coverage_pct": 0.85,
+                "mapped_fields": [],
+                "missing_optional_fields": [],
+                "phase": doctype_phase.get(canon, "phase_c_transactional"),
+            })
+            seen_ready.add(canon)
+    except Exception:
+        pass
+
     # ── Unmappable chunks: file portions not matched to anything ─────────────
     unmappable_chunks: List[Dict] = []
-    kb_doctypes = set((field_mappings_kb.get("doctypes") or {}).keys())
 
     for fname, meta in file_meta.items():
         # Check if this file scored meaningfully for ANY known doctype
@@ -243,6 +283,13 @@ def analyze_gaps(
         if meta["is_structured"] and meta["columns"]:
             for doctype in kb_doctypes:
                 score, _, _ = _score_columns_vs_doctype(meta["columns"], doctype, field_mappings_kb)
+                try:
+                    from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
+                    from containers.implementation.shared.doctype_resolver import resolve_doctype
+
+                    score += float(filename_prior_scores(fname).get(resolve_doctype(doctype), 0.0) or 0.0)
+                except Exception:
+                    pass
                 if score > max_any_score:
                     max_any_score = score
         else:

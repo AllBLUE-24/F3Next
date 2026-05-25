@@ -56,7 +56,9 @@ def _load_defaults_baseline() -> Dict[str, List]:
 
 
 def _normalize_doctype_name(name: str) -> str:
-    return " ".join(str(name or "").replace("_", " ").replace("-", " ").split()).strip().lower()
+    from containers.implementation.shared.doctype_resolver import normalize_doctype_name
+
+    return normalize_doctype_name(name)
 
 
 from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
@@ -67,6 +69,8 @@ def _load_kb_doctypes() -> Dict[str, Any]:
 
 
 def _canonicalize_doctypes(doctypes: List[str], graph: Dict[str, Any]) -> List[str]:
+    from containers.implementation.shared.doctype_resolver import resolve_doctype, unique_canonical
+
     graph_doctypes = graph.get("doctypes", {}) if isinstance(graph, dict) else {}
     kb_doctypes = _load_kb_doctypes()
 
@@ -94,11 +98,11 @@ def _canonicalize_doctypes(doctypes: List[str], graph: Dict[str, Any]) -> List[s
         dt_name = str(dt or "").strip()
         if not dt_name:
             continue
-        resolved = alias_map.get(_normalize_doctype_name(dt_name), dt_name)
+        resolved = alias_map.get(_normalize_doctype_name(dt_name), resolve_doctype(dt_name))
         if resolved not in seen:
             seen.add(resolved)
             canonicalized.append(resolved)
-    return canonicalized
+    return unique_canonical(canonicalized) if not alias_map else canonicalized
 
 
 _LAYER_ORDER = [

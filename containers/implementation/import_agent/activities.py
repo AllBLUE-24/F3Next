@@ -536,7 +536,8 @@ class _ImportEngine:
         validation_status: str,
         playbook_context: str = "",
     ) -> Dict[str, Any]:
-        
+        from containers.implementation.shared.doctype_resolver import lookup_normalized, resolve_doctype
+
         if validation_status == "fail":
             return {
                 "status": "blocked",
@@ -583,11 +584,12 @@ class _ImportEngine:
         for step_idx, step_info in enumerate(setup_steps):
             dt = step_info.get("doctype", "Unknown")
             phase_key = step_info.get("phase", "phase_a_config")
+            dt_resolved = resolve_doctype(dt)
 
             if phase_key not in phases:
                 phase_key = "phase_a_config"
 
-            is_mapped = dt in mapped_data_dict
+            is_mapped = lookup_normalized(mapped_data_dict, dt_resolved) is not None
             # Read the planner's action from Step 8 — do NOT discard it
             planner_action = step_info.get("action", "must_create")
 
@@ -598,9 +600,10 @@ class _ImportEngine:
                 record_count = 0
             elif is_mapped:
                 # User has provided a data file — import it row by row
+                mapped_entry = lookup_normalized(mapped_data_dict, dt_resolved) or {}
                 exec_action  = "create"
-                data_source  = mapped_data_dict[dt]["r2_path"]
-                record_count = mapped_data_dict[dt]["total_rows"]
+                data_source  = mapped_entry.get("r2_path", "pending_mapping")
+                record_count = mapped_entry.get("total_rows", 0)
             elif planner_action == "use_default":
                 # Values exist in erpnext_deafaults_baseline.json — seed them
                 exec_action  = "seed_from_baseline"
@@ -741,12 +744,36 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
     partial_names = _extract_doctype_names(partial_doctypes)
     ready_or_partial = set(ready_names) | set(partial_names)
 
+    from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
+    from containers.implementation.shared.doctype_resolver import resolve_doctype
+
     for dt in ready_or_partial:
         if dt:
-            mapped_data_dict[dt] = {
+            canonical = resolve_doctype(dt)
+            mapped_data_dict[canonical] = {
                 "r2_path": "pending_mapping",
-                "total_rows": 0
+                "total_rows": 0,
             }
+
+    # Corpus expansion: filename-implied doctypes from readiness source files
+    for bucket in (ready_doctypes, partial_doctypes):
+        for item in bucket or []:
+            if not isinstance(item, dict):
+                continue
+            src = item.get("source_file")
+            if src:
+                implied = filename_implied_doctype(str(src))
+                if implied:
+                    mapped_data_dict[resolve_doctype(implied)] = {
+                        "r2_path": "pending_mapping",
+                        "total_rows": 0,
+                    }
+            dt_name = item.get("doctype")
+            if dt_name:
+                mapped_data_dict[resolve_doctype(dt_name)] = {
+                    "r2_path": "pending_mapping",
+                    "total_rows": 0,
+                }
 
     # ── Fetch professional implementation sequence from pgvector ──────────
     playbook_context = ""

@@ -606,6 +606,7 @@ async def _should_map_doctype(
     doctype: str,
     *,
     from_party_split: bool = False,
+    filename: Optional[str] = None,
 ) -> bool:
     """Check whether mapping should proceed for this doctype.
 
@@ -614,17 +615,36 @@ async def _should_map_doctype(
     readiness assessment so uploaded files can be mapped on first pass.
 
     Party-split groups always map when corpus rules require it.
+    Strong filename priors can bypass a negative plan decision.
     """
+    from containers.implementation.shared.doctype_resolver import (
+        contains_doctype,
+        resolve_doctype,
+    )
+
+    doctype = resolve_doctype(doctype)
+
     if from_party_split:
         from containers.knowledge_base.erpnext.schema.compose import corpus_rules
 
         if corpus_rules().get("always_map_split_entities"):
             return True
 
+    if filename:
+        from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
+
+        implied = filename_implied_doctype(filename)
+        if implied and resolve_doctype(implied) == doctype:
+            return True
+
     from shared.database.db import AsyncSessionLocal
     from shared.models.is_models import ISImportPlan, ISTargetStructure, ISDataReadinessAssessment
     from sqlalchemy import select
     import uuid
+
+    def _step_matches(step: dict) -> bool:
+        step_dt = resolve_doctype(step.get("doctype") or "")
+        return step_dt == doctype or resolve_doctype(step.get("doctype") or "") == doctype
 
     try:
         async with AsyncSessionLocal() as session:
@@ -640,7 +660,7 @@ async def _should_map_doctype(
             if plan and plan.phases:
                 for phase_data in plan.phases.values():
                     for step in phase_data.get("steps", []):
-                        if step.get("doctype") == doctype:
+                        if _step_matches(step):
                             plan_action = step.get("action")
                             break
                     if plan_action is not None:
@@ -665,22 +685,27 @@ async def _should_map_doctype(
                         setup_steps = json.loads(setup_steps)
                     except Exception:
                         setup_steps = []
+                required_raw: List[str] = []
                 if isinstance(setup_steps, list):
                     for step in setup_steps:
-                        if isinstance(step, dict) and step.get("doctype") == doctype:
-                            action = step.get("action") or step.get("planner_action") or ""
-                            if action in ("create", "pending_mapping", "must_create"):
-                                return True
-                            if action in ("use_default", "auto_created_by_erpnext", "skip"):
-                                return False
+                        if not isinstance(step, dict):
+                            continue
+                        step_dt = resolve_doctype(step.get("doctype") or "")
+                        if step_dt != doctype:
+                            continue
+                        action = step.get("action") or step.get("planner_action") or ""
+                        if action in ("create", "pending_mapping", "must_create"):
+                            return True
                     required = target.required_doctypes
                     if isinstance(required, str):
                         try:
                             required = json.loads(required)
                         except Exception:
                             required = []
-                    if isinstance(required, list) and doctype in required:
-                        return True
+                    if isinstance(required, list):
+                        required_raw = [resolve_doctype(str(x)) for x in required]
+                        if contains_doctype(required_raw, doctype):
+                            return True
 
             readiness_stmt = (
                 select(ISDataReadinessAssessment)
@@ -693,12 +718,12 @@ async def _should_map_doctype(
             if readiness:
                 for item in (readiness.ready_doctypes or []) + (readiness.partial_doctypes or []):
                     dt_name = item.get("doctype") if isinstance(item, dict) else (item.doctype if hasattr(item, "doctype") else item)
-                    if dt_name == doctype:
+                    if resolve_doctype(str(dt_name or "")) == doctype:
                         return True
                 gap_report = readiness.gap_report or {}
                 for bucket in ("ready_doctypes", "partial_doctypes"):
                     for item in gap_report.get(bucket, []) or []:
-                        if isinstance(item, dict) and item.get("doctype") == doctype:
+                        if isinstance(item, dict) and resolve_doctype(item.get("doctype") or "") == doctype:
                             return True
             return False
     except Exception as e:
@@ -886,7 +911,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
             )
 
-        if not await _should_map_doctype(inp.session_id, doctype):
+        if not await _should_map_doctype(inp.session_id, doctype, filename=inp.filename):
             activity.logger.info("  ⏭️ Skipping unstructured mapping for %s → %s (not scheduled as 'create' in plan)", inp.filename, doctype)
             return NodeStatusEnvelope.success(
                 primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
@@ -975,6 +1000,12 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 })
         else:
             # Single doctype
+            from containers.implementation.mapping_agent.corpus_merge import (
+                filename_conflicts_with_doctype,
+                filename_implied_doctype,
+            )
+            from containers.implementation.shared.doctype_resolver import resolve_doctype
+
             if inp.doctype_hint and inp.doctype_hint in candidates:
                 doctype = inp.doctype_hint
             else:
@@ -996,7 +1027,22 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
                 )
 
-            if not await _should_map_doctype(inp.session_id, doctype):
+            implied_dt = filename_implied_doctype(inp.filename)
+            if implied_dt and filename_conflicts_with_doctype(inp.filename, doctype or ""):
+                if implied_dt in candidates:
+                    activity.logger.warning(
+                        "  🛡️ Cross-file guard (pre-gate): %s implies %s not %s — remapping",
+                        inp.filename,
+                        implied_dt,
+                        doctype,
+                    )
+                    doctype = implied_dt
+                    if clean_rows:
+                        engine.map_columns(columns, doctype, sample_row=clean_rows[0])
+
+            doctype = resolve_doctype(doctype or "")
+
+            if not await _should_map_doctype(inp.session_id, doctype, filename=inp.filename):
                 activity.logger.info("  ⏭️ Skipping structured mapping for %s → %s (not scheduled as 'create' in plan)", inp.filename, doctype)
                 return NodeStatusEnvelope.success(
                     primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
