@@ -3,8 +3,8 @@
 > **Status:** Planning — not yet implemented  
 > **Branch:** `feature/v2-architecture` (to be created)  
 > **Author:** Architecture Review, May 2026  
-> **Context:** This document supersedes the current V1 pipeline architecture described in `ARCH_IMPLEMENTATION.md`. V1 remains in production until V2 is proven. This is a forward-looking design, not a migration instruction.
-
+> **Context:** This document supersedes the current V1 pipeline architecture described in `ARCH_IMPLEMENTATION.md`. V1 remains in production until V2 is proven. This is a forward-looking design, not a migration instruction.  
+> **Execution queue (near-term):** [`PRODUCT_BACKLOG.md`](./PRODUCT_BACKLOG.md)
 ---
 
 ## The Problem with V1

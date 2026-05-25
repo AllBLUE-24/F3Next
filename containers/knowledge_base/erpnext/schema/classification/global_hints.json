@@ -1,0 +1,14 @@
+{
+  "description": "Global keyword -> doctype hints for classification (content/filename)",
+  "doctype_keyword_hints": {
+    "project": "Project",
+    "site work": "Project",
+    "installation": "Project",
+    "timesheet": "Timesheet",
+    "batch": "Batch",
+    "quality inspection": "Quality Inspection",
+    "workstation": "Workstation",
+    "work order": "Work Order",
+    "asset": "Asset"
+  }
+}

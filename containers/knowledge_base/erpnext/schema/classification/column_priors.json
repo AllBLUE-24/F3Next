@@ -1,0 +1,14 @@
+{
+  "description": "Column-header priors for doctype classification (structured files)",
+  "priors": [
+    {"column": "project_name", "doctype": "Project", "weight": 6.0},
+    {"column": "project name", "doctype": "Project", "weight": 6.0},
+    {"column": "party_type", "doctype": "Customer", "weight": 1.0},
+    {"column": "party type", "doctype": "Customer", "weight": 1.0},
+    {"column": "party_name", "doctype": "Customer", "weight": 2.0},
+    {"column": "child_item_code", "doctype": "BOM", "weight": 4.0},
+    {"column": "fg_item", "doctype": "BOM", "weight": 4.0},
+    {"column": "production_item", "doctype": "Work Order", "weight": 4.0},
+    {"column": "batch_wo", "doctype": "Work Order", "weight": 4.0}
+  ]
+}

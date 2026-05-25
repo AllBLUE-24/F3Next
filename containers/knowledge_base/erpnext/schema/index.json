@@ -1,0 +1,38 @@
+{
+  "knowledge_base_id": "field_mapping_rules",
+  "version": "2.0",
+  "erp_system": "erpnext",
+  "last_updated": "2026-05-25",
+  "description": "Modular field mapping KB \u2014 composed by schema/compose.py",
+  "modules": {
+    "corpus": [
+      "party_entity_rules.json",
+      "merge_policies.json"
+    ],
+    "classification": [
+      "global_hints.json",
+      "filename_priors.json",
+      "column_priors.json"
+    ],
+    "mapping": [
+      "BOM.json",
+      "Batch.json",
+      "Customer.json",
+      "Employee.json",
+      "Item.json",
+      "Journal Entry.json",
+      "Payment Entry.json",
+      "Purchase Order.json",
+      "Purchase Receipt.json",
+      "Project.json",
+      "Sales Invoice.json",
+      "Sales Order.json",
+      "Stock Entry.json",
+      "Supplier.json",
+      "Work Order.json"
+    ],
+    "shared": [
+      "parsing_defaults.json"
+    ]
+  }
+}

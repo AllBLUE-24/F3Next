@@ -1,0 +1,75 @@
+{
+  "doctype_name": "Customer",
+  "naming_series": "CUST-",
+  "mandatory_fields": [
+    "customer_name",
+    "customer_type",
+    "customer_group",
+    "territory"
+  ],
+  "field_mappings": {
+    "customer_name": {
+      "fieldname": "customer_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "entity name",
+        "company name",
+        "name",
+        "client_name",
+        "buyer_name",
+        "party_name"
+      ]
+    },
+    "customer_type": {
+      "fieldname": "customer_type",
+      "fieldtype": "Select",
+      "options": [
+        "Company",
+        "Individual"
+      ],
+      "mandatory": true,
+      "default_value": "Company"
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Link",
+      "options": "Customer Group",
+      "mandatory": true,
+      "default_value": "All Customer Groups",
+      "user_input_synonyms": [
+        "party_group",
+        "customer_category",
+        "group"
+      ]
+    },
+    "territory": {
+      "fieldname": "territory",
+      "fieldtype": "Link",
+      "options": "Territory",
+      "mandatory": true,
+      "default_value": "All Territories"
+    },
+    "gst_category": {
+      "fieldname": "gst_category",
+      "fieldtype": "Select",
+      "options": [
+        "Registered Regular",
+        "Registered Composition",
+        "Unregistered",
+        "SEZ",
+        "Overseas",
+        "UIN Holders"
+      ],
+      "mandatory": false,
+      "default_value": "Unregistered",
+      "note": "India GST compliance"
+    },
+    "gstin": {
+      "fieldname": "gstin",
+      "fieldtype": "Data",
+      "mandatory_if": "gst_category in ['Registered Regular', 'Registered Composition', 'SEZ', 'UIN Holders']",
+      "validation": "15_character_alphanumeric"
+    }
+  }
+}

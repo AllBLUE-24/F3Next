@@ -1,0 +1,137 @@
+{
+  "doctype_name": "Stock Entry",
+  "naming_series": "SE-",
+  "mandatory_fields": [
+    "stock_entry_type",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "stock entry",
+    "stock_entry",
+    "stock entries",
+    "stock_entries",
+    "material transfer",
+    "material issue",
+    "material receipt"
+  ],
+  "field_mappings": {
+    "stock_entry_type": {
+      "fieldname": "stock_entry_type",
+      "fieldtype": "Select",
+      "options": [
+        "Material Transfer",
+        "Material Issue",
+        "Material Receipt",
+        "Manufacture",
+        "Repack",
+        "Send to Subcontractor",
+        "Material Transfer for Manufacture"
+      ],
+      "mandatory": true,
+      "user_input_synonyms": [
+        "entry_type",
+        "purpose",
+        "type"
+      ],
+      "inference_rules": {
+        "transfer": "Material Transfer",
+        "issue": "Material Issue",
+        "receipt": "Material Receipt",
+        "manufacture": "Manufacture"
+      }
+    },
+    "from_warehouse": {
+      "fieldname": "from_warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "mandatory_if": "stock_entry_type in ['Material Transfer', 'Material Issue']",
+      "user_input_synonyms": [
+        "source_warehouse",
+        "from_store",
+        "s_warehouse"
+      ]
+    },
+    "to_warehouse": {
+      "fieldname": "to_warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "mandatory_if": "stock_entry_type in ['Material Transfer', 'Material Receipt']",
+      "user_input_synonyms": [
+        "destination_warehouse",
+        "to_store",
+        "t_warehouse"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "date",
+        "transaction_date"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "options": "Item",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "item",
+        "material",
+        "product_code"
+      ],
+      "note": "Flat CSV import \u2014 folded into items child table"
+    },
+    "qty": {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "quantity",
+        "amount"
+      ],
+      "note": "Flat CSV import \u2014 folded into items child table"
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "options": "Project",
+      "mandatory": false,
+      "note": "Link to project for cost tracking (job shops)"
+    },
+    "items": {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "child_doctype": "Stock Entry Detail",
+      "mandatory": true,
+      "minimum_rows": 1,
+      "child_fields": {
+        "item_code": {
+          "fieldname": "item_code",
+          "fieldtype": "Link",
+          "options": "Item",
+          "mandatory": true
+        },
+        "qty": {
+          "fieldname": "qty",
+          "fieldtype": "Float",
+          "mandatory": true,
+          "validation": "must_be_positive"
+        },
+        "s_warehouse": {
+          "fieldname": "s_warehouse",
+          "fieldtype": "Link",
+          "options": "Warehouse",
+          "note": "Source warehouse (from_warehouse)"
+        },
+        "t_warehouse": {
+          "fieldname": "t_warehouse",
+          "fieldtype": "Link",
+          "options": "Warehouse",
+          "note": "Target warehouse (to_warehouse)"
+        }
+      }
+    }
+  }
+}

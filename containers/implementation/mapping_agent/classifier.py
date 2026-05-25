@@ -15,7 +15,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from typing import Literal
 
-from containers.implementation.mapping_agent.kb import field_mappings as _field_mappings
+from containers.implementation.mapping_agent.kb import (
+    field_mappings as _field_mappings,
+    filename_priors as _kb_filename_priors,
+    column_priors as _kb_column_priors,
+)
 from shared.structured_llm import generate_typed
 
 
@@ -114,24 +118,28 @@ def _keyword_hints_score(text: str, filename: str, candidates: List[str], kb: Di
     return scores
 
 
+def _column_priors(columns: Optional[List[str]], candidates: List[str]) -> Dict[str, float]:
+    if not columns:
+        return {c: 0.0 for c in candidates}
+    cols = {_norm(c) for c in columns if c}
+    scores: Dict[str, float] = {c: 0.0 for c in candidates}
+    for entry in _kb_column_priors():
+        dt = str(entry.get("doctype") or "")
+        col = _norm(str(entry.get("column") or ""))
+        w = float(entry.get("weight") or 0.0)
+        if dt in scores and col and col in cols:
+            scores[dt] += w
+    return scores
+
+
 def _filename_priors(filename: str, candidates: List[str]) -> Dict[str, float]:
     f = _norm(filename)
     scores: Dict[str, float] = {c: 0.0 for c in candidates}
-    # Strong priors from common abbreviations / keywords
-    priors: List[tuple[str, str, float]] = [
-        ("so", "Sales Order", 1.5),
-        ("sales order", "Sales Order", 2.0),
-        ("po", "Purchase Order", 1.5),
-        ("purchase order", "Purchase Order", 2.0),
-        ("item", "Item", 1.0),
-        ("customer", "Customer", 1.0),
-        ("supplier", "Supplier", 1.0),
-        ("vendor", "Supplier", 0.7),
-        ("invoice", "Sales Invoice", 0.7),
-        ("purchase invoice", "Purchase Invoice", 1.2),
-    ]
-    for kw, dt, w in priors:
-        if dt in scores and kw in f:
+    for entry in _kb_filename_priors():
+        dt = str(entry.get("doctype") or "")
+        kw = _norm(str(entry.get("keyword") or ""))
+        w = float(entry.get("weight") or 0.0)
+        if dt in scores and kw and kw in f:
             scores[dt] += w
     return scores
 
@@ -156,6 +164,12 @@ def _local_classify(
     kw_scores = _keyword_hints_score(content_snippet, filename, candidates, kb)
     for c, v in kw_scores.items():
         scores[c] += v
+
+    # Column-header priors (structured files)
+    if columns:
+        col_scores = _column_priors(columns, candidates)
+        for c, v in col_scores.items():
+            scores[c] += v
 
     # Filename priors
     fpri = _filename_priors(filename, candidates)

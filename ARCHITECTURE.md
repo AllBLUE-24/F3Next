@@ -239,11 +239,15 @@ F3Next/
 
 4. **Two-Stage Deterministic Mapping** — The IS mapping pipeline separates classification (Step A: local scoring → LLM fallback) from extraction (Step B: schema-locked structured output via Pydantic). Defaults injection and child table folding are fully LLM-free and driven by `field_mappings.json`.
 
-4. **Event-Driven Context Freshness** — CVS worker listens to Frappe webhooks from customer ERPNext instances and triggers snapshot rebuilds automatically whenever data changes.
+5. **Event-Driven Context Freshness** — CVS worker listens to Frappe webhooks from customer ERPNext instances and triggers snapshot rebuilds automatically whenever data changes.
 
-5. **Provider-Agnostic LLM** — `llm_router.py` provides a single interface backed by Gemini Flash and GPT-4o-mini with automatic key rotation, quota sidetracking, and cross-provider fallback. Structured outputs (`shared/structured_llm.py`) use provider-native schema enforcement (Pydantic) to eliminate JSON parse failures.
+6. **Provider-Agnostic LLM** — `llm_router.py` provides a single interface backed by Gemini Flash and GPT-4o-mini with automatic key rotation, quota sidetracking, and cross-provider fallback. Structured outputs (`shared/structured_llm.py`) use provider-native schema enforcement (Pydantic) to eliminate JSON parse failures.
 
-6. **Zero-Hardcode Policy** — Frontend uses only relative `/api/*` paths; all ERP URLs and credentials are resolved from the database at runtime.
+7. **Intelligent Link Resolution V2 & Policy Engine** — IS imports execute Pass 2.5 (Bulk Link Pre-Resolution) and Pass 2.6 (Document Lifecycle/Auto-Submit). Pass 2.5 performs single-pass bulk fetches of target schemas and link names from ERPNext, executing deterministic and semantic wildcard mapping (e.g. `WIP - Factory` -> `Work In Progress - GS`) to prevent LinkValidationErrors without N+1 query latency. Pass 2.6 reads the KB-driven lifecycle policy to automatically transition submittable master data (like BOMs) to Submitted status (`docstatus=1`), unblocking downstream transaction imports.
+
+8. **Safety Preflight & Human-in-the-Loop Execution Gates** — The IS pipeline features a dry-run enabled preflight gate (`preflight_import`) that performs read-only dry-runs to identify data gaps, draft parents, and risk tiers (Low/Medium/High) before live writes, requiring explicit user approval for medium/high-risk transactions via a Temporal execution gate.
+
+9. **Zero-Hardcode Policy** — Frontend uses only relative `/api/*` paths; all ERP URLs and credentials are resolved from the database at runtime.
 
 ---
 

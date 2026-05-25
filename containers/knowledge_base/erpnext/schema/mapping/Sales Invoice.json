@@ -1,0 +1,62 @@
+{
+  "doctype_name": "Sales Invoice",
+  "naming_series": "SI-",
+  "mandatory_fields": [
+    "customer",
+    "posting_date",
+    "items"
+  ],
+  "field_mappings": {
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "options": "Customer",
+      "mandatory": true,
+      "validation": "must_exist"
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "default_value": "today",
+      "user_input_synonyms": [
+        "date",
+        "invoice_date"
+      ]
+    },
+    "due_date": {
+      "fieldname": "due_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "default_value": "posting_date + payment_terms_days",
+      "calculation": "If payment_terms_template set, calculate from template. Else posting_date + 30 days."
+    },
+    "items": {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "child_doctype": "Sales Invoice Item",
+      "mandatory": true,
+      "minimum_rows": 1
+    },
+    "sales_order": {
+      "fieldname": "items[].sales_order",
+      "fieldtype": "Link",
+      "options": "Sales Order",
+      "mandatory": false,
+      "note": "If invoice created from SO, this field auto-populated"
+    },
+    "delivery_note": {
+      "fieldname": "items[].delivery_note",
+      "fieldtype": "Link",
+      "options": "Delivery Note",
+      "mandatory": false,
+      "note": "If invoice created from DN, this field auto-populated"
+    },
+    "update_stock": {
+      "fieldname": "update_stock",
+      "fieldtype": "Check",
+      "default_value": 0,
+      "note": "If checked, invoice submission will also create Delivery (stock reduction)"
+    }
+  }
+}

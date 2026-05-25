@@ -1,0 +1,119 @@
+{
+  "doctype_name": "Purchase Receipt",
+  "naming_series": "MAT-PRE-.YYYY.-",
+  "mandatory_fields": [
+    "supplier",
+    "posting_date",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "purchase receipt",
+    "purchase_receipt",
+    "goods receipt",
+    "grn",
+    "material receipt"
+  ],
+  "field_mappings": {
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "options": "Supplier",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "vendor",
+        "seller"
+      ],
+      "validation": "must_exist"
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "date",
+        "receipt_date",
+        "transaction_date"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "options": "Item",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "item",
+        "material",
+        "product_code"
+      ],
+      "note": "Flat CSV import \u2014 folded into items child table"
+    },
+    "qty": {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "quantity",
+        "amount"
+      ],
+      "note": "Flat CSV import \u2014 folded into items child table"
+    },
+    "rate": {
+      "fieldname": "rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "price",
+        "unit_rate",
+        "cost"
+      ]
+    },
+    "accepted_warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "warehouse",
+        "target_warehouse",
+        "to_warehouse",
+        "store"
+      ],
+      "note": "Flat CSV import \u2014 mapped to items.warehouse"
+    },
+    "items": {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "child_doctype": "Purchase Receipt Item",
+      "mandatory": true,
+      "minimum_rows": 1,
+      "child_fields": {
+        "item_code": {
+          "fieldname": "item_code",
+          "fieldtype": "Link",
+          "options": "Item",
+          "mandatory": true
+        },
+        "qty": {
+          "fieldname": "qty",
+          "fieldtype": "Float",
+          "mandatory": true
+        },
+        "rate": {
+          "fieldname": "rate",
+          "fieldtype": "Currency",
+          "mandatory": false
+        },
+        "warehouse": {
+          "fieldname": "warehouse",
+          "fieldtype": "Link",
+          "options": "Warehouse",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "accepted_warehouse",
+            "store"
+          ]
+        }
+      }
+    }
+  }
+}

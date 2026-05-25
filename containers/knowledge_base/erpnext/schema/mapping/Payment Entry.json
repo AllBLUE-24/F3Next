@@ -1,0 +1,138 @@
+{
+  "doctype_name": "Payment Entry",
+  "naming_series": "PE-",
+  "mandatory_fields": [
+    "payment_type",
+    "party_type",
+    "party",
+    "paid_amount",
+    "received_amount"
+  ],
+  "field_mappings": {
+    "payment_type": {
+      "fieldname": "payment_type",
+      "fieldtype": "Select",
+      "options": [
+        "Receive",
+        "Pay",
+        "Internal Transfer"
+      ],
+      "mandatory": true,
+      "inference_rules": {
+        "from_customer": "Receive",
+        "to_supplier": "Pay",
+        "customer_payment": "Receive",
+        "supplier_payment": "Pay"
+      }
+    },
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Select",
+      "options": [
+        "Customer",
+        "Supplier",
+        "Employee"
+      ],
+      "mandatory": true,
+      "inference_rules": {
+        "if_payment_type_receive": "Customer",
+        "if_payment_type_pay": "Supplier"
+      }
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "depends_on": "party_type",
+      "mandatory": true,
+      "validation": "must_exist_in_party_type_master"
+    },
+    "paid_amount": {
+      "fieldname": "paid_amount",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "amount",
+        "payment_amount"
+      ],
+      "validation": "must_be_positive"
+    },
+    "received_amount": {
+      "fieldname": "received_amount",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "default_value": "same_as_paid_amount_if_same_currency",
+      "note": "For multi-currency, received_amount = paid_amount * exchange_rate"
+    },
+    "mode_of_payment": {
+      "fieldname": "mode_of_payment",
+      "fieldtype": "Link",
+      "options": "Mode of Payment",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "payment_mode",
+        "method"
+      ],
+      "common_values": [
+        "Cash",
+        "Cheque",
+        "Bank Transfer",
+        "NEFT",
+        "RTGS",
+        "UPI"
+      ],
+      "keyword_detection": {
+        "cash": "Cash",
+        "cheque": "Cheque",
+        "neft": "NEFT",
+        "rtgs": "RTGS",
+        "upi": "UPI",
+        "bank": "Bank Transfer"
+      }
+    },
+    "reference_no": {
+      "fieldname": "reference_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "transaction_id",
+        "utr",
+        "cheque_no"
+      ],
+      "note": "NEFT/RTGS reference, cheque number, UPI transaction ID"
+    },
+    "reference_date": {
+      "fieldname": "reference_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "default_value": "posting_date"
+    },
+    "references": {
+      "fieldname": "references",
+      "fieldtype": "Table",
+      "child_doctype": "Payment Entry Reference",
+      "mandatory": false,
+      "note": "Link to outstanding invoices being paid",
+      "child_fields": {
+        "reference_doctype": {
+          "fieldname": "reference_doctype",
+          "options": [
+            "Sales Invoice",
+            "Purchase Invoice"
+          ],
+          "mandatory": true
+        },
+        "reference_name": {
+          "fieldname": "reference_name",
+          "mandatory": true,
+          "note": "Invoice ID (e.g., SI-00123)"
+        },
+        "allocated_amount": {
+          "fieldname": "allocated_amount",
+          "fieldtype": "Currency",
+          "mandatory": true,
+          "note": "Amount allocated to this invoice"
+        }
+      }
+    }
+  }
+}

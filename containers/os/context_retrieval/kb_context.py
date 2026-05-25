@@ -20,6 +20,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+
 logger = logging.getLogger(__name__)
 
 _KB_ROOT   = Path(__file__).parent.parent.parent / "knowledge_base"
@@ -54,7 +56,7 @@ class ContextKnowledgeBase:
 
         # ── KB-04: Field Mapping Rules ─────────────────────────────────────
         # Used here to provide mandatory/optional field lists per doctype
-        self._field_maps  = _load(_ERPNEXT / "schema" / "field_mappings.json")
+        self._field_maps  = compose_field_mappings()
 
         # ── KB-07: ERPNext Doctype Graph (may not exist yet) ───────────────
         # If missing, we synthesise a basic graph from KB-02 doctype lists

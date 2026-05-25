@@ -1,0 +1,22 @@
+{
+  "description": "Party / multi-entity corpus rules for IS mapping",
+  "party_type_synonyms": {
+    "client": "Customer",
+    "buyer": "Customer",
+    "end user": "Customer",
+    "purchaser": "Customer",
+    "vendor": "Supplier",
+    "seller": "Supplier",
+    "subcontractor": "Supplier",
+    "employee": "Employee"
+  },
+  "split_column_synonyms": [
+    "type",
+    "entity type",
+    "entity_type",
+    "record type",
+    "party type",
+    "party_type"
+  ],
+  "always_map_split_entities": true
+}

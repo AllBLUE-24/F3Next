@@ -1,0 +1,106 @@
+{
+  "doctype_name": "Employee",
+  "naming_series": "HR-EMP-",
+  "mandatory_fields": [
+    "employee_name",
+    "date_of_joining"
+  ],
+  "field_mappings": {
+    "employee_name": {
+      "fieldname": "employee_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "full_name",
+        "name",
+        "emp_name",
+        "staff_name"
+      ]
+    },
+    "employee_id": {
+      "fieldname": "employee",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "emp_id",
+        "emp_code",
+        "employee_code",
+        "staff_id",
+        "id"
+      ]
+    },
+    "department": {
+      "fieldname": "department",
+      "fieldtype": "Link",
+      "options": "Department",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "dept",
+        "division",
+        "team"
+      ]
+    },
+    "designation": {
+      "fieldname": "designation",
+      "fieldtype": "Link",
+      "options": "Designation",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "role",
+        "position",
+        "title",
+        "job_title"
+      ]
+    },
+    "date_of_joining": {
+      "fieldname": "date_of_joining",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "doj",
+        "joining_date",
+        "start_date",
+        "hire_date",
+        "date of joining"
+      ]
+    },
+    "date_of_birth": {
+      "fieldname": "date_of_birth",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "dob",
+        "birth_date"
+      ]
+    },
+    "gender": {
+      "fieldname": "gender",
+      "fieldtype": "Select",
+      "options": [
+        "Male",
+        "Female",
+        "Other"
+      ],
+      "mandatory": false
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "mandatory": false,
+      "default_value": "user_default_company_or_first_company"
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "options": [
+        "Active",
+        "Inactive",
+        "Suspended",
+        "Left"
+      ],
+      "mandatory": false,
+      "default_value": "Active"
+    }
+  }
+}

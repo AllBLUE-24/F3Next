@@ -21,8 +21,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 _KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext"
-_GRAPH_PATH   = _KB_DIR / "erpnext_doctype_graph.json"
-_FMAP_PATH    = _KB_DIR / "schema" / "field_mappings.json"
+_GRAPH_PATH = _KB_DIR / "erpnext_doctype_graph.json"
+
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
 
 
 def _load_graph() -> Dict:
@@ -35,12 +36,8 @@ def _load_graph() -> Dict:
 
 
 def _load_field_mappings() -> Dict:
-    """Load field mappings; returns empty dict on any failure."""
-    try:
-        with open(_FMAP_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    """Load composed field mappings from modular KB."""
+    return compose_field_mappings()
 
 import boto3
 from botocore.config import Config
@@ -326,52 +323,49 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
 
     activity.logger.info("  Found %d mapped_data rows to validate", len(mapped_data_rows))
 
-    # ── 2. Download extracted rows from R2 for each mapped_data ──────────────
+    # ── 2. Download mapped payloads from R2 (merge per doctype) ─────────────
     s3 = _get_s3_client()
     mapped_data: Dict[str, Any] = {}
-    mapped_data_map: Dict[str, Any] = {}  # doctype → ISMappedData row
+    mapped_data_map: Dict[str, Any] = {}  # doctype → ISMappedData row (representative)
+    source_files_by_doctype: Dict[str, List[str]] = {}
+
+    from containers.implementation.mapping_agent.corpus_merge import (
+        aggregate_mapped_data_rows,
+        load_r2_json,
+    )
+
+    aggregated = aggregate_mapped_data_rows(mapped_data_rows)
 
     for md_row in mapped_data_rows:
         doctype = md_row.target_doctype
-        # We must validate the MAPPED payload, not the raw extracted rows
-        r2_key = md_row.mapped_payload_r2_path
+        source_files_by_doctype.setdefault(doctype, [])
+        if md_row.source_filename and md_row.source_filename not in source_files_by_doctype[doctype]:
+            source_files_by_doctype[doctype].append(md_row.source_filename)
 
+    for doctype, agg in aggregated.items():
+        r2_key = agg.get("r2_path")
         if not r2_key:
             activity.logger.warning("  ⚠️ No mapped payload R2 key for %s, skipping", doctype)
             continue
 
         try:
-            response = s3.get_object(Bucket="clean-data", Key=r2_key)
-            payload_json = json.loads(response["Body"].read().decode("utf-8"))
-            incoming_records = payload_json.get("records", [])
+            payload_json = load_r2_json(s3, "clean-data", r2_key)
+            if not isinstance(payload_json, dict):
+                activity.logger.warning("  ⚠️ Invalid payload for %s, skipping", doctype)
+                continue
 
-            if doctype not in mapped_data:
-                # First payload for this doctype — use it directly
-                mapped_data[doctype] = payload_json
-                mapped_data_map[doctype] = md_row
-                activity.logger.info("  ✅ Loaded payload for %s from R2 (%d records)", doctype, len(incoming_records))
-            else:
-                # Merge: append records from subsequent source files.
-                # Keep the source file with the most fields per row as the "primary" payload,
-                # so the validation engine sees the richest records first.
-                existing_records = mapped_data[doctype].get("records", [])
-                existing_fields = len(existing_records[0]) if existing_records else 0
-                incoming_fields = len(incoming_records[0]) if incoming_records else 0
-
-                if incoming_fields > existing_fields:
-                    # Incoming is richer — swap and prepend existing
-                    merged = incoming_records + existing_records
-                    mapped_data[doctype] = {**payload_json, "records": merged}
-                    mapped_data_map[doctype] = md_row  # point to richer source
-                else:
-                    merged = existing_records + incoming_records
-                    mapped_data[doctype]["records"] = merged
-
-                activity.logger.info(
-                    "  🔀 Merged payloads for %s: %d + %d = %d records",
-                    doctype, len(existing_records), len(incoming_records), len(merged)
-                )
-
+            records = payload_json.get("records", [])
+            mapped_data[doctype] = payload_json
+            mapped_data_map[doctype] = next(
+                (r for r in mapped_data_rows if r.target_doctype == doctype),
+                None,
+            )
+            activity.logger.info(
+                "  ✅ Loaded merged payload for %s from R2 (%d records, sources=%s)",
+                doctype,
+                len(records),
+                source_files_by_doctype.get(doctype, []),
+            )
         except Exception as e:
             activity.logger.error("  ❌ Failed to load payload for %s: %s", doctype, e)
 

@@ -1,0 +1,153 @@
+{
+  "doctype_name": "Sales Order",
+  "naming_series": "SO-",
+  "mandatory_fields": [
+    "customer",
+    "transaction_date",
+    "items"
+  ],
+  "field_mappings": {
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "options": "Customer",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "client",
+        "buyer",
+        "party"
+      ],
+      "default_value": null,
+      "validation": "must_exist_in_customer_master"
+    },
+    "transaction_date": {
+      "fieldname": "transaction_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "date",
+        "order_date"
+      ],
+      "default_value": "today",
+      "validation": "valid_date_format",
+      "format": "yyyy-mm-dd"
+    },
+    "delivery_date": {
+      "fieldname": "delivery_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "deliver_by",
+        "delivery_deadline",
+        "ship_by"
+      ],
+      "default_value": "transaction_date + 10 days",
+      "validation": "must_be_after_transaction_date"
+    },
+    "po_no": {
+      "fieldname": "po_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "customer_po",
+        "po_number",
+        "reference_number"
+      ],
+      "default_value": null
+    },
+    "items": {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "child_doctype": "Sales Order Item",
+      "mandatory": true,
+      "minimum_rows": 1,
+      "child_fields": {
+        "item_code": {
+          "fieldname": "item_code",
+          "fieldtype": "Link",
+          "options": "Item",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "product",
+            "item",
+            "sku"
+          ],
+          "validation": "must_exist_in_item_master"
+        },
+        "qty": {
+          "fieldname": "qty",
+          "fieldtype": "Float",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "quantity",
+            "units",
+            "pieces"
+          ],
+          "default_value": 1,
+          "validation": "must_be_positive"
+        },
+        "rate": {
+          "fieldname": "rate",
+          "fieldtype": "Currency",
+          "mandatory": false,
+          "user_input_synonyms": [
+            "price",
+            "unit_price",
+            "per_unit"
+          ],
+          "default_value": "fetch_from_price_list_or_item_master",
+          "validation": "must_be_positive"
+        },
+        "warehouse": {
+          "fieldname": "warehouse",
+          "fieldtype": "Link",
+          "options": "Warehouse",
+          "mandatory": false,
+          "user_input_synonyms": [
+            "store",
+            "godown"
+          ],
+          "default_value": "fetch_from_item_master_or_company_default"
+        },
+        "uom": {
+          "fieldname": "uom",
+          "fieldtype": "Link",
+          "options": "UOM",
+          "mandatory": false,
+          "default_value": "fetch_from_item_master_stock_uom"
+        }
+      }
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "options": "Currency",
+      "mandatory": false,
+      "default_value": "fetch_from_customer_or_company_default",
+      "common_values": [
+        "INR",
+        "USD",
+        "EUR"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "mandatory": true,
+      "default_value": "user_default_company_or_first_company"
+    }
+  },
+  "auto_calculated_fields": [
+    {
+      "fieldname": "grand_total",
+      "calculation": "sum(items.amount) + total_taxes_and_charges",
+      "note": "Calculated automatically by ERPNext on save"
+    },
+    {
+      "fieldname": "status",
+      "initial_value": "Draft",
+      "note": "Status changes based on workflow"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ from sqlalchemy import select, text
 
 from shared.context_engine.config import ERPNEXT_KB, F3ICHE_DIR
 from shared.context_engine.versioning import json_checksum
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,10 @@ class Tier1Loader:
             return self._bundle, self._checksum
 
         graph_path = ERPNEXT_KB / "erpnext_doctype_graph.json"
-        fm_path = ERPNEXT_KB / "schema" / "field_mappings.json"
         vr_path = ERPNEXT_KB / "schema" / "validation_rules.json"
 
         graph = _load_json(graph_path)
-        field_mappings = _load_json(fm_path)
+        field_mappings = compose_field_mappings()
         validation_rules = _load_json(vr_path)
 
         self._bundle = {

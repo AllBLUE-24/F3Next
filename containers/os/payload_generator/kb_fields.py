@@ -23,6 +23,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
 
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+
 logger = logging.getLogger(__name__)
 
 _KB_ROOT = Path(__file__).parent.parent.parent / "knowledge_base"
@@ -48,7 +50,7 @@ class FieldKnowledgeBase:
     """
 
     def __init__(self) -> None:
-        raw = _load(_ERPNEXT / "schema" / "field_mappings.json")
+        raw = compose_field_mappings()
 
         # doctype → field mapping dict
         self._doctypes: dict[str, dict] = raw.get("doctypes", {})

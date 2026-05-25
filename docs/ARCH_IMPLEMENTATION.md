@@ -6,6 +6,10 @@
 >
 > The current implementation treats uploads as a **corpus**, not a one-file/one-doctype contract: all files in the active upload wave are parsed, upload notes are carried forward into profile/target/readiness prompts, and if the user re-uploads after a supervisor-critical gap the workflow re-runs on the **union of prior + new files**.
 
+**Product backlog (master queue):** [`PRODUCT_BACKLOG.md`](./PRODUCT_BACKLOG.md)  
+**IS detail appendix:** [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md)  
+**Long-term v2 vision:** [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md)
+
 ---
 
 ## 🏗️ Component Map
@@ -64,12 +68,22 @@ containers/implementation/
 │                                     ⚠️ Required-field check spans 10 rows (not 1)
 ├── import_agent/
 │   └── activities.py              ← build_import_plan, execute_import_phase,
+│                                     preflight_import (NEW: read-only dry-run report),
 │                                     get_import_plan_phases
 ├── utils/
 │   └── llm_helper.py              ← generate_json (LLM helper for IS agents)
 ├── dev_fixtures/                  ← JSON fixtures for is_harness testing
 └── is_harness.py                  ← Dev tool: run any step without Temporal
-```
+                                      (Supports --confirm-execution and --step preflight_import)
+
+shared/
+├── erp_adapters/
+│   ├── erpnext.py                 ← Upgraded with doc status submission, item+company unique constraints
+│   └── link_resolver.py           ← NEW: BulkLinkResolver (batch fetching, suffix wildcarding, alias mappings)
+└── erp_policies/                  ← NEW: Shared business safety and config policies
+    ├── lifecycle.py               ← Auto-submit rule maps (BOM), risk tier filters, disabled-query rules
+    └── action_risk.py             ← High-risk doctype classification & confirmation message templates
+
 
 ---
 
@@ -250,7 +264,17 @@ flowchart TD
       Phase C: Transactional (Orders, Invoices, Stock...)
     Writes: is_import_plans, R2: _import_plan/plan.json"]
 
-    S12 --> SIG5{{"⏸️ SIGNAL GATE 5\nsandbox_approved\n(user approves live import)"}}
+    S12 --> S125["**STEP 12.5 — Preflight Import**
+    preflight_import (NEW)
+    ─────────────────────────────────────
+    Performs read-only dry-run scan
+    Generates telemetry & safety report:
+      • Link corrections (WIP -> Work In Progress)
+      • Draft parent blockers (draft BOMs)
+      • Data gaps & Risk tiers (action_risk)
+    Writes: is_validation_results"]
+
+    S125 --> SIG5{{"⏸️ SIGNAL GATE 5\nsandbox_approved\n(user approves live import + reviews risk preview)"}}
 
     SIG5 --> S13
 
@@ -259,9 +283,14 @@ flowchart TD
     ──────────────────────────────────────────────
     Reads phases dynamically from is_import_plans
     For each phase:
-      POST /api/resource/{doctype} to ERPNext
-      Per-record import with error handling
-    Pass 2: Seeds Link field dependencies before import
+      1. Performs pre-execution check: pauses for
+         user 'execution_confirmed' if high-risk or draft blockers.
+      2. PASS 2.5 (NEW): Bulk Link Resolution
+         (Batch fetches links and fuzzy/alias resolves)
+      3. PASS 2.6 (NEW): Document Auto-Submit
+         (Auto-submits master records like BOM to docstatus=1)
+      4. Main Loop: POST /api/resource/{doctype} to ERPNext
+      5. Generates resolution_summary & submit_summary
     Writes: is_import_logs, is_import_plans (status)
     Writes is_audit_trail → import_executed"]
 
@@ -867,6 +896,68 @@ Assertions are persisted to `is_step_telemetry` (planned table) and visualised i
 - **Phase 1** — Add `is_step_telemetry` table + `StepAssertion` to `NodeStatusEnvelope`; instrument mapping, validation, supervisor
 - **Phase 2** — Pipeline Inspector UI at `/implementation/[id]/health`
 - **Phase 3** — Alerting: webhook on `severity=critical` assertion failures; each bug above becomes a permanent assertion
+
+---
+
+## ⭐ Advanced ERP Data Integration & Resolution (V2)
+
+To automate enterprise ERP implementations, F3Next must handle hierarchical, stateful, and conditional business constraints. Simple flat-file imports fail when references mismatch or when parent records are in the wrong lifecycle state. F3Next V2 introduces **Pass 2.5 (Bulk Link Resolution)** and **Pass 2.6 (Document Lifecycle & Auto-Submit)** to resolve these constraints.
+
+### 1. The ERP Data Resolution Matrix
+
+F3Next maps, normalizes, and resolves reference values using the following 7-scenario matrix:
+
+| Scenario | Condition | System Action Required |
+|---|---|---|
+| **1. Exact Match** | Reference is present and spelled perfectly. | **Bind & Execute:** Map the exact ID and proceed. |
+| **2. Fuzzy Match** | Reference is spelled differently (e.g., "Whouse 1" vs "Warehouse 1"). | **Fuzzy Resolution:** Normalizes case, spacing, and uses semantic distance to resolve the correct ID. |
+| **3. Duplicate Conflict** | Reference matches multiple active records (e.g., "Tata" matches "Tata Motors" and "Tata Steel"). | **Tie-Breaker:** Halts and prompts the user via the Supervisor gate to resolve ambiguity. |
+| **4. State Violation** | Reference exists but its state is invalid (e.g., Warehouse is disabled). | **State Override / Halt:** Check permissions to auto-enable, else flag as blocker in Preflight. |
+| **5. Rule Violation** | Reference exists but breaks a business constraint (e.g., parent BOM is in draft status, blocking a Work Order). | **Pass 2.6 (Auto-Submit):** Transition parent record to active/submitted state prior to downstream imports. |
+| **6. Simple Missing** | Reference is missing and has no dependencies. | **Auto-Create:** Dynamic seeder creates the reference record on the fly. |
+| **7. Cascading Missing** | Reference is missing and itself depends on other missing records. | **Recursive Resolution:** Traverses the doctype schema graph to create dependencies in setup order. |
+
+### 2. Pass 2.5 — Bulk Link Pre-Resolution
+Component: [link_resolver.py](file:///c:/dev/F3Next/shared/erp_adapters/link_resolver.py)
+
+Rather than query ERPNext per-row inside the execution loop (which causes N+1 query latency and performance issues), F3Next uses a bulk resolution pass inside the workflow step before the import loop runs:
+
+```
+Pass 1 → Pass 1B (Base Seeds) → Pass 2 (Dynamic Seeds) → Pass 2.5 (Bulk Link Pre-Resolution) → Main Import Loop
+```
+
+- **Scan and Collect:** `BulkLinkResolver.collect_link_targets_from_rows()` scans both top-level and nested child table rows for fields of `Link` type.
+- **Single-Batch Query:** Fetches live active values from ERPNext using a single batched `list_records` query per linked doctype (e.g., fetching all active Warehouses, Items, and Customers once).
+- **Wildcard and Alias Resolution:** Normalizes case, removes hyphens, and applies suffix wildcarding (e.g. `WIP - Factory` → `WIP - GS`).
+- **Semantic Mapping:** Integrates manufacturing and corporate alias normalization rules (e.g., maps `WIP` to `Work In Progress` and `FG` to `Finished Goods` matching company abbreviation suffixes, dynamically mapping `WIP - Factory` to `Work In Progress - GS` in the target instance).
+- **In-Memory Rewrite:** Pre-resolved payloads are cached in `_pre_resolved_cache` with rewritten fields, avoiding API-side `LinkValidationError` failures.
+
+### 3. Pass 2.6 — Document Lifecycle & Auto-Submit
+Components: [lifecycle.py](file:///c:/dev/F3Next/shared/erp_policies/lifecycle.py), [activities.py](file:///c:/dev/F3Next/containers/implementation/import_agent/activities.py)
+
+Certain master documents (like Bills of Materials — BOMs) are created in a draft state (`docstatus=0`) by default, but ERP business logic requires them to be **Submitted** (`docstatus=1`) before downstream transactional records (like Work Orders) can reference them.
+- **Lifecycle Policy Map:** `shared/erp_policies/lifecycle.py` holds policy configurations mapping submittable doctypes that require automatic submission (`auto_submit_on_import`).
+- **Auto-Submission Act:** Immediately following a successful `create_record` call on a configured doctype, the adapter calls `submit_document` using a custom client submission method (`POST /api/method/frappe.client.submit` with a PUT fallback).
+- **Audit Telemetry:** Summarizes actions in `submit_summary` under execution logs, indicating exactly which records were created and successfully committed.
+
+### 4. High-Reliability BOM Idempotency
+Component: [erpnext.py](file:///c:/dev/F3Next/shared/erp_adapters/erpnext.py)
+
+BOM names are typically auto-generated or system-assigned, making standard name-based idempotency checks fragile on import retry.
+- **Unique Constraint Lookup:** F3Next queries existing records using the composite key of **`item` + `company`** to determine if a BOM has already been generated for this item in the client company.
+- **Duplicate Prevention:** If found, the system skips duplicate creation and returns the canonical existing BOM name, keeping ERPNext clean and preventing duplicate draft pollution.
+
+### 5. Preflight Safety Gate & Action Risk Classification
+Components: [activities.py](file:///c:/dev/F3Next/containers/implementation/import_agent/activities.py), [action_risk.py](file:///c:/dev/F3Next/shared/erp_policies/action_risk.py)
+
+Before live import writes are executed against a client's production ERP system, a read-only **Preflight Gate** runs to identify risk exposure and state issues.
+- **Validation Scan:** `preflight_import` executes a dry-run to identify:
+  - `link_corrections`: Previews of alias resolutions (e.g. `WIP - Factory` → `Work In Progress - GS`).
+  - `draft_parents`: Identifies draft records (e.g., a draft BOM) that would block downstream transactions.
+  - `data_gaps`: Missing files or mappings for plan steps.
+  - `warnings`: Financial or data anomalies.
+- **Risk Tiering:** `shared/erp_policies/action_risk.py` classifies setup steps by risk levels (`low`, `medium`, `high`, `critical`) and constructs a rich preview message warning of draft blockers and financial implications.
+- **Temporal Signal Barrier:** If high-risk actions or draft blockers are detected, the workflow returns `awaiting_confirmation` and halts. Execution only proceeds once a human supervisor approves via the `execution_confirmed` signal.
 
 ---
 

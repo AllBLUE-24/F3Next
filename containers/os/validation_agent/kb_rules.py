@@ -21,6 +21,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+
 logger = logging.getLogger(__name__)
 
 _KB_ROOT = Path(__file__).parent.parent.parent / "knowledge_base"
@@ -53,7 +55,7 @@ class ValidationKnowledgeBase:
             # Try alternate location
             raw_kb06 = _load(_KB_ROOT / "common" / "validation_rules.json")
 
-        raw_kb04 = _load(_ERPNEXT / "schema" / "field_mappings.json")
+        raw_kb04 = compose_field_mappings()
 
         # ── Schema validation rules ─────────────────────────────────────────
         self._schema_rules: list[dict] = (

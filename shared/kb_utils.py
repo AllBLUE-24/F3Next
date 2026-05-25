@@ -1,8 +1,21 @@
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy import text
 from shared.database.db import AsyncSessionLocal
 from shared.embedding_generator import generate_embedding
+
+def _as_str_list(val: Any) -> List[str]:
+    """Coerce DB/LLM values to a list of strings for safe join()."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x) for x in val]
+    if isinstance(val, str):
+        return [val] if val.strip() else []
+    if isinstance(val, dict):
+        return [str(v) for v in val.values() if v]
+    return [str(val)]
+
 
 async def seed_company_context(project_id: str, profile_dict: Dict[str, Any], note_text: Optional[str] = None) -> int:
     """
@@ -29,7 +42,7 @@ async def seed_company_context(project_id: str, profile_dict: Dict[str, Any], no
     company_name = profile_dict.get("company_name", "Unknown")
     size = profile_dict.get("company_size", "Unknown")
     business_reality = profile_dict.get("business_reality", "No business reality available.")
-    context_flags = ", ".join(profile_dict.get("context_flags", [])) or "None"
+    context_flags = ", ".join(_as_str_list(profile_dict.get("context_flags"))) or "None"
     
     profile_chunk = (
         f"[Company Context] project_id: {project_id}\n"
@@ -42,8 +55,8 @@ async def seed_company_context(project_id: str, profile_dict: Dict[str, Any], no
     chunks.append(profile_chunk)
     
     # Chunk 3: Operational context
-    req_modules = ", ".join(profile_dict.get("required_modules") or []) or "Unknown"
-    req_doctypes = ", ".join(profile_dict.get("required_doctypes") or []) or "Unknown"
+    req_modules = ", ".join(_as_str_list(profile_dict.get("required_modules"))) or "Unknown"
+    req_doctypes = ", ".join(_as_str_list(profile_dict.get("required_doctypes"))) or "Unknown"
     
     operational_chunk = (
         f"[Company Context] project_id: {project_id}\n"

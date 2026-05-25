@@ -322,3 +322,27 @@ flowchart TD
     with ambiguities[]"]
     ADD_CLARIFY --> DONE
 ```
+
+---
+
+## 🔧 Dev Tool: OS Action Harness
+Component: [action_harness.py](file:///c:/dev/F3Next/containers/os/action_harness.py)
+
+The `action_harness.py` allows developers to test the full OS command execution flow and natural language intents directly from the command line without launching the full Temporal workflow:
+
+```bash
+# Preview an intent and planned payload only (No writes, dry-run safety)
+python -m containers.os.action_harness --intent "create sales order for Acme for 5 red chairs" --project-id b6ff0b7f-a616-4179-8f68-deda9b3578af --preview-only
+
+# Execute an intent against the target ERPNext instance (writes live)
+python -m containers.os.action_harness --intent "list open work orders" --project-id b6ff0b7f-a616-4179-8f68-deda9b3578af --confirm
+```
+
+### Shared Risk & Safety Policy Integration
+Component: [action_risk.py](file:///c:/dev/F3Next/shared/erp_policies/action_risk.py)
+
+The OS Agent shares the unified risk scoring policy engine with the Implementation System (IS).
+- **Risk Classification:** When `plan_command` executes, it evaluates the planned steps against the rules in `action_risk.py` to calculate the transaction risk tier (`low`, `medium`, `high`, `critical`).
+- **Confirmation Barrier:** If a command is classified as `medium` risk or higher (e.g. creating/submitting financial documents or stock transactions), the OS Agent halts, returns `awaiting_confirmation`, and renders a structured confirmation preview with warning flags (such as "Draft BOM blockers detected") and a custom alert message before permitting execution.
+- **Safety Mode:** Developers and users can preview the entire API body payload and target values using `--preview-only` before committing live writes.
+

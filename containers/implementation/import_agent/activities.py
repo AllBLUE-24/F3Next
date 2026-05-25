@@ -119,14 +119,14 @@ def _build_baseline_record(doctype: str, value: str) -> Dict[str, Any]:
     return {f"{snake}_name": value}
 
 
-# ── Dynamic link field discovery ─────────────────────────────────────────────
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
 
-_FIELD_MAPPINGS_PATH = _KB_DIR / "schema" / "field_mappings.json"
+# ── Dynamic link field discovery ─────────────────────────────────────────────
 
 
 def _build_link_field_index() -> Dict[str, str]:
     """
-    Reads field_mappings.json at module load time and extracts every field
+    Reads composed field mappings at module load time and extracts every field
     where fieldtype == "Link", returning { fieldname: target_doctype }.
 
     This is the authoritative source — fixing a wrong fieldtype in the JSON
@@ -135,8 +135,7 @@ def _build_link_field_index() -> Dict[str, str]:
     """
     index: Dict[str, str] = {}
     try:
-        with open(_FIELD_MAPPINGS_PATH, "r", encoding="utf-8") as _f:
-            _data = json.load(_f)
+        _data = compose_field_mappings()
         for _dt_cfg in _data.get("doctypes", {}).values():
             for _field_cfg in _dt_cfg.get("field_mappings", {}).values():
                 if _field_cfg.get("fieldtype") == "Link":
@@ -717,6 +716,11 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         if readiness_row:
             ready_doctypes = readiness_row.ready_doctypes or []
             partial_doctypes = readiness_row.partial_doctypes or []
+            gap_report = readiness_row.gap_report or {}
+            if not partial_doctypes and gap_report.get("partial_doctypes"):
+                partial_doctypes = gap_report.get("partial_doctypes", [])
+            if not ready_doctypes and gap_report.get("ready_doctypes"):
+                ready_doctypes = gap_report.get("ready_doctypes", [])
 
     # Map target_doctype to ready/partial indicators
     mapped_data_dict = {}
@@ -868,15 +872,16 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         stmt_mapped = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
         result_mapped = await session.execute(stmt_mapped)
         mapped_rows = result_mapped.scalars().all()
-        
-        mapped_dict = {
-            m.target_doctype: {
-                "r2_path": m.mapped_payload_r2_path,
-                "total_rows": m.total_rows or 0,
-                "validation_status": m.validation_status
-            }
-            for m in mapped_rows
-        }
+
+        from containers.implementation.mapping_agent.corpus_merge import (
+            aggregate_mapped_data_rows,
+            enrich_mapped_dict_from_r2,
+            inject_missing_mapped_steps,
+        )
+
+        s3 = _get_s3_client()
+        mapped_dict = aggregate_mapped_data_rows(mapped_rows)
+        mapped_dict = enrich_mapped_dict_from_r2(mapped_dict, s3)
 
         # 3. Fetch session validation errors
         stmt_val = select(ISValidationResult).where(ISValidationResult.session_id == uuid.UUID(inp.session_id))
@@ -884,8 +889,9 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         val_rows = result_val.scalars().all()
         has_validation_failures = any(v.overall_status == "fail" for v in val_rows)
 
-        # 4. Update the steps in the plan
+        # 4. Update the steps in the plan (+ inject mapped doctypes missing from blueprint)
         phases = plan_row.phases or {}
+        phases = inject_missing_mapped_steps(phases, mapped_dict)
         plan_status = "ready"
         if has_validation_failures:
             plan_status = "blocked"
@@ -932,7 +938,6 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         }
 
         try:
-            s3 = _get_s3_client()
             s3.put_object(
                 Bucket="clean-data",
                 Key=plan_key,

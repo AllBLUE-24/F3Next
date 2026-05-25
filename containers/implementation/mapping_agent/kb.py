@@ -10,21 +10,25 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+from containers.knowledge_base.erpnext.schema.compose import (
+    column_priors,
+    compose_field_mappings,
+    corpus_rules,
+    doctype_mapping,
+    filename_priors,
+    merge_policies,
+)
 
 _KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext"
-_FIELD_MAPPINGS_PATH = _KB_DIR / "schema" / "field_mappings.json"
 _GRAPH_PATH = _KB_DIR / "erpnext_doctype_graph.json"
 _BASELINE_PATH = _KB_DIR / "erpnext_deafaults_baseline.json"
 
 
 @lru_cache(maxsize=1)
 def field_mappings() -> Dict[str, Any]:
-    try:
-        with open(_FIELD_MAPPINGS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    return compose_field_mappings()
 
 
 @lru_cache(maxsize=1)
@@ -44,3 +48,14 @@ def baseline_defaults() -> Dict[str, Any]:
     except Exception:
         return {}
 
+
+__all__ = [
+    "field_mappings",
+    "doctype_graph",
+    "baseline_defaults",
+    "corpus_rules",
+    "merge_policies",
+    "filename_priors",
+    "column_priors",
+    "doctype_mapping",
+]

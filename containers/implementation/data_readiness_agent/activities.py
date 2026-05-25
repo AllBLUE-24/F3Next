@@ -176,6 +176,94 @@ def _has_critical_gaps(gaps: List[Dict[str, Any]]) -> bool:
     return any(_criticality_from_phase(g.get("phase")) == "critical" for g in gaps)
 
 
+def _gap_from_deterministic_partial(p: Dict[str, Any]) -> "DoctypeGap":
+    from containers.implementation.data_readiness_agent.models import DoctypeGap
+    return DoctypeGap(
+        doctype=p.get("doctype", ""),
+        criticality=_criticality_from_phase(p.get("phase")),
+        reason=(
+            f"Partial data coverage ({round(float(p.get('coverage_pct', 0)) * 100)}%) "
+            f"from {p.get('source_file', 'uploaded file')}."
+        ),
+        missing_fields=p.get("missing_required_fields") or p.get("missing_fields") or [],
+        recommendation="Review mapped fields before import.",
+        can_proceed_without=_criticality_from_phase(p.get("phase")) != "critical",
+    )
+
+
+def _gap_from_deterministic_missing(m: Dict[str, Any]) -> "DoctypeGap":
+    from containers.implementation.data_readiness_agent.models import DoctypeGap
+    return DoctypeGap(
+        doctype=m.get("doctype", ""),
+        criticality=_criticality_from_phase(m.get("phase")),
+        reason="No uploaded file covers this doctype.",
+        missing_fields=m.get("missing_required_fields") or m.get("missing_fields") or [],
+        recommendation="Upload a file containing this data, or use ERPNext defaults.",
+        can_proceed_without=_criticality_from_phase(m.get("phase")) != "critical",
+    )
+
+
+def _gap_from_llm_entry(entry: Dict[str, Any], *, default_reason: str) -> "DoctypeGap":
+    from containers.implementation.data_readiness_agent.models import DoctypeGap
+    return DoctypeGap(
+        doctype=entry.get("doctype", ""),
+        criticality=entry.get("criticality") or _criticality_from_phase(entry.get("phase")),
+        reason=entry.get("reason") or default_reason,
+        missing_fields=entry.get("missing_fields") or entry.get("missing_required_fields") or [],
+        recommendation=entry.get("recommendation", "Review before import."),
+        can_proceed_without=bool(
+            entry.get(
+                "can_proceed_without",
+                _criticality_from_phase(entry.get("phase")) != "critical",
+            )
+        ),
+    )
+
+
+def _merge_deterministic_and_llm_gaps(
+    deterministic: List[Dict[str, Any]],
+    llm_entries: List[Dict[str, Any]],
+    *,
+    default_reason: str,
+    to_gap,
+) -> List["DoctypeGap"]:
+    """Deterministic gap scan is authoritative; LLM adds narrative where available."""
+    from containers.implementation.data_readiness_agent.models import DoctypeGap
+
+    merged: Dict[str, DoctypeGap] = {}
+    for item in deterministic:
+        dt = item.get("doctype")
+        if dt:
+            merged[dt] = to_gap(item)
+
+    for entry in llm_entries or []:
+        if not isinstance(entry, dict):
+            continue
+        dt = entry.get("doctype")
+        if not dt:
+            continue
+        if dt in merged:
+            existing = merged[dt]
+            merged[dt] = DoctypeGap(
+                doctype=dt,
+                criticality=entry.get("criticality") or existing.criticality,
+                reason=entry.get("reason") or existing.reason,
+                missing_fields=(
+                    entry.get("missing_fields")
+                    or entry.get("missing_required_fields")
+                    or existing.missing_fields
+                ),
+                recommendation=entry.get("recommendation") or existing.recommendation,
+                can_proceed_without=bool(
+                    entry.get("can_proceed_without", existing.can_proceed_without)
+                ),
+            )
+        else:
+            merged[dt] = _gap_from_llm_entry(entry, default_reason=default_reason)
+
+    return list(merged.values())
+
+
 # ── Persist ───────────────────────────────────────────────────────────────────
 
 async def _persist_assessment(
@@ -335,6 +423,19 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
 
         ready_list = [DoctypeReady(**r) for r in pre_analysis.get("ready_doctypes", [])]
 
+        partial_list = _merge_deterministic_and_llm_gaps(
+            pre_analysis.get("partial_doctypes", []),
+            llm_raw.get("partial_doctypes") or [],
+            default_reason="Partial data coverage detected.",
+            to_gap=_gap_from_deterministic_partial,
+        )
+        missing_list = _merge_deterministic_and_llm_gaps(
+            pre_analysis.get("missing_doctypes", []),
+            llm_raw.get("missing_doctypes") or [],
+            default_reason="No uploaded file covers this doctype.",
+            to_gap=_gap_from_deterministic_missing,
+        )
+
         deterministic_gap_report = {
             "summary": summary,
             "ready_doctypes": pre_analysis.get("ready_doctypes", []),
@@ -342,62 +443,45 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             "missing_doctypes": pre_analysis.get("missing_doctypes", []),
             "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
         }
-        # Always use the enriched DoctypeGap objects (with criticality) in gap_report
-        # so the supervisor can correctly filter critical vs important gaps.
         assessment = DataReadinessAssessment(
             ready_doctypes=ready_list,
-            partial_doctypes=[
-                DoctypeGap(
-                    doctype=p.get("doctype", ""),
-                    criticality=p.get("criticality") or _criticality_from_phase(p.get("phase")),
-                    reason=p.get("reason", "Partial data coverage detected."),
-                    missing_fields=p.get("missing_fields") or p.get("missing_required_fields", []),
-                    recommendation=p.get("recommendation", "Review and supplement data before import."),
-                    can_proceed_without=bool(p.get("can_proceed_without", _criticality_from_phase(p.get("phase")) != "critical")),
-                )
-                for p in (llm_raw.get("partial_doctypes") or [])
-            ],
-            missing_doctypes=[
-                DoctypeGap(
-                    doctype=m.get("doctype", ""),
-                    criticality=m.get("criticality") or _criticality_from_phase(m.get("phase")),
-                    reason=m.get("reason", "No uploaded file covers this doctype."),
-                    missing_fields=m.get("missing_fields") or m.get("missing_required_fields", []),
-                    recommendation=m.get("recommendation", "Upload a file containing this data, or use ERPNext defaults."),
-                    can_proceed_without=bool(m.get("can_proceed_without", _criticality_from_phase(m.get("phase")) != "critical")),
-                )
-                for m in (llm_raw.get("missing_doctypes") or [])
-            ],
+            partial_doctypes=partial_list,
+            missing_doctypes=missing_list,
             unmappable_chunks=[
-                UnmappableChunk(**u) for u in (llm_raw.get("unmappable_chunks") or [])
+                UnmappableChunk(**u) for u in (llm_raw.get("unmappable_chunks") or pre_analysis.get("unmappable_chunks") or [])
             ],
-            # Use enriched objects for gap_report too — supervisor reads from here
             gap_report={
                 "summary": summary,
                 "ready_doctypes": [r.model_dump() for r in ready_list],
                 "partial_doctypes": [
                     {
-                        "doctype": p.get("doctype", ""),
-                        "phase": p.get("phase"),
-                        "criticality": p.get("criticality") or _criticality_from_phase(p.get("phase")),
-                        "reason": p.get("reason", ""),
-                        "recommendation": p.get("recommendation", ""),
-                        "missing_fields": p.get("missing_fields") or p.get("missing_required_fields", []),
-                        "can_proceed_without": _criticality_from_phase(p.get("phase")) != "critical",
+                        "doctype": p.doctype,
+                        "phase": next(
+                            (x.get("phase") for x in pre_analysis.get("partial_doctypes", []) if x.get("doctype") == p.doctype),
+                            None,
+                        ),
+                        "criticality": p.criticality,
+                        "reason": p.reason,
+                        "recommendation": p.recommendation,
+                        "missing_fields": p.missing_fields,
+                        "can_proceed_without": p.can_proceed_without,
                     }
-                    for p in (llm_raw.get("partial_doctypes") or [])
+                    for p in partial_list
                 ],
                 "missing_doctypes": [
                     {
-                        "doctype": m.get("doctype", ""),
-                        "phase": m.get("phase"),
-                        "criticality": m.get("criticality") or _criticality_from_phase(m.get("phase")),
-                        "reason": m.get("reason", ""),
-                        "recommendation": m.get("recommendation", ""),
-                        "missing_fields": m.get("missing_fields") or m.get("missing_required_fields", []),
-                        "can_proceed_without": _criticality_from_phase(m.get("phase")) != "critical",
+                        "doctype": m.doctype,
+                        "phase": next(
+                            (x.get("phase") for x in pre_analysis.get("missing_doctypes", []) if x.get("doctype") == m.doctype),
+                            None,
+                        ),
+                        "criticality": m.criticality,
+                        "reason": m.reason,
+                        "recommendation": m.recommendation,
+                        "missing_fields": m.missing_fields,
+                        "can_proceed_without": m.can_proceed_without,
                     }
-                    for m in (llm_raw.get("missing_doctypes") or [])
+                    for m in missing_list
                 ],
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
             },

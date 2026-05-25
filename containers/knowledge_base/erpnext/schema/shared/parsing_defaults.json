@@ -1,0 +1,69 @@
+{
+  "date_parsing_rules": {
+    "formats": [
+      "dd-mm-yyyy",
+      "dd/mm/yyyy",
+      "yyyy-mm-dd",
+      "dd-MMM-yyyy"
+    ],
+    "natural_language": {
+      "today": "current_date",
+      "tomorrow": "current_date + 1 day",
+      "yesterday": "current_date - 1 day",
+      "next week": "current_date + 7 days",
+      "end of month": "last_day_of_current_month",
+      "end of this month": "last_day_of_current_month",
+      "next month": "first_day_of_next_month",
+      "march 15": "15-03-current_year",
+      "15th march": "15-03-current_year"
+    }
+  },
+  "currency_parsing_rules": {
+    "symbols": {
+      "\u20b9": "INR",
+      "$": "USD",
+      "\u20ac": "EUR",
+      "\u00a3": "GBP"
+    },
+    "words": {
+      "rupees": "INR",
+      "dollars": "USD",
+      "lakh": "*100000",
+      "lac": "*100000",
+      "crore": "*10000000",
+      "thousand": "*1000",
+      "k": "*1000"
+    },
+    "examples": {
+      "\u20b950,000": 50000,
+      "50K": 50000,
+      "5 lakh": 500000,
+      "1.5 crore": 15000000
+    }
+  },
+  "quantity_parsing_rules": {
+    "units": {
+      "kg": "Kg",
+      "kilogram": "Kg",
+      "litre": "Liter",
+      "liter": "Liter",
+      "meter": "Meter",
+      "metre": "Meter",
+      "piece": "Nos",
+      "pieces": "Nos",
+      "nos": "Nos",
+      "unit": "Nos",
+      "units": "Nos"
+    }
+  },
+  "default_value_rules": {
+    "company": "Fetch user's default company from User Defaults OR first company in Company list",
+    "currency": "Fetch from company default_currency",
+    "transaction_date": "Today's date",
+    "posting_date": "Today's date",
+    "fiscal_year": "Derive from posting_date and company's fiscal_year_start",
+    "cost_center": "Fetch from company default_cost_center",
+    "warehouse": "Fetch from user defaults OR item default_warehouse OR company default_warehouse",
+    "price_list": "Fetch from customer default_price_list OR selling_price_list in Selling Settings"
+  }
+}

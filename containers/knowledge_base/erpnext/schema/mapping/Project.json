@@ -1,0 +1,72 @@
+{
+  "doctype_name": "Project",
+  "naming_series": "PROJ-",
+  "mandatory_fields": ["project_name"],
+  "doctype_classifier_hints": [
+    "project",
+    "projects",
+    "active_projects",
+    "active projects",
+    "project_name",
+    "site work",
+    "installation project"
+  ],
+  "field_mappings": {
+    "project_name": {
+      "fieldname": "project_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "project",
+        "project name",
+        "project_id",
+        "project id",
+        "job_name",
+        "job name",
+        "site_name",
+        "site name"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "options": "Customer",
+      "mandatory": false,
+      "user_input_synonyms": ["client", "buyer", "party", "customer_name"],
+      "validation": "must_exist_in_customer_master"
+    },
+    "expected_end_date": {
+      "fieldname": "expected_end_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "delivery_date",
+        "delivery date",
+        "end_date",
+        "completion_date",
+        "target_date",
+        "due_date"
+      ]
+    },
+    "expected_start_date": {
+      "fieldname": "expected_start_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": ["start_date", "start date", "commencement_date"]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "options": ["Open", "Completed", "Cancelled"],
+      "mandatory": false,
+      "default_value": "Open"
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "mandatory": false,
+      "default_value": "user_default_company_or_first_company"
+    }
+  }
+}

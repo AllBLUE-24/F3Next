@@ -1,0 +1,44 @@
+{
+  "doctype_name": "Purchase Order",
+  "naming_series": "PO-",
+  "mandatory_fields": [
+    "supplier",
+    "transaction_date",
+    "items"
+  ],
+  "field_mappings": {
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "options": "Supplier",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "vendor",
+        "seller"
+      ],
+      "validation": "must_exist"
+    },
+    "transaction_date": {
+      "fieldname": "transaction_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "default_value": "today"
+    },
+    "schedule_date": {
+      "fieldname": "schedule_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "default_value": "transaction_date + 7 days",
+      "user_input_synonyms": [
+        "delivery_date",
+        "expected_date"
+      ]
+    },
+    "items": {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "child_doctype": "Purchase Order Item",
+      "mandatory": true
+    }
+  }
+}

@@ -59,15 +59,11 @@ def _normalize_doctype_name(name: str) -> str:
     return " ".join(str(name or "").replace("_", " ").replace("-", " ").split()).strip().lower()
 
 
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+
+
 def _load_kb_doctypes() -> Dict[str, Any]:
-    kb_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "schema" / "field_mappings.json"
-    if kb_path.exists():
-        try:
-            with open(kb_path, "r", encoding="utf-8") as f:
-                return json.load(f).get("doctypes", {})
-        except Exception:
-            return {}
-    return {}
+    return compose_field_mappings().get("doctypes", {}) or {}
 
 
 def _canonicalize_doctypes(doctypes: List[str], graph: Dict[str, Any]) -> List[str]:

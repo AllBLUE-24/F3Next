@@ -1,0 +1,11 @@
+{
+  "description": "Corpus merge policies when multiple files map to the same doctype",
+  "merge_strategy": "union_richest_first",
+  "dedupe_key": {
+    "Supplier": "supplier_name",
+    "Customer": "customer_name",
+    "Item": "item_code",
+    "BOM": "item",
+    "Project": "project_name"
+  }
+}

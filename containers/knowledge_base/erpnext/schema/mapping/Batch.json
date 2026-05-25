@@ -1,0 +1,74 @@
+{
+  "doctype_name": "Batch",
+  "mandatory_fields": [
+    "batch_id",
+    "item"
+  ],
+  "field_mappings": {
+    "batch_id": {
+      "fieldname": "batch_id",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "batch_no",
+        "batch_number",
+        "lot_no",
+        "lot_number",
+        "batch_wo",
+        "Batch_WO",
+        "batch_code",
+        "lot_id"
+      ]
+    },
+    "item": {
+      "fieldname": "item",
+      "fieldtype": "Link",
+      "options": "Item",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "item_code",
+        "item_produced",
+        "Item_Produced",
+        "product",
+        "material",
+        "batch_item"
+      ]
+    },
+    "expiry_date": {
+      "fieldname": "expiry_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "expiry",
+        "expiration_date",
+        "Expiry_Date",
+        "best_before",
+        "use_by_date",
+        "exp_date"
+      ]
+    },
+    "manufacturing_date": {
+      "fieldname": "manufacturing_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "mfg_date",
+        "production_date",
+        "manufacture_date",
+        "batch_date"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "notes",
+        "operator_notes",
+        "Operator_Notes",
+        "remarks",
+        "batch_notes"
+      ]
+    }
+  }
+}

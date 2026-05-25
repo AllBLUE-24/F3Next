@@ -17,6 +17,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+
 logger = logging.getLogger(__name__)
 
 # ─── KB file paths (relative to the containers/ root) ────────────────────────
@@ -52,7 +54,7 @@ class KnowledgeBase:
 
         # ── Load raw JSON ──────────────────────────────────────────────────
         self._intent_defs   = _load(_COMMON / "intent_definitions.json")
-        self._field_maps    = _load(_ERPNEXT / "schema" / "field_mappings.json")
+        self._field_maps    = compose_field_mappings()
         self._cmd_patterns  = _load(_COMMON  / "command_patterns.json")
         self._module_docs   = _load(_ERPNEXT / "docs"   / "module_docs.json")
 

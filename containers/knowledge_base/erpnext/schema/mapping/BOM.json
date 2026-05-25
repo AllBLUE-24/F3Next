@@ -1,0 +1,142 @@
+{
+  "doctype_name": "BOM",
+  "naming_series": "BOM-",
+  "mandatory_fields": [
+    "item",
+    "quantity"
+  ],
+  "doctype_classifier_hints": [
+    "bill of materials",
+    "bom",
+    "recipe",
+    "formula",
+    "raw material components",
+    "child_item_code",
+    "fg_item",
+    "finished_good_item",
+    "bom_recipe"
+  ],
+  "field_mappings": {
+    "item": {
+      "fieldname": "item",
+      "fieldtype": "Link",
+      "options": "Item",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "fg_item",
+        "finished_good",
+        "production_item",
+        "finished_item",
+        "output_item",
+        "bom_item",
+        "product",
+        "parent_item"
+      ],
+      "note": "The finished good item this BOM produces"
+    },
+    "quantity": {
+      "fieldname": "quantity",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "qty",
+        "bom_qty",
+        "output_qty",
+        "yield_qty"
+      ],
+      "note": "Quantity of the finished good this BOM produces per run"
+    },
+    "uom": {
+      "fieldname": "uom",
+      "fieldtype": "Link",
+      "options": "UOM",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "unit",
+        "unit_of_measure",
+        "stock_uom"
+      ],
+      "default_value": "fetch_from_item_master"
+    },
+    "is_active": {
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "default_value": 1,
+      "user_input_synonyms": [
+        "active",
+        "enabled",
+        "status"
+      ]
+    },
+    "is_default": {
+      "fieldname": "is_default",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "default_value": 1,
+      "user_input_synonyms": [
+        "default",
+        "primary"
+      ]
+    },
+    "items": {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "child_doctype": "BOM Item",
+      "mandatory": true,
+      "minimum_rows": 1,
+      "note": "Raw material / component rows (child table). In flat CSVs each row IS a child item.",
+      "child_fields": {
+        "item_code": {
+          "fieldname": "item_code",
+          "fieldtype": "Link",
+          "options": "Item",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "child_item_code",
+            "raw_material_code",
+            "component_code",
+            "material_code",
+            "rm_code",
+            "input_item"
+          ],
+          "note": "Raw material / component item code"
+        },
+        "qty": {
+          "fieldname": "qty",
+          "fieldtype": "Float",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "child_qty",
+            "component_qty",
+            "raw_qty",
+            "rm_qty"
+          ],
+          "validation": "must_be_positive"
+        },
+        "uom": {
+          "fieldname": "uom",
+          "fieldtype": "Link",
+          "options": "UOM",
+          "mandatory": false,
+          "user_input_synonyms": [
+            "child_uom",
+            "component_uom",
+            "rm_uom"
+          ]
+        },
+        "rate": {
+          "fieldname": "rate",
+          "fieldtype": "Currency",
+          "mandatory": false,
+          "user_input_synonyms": [
+            "child_rate",
+            "component_rate",
+            "rm_rate",
+            "cost"
+          ]
+        }
+      }
+    }
+  }
+}

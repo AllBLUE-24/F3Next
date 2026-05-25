@@ -38,6 +38,11 @@ from containers.implementation.mapping_agent.defaults import (
     fold_child_tables,
     apply_defaults_and_normalize,
 )
+from containers.implementation.mapping_agent.corpus_merge import (
+    load_r2_json,
+    merge_extracted_rows,
+    merge_payloads,
+)
 
 FIELD_MAPPINGS_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -593,10 +598,26 @@ class AssignCorpusDoctypesInput:
     r2_manifest_url: str
     company_slug: str = "unknown"
 
-async def _should_map_doctype(session_id: str, doctype: str) -> bool:
-    """Check if the latest import plan has scheduled mapping (action == "create") for this doctype.
-    If no plan exists yet (fallback), default to True.
+async def _should_map_doctype(
+    session_id: str,
+    doctype: str,
+    *,
+    from_party_split: bool = False,
+) -> bool:
+    """Check whether mapping should proceed for this doctype.
+
+    Prefer import-plan actions of create/pending_mapping. When the blueprint plan
+    still shows data_gap (built before mapping), fall back to target structure and
+    readiness assessment so uploaded files can be mapped on first pass.
+
+    Party-split groups always map when corpus rules require it.
     """
+    if from_party_split:
+        from containers.knowledge_base.erpnext.schema.compose import corpus_rules
+
+        if corpus_rules().get("always_map_split_entities"):
+            return True
+
     from shared.database.db import AsyncSessionLocal
     from shared.models.is_models import ISImportPlan, ISTargetStructure, ISDataReadinessAssessment
     from sqlalchemy import select
@@ -604,6 +625,7 @@ async def _should_map_doctype(session_id: str, doctype: str) -> bool:
 
     try:
         async with AsyncSessionLocal() as session:
+            plan_action: Optional[str] = None
             stmt = (
                 select(ISImportPlan)
                 .where(ISImportPlan.session_id == uuid.UUID(session_id))
@@ -614,11 +636,16 @@ async def _should_map_doctype(session_id: str, doctype: str) -> bool:
             plan = res.scalar_one_or_none()
             if plan and plan.phases:
                 for phase_data in plan.phases.values():
-                    steps = phase_data.get("steps", [])
-                    for step in steps:
+                    for step in phase_data.get("steps", []):
                         if step.get("doctype") == doctype:
-                            action = step.get("action")
-                            return action in ("create", "pending_mapping")
+                            plan_action = step.get("action")
+                            break
+                    if plan_action is not None:
+                        break
+                if plan_action in ("create", "pending_mapping"):
+                    return True
+                if plan_action not in (None, "data_gap"):
+                    return False
 
             target_stmt = (
                 select(ISTargetStructure)
@@ -661,14 +688,15 @@ async def _should_map_doctype(session_id: str, doctype: str) -> bool:
             readiness_res = await session.execute(readiness_stmt)
             readiness = readiness_res.scalar_one_or_none()
             if readiness:
-                ready_names = []
                 for item in (readiness.ready_doctypes or []) + (readiness.partial_doctypes or []):
-                    if isinstance(item, dict) and item.get("doctype"):
-                        ready_names.append(str(item["doctype"]))
-                    elif isinstance(item, str):
-                        ready_names.append(item)
-                if doctype in ready_names:
-                    return True
+                    dt_name = item.get("doctype") if isinstance(item, dict) else (item.doctype if hasattr(item, "doctype") else item)
+                    if dt_name == doctype:
+                        return True
+                gap_report = readiness.gap_report or {}
+                for bucket in ("ready_doctypes", "partial_doctypes"):
+                    for item in gap_report.get(bucket, []) or []:
+                        if isinstance(item, dict) and item.get("doctype") == doctype:
+                            return True
             return False
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not check import plan: %s", e)
@@ -930,7 +958,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     activity.logger.info("  ⏭️ Group %s classified as Unmapped_Irrelevant, skipping.", entity_type)
                     continue
 
-                if not await _should_map_doctype(inp.session_id, group_doctype):
+                if not await _should_map_doctype(inp.session_id, group_doctype, from_party_split=True):
                     activity.logger.info("  ⏭️ Skipping split group %s → %s (not scheduled as 'create' in plan)", entity_type, group_doctype)
                     continue
 
@@ -1023,6 +1051,15 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         rows_key = f"{slug}/{inp.project_id}/mappings/extracted_rows/{doctype}.json"
         payload_key = f"{slug}/{inp.project_id}/mappings/mapped_payloads/{doctype}.json"
 
+        existing_rows = load_r2_json(s3, "clean-data", rows_key)
+        if isinstance(existing_rows, list) and existing_rows:
+            rows = merge_extracted_rows(doctype, existing_rows, rows)
+            activity.logger.info(
+                "  🔀 Merged extracted rows for %s → %d total (after dedupe)",
+                doctype,
+                len(rows),
+            )
+
         try:
             s3.put_object(
                 Bucket="clean-data",
@@ -1062,10 +1099,9 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         # Format: { "fieldname": "TargetDoctype", ... }
         _link_fields: Dict[str, str] = {}
         try:
-            _fmap_schema_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext" / "schema" / "field_mappings.json"
-            with open(_fmap_schema_path, "r", encoding="utf-8") as _sf:
-                _schema_data = json.load(_sf)
-            _dt_fields = _schema_data.get("doctypes", {}).get(doctype, {}).get("field_mappings", {})
+            from containers.knowledge_base.erpnext.schema.compose import doctype_mapping
+
+            _dt_fields = doctype_mapping(doctype).get("field_mappings", {})
             for _fn, _fc in _dt_fields.items():
                 if _fc.get("fieldtype") == "Link":
                     _target = _fc.get("options")
@@ -1080,6 +1116,18 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             "link_fields": _link_fields,   # consumed by import agent Pass 2
             "records": mapped_records,
         }
+
+        existing_payload = load_r2_json(s3, "clean-data", payload_key)
+        if isinstance(existing_payload, dict) and existing_payload.get("records") is not None:
+            prev_count = len(existing_payload.get("records") or [])
+            erpnext_payload = merge_payloads(doctype, existing_payload, erpnext_payload)
+            activity.logger.info(
+                "  🔀 Merged mapped payload for %s: %d + %d → %d records (deduped)",
+                doctype,
+                prev_count,
+                len(mapped_records),
+                len(erpnext_payload.get("records") or []),
+            )
 
         
         try:

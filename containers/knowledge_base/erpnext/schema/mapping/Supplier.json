@@ -1,0 +1,126 @@
+{
+  "doctype_name": "Supplier",
+  "naming_series": "SUP-",
+  "mandatory_fields": [
+    "supplier_name",
+    "supplier_group"
+  ],
+  "field_mappings": {
+    "supplier_name": {
+      "fieldname": "supplier_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "vendor_name",
+        "seller_name",
+        "entity name",
+        "company name",
+        "name",
+        "party_name"
+      ]
+    },
+    "supplier_group": {
+      "fieldname": "supplier_group",
+      "fieldtype": "Link",
+      "options": "Supplier Group",
+      "mandatory": true,
+      "default_value": "All Supplier Groups",
+      "user_input_synonyms": [
+        "vendor_group",
+        "supplier_category",
+        "category",
+        "party_group"
+      ]
+    },
+    "supplier_type": {
+      "fieldname": "supplier_type",
+      "fieldtype": "Select",
+      "options": [
+        "Company",
+        "Individual"
+      ],
+      "mandatory": false,
+      "default_value": "Company",
+      "user_input_synonyms": [
+        "vendor_type",
+        "supplier_type"
+      ]
+    },
+    "country": {
+      "fieldname": "country",
+      "fieldtype": "Link",
+      "options": "Country",
+      "mandatory": false,
+      "default_value": "India"
+    },
+    "gstin": {
+      "fieldname": "gstin",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "gst_number",
+        "gst",
+        "gst_no"
+      ],
+      "validation": "15_character_alphanumeric"
+    },
+    "gst_category": {
+      "fieldname": "gst_category",
+      "fieldtype": "Select",
+      "options": [
+        "Registered Regular",
+        "Registered Composition",
+        "Unregistered",
+        "SEZ",
+        "Overseas"
+      ],
+      "mandatory": false,
+      "default_value": "Unregistered"
+    },
+    "payment_terms": {
+      "fieldname": "payment_terms",
+      "fieldtype": "Link",
+      "options": "Payment Terms Template",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "payment_terms",
+        "credit_terms",
+        "terms",
+        "payment_terms_template",
+        "default_payment_terms"
+      ]
+    },
+    "contact_person": {
+      "fieldname": "supplier_primary_contact",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "contact",
+        "contact_person",
+        "contact_name",
+        "poc"
+      ]
+    },
+    "email": {
+      "fieldname": "email_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "email_id",
+        "email_address",
+        "mail"
+      ]
+    },
+    "phone": {
+      "fieldname": "mobile_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "mobile",
+        "phone_number",
+        "contact_number",
+        "cell"
+      ]
+    }
+  }
+}

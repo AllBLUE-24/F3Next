@@ -117,39 +117,6 @@ Return ONLY a valid JSON object matching this schema exactly:
             confidence = float(result.get("confidence", 0.0))
             signals = result.get("collected_signals", [])
 
-            # ── Semantic cross-check via kb_embeddings (G3) ──────────────────
-            # Build a short summary of the uploaded content to embed and compare
-            # against all seeded f3iche chunks in kb_embeddings.
-            try:
-                import asyncio as _asyncio
-                from containers.implementation.utils.rag_helper import rag_retrieve
-
-                content_summary = " ".join(file_summaries)[:1500]
-                # Query WITHOUT a prefix to search ALL f3iche chunks
-                semantic_hits = _asyncio.get_event_loop().run_until_complete(
-                    rag_retrieve(content_summary, "f3iche_", top_k=3)
-                )
-                # Extract f3iche_id from chunk header "[F3iche]\nF3iche ID: <id>"
-                import re as _re
-                semantic_candidates: list[str] = []
-                for chunk in semantic_hits:
-                    m = _re.search(r"F3iche ID:\s*(\S+)", chunk)
-                    if m:
-                        semantic_candidates.append(m.group(1).strip())
-
-                if semantic_candidates and semantic_candidates[0] != inferred_f3iche:
-                    activity.logger.info(
-                        "  [RAG cross-check] LLM inferred '%s' but top semantic match is '%s' — surfacing as secondary candidate",
-                        inferred_f3iche, semantic_candidates[0],
-                    )
-                    signals.append(
-                        f"[RAG] Semantic match suggests '{semantic_candidates[0]}' as alternative — "
-                        "confirm with user if unsure."
-                    )
-            except Exception as rag_e:
-                activity.logger.debug("  [RAG cross-check] skipped: %s", rag_e)
-            # ─────────────────────────────────────────────────────────────────
-
             return (inferred_f3iche, confidence, signals)
         except Exception as e:
             activity.logger.error("LLM Inference failed: %s", e)
@@ -252,6 +219,34 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
     
     svc = _SignalsInferenceService()
     f3iche_id, confidence, signals = svc.infer_f3iche(inp.uploaded_files, file_contents)
+
+    # Semantic cross-check via kb_embeddings (async-safe)
+    try:
+        import re as _re
+        from containers.implementation.utils.rag_helper import rag_retrieve
+
+        summaries = []
+        for fname, text in file_contents.items():
+            summaries.append(f"{fname}: {(text or '')[:500]}")
+        content_summary = " ".join(summaries)[:1500]
+        semantic_hits = await rag_retrieve(content_summary, "f3iche_", top_k=3)
+        semantic_candidates: list[str] = []
+        for chunk in semantic_hits:
+            m = _re.search(r"F3iche ID:\s*(\S+)", chunk)
+            if m:
+                semantic_candidates.append(m.group(1).strip())
+        if semantic_candidates and semantic_candidates[0] != f3iche_id:
+            activity.logger.info(
+                "  [RAG cross-check] LLM inferred '%s' but top semantic match is '%s'",
+                f3iche_id, semantic_candidates[0],
+            )
+            signals = list(signals) + [
+                f"[RAG] Semantic match suggests '{semantic_candidates[0]}' as alternative — "
+                "confirm with user if unsure."
+            ]
+    except Exception as rag_e:
+        activity.logger.debug("  [RAG cross-check] skipped: %s", rag_e)
+
     result = {
         "f3iche": f3iche_id,
         "confidence": round(confidence, 2),

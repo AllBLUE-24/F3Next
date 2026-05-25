@@ -1,0 +1,175 @@
+{
+  "description": "Filename substring priors for doctype classification",
+  "priors": [
+    {
+      "keyword": "so",
+      "doctype": "Sales Order",
+      "weight": 1.5
+    },
+    {
+      "keyword": "sales order",
+      "doctype": "Sales Order",
+      "weight": 2.0
+    },
+    {
+      "keyword": "po",
+      "doctype": "Purchase Order",
+      "weight": 1.5
+    },
+    {
+      "keyword": "purchase order",
+      "doctype": "Purchase Order",
+      "weight": 2.0
+    },
+    {
+      "keyword": "item",
+      "doctype": "Item",
+      "weight": 1.0
+    },
+    {
+      "keyword": "master_items",
+      "doctype": "Item",
+      "weight": 1.2
+    },
+    {
+      "keyword": "items",
+      "doctype": "Item",
+      "weight": 0.8
+    },
+    {
+      "keyword": "customer",
+      "doctype": "Customer",
+      "weight": 1.0
+    },
+    {
+      "keyword": "parties",
+      "doctype": "Customer",
+      "weight": 0.6
+    },
+    {
+      "keyword": "supplier",
+      "doctype": "Supplier",
+      "weight": 1.0
+    },
+    {
+      "keyword": "suppliers",
+      "doctype": "Supplier",
+      "weight": 1.2
+    },
+    {
+      "keyword": "vendor",
+      "doctype": "Supplier",
+      "weight": 0.7
+    },
+    {
+      "keyword": "invoice",
+      "doctype": "Sales Invoice",
+      "weight": 0.7
+    },
+    {
+      "keyword": "purchase invoice",
+      "doctype": "Purchase Invoice",
+      "weight": 1.2
+    },
+    {
+      "keyword": "purchase receipt",
+      "doctype": "Purchase Receipt",
+      "weight": 2.5
+    },
+    {
+      "keyword": "purchase_receipt",
+      "doctype": "Purchase Receipt",
+      "weight": 2.5
+    },
+    {
+      "keyword": "purchase_receipts",
+      "doctype": "Purchase Receipt",
+      "weight": 2.5
+    },
+    {
+      "keyword": "goods receipt",
+      "doctype": "Purchase Receipt",
+      "weight": 2.0
+    },
+    {
+      "keyword": "grn",
+      "doctype": "Purchase Receipt",
+      "weight": 1.5
+    },
+    {
+      "keyword": "stock entry",
+      "doctype": "Stock Entry",
+      "weight": 2.5
+    },
+    {
+      "keyword": "stock_entry",
+      "doctype": "Stock Entry",
+      "weight": 2.5
+    },
+    {
+      "keyword": "stock entries",
+      "doctype": "Stock Entry",
+      "weight": 2.5
+    },
+    {
+      "keyword": "stock_entries",
+      "doctype": "Stock Entry",
+      "weight": 2.5
+    },
+    {
+      "keyword": "material transfer",
+      "doctype": "Stock Entry",
+      "weight": 1.5
+    },
+    {
+      "keyword": "material issue",
+      "doctype": "Stock Entry",
+      "weight": 1.5
+    },
+    {
+      "keyword": "material receipt",
+      "doctype": "Stock Entry",
+      "weight": 1.2
+    },
+    {
+      "keyword": "bom",
+      "doctype": "BOM",
+      "weight": 1.5
+    },
+    {
+      "keyword": "bom_recipes",
+      "doctype": "BOM",
+      "weight": 2.0
+    },
+    {
+      "keyword": "work order",
+      "doctype": "Work Order",
+      "weight": 2.0
+    },
+    {
+      "keyword": "work_order",
+      "doctype": "Work Order",
+      "weight": 2.0
+    },
+    {
+      "keyword": "factory_work_orders",
+      "doctype": "Work Order",
+      "weight": 2.5
+    },
+    {
+      "keyword": "project",
+      "doctype": "Project",
+      "weight": 2.0
+    },
+    {
+      "keyword": "projects",
+      "doctype": "Project",
+      "weight": 2.5
+    },
+    {
+      "keyword": "active_projects",
+      "doctype": "Project",
+      "weight": 3.0
+    }
+  ]
+}

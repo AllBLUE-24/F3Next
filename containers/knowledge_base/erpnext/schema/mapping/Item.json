@@ -1,0 +1,130 @@
+{
+  "doctype_name": "Item",
+  "naming_series": "ITEM-",
+  "mandatory_fields": [
+    "item_code",
+    "item_name",
+    "item_group",
+    "stock_uom"
+  ],
+  "field_mappings": {
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "unique": true,
+      "user_input_synonyms": [
+        "item code",
+        "item_id",
+        "product_code",
+        "sku",
+        "code"
+      ],
+      "note": "Auto-generated if item_naming_by = Naming Series in Stock Settings"
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "user_input_synonyms": [
+        "item name",
+        "product_name",
+        "product name",
+        "description",
+        "material_name"
+      ]
+    },
+    "item_group": {
+      "fieldname": "item_group",
+      "fieldtype": "Link",
+      "options": "Item Group",
+      "mandatory": true,
+      "common_values": [
+        "Raw Material",
+        "Finished Goods",
+        "Sub Assemblies",
+        "Consumable",
+        "Services"
+      ]
+    },
+    "stock_uom": {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "options": "UOM",
+      "mandatory": true,
+      "common_values": [
+        "Nos",
+        "Kg",
+        "Liter",
+        "Meter",
+        "Box",
+        "Piece"
+      ],
+      "user_input_synonyms": [
+        "uom",
+        "unit",
+        "unit of measure",
+        "measure"
+      ],
+      "default_value": "Nos"
+    },
+    "is_stock_item": {
+      "fieldname": "is_stock_item",
+      "fieldtype": "Check",
+      "default_value": 1,
+      "note": "Uncheck for services"
+    },
+    "has_batch_no": {
+      "fieldname": "has_batch_no",
+      "fieldtype": "Check",
+      "default_value": 0,
+      "note": "Enable for food, pharma, chemicals"
+    },
+    "has_serial_no": {
+      "fieldname": "has_serial_no",
+      "fieldtype": "Check",
+      "default_value": 0,
+      "note": "Enable for electronics, equipment"
+    },
+    "valuation_rate": {
+      "fieldname": "valuation_rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "cost rate",
+        "cost_rate",
+        "cost price",
+        "cost",
+        "buying_rate",
+        "purchase_rate",
+        "cost rate (inr)"
+      ]
+    },
+    "standard_rate": {
+      "fieldname": "standard_rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "selling rate",
+        "selling_rate",
+        "selling price",
+        "mrp",
+        "price",
+        "selling rate (inr)"
+      ]
+    },
+    "opening_stock": {
+      "fieldname": "opening_stock",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "stock qty",
+        "stock_qty",
+        "current_stock",
+        "qty",
+        "quantity",
+        "opening_qty"
+      ]
+    }
+  }
+}

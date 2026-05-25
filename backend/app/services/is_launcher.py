@@ -605,30 +605,38 @@ class ImplementationLauncher:
         )
 
         doctypes = []
-        for md in mapped_rows:
+        from containers.implementation.mapping_agent.corpus_merge import (
+            aggregate_mapped_data_rows,
+            load_r2_json,
+        )
+
+        aggregated = aggregate_mapped_data_rows(mapped_rows)
+
+        for dt, agg in sorted(aggregated.items()):
             records = []
             columns = []
-            r2_path = md.mapped_payload_r2_path
+            r2_path = agg.get("r2_path")
 
             if r2_path:
                 try:
-                    resp = s3.get_object(Bucket="clean-data", Key=r2_path)
-                    payload = json.loads(resp["Body"].read().decode("utf-8"))
-                    records = payload.get("records", [])
-                    if records:
-                        columns = list(records[0].keys())
+                    payload = load_r2_json(s3, "clean-data", r2_path)
+                    if isinstance(payload, dict):
+                        records = payload.get("records", [])
+                        if records:
+                            columns = list(records[0].keys())
                 except Exception as e:
                     logger.warning("Failed to fetch R2 payload %s: %s", r2_path, e)
 
-            validation = val_map.get(md.target_doctype, {
+            validation = val_map.get(dt, {
                 "status": "pending", "row_count": 0, "errors": []
             })
 
             doctypes.append({
-                "doctype": md.target_doctype,
-                "source_file": md.source_filename,
-                "total_rows": md.total_rows or len(records),
-                "total_mapped_fields": md.total_mapped_fields or len(columns),
+                "doctype": dt,
+                "source_file": ", ".join(agg.get("source_files") or []),
+                "source_files": agg.get("source_files") or [],
+                "total_rows": len(records) or agg.get("total_rows") or 0,
+                "total_mapped_fields": len(columns),
                 "validation_status": validation["status"],
                 "errors": [e for e in validation["errors"] if e["severity"] == "error"],
                 "warnings": [e for e in validation["errors"] if e["severity"] == "warning"],
