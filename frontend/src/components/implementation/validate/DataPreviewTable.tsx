@@ -19,6 +19,8 @@ interface Props {
 const STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle; color: string; bg: string }> = {
   passed: { label: 'Passed', icon: CheckCircle, color: 'text-emerald-400', bg: 'border-emerald-500/20' },
   pass:   { label: 'Passed', icon: CheckCircle, color: 'text-emerald-400', bg: 'border-emerald-500/20' },
+  partial:{ label: 'Passed with warnings', icon: AlertTriangle, color: 'text-amber-400', bg: 'border-amber-500/20' },
+  passed_with_warnings: { label: 'Passed with warnings', icon: AlertTriangle, color: 'text-amber-400', bg: 'border-amber-500/20' },
   failed: { label: 'Failed', icon: XCircle,     color: 'text-red-400',     bg: 'border-red-500/20' },
   fail:   { label: 'Failed', icon: XCircle,     color: 'text-red-400',     bg: 'border-red-500/20' },
   pending:{ label: 'Pending',icon: AlertTriangle,color: 'text-yellow-400', bg: 'border-yellow-500/20' },
@@ -125,7 +127,9 @@ export function DataPreviewTable({ data, defaultOpen = false }: Props) {
         <div className="border-t border-white/[0.06]">
           {/* Errors / Warnings */}
           {(data.errors.length > 0 || data.warnings.length > 0) && (
-            <div className="px-5 py-3 space-y-1.5 bg-red-500/[0.03] border-b border-white/[0.06]">
+            <div className={`px-5 py-3 space-y-1.5 border-b border-white/[0.06] ${
+              data.errors.length > 0 ? 'bg-red-500/[0.03]' : 'bg-amber-500/[0.03]'
+            }`}>
               {data.errors.map((e, i) => (
                 <div key={`err-${i}`} className="flex items-start gap-2 text-xs">
                   <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />

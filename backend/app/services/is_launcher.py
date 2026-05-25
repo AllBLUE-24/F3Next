@@ -626,6 +626,12 @@ class ImplementationLauncher:
                         payload = normalize_mapped_payload(dt, payload)
                         records = payload.get("records", [])
                         if records:
+                            from containers.implementation.mapping_agent.preview_flatten import (
+                                flatten_records_for_preview,
+                            )
+
+                            records, columns = flatten_records_for_preview(records)
+                        if records and not columns:
                             columns = list(records[0].keys())
                 except Exception as e:
                     logger.warning("Failed to fetch R2 payload %s: %s", r2_path, e)
@@ -663,9 +669,23 @@ class ImplementationLauncher:
 
         validation_overall = "pass"
         for dt in doctypes:
-            if dt["validation_status"] == "fail":
+            st = dt["validation_status"]
+            if st in ("fail", "failed"):
                 validation_overall = "fail"
                 break
+            if st in ("partial", "passed_with_warnings"):
+                validation_overall = "partial"
+
+        warning_count = sum(len(d.get("warnings") or []) for d in doctypes)
+        if isinstance(profile, dict):
+            profile = dict(profile)
+            dqs = profile.get("data_quality_score")
+            if dqs is not None and (warning_count > 0 or validation_overall == "partial"):
+                try:
+                    profile["data_quality_score"] = min(float(dqs), 0.85)
+                    profile["data_quality_capped"] = True
+                except (TypeError, ValueError):
+                    pass
 
         return {
             "profile": profile,

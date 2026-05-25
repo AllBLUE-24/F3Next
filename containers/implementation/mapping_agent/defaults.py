@@ -13,7 +13,32 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from containers.implementation.mapping_agent.kb import baseline_defaults, field_mappings
+from containers.implementation.mapping_agent.kb import baseline_defaults, doctype_graph, field_mappings
+
+
+def _normalize_required_fieldnames(fields: List[str]) -> List[str]:
+    """Match validation graph normalization — 'items (a, b)' -> 'items'."""
+    out: List[str] = []
+    seen: set = set()
+    for raw in fields or []:
+        s = str(raw or "").strip()
+        if not s:
+            continue
+        if "(" in s:
+            s = s.split("(", 1)[0].strip()
+        parts = [p.strip() for p in s.split("/") if p.strip()]
+        for p in parts or [s]:
+            p2 = p.split(" ", 1)[0].strip()
+            if p2 and p2 not in seen:
+                seen.add(p2)
+                out.append(p2)
+    return out
+
+
+def _graph_required_fieldnames(doctype: str) -> set:
+    graph = doctype_graph() or {}
+    raw = (graph.get("doctypes") or {}).get(doctype, {}).get("required_fields") or []
+    return set(_normalize_required_fieldnames(raw))
 
 
 def _today() -> str:
@@ -281,13 +306,18 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
             if r.get("naming_series") in (None, ""):
                 r["naming_series"] = naming_series.strip()
 
-        # Inject defaults for missing mandatory fields
+        # Inject defaults for missing mandatory / graph-required fields
         mandatory_fields = set(dt_cfg.get("mandatory_fields") or [])
+        graph_required = _graph_required_fieldnames(doctype)
         for _, cfg in fmap.items():
             fname = cfg.get("fieldname")
             if not fname or "[]" in str(fname):
                 continue
-            is_mandatory = bool(cfg.get("mandatory")) or (fname in mandatory_fields)
+            is_mandatory = (
+                bool(cfg.get("mandatory"))
+                or (fname in mandatory_fields)
+                or (fname in graph_required)
+            )
             if not is_mandatory:
                 continue
             if r.get(fname) not in (None, ""):

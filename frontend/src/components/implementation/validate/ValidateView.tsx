@@ -42,6 +42,15 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
   const totalRecords = preview.doctypes.reduce((s, d) => s + d.total_rows, 0);
   const totalDoctypes = preview.doctypes.length;
   const hasErrors = preview.validation_overall === 'fail';
+  const hasWarnings = preview.validation_overall === 'partial';
+
+  const dataQualityLabel = (() => {
+    const raw = profile.data_quality_score;
+    if (raw == null) return '—';
+    const pct = Math.round(Number(raw) * 100);
+    if (profile.data_quality_capped) return `${pct}% (capped — validation warnings)`;
+    return `${pct}%`;
+  })();
 
   const handleValidate = () => {
     startTransition(async () => {
@@ -96,11 +105,15 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
         <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5">
           {hasErrors ? (
             <AlertTriangle className="w-4 h-4 text-red-400" />
+          ) : hasWarnings ? (
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
           ) : (
             <CheckCircle className="w-4 h-4 text-emerald-400" />
           )}
-          <span className={`text-xs font-bold ${hasErrors ? 'text-red-400' : 'text-emerald-400'}`}>
-            {hasErrors ? 'Has Errors' : 'All Passed'}
+          <span className={`text-xs font-bold ${
+            hasErrors ? 'text-red-400' : hasWarnings ? 'text-amber-400' : 'text-emerald-400'
+          }`}>
+            {hasErrors ? 'Has Errors' : hasWarnings ? 'Passed with Warnings' : 'All Passed'}
           </span>
         </div>
       </div>
@@ -118,7 +131,7 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
             { label: 'F3iche', value: String(profile.f3iche || '—') },
             { label: 'Business Size', value: String(profile.company_size || '—') },
             { label: 'Sub-Industry', value: String(profile.industry_sub || '—') },
-            { label: 'Data Quality', value: profile.data_quality_score != null ? `${Math.round(Number(profile.data_quality_score) * 100)}%` : '—' },
+            { label: 'Data Quality', value: dataQualityLabel },
           ].map((item) => (
             <div key={item.label}>
               <p className="text-[10px] uppercase tracking-widest text-gray-700 mb-1">{item.label}</p>
@@ -197,6 +210,12 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
       {/* ── Action Buttons ─────────────────────────────────────────────────── */}
       {step === 'review' && (
         <div className="space-y-3">
+          {hasWarnings && !hasErrors && (
+            <p className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Some doctypes passed with warnings. Review amber sections before import.
+            </p>
+          )}
           {hasErrors && (
             <p className="text-xs text-yellow-500 font-medium flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />

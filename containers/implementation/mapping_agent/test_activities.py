@@ -174,6 +174,15 @@ class DefaultsInjectionTest(unittest.TestCase):
         out = normalize_mapped_payload("Project", payload)
         self.assertEqual(out["records"][0].get("naming_series"), "PROJ-")
 
+    def test_injects_supplier_type_from_graph_required_and_kb_default(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+
+        out = apply_defaults_and_normalize(
+            "Supplier",
+            [{"supplier_name": "Acme Chemicals", "supplier_group": "All Supplier Groups"}],
+        )
+        self.assertEqual(out[0].get("supplier_type"), "Company")
+
 
 if __name__ == "__main__":
     unittest.main()

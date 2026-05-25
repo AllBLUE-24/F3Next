@@ -184,6 +184,8 @@ class _ValidationEngine:
             if check["status"] == "fail":
                 report["errors"].extend(check["errors"])
                 report["overall"] = "fail"
+            elif check["status"] == "partial" and report["overall"] == "pass":
+                report["overall"] = "partial"
             report["warnings"].extend(check["warnings"])
 
         # ── COVERAGE CHECK: are major doctypes missing from mapped data? ──
@@ -201,6 +203,9 @@ class _ValidationEngine:
                 report["warnings"].append(
                     f"Only {len(mapped_doctypes)}/{len(required_doctypes)} required doctypes have mapped data"
                 )
+
+        if report["overall"] == "pass" and report["warnings"]:
+            report["overall"] = "partial"
 
         return report
 
@@ -295,6 +300,9 @@ class _ValidationEngine:
                     check["warnings"].append(f"Row {i+1}: Invalid date format — {k}: {v}")
                 if any(t in str(k).lower() for t in ("amount", "rate", "qty", "price")) and not self._is_numeric(str(v)):
                     check["warnings"].append(f"Row {i+1}: Non-numeric value — {k}: {v}")
+
+        if check["status"] == "pass" and check["warnings"]:
+            check["status"] = "partial"
 
         return check
 
@@ -506,10 +514,16 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                     ))
 
                 # Update ISMappedData.validation_status
+                if check["status"] == "pass":
+                    mapped_status = "passed"
+                elif check["status"] == "partial":
+                    mapped_status = "partial"
+                else:
+                    mapped_status = "failed"
                 await session.execute(
                     update(ISMappedData)
                     .where(ISMappedData.id == mapped_data_id)
-                    .values(validation_status="passed" if check["status"] == "pass" else "failed")
+                    .values(validation_status=mapped_status)
                 )
 
             # Update session status
@@ -557,8 +571,8 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         "checks": report.get("checks", []) or [],
     }
 
-    if v_status != "pass" or errors:
+    if v_status == "fail" or errors:
         return NodeStatusEnvelope.failed(primary_result=primary, errors=errors, warnings=warnings)
-    if warnings:
+    if v_status == "partial" or warnings:
         return NodeStatusEnvelope.partial(primary_result=primary, warnings=warnings)
     return NodeStatusEnvelope.success(primary_result=primary)
