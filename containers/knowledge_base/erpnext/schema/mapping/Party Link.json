@@ -1,0 +1,64 @@
+{
+  "doctype_name": "Party Link",
+  "mandatory_fields": [
+    "primary_role"
+  ],
+  "doctype_classifier_hints": [
+    "party link",
+    "party_link"
+  ],
+  "field_mappings": {
+    "primary_role": {
+      "fieldname": "primary_role",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Primary Role",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Primary Role",
+        "primary_role",
+        "primary role"
+      ]
+    },
+    "secondary_role": {
+      "fieldname": "secondary_role",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Secondary Role",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "secondary role",
+        "secondary_role",
+        "Secondary Role"
+      ]
+    },
+    "primary_party": {
+      "fieldname": "primary_party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Primary Party",
+      "options": "primary_role",
+      "default_value": null,
+      "user_input_synonyms": [
+        "primary_party",
+        "Primary Party",
+        "primary party"
+      ]
+    },
+    "secondary_party": {
+      "fieldname": "secondary_party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Secondary Party",
+      "options": "secondary_role",
+      "default_value": null,
+      "user_input_synonyms": [
+        "secondary party",
+        "Secondary Party",
+        "secondary_party"
+      ]
+    }
+  }
+}

@@ -1,0 +1,230 @@
+{
+  "doctype_name": "Invoice Discounting",
+  "mandatory_fields": [
+    "posting_date",
+    "company",
+    "invoices",
+    "short_term_loan",
+    "bank_account",
+    "bank_charges_account",
+    "accounts_receivable_credit",
+    "accounts_receivable_discounted",
+    "accounts_receivable_unpaid"
+  ],
+  "doctype_classifier_hints": [
+    "invoice discounting",
+    "invoice_discounting"
+  ],
+  "field_mappings": {
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "loan_start_date": {
+      "fieldname": "loan_start_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Loan Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Loan Start Date",
+        "loan_start_date",
+        "loan start date"
+      ]
+    },
+    "loan_period": {
+      "fieldname": "loan_period",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Loan Period (Days)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Loan Period (Days)",
+        "loan period",
+        "loan period (days)",
+        "loan_period",
+        "loan_period_(days)"
+      ]
+    },
+    "loan_end_date": {
+      "fieldname": "loan_end_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Loan End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "loan_end_date",
+        "loan end date",
+        "Loan End Date"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Sanctioned",
+        "Disbursed",
+        "Settled",
+        "Cancelled"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "total_amount": {
+      "fieldname": "total_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_amount",
+        "total amount",
+        "Total Amount"
+      ]
+    },
+    "bank_charges": {
+      "fieldname": "bank_charges",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Bank Charges",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank charges",
+        "bank_charges",
+        "Bank Charges"
+      ]
+    },
+    "short_term_loan": {
+      "fieldname": "short_term_loan",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Short Term Loan Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "short term loan",
+        "short term loan account",
+        "short_term_loan_account",
+        "Short Term Loan Account",
+        "short_term_loan"
+      ]
+    },
+    "bank_account": {
+      "fieldname": "bank_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Bank Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account",
+        "bank_account",
+        "bank account"
+      ]
+    },
+    "bank_charges_account": {
+      "fieldname": "bank_charges_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Bank Charges Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Charges Account",
+        "bank charges account",
+        "bank_charges_account"
+      ]
+    },
+    "accounts_receivable_credit": {
+      "fieldname": "accounts_receivable_credit",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Accounts Receivable Credit Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "accounts receivable credit",
+        "accounts_receivable_credit",
+        "Accounts Receivable Credit Account",
+        "accounts receivable credit account",
+        "accounts_receivable_credit_account"
+      ]
+    },
+    "accounts_receivable_discounted": {
+      "fieldname": "accounts_receivable_discounted",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Accounts Receivable Discounted Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Accounts Receivable Discounted Account",
+        "accounts receivable discounted account",
+        "accounts_receivable_discounted",
+        "accounts receivable discounted",
+        "accounts_receivable_discounted_account"
+      ]
+    },
+    "accounts_receivable_unpaid": {
+      "fieldname": "accounts_receivable_unpaid",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Accounts Receivable Unpaid Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "accounts_receivable_unpaid",
+        "accounts receivable unpaid account",
+        "Accounts Receivable Unpaid Account",
+        "accounts receivable unpaid",
+        "accounts_receivable_unpaid_account"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Invoice Discounting",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

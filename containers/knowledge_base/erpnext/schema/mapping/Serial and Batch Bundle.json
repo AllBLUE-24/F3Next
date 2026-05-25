@@ -1,0 +1,295 @@
+{
+  "doctype_name": "Serial and Batch Bundle",
+  "mandatory_fields": [
+    "company",
+    "item_code",
+    "type_of_transaction",
+    "entries",
+    "voucher_type"
+  ],
+  "doctype_classifier_hints": [
+    "serial and batch bundle",
+    "serial_and_batch_bundle"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Naming Series",
+      "options": [
+        "SABB-.########"
+      ],
+      "default_value": "SABB-.########",
+      "user_input_synonyms": [
+        "naming_series",
+        "Naming Series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "has_serial_no": {
+      "fieldname": "has_serial_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Serial No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has serial no",
+        "has_serial_no",
+        "Has Serial No"
+      ]
+    },
+    "has_batch_no": {
+      "fieldname": "has_batch_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Batch No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has batch no",
+        "Has Batch No",
+        "has_batch_no"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "type_of_transaction": {
+      "fieldname": "type_of_transaction",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Type of Transaction",
+      "options": [
+        "Inward",
+        "Outward",
+        "Maintenance",
+        "Asset Repair"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "type of transaction",
+        "Type of Transaction",
+        "type_of_transaction"
+      ]
+    },
+    "total_qty": {
+      "fieldname": "total_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total qty",
+        "total_qty",
+        "Total Qty"
+      ]
+    },
+    "item_group": {
+      "fieldname": "item_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Item Group",
+        "item_group",
+        "item group"
+      ]
+    },
+    "avg_rate": {
+      "fieldname": "avg_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Avg Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "avg rate",
+        "avg_rate",
+        "Avg Rate"
+      ]
+    },
+    "total_amount": {
+      "fieldname": "total_amount",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_amount",
+        "total amount",
+        "Total Amount"
+      ]
+    },
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Voucher Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher type",
+        "Voucher Type",
+        "voucher_type"
+      ]
+    },
+    "voucher_no": {
+      "fieldname": "voucher_no",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Voucher No",
+      "options": "voucher_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_no",
+        "Voucher No",
+        "voucher no"
+      ]
+    },
+    "voucher_detail_no": {
+      "fieldname": "voucher_detail_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Voucher Detail No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_detail_no",
+        "Voucher Detail No",
+        "voucher detail no"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": false,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "returned_against": {
+      "fieldname": "returned_against",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Returned Against",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "returned_against",
+        "Returned Against",
+        "returned against"
+      ]
+    },
+    "is_cancelled": {
+      "fieldname": "is_cancelled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Cancelled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Cancelled",
+        "is cancelled",
+        "is_cancelled"
+      ]
+    },
+    "is_rejected": {
+      "fieldname": "is_rejected",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Rejected",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Rejected",
+        "is_rejected",
+        "is rejected"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Serial and Batch Bundle",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

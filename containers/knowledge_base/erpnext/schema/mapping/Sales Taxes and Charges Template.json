@@ -1,0 +1,76 @@
+{
+  "doctype_name": "Sales Taxes and Charges Template",
+  "mandatory_fields": [
+    "title",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "sales taxes and charges template",
+    "sales_taxes_and_charges_template"
+  ],
+  "field_mappings": {
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "is_default": {
+      "fieldname": "is_default",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Default",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_default",
+        "Default",
+        "is default",
+        "default"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "tax_category": {
+      "fieldname": "tax_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Category",
+      "options": "Tax Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Category",
+        "tax_category",
+        "tax category"
+      ]
+    }
+  }
+}

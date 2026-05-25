@@ -1,0 +1,211 @@
+{
+  "doctype_name": "Stock Reconciliation",
+  "mandatory_fields": [
+    "naming_series",
+    "company",
+    "purpose",
+    "posting_date",
+    "posting_time",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "stock reconciliation",
+    "stock_reconciliation"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MAT-RECO-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "purpose": {
+      "fieldname": "purpose",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Purpose",
+      "options": [
+        "Opening Stock",
+        "Stock Reconciliation"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "purpose",
+        "Purpose"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": "Now",
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "set_posting_time": {
+      "fieldname": "set_posting_time",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Edit Posting Date and Time",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "set posting time",
+        "Edit Posting Date and Time",
+        "set_posting_time",
+        "edit_posting_date_and_time",
+        "edit posting date and time"
+      ]
+    },
+    "set_warehouse": {
+      "fieldname": "set_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Default Warehouse",
+        "default_warehouse",
+        "default warehouse",
+        "set_warehouse",
+        "set warehouse"
+      ]
+    },
+    "scan_barcode": {
+      "fieldname": "scan_barcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Scan Barcode",
+      "options": "Barcode",
+      "default_value": null,
+      "user_input_synonyms": [
+        "scan barcode",
+        "scan_barcode",
+        "Scan Barcode"
+      ]
+    },
+    "last_scanned_warehouse": {
+      "fieldname": "last_scanned_warehouse",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Last Scanned Warehouse",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Last Scanned Warehouse",
+        "last scanned warehouse",
+        "last_scanned_warehouse"
+      ]
+    },
+    "scan_mode": {
+      "fieldname": "scan_mode",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Scan Mode",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "scan_mode",
+        "scan mode",
+        "Scan Mode"
+      ]
+    },
+    "expense_account": {
+      "fieldname": "expense_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Difference Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "expense_account",
+        "expense account",
+        "difference_account",
+        "Difference Account",
+        "difference account"
+      ]
+    },
+    "difference_amount": {
+      "fieldname": "difference_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Difference Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "difference_amount",
+        "difference amount",
+        "Difference Amount"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Stock Reconciliation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    }
+  },
+  "is_submittable": true
+}

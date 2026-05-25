@@ -1,0 +1,495 @@
+{
+  "doctype_name": "POS Profile",
+  "mandatory_fields": [
+    "company",
+    "warehouse",
+    "payments",
+    "currency",
+    "write_off_account",
+    "write_off_cost_center",
+    "write_off_limit"
+  ],
+  "doctype_classifier_hints": [
+    "pos profile",
+    "pos_profile"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "country": {
+      "fieldname": "country",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Country",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "country",
+        "Country"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "campaign": {
+      "fieldname": "campaign",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Campaign",
+      "options": "Campaign",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Campaign",
+        "campaign"
+      ]
+    },
+    "company_address": {
+      "fieldname": "company_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company Address",
+        "company_address",
+        "company address"
+      ]
+    },
+    "hide_images": {
+      "fieldname": "hide_images",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Hide Images",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "hide_images",
+        "Hide Images",
+        "hide images"
+      ]
+    },
+    "hide_unavailable_items": {
+      "fieldname": "hide_unavailable_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Hide Unavailable Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "hide_unavailable_items",
+        "hide unavailable items",
+        "Hide Unavailable Items"
+      ]
+    },
+    "auto_add_item_to_cart": {
+      "fieldname": "auto_add_item_to_cart",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Automatically Add Filtered Item To Cart",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "automatically add filtered item to cart",
+        "Automatically Add Filtered Item To Cart",
+        "auto add item to cart",
+        "automatically_add_filtered_item_to_cart",
+        "auto_add_item_to_cart"
+      ]
+    },
+    "validate_stock_on_save": {
+      "fieldname": "validate_stock_on_save",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Validate Stock on Save",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "validate stock on save",
+        "validate_stock_on_save",
+        "Validate Stock on Save"
+      ]
+    },
+    "print_receipt_on_order_complete": {
+      "fieldname": "print_receipt_on_order_complete",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Print Receipt on Order Complete",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "print_receipt_on_order_complete",
+        "Print Receipt on Order Complete",
+        "print receipt on order complete"
+      ]
+    },
+    "update_stock": {
+      "fieldname": "update_stock",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Update Stock",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Update Stock",
+        "update_stock",
+        "update stock"
+      ]
+    },
+    "ignore_pricing_rule": {
+      "fieldname": "ignore_pricing_rule",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Ignore Pricing Rule",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "ignore pricing rule",
+        "ignore_pricing_rule",
+        "Ignore Pricing Rule"
+      ]
+    },
+    "allow_rate_change": {
+      "fieldname": "allow_rate_change",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow User to Edit Rate",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_user_to_edit_rate",
+        "allow user to edit rate",
+        "Allow User to Edit Rate",
+        "allow rate change",
+        "allow_rate_change"
+      ]
+    },
+    "allow_discount_change": {
+      "fieldname": "allow_discount_change",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow User to Edit Discount",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_discount_change",
+        "allow discount change",
+        "allow_user_to_edit_discount",
+        "allow user to edit discount",
+        "Allow User to Edit Discount"
+      ]
+    },
+    "disable_grand_total_to_default_mop": {
+      "fieldname": "disable_grand_total_to_default_mop",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable auto setting Grand Total to default Payment Mode",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disable_auto_setting_grand_total_to_default_payment_mode",
+        "disable grand total to default mop",
+        "disable_grand_total_to_default_mop",
+        "disable auto setting grand total to default payment mode",
+        "Disable auto setting Grand Total to default Payment Mode"
+      ]
+    },
+    "allow_partial_payment": {
+      "fieldname": "allow_partial_payment",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Partial Payment",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_partial_payment",
+        "allow partial payment",
+        "Allow Partial Payment"
+      ]
+    },
+    "print_format": {
+      "fieldname": "print_format",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Format",
+      "options": "Print Format",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_format",
+        "print format",
+        "Print Format"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "tc_name": {
+      "fieldname": "tc_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Terms and Conditions",
+      "options": "Terms and Conditions",
+      "default_value": null,
+      "user_input_synonyms": [
+        "terms and conditions",
+        "Terms and Conditions",
+        "tc_name",
+        "tc name",
+        "terms_and_conditions"
+      ]
+    },
+    "select_print_heading": {
+      "fieldname": "select_print_heading",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Heading",
+      "options": "Print Heading",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_heading",
+        "print heading",
+        "select print heading",
+        "Print Heading",
+        "select_print_heading"
+      ]
+    },
+    "selling_price_list": {
+      "fieldname": "selling_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "selling price list",
+        "selling_price_list",
+        "price list",
+        "Price List",
+        "price_list"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "write_off_account": {
+      "fieldname": "write_off_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Write Off Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "write_off_account",
+        "write off account",
+        "Write Off Account"
+      ]
+    },
+    "write_off_cost_center": {
+      "fieldname": "write_off_cost_center",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Write Off Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Write Off Cost Center",
+        "write off cost center",
+        "write_off_cost_center"
+      ]
+    },
+    "write_off_limit": {
+      "fieldname": "write_off_limit",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Write Off Limit",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Write Off Limit",
+        "write_off_limit",
+        "write off limit"
+      ]
+    },
+    "account_for_change_amount": {
+      "fieldname": "account_for_change_amount",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account for Change Amount",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "account_for_change_amount",
+        "Account for Change Amount",
+        "account for change amount"
+      ]
+    },
+    "disable_rounded_total": {
+      "fieldname": "disable_rounded_total",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable Rounded Total",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disable rounded total",
+        "disable_rounded_total",
+        "Disable Rounded Total"
+      ]
+    },
+    "income_account": {
+      "fieldname": "income_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Income Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "income account",
+        "Income Account",
+        "income_account"
+      ]
+    },
+    "expense_account": {
+      "fieldname": "expense_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Expense Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "expense_account",
+        "Expense Account",
+        "expense account"
+      ]
+    },
+    "taxes_and_charges": {
+      "fieldname": "taxes_and_charges",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Taxes and Charges",
+      "options": "Sales Taxes and Charges Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "taxes and charges",
+        "taxes_and_charges",
+        "Taxes and Charges"
+      ]
+    },
+    "tax_category": {
+      "fieldname": "tax_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Category",
+      "options": "Tax Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Category",
+        "tax_category",
+        "tax category"
+      ]
+    },
+    "apply_discount_on": {
+      "fieldname": "apply_discount_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Apply Discount On",
+      "options": [
+        "Grand Total",
+        "Net Total"
+      ],
+      "default_value": "Grand Total",
+      "user_input_synonyms": [
+        "apply_discount_on",
+        "Apply Discount On",
+        "apply discount on"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    }
+  }
+}

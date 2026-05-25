@@ -1,0 +1,80 @@
+{
+  "doctype_name": "Opening Invoice Creation Tool",
+  "mandatory_fields": [
+    "company",
+    "invoice_type",
+    "invoices"
+  ],
+  "doctype_classifier_hints": [
+    "opening invoice creation tool",
+    "opening_invoice_creation_tool"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "create_missing_party": {
+      "fieldname": "create_missing_party",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Create Missing Party",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "create_missing_party",
+        "Create Missing Party",
+        "create missing party"
+      ]
+    },
+    "invoice_type": {
+      "fieldname": "invoice_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Invoice Type",
+      "options": [
+        "Sales",
+        "Purchase"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "invoice type",
+        "invoice_type",
+        "Invoice Type"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "doctype_name": "Tax Category",
+  "mandatory_fields": [
+    "title"
+  ],
+  "doctype_classifier_hints": [
+    "tax category",
+    "tax_category"
+  ],
+  "field_mappings": {
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    }
+  }
+}

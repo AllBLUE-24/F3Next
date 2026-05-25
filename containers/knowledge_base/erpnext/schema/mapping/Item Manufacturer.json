@@ -1,0 +1,92 @@
+{
+  "doctype_name": "Item Manufacturer",
+  "mandatory_fields": [
+    "item_code",
+    "manufacturer",
+    "manufacturer_part_no"
+  ],
+  "doctype_classifier_hints": [
+    "item manufacturer",
+    "item_manufacturer"
+  ],
+  "field_mappings": {
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "manufacturer": {
+      "fieldname": "manufacturer",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Manufacturer",
+      "options": "Manufacturer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "manufacturer",
+        "Manufacturer"
+      ]
+    },
+    "manufacturer_part_no": {
+      "fieldname": "manufacturer_part_no",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Manufacturer Part Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "manufacturer_part_no",
+        "manufacturer part number",
+        "manufacturer part no",
+        "Manufacturer Part Number",
+        "manufacturer_part_number"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "is_default": {
+      "fieldname": "is_default",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Default",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_default",
+        "Is Default",
+        "is default"
+      ]
+    }
+  }
+}

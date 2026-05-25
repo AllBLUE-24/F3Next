@@ -1,0 +1,133 @@
+{
+  "doctype_name": "Quick Stock Balance",
+  "mandatory_fields": [
+    "warehouse",
+    "date",
+    "item"
+  ],
+  "doctype_classifier_hints": [
+    "quick stock balance",
+    "quick_stock_balance"
+  ],
+  "field_mappings": {
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "date": {
+      "fieldname": "date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "date",
+        "Date"
+      ]
+    },
+    "item_barcode": {
+      "fieldname": "item_barcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Barcode",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item barcode",
+        "item_barcode",
+        "Item Barcode"
+      ]
+    },
+    "item": {
+      "fieldname": "item",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item",
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "item_description": {
+      "fieldname": "item_description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Item Description",
+      "options": null,
+      "default_value": "  ",
+      "user_input_synonyms": [
+        "item description",
+        "item_description",
+        "Item Description"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Image",
+      "mandatory": false,
+      "label": "Image View",
+      "options": "image",
+      "default_value": null,
+      "user_input_synonyms": [
+        "image view",
+        "image",
+        "Image View",
+        "image_view"
+      ]
+    },
+    "qty": {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Available Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "qty",
+        "available quantity",
+        "Available Quantity",
+        "available_quantity"
+      ]
+    },
+    "value": {
+      "fieldname": "value",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Stock Value",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "value",
+        "Stock Value",
+        "stock_value",
+        "stock value"
+      ]
+    }
+  }
+}

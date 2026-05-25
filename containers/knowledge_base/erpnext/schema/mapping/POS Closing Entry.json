@@ -1,0 +1,207 @@
+{
+  "doctype_name": "POS Closing Entry",
+  "mandatory_fields": [
+    "period_start_date",
+    "period_end_date",
+    "posting_date",
+    "posting_time",
+    "pos_opening_entry",
+    "company",
+    "pos_profile",
+    "user"
+  ],
+  "doctype_classifier_hints": [
+    "pos closing entry",
+    "pos_closing_entry"
+  ],
+  "field_mappings": {
+    "period_start_date": {
+      "fieldname": "period_start_date",
+      "fieldtype": "Datetime",
+      "mandatory": true,
+      "label": "Period Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Period Start Date",
+        "period_start_date",
+        "period start date"
+      ]
+    },
+    "period_end_date": {
+      "fieldname": "period_end_date",
+      "fieldtype": "Datetime",
+      "mandatory": true,
+      "label": "Period End Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "period end date",
+        "Period End Date",
+        "period_end_date"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": "Now",
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "pos_opening_entry": {
+      "fieldname": "pos_opening_entry",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "POS Opening Entry",
+      "options": "POS Opening Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pos opening entry",
+        "POS Opening Entry",
+        "pos_opening_entry"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "Queued",
+        "Failed",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "pos_profile": {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "POS Profile",
+      "options": "POS Profile",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pos profile",
+        "pos_profile",
+        "POS Profile"
+      ]
+    },
+    "user": {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Cashier",
+      "options": "User",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cashier",
+        "Cashier",
+        "user"
+      ]
+    },
+    "grand_total": {
+      "fieldname": "grand_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Grand Total",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "grand total",
+        "Grand Total",
+        "grand_total"
+      ]
+    },
+    "net_total": {
+      "fieldname": "net_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Net Total",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Net Total",
+        "net total",
+        "net_total"
+      ]
+    },
+    "total_quantity": {
+      "fieldname": "total_quantity",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_quantity",
+        "total quantity",
+        "Total Quantity"
+      ]
+    },
+    "error_message": {
+      "fieldname": "error_message",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Error",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_message",
+        "error message",
+        "Error",
+        "error"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "POS Closing Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

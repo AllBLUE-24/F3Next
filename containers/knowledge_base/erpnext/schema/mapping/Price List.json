@@ -1,0 +1,87 @@
+{
+  "doctype_name": "Price List",
+  "mandatory_fields": [
+    "price_list_name",
+    "currency"
+  ],
+  "doctype_classifier_hints": [
+    "price list",
+    "price_list"
+  ],
+  "field_mappings": {
+    "enabled": {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Enabled",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "enabled",
+        "Enabled"
+      ]
+    },
+    "price_list_name": {
+      "fieldname": "price_list_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Price List Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "price list name",
+        "Price List Name",
+        "price_list_name"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "buying": {
+      "fieldname": "buying",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Buying",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "buying",
+        "Buying"
+      ]
+    },
+    "selling": {
+      "fieldname": "selling",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Selling",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Selling",
+        "selling"
+      ]
+    },
+    "price_not_uom_dependent": {
+      "fieldname": "price_not_uom_dependent",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Price Not UOM Dependent",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "price not uom dependent",
+        "price_not_uom_dependent",
+        "Price Not UOM Dependent"
+      ]
+    }
+  }
+}

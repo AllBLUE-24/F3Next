@@ -1,0 +1,52 @@
+{
+  "doctype_name": "Product Bundle",
+  "mandatory_fields": [
+    "new_item_code",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "product bundle",
+    "product_bundle"
+  ],
+  "field_mappings": {
+    "new_item_code": {
+      "fieldname": "new_item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Parent Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "new_item_code",
+        "parent_item",
+        "Parent Item",
+        "parent item",
+        "new item code"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    }
+  }
+}

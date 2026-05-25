@@ -1,0 +1,112 @@
+{
+  "doctype_name": "Process Deferred Accounting",
+  "mandatory_fields": [
+    "company",
+    "type",
+    "posting_date",
+    "start_date",
+    "end_date"
+  ],
+  "doctype_classifier_hints": [
+    "process deferred accounting",
+    "process_deferred_accounting"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "type": {
+      "fieldname": "type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Type",
+      "options": [
+        "Income",
+        "Expense"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "type",
+        "Type"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "start_date": {
+      "fieldname": "start_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Service Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "start_date",
+        "service_start_date",
+        "Service Start Date",
+        "service start date",
+        "start date"
+      ]
+    },
+    "end_date": {
+      "fieldname": "end_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Service End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "end_date",
+        "service end date",
+        "end date",
+        "Service End Date",
+        "service_end_date"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Process Deferred Accounting",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

@@ -1,0 +1,9 @@
+{
+  "doctype_name": "Pegged Currencies",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "pegged currencies",
+    "pegged_currencies"
+  ],
+  "field_mappings": {}
+}

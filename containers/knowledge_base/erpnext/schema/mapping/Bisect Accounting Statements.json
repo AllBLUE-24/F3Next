@@ -1,0 +1,135 @@
+{
+  "doctype_name": "Bisect Accounting Statements",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "bisect accounting statements",
+    "bisect_accounting_statements"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "algorithm": {
+      "fieldname": "algorithm",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Algorithm",
+      "options": [
+        "BFS",
+        "DFS"
+      ],
+      "default_value": "BFS",
+      "user_input_synonyms": [
+        "Algorithm",
+        "algorithm"
+      ]
+    },
+    "current_node": {
+      "fieldname": "current_node",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Current Node",
+      "options": "Bisect Nodes",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Current Node",
+        "current_node",
+        "current node"
+      ]
+    },
+    "current_from_date": {
+      "fieldname": "current_from_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "current_from_date",
+        "current from date"
+      ]
+    },
+    "current_to_date": {
+      "fieldname": "current_to_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "current to date",
+        "current_to_date"
+      ]
+    },
+    "p_l_summary": {
+      "fieldname": "p_l_summary",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "p_l_summary",
+        "p l summary"
+      ]
+    },
+    "b_s_summary": {
+      "fieldname": "b_s_summary",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "b s summary",
+        "b_s_summary"
+      ]
+    },
+    "difference": {
+      "fieldname": "difference",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "difference"
+      ]
+    }
+  }
+}

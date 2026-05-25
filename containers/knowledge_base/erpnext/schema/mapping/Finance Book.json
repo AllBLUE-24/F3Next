@@ -1,0 +1,24 @@
+{
+  "doctype_name": "Finance Book",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "finance book",
+    "finance_book"
+  ],
+  "field_mappings": {
+    "finance_book_name": {
+      "fieldname": "finance_book_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "finance_book_name",
+        "name",
+        "finance book name",
+        "Name"
+      ]
+    }
+  }
+}

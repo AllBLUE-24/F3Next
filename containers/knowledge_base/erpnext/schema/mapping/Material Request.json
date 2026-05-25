@@ -1,0 +1,355 @@
+{
+  "doctype_name": "Material Request",
+  "mandatory_fields": [
+    "naming_series",
+    "material_request_type",
+    "company",
+    "transaction_date",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "material request",
+    "material_request",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MAT-MR-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Title",
+      "options": null,
+      "default_value": "{material_request_type}",
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "material_request_type": {
+      "fieldname": "material_request_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Purpose",
+      "options": [
+        "Purchase",
+        "Material Transfer",
+        "Material Issue",
+        "Manufacture",
+        "Customer Provided"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "purpose",
+        "material_request_type",
+        "material request type",
+        "Purpose"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "transaction_date": {
+      "fieldname": "transaction_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Transaction Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "transaction date",
+        "Transaction Date",
+        "transaction_date"
+      ]
+    },
+    "schedule_date": {
+      "fieldname": "schedule_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Required By",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "required_by",
+        "schedule_date",
+        "Required By",
+        "required by",
+        "schedule date"
+      ]
+    },
+    "buying_price_list": {
+      "fieldname": "buying_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "buying price list",
+        "buying_price_list",
+        "price list",
+        "Price List",
+        "price_list"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Material Request",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "scan_barcode": {
+      "fieldname": "scan_barcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Scan Barcode",
+      "options": "Barcode",
+      "default_value": null,
+      "user_input_synonyms": [
+        "scan barcode",
+        "scan_barcode",
+        "Scan Barcode"
+      ]
+    },
+    "last_scanned_warehouse": {
+      "fieldname": "last_scanned_warehouse",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Last Scanned Warehouse",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Last Scanned Warehouse",
+        "last scanned warehouse",
+        "last_scanned_warehouse"
+      ]
+    },
+    "set_from_warehouse": {
+      "fieldname": "set_from_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Set Source Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Set Source Warehouse",
+        "set_source_warehouse",
+        "set_from_warehouse",
+        "set source warehouse",
+        "set from warehouse"
+      ]
+    },
+    "set_warehouse": {
+      "fieldname": "set_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Set Target Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Set Target Warehouse",
+        "set target warehouse",
+        "set_warehouse",
+        "set warehouse",
+        "set_target_warehouse"
+      ]
+    },
+    "tc_name": {
+      "fieldname": "tc_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Terms",
+      "options": "Terms and Conditions",
+      "default_value": null,
+      "user_input_synonyms": [
+        "tc_name",
+        "tc name",
+        "terms",
+        "Terms"
+      ]
+    },
+    "terms": {
+      "fieldname": "terms",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Terms and Conditions Content",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "terms and conditions content",
+        "terms",
+        "terms_and_conditions_content",
+        "Terms and Conditions Content"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "Stopped",
+        "Cancelled",
+        "Pending",
+        "Partially Ordered",
+        "Partially Received",
+        "Ordered",
+        "Issued",
+        "Transferred",
+        "Received"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "per_ordered": {
+      "fieldname": "per_ordered",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "% Ordered",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "% Ordered",
+        "per_ordered",
+        "per ordered",
+        "%_ordered",
+        "% ordered"
+      ]
+    },
+    "transfer_status": {
+      "fieldname": "transfer_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Transfer Status",
+      "options": [
+        "Not Started",
+        "In Transit",
+        "Completed"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Transfer Status",
+        "transfer_status",
+        "transfer status"
+      ]
+    },
+    "per_received": {
+      "fieldname": "per_received",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "% Received",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "per_received",
+        "per received",
+        "% Received",
+        "%_received",
+        "% received"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "select_print_heading": {
+      "fieldname": "select_print_heading",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Heading",
+      "options": "Print Heading",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_heading",
+        "print heading",
+        "select print heading",
+        "Print Heading",
+        "select_print_heading"
+      ]
+    },
+    "job_card": {
+      "fieldname": "job_card",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Job Card",
+      "options": "Job Card",
+      "default_value": null,
+      "user_input_synonyms": [
+        "job card",
+        "job_card",
+        "Job Card"
+      ]
+    },
+    "work_order": {
+      "fieldname": "work_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Work Order",
+      "options": "Work Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "work order",
+        "work_order",
+        "Work Order"
+      ]
+    }
+  },
+  "is_submittable": true
+}

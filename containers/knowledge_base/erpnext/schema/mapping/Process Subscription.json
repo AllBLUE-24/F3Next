@@ -1,0 +1,51 @@
+{
+  "doctype_name": "Process Subscription",
+  "mandatory_fields": [
+    "posting_date"
+  ],
+  "doctype_classifier_hints": [
+    "process subscription",
+    "process_subscription"
+  ],
+  "field_mappings": {
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "subscription": {
+      "fieldname": "subscription",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Subscription",
+      "options": "Subscription",
+      "default_value": null,
+      "user_input_synonyms": [
+        "subscription",
+        "Subscription"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Process Subscription",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

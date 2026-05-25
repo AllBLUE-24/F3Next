@@ -1,0 +1,108 @@
+{
+  "doctype_name": "Repost Payment Ledger",
+  "mandatory_fields": [
+    "company",
+    "posting_date"
+  ],
+  "doctype_classifier_hints": [
+    "repost payment ledger",
+    "repost_payment_ledger"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Voucher Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher type",
+        "Voucher Type",
+        "voucher_type"
+      ]
+    },
+    "add_manually": {
+      "fieldname": "add_manually",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Add Manually",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Add Manually",
+        "add manually",
+        "add_manually"
+      ]
+    },
+    "repost_status": {
+      "fieldname": "repost_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Repost Status",
+      "options": [
+        "Queued",
+        "Failed",
+        "Completed"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Repost Status",
+        "repost_status",
+        "repost status"
+      ]
+    },
+    "repost_error_log": {
+      "fieldname": "repost_error_log",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Repost Error Log",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "repost error log",
+        "Repost Error Log",
+        "repost_error_log"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Repost Payment Ledger",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

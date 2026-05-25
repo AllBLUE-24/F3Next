@@ -1,0 +1,85 @@
+{
+  "doctype_name": "Manufacturer",
+  "mandatory_fields": [
+    "short_name"
+  ],
+  "doctype_classifier_hints": [
+    "manufacturer"
+  ],
+  "field_mappings": {
+    "short_name": {
+      "fieldname": "short_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Short Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Short Name",
+        "short_name",
+        "short name"
+      ]
+    },
+    "full_name": {
+      "fieldname": "full_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Full Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "full_name",
+        "Full Name",
+        "full name"
+      ]
+    },
+    "website": {
+      "fieldname": "website",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Website",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Website",
+        "website"
+      ]
+    },
+    "country": {
+      "fieldname": "country",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Country",
+      "options": "Country",
+      "default_value": null,
+      "user_input_synonyms": [
+        "country",
+        "Country"
+      ]
+    },
+    "logo": {
+      "fieldname": "logo",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Logo",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "logo",
+        "Logo"
+      ]
+    },
+    "notes": {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Notes",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "notes",
+        "Notes"
+      ]
+    }
+  }
+}

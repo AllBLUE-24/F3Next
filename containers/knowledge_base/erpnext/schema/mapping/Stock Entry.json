@@ -1,74 +1,750 @@
 {
   "doctype_name": "Stock Entry",
-  "naming_series": "SE-",
   "mandatory_fields": [
+    "naming_series",
     "stock_entry_type",
+    "company",
     "items"
   ],
   "doctype_classifier_hints": [
-    "stock entry",
-    "stock_entry",
-    "stock entries",
-    "stock_entries",
-    "material transfer",
     "material issue",
-    "material receipt"
+    "material receipt",
+    "material transfer",
+    "naming_series",
+    "stock entries",
+    "stock entry",
+    "stock_entries",
+    "stock_entry"
   ],
   "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MAT-STE-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
     "stock_entry_type": {
       "fieldname": "stock_entry_type",
-      "fieldtype": "Select",
-      "options": [
-        "Material Transfer",
-        "Material Issue",
-        "Material Receipt",
-        "Manufacture",
-        "Repack",
-        "Send to Subcontractor",
-        "Material Transfer for Manufacture"
-      ],
+      "fieldtype": "Link",
       "mandatory": true,
+      "label": "Stock Entry Type",
+      "options": "Stock Entry Type",
+      "default_value": null,
       "user_input_synonyms": [
         "entry_type",
         "purpose",
-        "type"
-      ],
-      "inference_rules": {
-        "transfer": "Material Transfer",
-        "issue": "Material Issue",
-        "receipt": "Material Receipt",
-        "manufacture": "Manufacture"
-      }
-    },
-    "from_warehouse": {
-      "fieldname": "from_warehouse",
-      "fieldtype": "Link",
-      "options": "Warehouse",
-      "mandatory_if": "stock_entry_type in ['Material Transfer', 'Material Issue']",
-      "user_input_synonyms": [
-        "source_warehouse",
-        "from_store",
-        "s_warehouse"
+        "type",
+        "Stock Entry Type",
+        "stock_entry_type",
+        "stock entry type"
       ]
     },
-    "to_warehouse": {
-      "fieldname": "to_warehouse",
+    "outgoing_stock_entry": {
+      "fieldname": "outgoing_stock_entry",
       "fieldtype": "Link",
-      "options": "Warehouse",
-      "mandatory_if": "stock_entry_type in ['Material Transfer', 'Material Receipt']",
+      "mandatory": false,
+      "label": "Stock Entry (Outward GIT)",
+      "options": "Stock Entry",
+      "default_value": null,
       "user_input_synonyms": [
-        "destination_warehouse",
-        "to_store",
-        "t_warehouse"
+        "outgoing_stock_entry",
+        "outgoing stock entry",
+        "Stock Entry (Outward GIT)",
+        "stock entry (outward git)",
+        "stock_entry_(outward_git)"
+      ]
+    },
+    "purpose": {
+      "fieldname": "purpose",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Purpose",
+      "options": [
+        "Material Issue",
+        "Material Receipt",
+        "Material Transfer",
+        "Material Transfer for Manufacture",
+        "Material Consumption for Manufacture",
+        "Manufacture",
+        "Repack",
+        "Send to Subcontractor",
+        "Disassemble"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "purpose",
+        "Purpose"
+      ]
+    },
+    "add_to_transit": {
+      "fieldname": "add_to_transit",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Add to Transit",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "add to transit",
+        "add_to_transit",
+        "Add to Transit"
+      ]
+    },
+    "work_order": {
+      "fieldname": "work_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Work Order",
+      "options": "Work Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "work order",
+        "work_order",
+        "Work Order"
+      ]
+    },
+    "purchase_order": {
+      "fieldname": "purchase_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Purchase Order",
+      "options": "Purchase Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "purchase order",
+        "purchase_order",
+        "Purchase Order"
+      ]
+    },
+    "subcontracting_order": {
+      "fieldname": "subcontracting_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Subcontracting Order",
+      "options": "Subcontracting Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "subcontracting order",
+        "Subcontracting Order",
+        "subcontracting_order"
+      ]
+    },
+    "delivery_note_no": {
+      "fieldname": "delivery_note_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Delivery Note No",
+      "options": "Delivery Note",
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery note no",
+        "delivery_note_no",
+        "Delivery Note No"
+      ]
+    },
+    "sales_invoice_no": {
+      "fieldname": "sales_invoice_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Invoice No",
+      "options": "Sales Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales invoice no",
+        "Sales Invoice No",
+        "sales_invoice_no"
+      ]
+    },
+    "pick_list": {
+      "fieldname": "pick_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Pick List",
+      "options": "Pick List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Pick List",
+        "pick_list",
+        "pick list"
+      ]
+    },
+    "purchase_receipt_no": {
+      "fieldname": "purchase_receipt_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Purchase Receipt No",
+      "options": "Purchase Receipt",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Purchase Receipt No",
+        "purchase receipt no",
+        "purchase_receipt_no"
+      ]
+    },
+    "asset_repair": {
+      "fieldname": "asset_repair",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Asset Repair",
+      "options": "Asset Repair",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Asset Repair",
+        "asset_repair",
+        "asset repair"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
       ]
     },
     "posting_date": {
       "fieldname": "posting_date",
       "fieldtype": "Date",
       "mandatory": false,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
       "user_input_synonyms": [
         "date",
-        "transaction_date"
+        "transaction_date",
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": false,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": "Now",
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "set_posting_time": {
+      "fieldname": "set_posting_time",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Edit Posting Date and Time",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "set posting time",
+        "Edit Posting Date and Time",
+        "set_posting_time",
+        "edit_posting_date_and_time",
+        "edit posting date and time"
+      ]
+    },
+    "inspection_required": {
+      "fieldname": "inspection_required",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Inspection Required",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "inspection_required",
+        "Inspection Required",
+        "inspection required"
+      ]
+    },
+    "apply_putaway_rule": {
+      "fieldname": "apply_putaway_rule",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Apply Putaway Rule",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "apply putaway rule",
+        "Apply Putaway Rule",
+        "apply_putaway_rule"
+      ]
+    },
+    "from_bom": {
+      "fieldname": "from_bom",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "From BOM",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "From BOM",
+        "from bom",
+        "from_bom"
+      ]
+    },
+    "use_multi_level_bom": {
+      "fieldname": "use_multi_level_bom",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Use Multi-Level BOM",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "use multi-level bom",
+        "use_multi_level_bom",
+        "use_multi-level_bom",
+        "Use Multi-Level BOM",
+        "use multi level bom"
+      ]
+    },
+    "bom_no": {
+      "fieldname": "bom_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "BOM No",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bom_no",
+        "bom no",
+        "BOM No"
+      ]
+    },
+    "fg_completed_qty": {
+      "fieldname": "fg_completed_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Finished Good Quantity ",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "finished good quantity",
+        "fg_completed_qty",
+        "finished_good_quantity",
+        "Finished Good Quantity",
+        "fg completed qty"
+      ]
+    },
+    "process_loss_percentage": {
+      "fieldname": "process_loss_percentage",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "% Process Loss",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "process loss percentage",
+        "% Process Loss",
+        "% process loss",
+        "%_process_loss",
+        "process_loss_percentage"
+      ]
+    },
+    "process_loss_qty": {
+      "fieldname": "process_loss_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Process Loss Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "process loss qty",
+        "Process Loss Qty",
+        "process_loss_qty"
+      ]
+    },
+    "from_warehouse": {
+      "fieldname": "from_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Source Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "source_warehouse",
+        "from_store",
+        "s_warehouse",
+        "default_source_warehouse",
+        "Default Source Warehouse",
+        "from warehouse",
+        "default source warehouse",
+        "from_warehouse"
+      ]
+    },
+    "source_warehouse_address": {
+      "fieldname": "source_warehouse_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Source Warehouse Address Link",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "source warehouse address link",
+        "source_warehouse_address_link",
+        "Source Warehouse Address Link",
+        "source warehouse address",
+        "source_warehouse_address"
+      ]
+    },
+    "source_address_display": {
+      "fieldname": "source_address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Source Warehouse Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "source address display",
+        "Source Warehouse Address",
+        "source warehouse address",
+        "source_address_display",
+        "source_warehouse_address"
+      ]
+    },
+    "to_warehouse": {
+      "fieldname": "to_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Target Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "destination_warehouse",
+        "to_store",
+        "t_warehouse",
+        "default_target_warehouse",
+        "to_warehouse",
+        "default target warehouse",
+        "to warehouse",
+        "Default Target Warehouse"
+      ]
+    },
+    "target_warehouse_address": {
+      "fieldname": "target_warehouse_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Target Warehouse Address Link",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "target_warehouse_address_link",
+        "target_warehouse_address",
+        "target warehouse address",
+        "target warehouse address link",
+        "Target Warehouse Address Link"
+      ]
+    },
+    "target_address_display": {
+      "fieldname": "target_address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Target Warehouse Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Target Warehouse Address",
+        "target_warehouse_address",
+        "target address display",
+        "target warehouse address",
+        "target_address_display"
+      ]
+    },
+    "scan_barcode": {
+      "fieldname": "scan_barcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Scan Barcode",
+      "options": "Barcode",
+      "default_value": null,
+      "user_input_synonyms": [
+        "scan barcode",
+        "scan_barcode",
+        "Scan Barcode"
+      ]
+    },
+    "last_scanned_warehouse": {
+      "fieldname": "last_scanned_warehouse",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Last Scanned Warehouse",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Last Scanned Warehouse",
+        "last scanned warehouse",
+        "last_scanned_warehouse"
+      ]
+    },
+    "total_outgoing_value": {
+      "fieldname": "total_outgoing_value",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Outgoing Value (Consumption)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_outgoing_value",
+        "total_outgoing_value_(consumption)",
+        "total outgoing value (consumption)",
+        "total outgoing value",
+        "Total Outgoing Value (Consumption)"
+      ]
+    },
+    "total_incoming_value": {
+      "fieldname": "total_incoming_value",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Incoming Value (Receipt)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total incoming value",
+        "total incoming value (receipt)",
+        "Total Incoming Value (Receipt)",
+        "total_incoming_value",
+        "total_incoming_value_(receipt)"
+      ]
+    },
+    "value_difference": {
+      "fieldname": "value_difference",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Value Difference (Incoming - Outgoing)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_value_difference_(incoming_-_outgoing)",
+        "Total Value Difference (Incoming - Outgoing)",
+        "value difference",
+        "value_difference",
+        "total value difference (incoming - outgoing)"
+      ]
+    },
+    "total_additional_costs": {
+      "fieldname": "total_additional_costs",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Additional Costs",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_additional_costs",
+        "total additional costs",
+        "Total Additional Costs"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "supplier_name": {
+      "fieldname": "supplier_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Supplier Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Supplier Name",
+        "supplier_name",
+        "supplier name"
+      ]
+    },
+    "supplier_address": {
+      "fieldname": "supplier_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_address",
+        "supplier address",
+        "Supplier Address"
+      ]
+    },
+    "address_display": {
+      "fieldname": "address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Address",
+        "address display",
+        "address_display",
+        "address"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ],
+      "note": "Link to project for cost tracking (job shops)"
+    },
+    "select_print_heading": {
+      "fieldname": "select_print_heading",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Heading",
+      "options": "Print Heading",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_heading",
+        "print heading",
+        "select print heading",
+        "Print Heading",
+        "select_print_heading"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "is_opening": {
+      "fieldname": "is_opening",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Is Opening",
+      "options": [
+        "No",
+        "Yes"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "is_opening",
+        "is opening",
+        "Is Opening"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "per_transferred": {
+      "fieldname": "per_transferred",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Per Transferred",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Per Transferred",
+        "per_transferred",
+        "per transferred"
+      ]
+    },
+    "total_amount": {
+      "fieldname": "total_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_amount",
+        "total amount",
+        "Total Amount"
+      ]
+    },
+    "job_card": {
+      "fieldname": "job_card",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Job Card",
+      "options": "Job Card",
+      "default_value": null,
+      "user_input_synonyms": [
+        "job card",
+        "job_card",
+        "Job Card"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Stock Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "credit_note": {
+      "fieldname": "credit_note",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Credit Note",
+      "options": "Journal Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "credit note",
+        "credit_note",
+        "Credit Note"
+      ]
+    },
+    "is_return": {
+      "fieldname": "is_return",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Return",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Return",
+        "is return",
+        "is_return"
       ]
     },
     "item_code": {
@@ -81,7 +757,7 @@
         "material",
         "product_code"
       ],
-      "note": "Flat CSV import \u2014 folded into items child table"
+      "note": "Flat CSV import — folded into items child table"
     },
     "qty": {
       "fieldname": "qty",
@@ -91,14 +767,7 @@
         "quantity",
         "amount"
       ],
-      "note": "Flat CSV import \u2014 folded into items child table"
-    },
-    "project": {
-      "fieldname": "project",
-      "fieldtype": "Link",
-      "options": "Project",
-      "mandatory": false,
-      "note": "Link to project for cost tracking (job shops)"
+      "note": "Flat CSV import — folded into items child table"
     },
     "items": {
       "fieldname": "items",
@@ -133,5 +802,7 @@
         }
       }
     }
-  }
+  },
+  "is_submittable": true,
+  "naming_series": "SE-"
 }

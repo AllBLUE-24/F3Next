@@ -1,0 +1,586 @@
+{
+  "doctype_name": "Job Card",
+  "mandatory_fields": [
+    "naming_series",
+    "work_order",
+    "company",
+    "operation",
+    "wip_warehouse",
+    "workstation"
+  ],
+  "doctype_classifier_hints": [
+    "job card",
+    "job_card",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Naming Series",
+      "options": [
+        "PO-JOB.#####"
+      ],
+      "default_value": "PO-JOB.#####",
+      "user_input_synonyms": [
+        "naming_series",
+        "Naming Series",
+        "naming series"
+      ]
+    },
+    "work_order": {
+      "fieldname": "work_order",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Work Order",
+      "options": "Work Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "work order",
+        "work_order",
+        "Work Order"
+      ]
+    },
+    "bom_no": {
+      "fieldname": "bom_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "BOM No",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bom_no",
+        "bom no",
+        "BOM No"
+      ]
+    },
+    "production_item": {
+      "fieldname": "production_item",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Production Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "production_item",
+        "production item",
+        "Production Item"
+      ]
+    },
+    "employee": {
+      "fieldname": "employee",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Employee",
+      "options": "Job Card Time Log",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Employee",
+        "employee"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "for_quantity": {
+      "fieldname": "for_quantity",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Qty To Manufacture",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "qty_to_manufacture",
+        "for_quantity",
+        "qty to manufacture",
+        "for quantity",
+        "Qty To Manufacture"
+      ]
+    },
+    "total_completed_qty": {
+      "fieldname": "total_completed_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Completed Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "total_completed_qty",
+        "total completed qty",
+        "Total Completed Qty"
+      ]
+    },
+    "process_loss_qty": {
+      "fieldname": "process_loss_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Process Loss Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "process loss qty",
+        "Process Loss Qty",
+        "process_loss_qty"
+      ]
+    },
+    "expected_start_date": {
+      "fieldname": "expected_start_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Expected Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "expected start date",
+        "expected_start_date",
+        "Expected Start Date"
+      ]
+    },
+    "time_required": {
+      "fieldname": "time_required",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Expected Time Required (In Mins)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "expected_time_required_(in_mins)",
+        "time_required",
+        "expected time required (in mins)",
+        "time required",
+        "Expected Time Required (In Mins)"
+      ]
+    },
+    "expected_end_date": {
+      "fieldname": "expected_end_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Expected End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "expected_end_date",
+        "expected end date",
+        "Expected End Date"
+      ]
+    },
+    "actual_start_date": {
+      "fieldname": "actual_start_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Actual Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "actual start date",
+        "Actual Start Date",
+        "actual_start_date"
+      ]
+    },
+    "total_time_in_mins": {
+      "fieldname": "total_time_in_mins",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Time in Mins",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total time in mins",
+        "Total Time in Mins",
+        "total_time_in_mins"
+      ]
+    },
+    "actual_end_date": {
+      "fieldname": "actual_end_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Actual End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "actual end date",
+        "Actual End Date",
+        "actual_end_date"
+      ]
+    },
+    "operation": {
+      "fieldname": "operation",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Operation",
+      "options": "Operation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "operation",
+        "Operation"
+      ]
+    },
+    "wip_warehouse": {
+      "fieldname": "wip_warehouse",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "WIP Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "wip warehouse",
+        "wip_warehouse",
+        "WIP Warehouse"
+      ]
+    },
+    "workstation_type": {
+      "fieldname": "workstation_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Workstation Type",
+      "options": "Workstation Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Workstation Type",
+        "workstation_type",
+        "workstation type"
+      ]
+    },
+    "workstation": {
+      "fieldname": "workstation",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Workstation",
+      "options": "Workstation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "workstation",
+        "Workstation"
+      ]
+    },
+    "quality_inspection_template": {
+      "fieldname": "quality_inspection_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Quality Inspection Template",
+      "options": "Quality Inspection Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Quality Inspection Template",
+        "quality_inspection_template",
+        "quality inspection template"
+      ]
+    },
+    "quality_inspection": {
+      "fieldname": "quality_inspection",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Quality Inspection",
+      "options": "Quality Inspection",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Quality Inspection",
+        "quality inspection",
+        "quality_inspection"
+      ]
+    },
+    "for_job_card": {
+      "fieldname": "for_job_card",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "For Job Card",
+      "options": "Job Card",
+      "default_value": null,
+      "user_input_synonyms": [
+        "for job card",
+        "for_job_card",
+        "For Job Card"
+      ]
+    },
+    "is_corrective_job_card": {
+      "fieldname": "is_corrective_job_card",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Corrective Job Card",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Corrective Job Card",
+        "is_corrective_job_card",
+        "is corrective job card"
+      ]
+    },
+    "hour_rate": {
+      "fieldname": "hour_rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Hour Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour_rate",
+        "Hour Rate",
+        "hour rate"
+      ]
+    },
+    "for_operation": {
+      "fieldname": "for_operation",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "For Operation",
+      "options": "Operation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "for_operation",
+        "for operation",
+        "For Operation"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "transferred_qty": {
+      "fieldname": "transferred_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "FG Qty from Transferred Raw Materials",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "fg qty from transferred raw materials",
+        "FG Qty from Transferred Raw Materials",
+        "transferred qty",
+        "fg_qty_from_transferred_raw_materials",
+        "transferred_qty"
+      ]
+    },
+    "requested_qty": {
+      "fieldname": "requested_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Requested Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "requested_qty",
+        "Requested Qty",
+        "requested qty"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Open",
+        "Work In Progress",
+        "Material Transferred",
+        "On Hold",
+        "Submitted",
+        "Cancelled",
+        "Completed"
+      ],
+      "default_value": "Open",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "operation_row_number": {
+      "fieldname": "operation_row_number",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Operation Row Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "operation row number",
+        "Operation Row Number",
+        "operation_row_number"
+      ]
+    },
+    "operation_id": {
+      "fieldname": "operation_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Operation ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "operation id",
+        "operation_id",
+        "Operation ID"
+      ]
+    },
+    "sequence_id": {
+      "fieldname": "sequence_id",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Sequence Id",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "sequence id",
+        "sequence_id",
+        "Sequence Id"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "serial_and_batch_bundle": {
+      "fieldname": "serial_and_batch_bundle",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Serial and Batch Bundle",
+      "options": "Serial and Batch Bundle",
+      "default_value": null,
+      "user_input_synonyms": [
+        "serial and batch bundle",
+        "serial_and_batch_bundle",
+        "Serial and Batch Bundle"
+      ]
+    },
+    "batch_no": {
+      "fieldname": "batch_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Batch No",
+      "options": "Batch",
+      "default_value": null,
+      "user_input_synonyms": [
+        "batch no",
+        "batch_no",
+        "Batch No"
+      ]
+    },
+    "serial_no": {
+      "fieldname": "serial_no",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Serial No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "serial no",
+        "serial_no",
+        "Serial No"
+      ]
+    },
+    "barcode": {
+      "fieldname": "barcode",
+      "fieldtype": "Barcode",
+      "mandatory": false,
+      "label": "Barcode",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "barcode",
+        "Barcode"
+      ]
+    },
+    "job_started": {
+      "fieldname": "job_started",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Job Started",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "job_started",
+        "Job Started",
+        "job started"
+      ]
+    },
+    "started_time": {
+      "fieldname": "started_time",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Started Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "started time",
+        "started_time",
+        "Started Time"
+      ]
+    },
+    "current_time": {
+      "fieldname": "current_time",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Current Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Current Time",
+        "current_time",
+        "current time"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Job Card",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

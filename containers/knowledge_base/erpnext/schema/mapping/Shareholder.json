@@ -1,0 +1,92 @@
+{
+  "doctype_name": "Shareholder",
+  "mandatory_fields": [
+    "title",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "shareholder"
+  ],
+  "field_mappings": {
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": null,
+      "options": [
+        "ACC-SH-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "naming series"
+      ]
+    },
+    "folio_no": {
+      "fieldname": "folio_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Folio no.",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "folio no",
+        "folio_no.",
+        "folio no.",
+        "folio_no",
+        "Folio no."
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "is_company": {
+      "fieldname": "is_company",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Company",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Company",
+        "is_company",
+        "is company"
+      ]
+    },
+    "contact_list": {
+      "fieldname": "contact_list",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Contact List",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact list",
+        "contact_list",
+        "Contact List"
+      ]
+    }
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "doctype_name": "Subscription Plan",
+  "mandatory_fields": [
+    "plan_name",
+    "currency",
+    "item",
+    "price_determination",
+    "billing_interval",
+    "billing_interval_count"
+  ],
+  "doctype_classifier_hints": [
+    "subscription plan",
+    "subscription_plan"
+  ],
+  "field_mappings": {
+    "plan_name": {
+      "fieldname": "plan_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Plan Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "plan name",
+        "plan_name",
+        "Plan Name"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "item": {
+      "fieldname": "item",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item",
+        "Item"
+      ]
+    },
+    "price_determination": {
+      "fieldname": "price_determination",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Subscription Price Based On",
+      "options": [
+        "Fixed Rate",
+        "Based On Price List",
+        "Monthly Rate"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "price_determination",
+        "subscription price based on",
+        "Subscription Price Based On",
+        "subscription_price_based_on",
+        "price determination"
+      ]
+    },
+    "cost": {
+      "fieldname": "cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Cost",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Cost",
+        "cost"
+      ]
+    },
+    "price_list": {
+      "fieldname": "price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "price_list",
+        "price list",
+        "Price List"
+      ]
+    },
+    "billing_interval": {
+      "fieldname": "billing_interval",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Billing Interval",
+      "options": [
+        "Day",
+        "Week",
+        "Month",
+        "Year"
+      ],
+      "default_value": "Day",
+      "user_input_synonyms": [
+        "Billing Interval",
+        "billing_interval",
+        "billing interval"
+      ]
+    },
+    "billing_interval_count": {
+      "fieldname": "billing_interval_count",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "Billing Interval Count",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Billing Interval Count",
+        "billing_interval_count",
+        "billing interval count"
+      ]
+    },
+    "product_price_id": {
+      "fieldname": "product_price_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Product Price ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "product price id",
+        "product_price_id",
+        "Product Price ID"
+      ]
+    },
+    "payment_gateway": {
+      "fieldname": "payment_gateway",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Payment Gateway",
+      "options": "Payment Gateway Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Payment Gateway",
+        "payment gateway",
+        "payment_gateway"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    }
+  }
+}

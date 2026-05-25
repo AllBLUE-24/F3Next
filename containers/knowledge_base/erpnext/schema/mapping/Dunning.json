@@ -1,0 +1,457 @@
+{
+  "doctype_name": "Dunning",
+  "mandatory_fields": [
+    "customer",
+    "company",
+    "posting_date"
+  ],
+  "doctype_classifier_hints": [
+    "dunning",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Series",
+      "options": [
+        "DUNN-.MM.-.YY.-"
+      ],
+      "default_value": "DUNN-.MM.-.YY.-",
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_name": {
+      "fieldname": "customer_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Customer Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_name",
+        "Customer Name",
+        "customer name"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "date",
+        "Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": false,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Resolved",
+        "Unresolved",
+        "Cancelled"
+      ],
+      "default_value": "Unresolved",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "conversion_rate": {
+      "fieldname": "conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Conversion Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "conversion rate",
+        "conversion_rate",
+        "Conversion Rate"
+      ]
+    },
+    "dunning_type": {
+      "fieldname": "dunning_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Dunning Type",
+      "options": "Dunning Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "dunning type",
+        "dunning_type",
+        "Dunning Type"
+      ]
+    },
+    "rate_of_interest": {
+      "fieldname": "rate_of_interest",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Rate of Interest (%) Yearly",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "rate_of_interest_(%)_yearly",
+        "rate_of_interest",
+        "Rate of Interest (%) Yearly",
+        "rate of interest (%) yearly",
+        "rate of interest"
+      ]
+    },
+    "total_interest": {
+      "fieldname": "total_interest",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Interest",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Total Interest",
+        "total interest",
+        "total_interest"
+      ]
+    },
+    "dunning_fee": {
+      "fieldname": "dunning_fee",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Dunning Fee",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "dunning fee",
+        "Dunning Fee",
+        "dunning_fee"
+      ]
+    },
+    "dunning_amount": {
+      "fieldname": "dunning_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Dunning Amount",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "dunning amount",
+        "dunning_amount",
+        "Dunning Amount"
+      ]
+    },
+    "base_dunning_amount": {
+      "fieldname": "base_dunning_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Dunning Amount (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Dunning Amount (Company Currency)",
+        "base dunning amount",
+        "dunning amount (company currency)",
+        "dunning_amount_(company_currency)",
+        "base_dunning_amount"
+      ]
+    },
+    "spacer": {
+      "fieldname": "spacer",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Spacer",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Spacer",
+        "spacer"
+      ]
+    },
+    "total_outstanding": {
+      "fieldname": "total_outstanding",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Outstanding",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Outstanding",
+        "total outstanding",
+        "total_outstanding"
+      ]
+    },
+    "grand_total": {
+      "fieldname": "grand_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Grand Total",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "grand total",
+        "Grand Total",
+        "grand_total"
+      ]
+    },
+    "language": {
+      "fieldname": "language",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Language",
+      "options": "Language",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_language",
+        "print language",
+        "Print Language",
+        "language"
+      ]
+    },
+    "body_text": {
+      "fieldname": "body_text",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Body Text",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "body text",
+        "body_text",
+        "Body Text"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "closing_text": {
+      "fieldname": "closing_text",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Closing Text",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "closing_text",
+        "Closing Text",
+        "closing text"
+      ]
+    },
+    "income_account": {
+      "fieldname": "income_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Income Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "income account",
+        "Income Account",
+        "income_account"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Dunning",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "customer_address": {
+      "fieldname": "customer_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer address",
+        "customer_address",
+        "Customer Address"
+      ]
+    },
+    "address_display": {
+      "fieldname": "address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Address",
+        "address display",
+        "address_display",
+        "address"
+      ]
+    },
+    "contact_person": {
+      "fieldname": "contact_person",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Contact Person",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact person",
+        "Contact Person",
+        "contact_person"
+      ]
+    },
+    "contact_display": {
+      "fieldname": "contact_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Contact",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact",
+        "contact_display",
+        "contact display",
+        "Contact"
+      ]
+    },
+    "contact_mobile": {
+      "fieldname": "contact_mobile",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Mobile No",
+      "options": "Phone",
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact_mobile",
+        "mobile_no",
+        "mobile no",
+        "Mobile No",
+        "contact mobile"
+      ]
+    },
+    "contact_email": {
+      "fieldname": "contact_email",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Contact Email",
+      "options": "Email",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Contact Email",
+        "contact_email",
+        "contact email"
+      ]
+    },
+    "company_address": {
+      "fieldname": "company_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company Address",
+        "company_address",
+        "company address"
+      ]
+    },
+    "company_address_display": {
+      "fieldname": "company_address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Company Address Display",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "company address display",
+        "company_address_display",
+        "Company Address Display"
+      ]
+    }
+  },
+  "is_submittable": true
+}

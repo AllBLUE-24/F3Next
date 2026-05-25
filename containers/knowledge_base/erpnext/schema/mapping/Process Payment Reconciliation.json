@@ -1,0 +1,208 @@
+{
+  "doctype_name": "Process Payment Reconciliation",
+  "mandatory_fields": [
+    "company",
+    "party_type",
+    "party",
+    "receivable_payable_account",
+    "default_advance_account"
+  ],
+  "doctype_classifier_hints": [
+    "process payment reconciliation",
+    "process_payment_reconciliation"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Party Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Type",
+        "party type",
+        "party_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": true,
+      "label": "Party",
+      "options": "party_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "Party"
+      ]
+    },
+    "receivable_payable_account": {
+      "fieldname": "receivable_payable_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Receivable/Payable Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Receivable/Payable Account",
+        "receivable payable account",
+        "receivable/payable account",
+        "receivable_payable_account",
+        "receivable/payable_account"
+      ]
+    },
+    "default_advance_account": {
+      "fieldname": "default_advance_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Default Advance Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Default Advance Account",
+        "default_advance_account",
+        "default advance account"
+      ]
+    },
+    "from_invoice_date": {
+      "fieldname": "from_invoice_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Invoice Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Invoice Date",
+        "from invoice date",
+        "from_invoice_date"
+      ]
+    },
+    "to_invoice_date": {
+      "fieldname": "to_invoice_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Invoice Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to_invoice_date",
+        "To Invoice Date",
+        "to invoice date"
+      ]
+    },
+    "from_payment_date": {
+      "fieldname": "from_payment_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Payment Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_payment_date",
+        "From Payment Date",
+        "from payment date"
+      ]
+    },
+    "to_payment_date": {
+      "fieldname": "to_payment_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Payment Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to_payment_date",
+        "To Payment Date",
+        "to payment date"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "bank_cash_account": {
+      "fieldname": "bank_cash_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank/Cash Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank/Cash Account",
+        "bank cash account",
+        "bank/cash account",
+        "bank/cash_account",
+        "bank_cash_account"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Queued",
+        "Running",
+        "Paused",
+        "Completed",
+        "Partially Reconciled",
+        "Failed",
+        "Cancelled"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "error_log": {
+      "fieldname": "error_log",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Error Log",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_log",
+        "Error Log",
+        "error log"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Process Payment Reconciliation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

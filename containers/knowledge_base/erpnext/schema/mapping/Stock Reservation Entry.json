@@ -1,0 +1,284 @@
+{
+  "doctype_name": "Stock Reservation Entry",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "stock reservation entry",
+    "stock_reservation_entry"
+  ],
+  "field_mappings": {
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "has_serial_no": {
+      "fieldname": "has_serial_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Serial No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has serial no",
+        "has_serial_no",
+        "Has Serial No"
+      ]
+    },
+    "has_batch_no": {
+      "fieldname": "has_batch_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Batch No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has batch no",
+        "Has Batch No",
+        "has_batch_no"
+      ]
+    },
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Voucher Type",
+      "options": [
+        "Sales Order"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher type",
+        "Voucher Type",
+        "voucher_type"
+      ]
+    },
+    "voucher_no": {
+      "fieldname": "voucher_no",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Voucher No",
+      "options": "voucher_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_no",
+        "Voucher No",
+        "voucher no"
+      ]
+    },
+    "voucher_detail_no": {
+      "fieldname": "voucher_detail_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Voucher Detail No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_detail_no",
+        "Voucher Detail No",
+        "voucher detail no"
+      ]
+    },
+    "from_voucher_type": {
+      "fieldname": "from_voucher_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "From Voucher Type",
+      "options": [
+        "Pick List",
+        "Purchase Receipt"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "from voucher type",
+        "from_voucher_type",
+        "From Voucher Type"
+      ]
+    },
+    "from_voucher_no": {
+      "fieldname": "from_voucher_no",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "From Voucher No",
+      "options": "from_voucher_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Voucher No",
+        "from_voucher_no",
+        "from voucher no"
+      ]
+    },
+    "from_voucher_detail_no": {
+      "fieldname": "from_voucher_detail_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "From Voucher Detail No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Voucher Detail No",
+        "from_voucher_detail_no",
+        "from voucher detail no"
+      ]
+    },
+    "stock_uom": {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Stock UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock uom",
+        "stock_uom",
+        "Stock UOM"
+      ]
+    },
+    "available_qty": {
+      "fieldname": "available_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Available Qty to Reserve",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "available qty",
+        "available_qty",
+        "available qty to reserve",
+        "available_qty_to_reserve",
+        "Available Qty to Reserve"
+      ]
+    },
+    "voucher_qty": {
+      "fieldname": "voucher_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Voucher Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Voucher Qty",
+        "voucher qty",
+        "voucher_qty"
+      ]
+    },
+    "reserved_qty": {
+      "fieldname": "reserved_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Reserved Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "reserved qty",
+        "reserved_qty",
+        "Reserved Qty"
+      ]
+    },
+    "delivered_qty": {
+      "fieldname": "delivered_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Delivered Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Delivered Qty",
+        "delivered_qty",
+        "delivered qty"
+      ]
+    },
+    "reservation_based_on": {
+      "fieldname": "reservation_based_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Reservation Based On",
+      "options": [
+        "Qty",
+        "Serial and Batch"
+      ],
+      "default_value": "Qty",
+      "user_input_synonyms": [
+        "Reservation Based On",
+        "reservation based on",
+        "reservation_based_on"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Partially Reserved",
+        "Reserved",
+        "Partially Delivered",
+        "Delivered",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Stock Reservation Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

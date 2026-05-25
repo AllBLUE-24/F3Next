@@ -1,0 +1,22 @@
+{
+  "doctype_name": "Warehouse Type",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "warehouse type",
+    "warehouse_type"
+  ],
+  "field_mappings": {
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

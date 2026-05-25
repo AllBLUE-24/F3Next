@@ -1,0 +1,618 @@
+{
+  "doctype_name": "Shipment",
+  "mandatory_fields": [
+    "pickup_address_name",
+    "delivery_address_name",
+    "value_of_goods",
+    "pickup_date",
+    "pickup_from",
+    "pickup_to",
+    "description_of_content"
+  ],
+  "doctype_classifier_hints": [
+    "shipment"
+  ],
+  "field_mappings": {
+    "pickup_from_type": {
+      "fieldname": "pickup_from_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Pickup from",
+      "options": [
+        "Company",
+        "Customer",
+        "Supplier"
+      ],
+      "default_value": "Company",
+      "user_input_synonyms": [
+        "Pickup from",
+        "pickup from",
+        "pickup_from",
+        "pickup from type",
+        "pickup_from_type"
+      ]
+    },
+    "pickup_company": {
+      "fieldname": "pickup_company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company",
+        "pickup company",
+        "pickup_company"
+      ]
+    },
+    "pickup_customer": {
+      "fieldname": "pickup_customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "pickup_customer",
+        "Customer",
+        "pickup customer"
+      ]
+    },
+    "pickup_supplier": {
+      "fieldname": "pickup_supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pickup_supplier",
+        "supplier",
+        "pickup supplier",
+        "Supplier"
+      ]
+    },
+    "pickup": {
+      "fieldname": "pickup",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Pickup From",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "pickup from",
+        "pickup_from",
+        "Pickup From",
+        "pickup"
+      ]
+    },
+    "pickup_address_name": {
+      "fieldname": "pickup_address_name",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Address",
+        "pickup address name",
+        "pickup_address_name",
+        "address"
+      ]
+    },
+    "pickup_address": {
+      "fieldname": "pickup_address",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "pickup_address",
+        "pickup address"
+      ]
+    },
+    "pickup_contact_person": {
+      "fieldname": "pickup_contact_person",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Pickup Contact Person",
+      "options": "User",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Pickup Contact Person",
+        "pickup_contact_person",
+        "pickup contact person"
+      ]
+    },
+    "pickup_contact_name": {
+      "fieldname": "pickup_contact_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Contact",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pickup_contact_name",
+        "Contact",
+        "contact",
+        "pickup contact name"
+      ]
+    },
+    "pickup_contact_email": {
+      "fieldname": "pickup_contact_email",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Contact Email",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Contact Email",
+        "pickup contact email",
+        "contact_email",
+        "contact email",
+        "pickup_contact_email"
+      ]
+    },
+    "pickup_contact": {
+      "fieldname": "pickup_contact",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "pickup contact",
+        "pickup_contact"
+      ]
+    },
+    "delivery_to_type": {
+      "fieldname": "delivery_to_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Delivery to",
+      "options": [
+        "Company",
+        "Customer",
+        "Supplier"
+      ],
+      "default_value": "Customer",
+      "user_input_synonyms": [
+        "delivery to type",
+        "delivery to",
+        "delivery_to",
+        "Delivery to",
+        "delivery_to_type"
+      ]
+    },
+    "delivery_company": {
+      "fieldname": "delivery_company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company",
+        "delivery_company",
+        "delivery company"
+      ]
+    },
+    "delivery_customer": {
+      "fieldname": "delivery_customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery customer",
+        "customer",
+        "Customer",
+        "delivery_customer"
+      ]
+    },
+    "delivery_supplier": {
+      "fieldname": "delivery_supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "delivery supplier",
+        "delivery_supplier",
+        "Supplier"
+      ]
+    },
+    "delivery_to": {
+      "fieldname": "delivery_to",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Delivery To",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery_to",
+        "Delivery To",
+        "delivery to"
+      ]
+    },
+    "delivery_address_name": {
+      "fieldname": "delivery_address_name",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Address",
+        "delivery_address_name",
+        "address",
+        "delivery address name"
+      ]
+    },
+    "delivery_address": {
+      "fieldname": "delivery_address",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery address",
+        "delivery_address"
+      ]
+    },
+    "delivery_contact_name": {
+      "fieldname": "delivery_contact_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Contact",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery contact name",
+        "Contact",
+        "contact",
+        "delivery_contact_name"
+      ]
+    },
+    "delivery_contact_email": {
+      "fieldname": "delivery_contact_email",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Contact Email",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Contact Email",
+        "contact_email",
+        "contact email",
+        "delivery_contact_email",
+        "delivery contact email"
+      ]
+    },
+    "delivery_contact": {
+      "fieldname": "delivery_contact",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": null,
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery_contact",
+        "delivery contact"
+      ]
+    },
+    "parcel_template": {
+      "fieldname": "parcel_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Parcel Template",
+      "options": "Shipment Parcel Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "parcel template",
+        "parcel_template",
+        "Parcel Template"
+      ]
+    },
+    "total_weight": {
+      "fieldname": "total_weight",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Weight (kg)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total weight (kg)",
+        "total_weight_(kg)",
+        "total weight",
+        "Total Weight (kg)",
+        "total_weight"
+      ]
+    },
+    "pallets": {
+      "fieldname": "pallets",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Pallets",
+      "options": [
+        "No",
+        "Yes"
+      ],
+      "default_value": "No",
+      "user_input_synonyms": [
+        "Pallets",
+        "pallets"
+      ]
+    },
+    "value_of_goods": {
+      "fieldname": "value_of_goods",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Value of Goods",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Value of Goods",
+        "value of goods",
+        "value_of_goods"
+      ]
+    },
+    "pickup_date": {
+      "fieldname": "pickup_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Pickup Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Pickup Date",
+        "pickup_date",
+        "pickup date"
+      ]
+    },
+    "pickup_from": {
+      "fieldname": "pickup_from",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "Pickup from",
+      "options": null,
+      "default_value": "09:00",
+      "user_input_synonyms": [
+        "pickup_from",
+        "Pickup from",
+        "pickup from"
+      ]
+    },
+    "pickup_to": {
+      "fieldname": "pickup_to",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "Pickup to",
+      "options": null,
+      "default_value": "17:00",
+      "user_input_synonyms": [
+        "Pickup to",
+        "pickup to",
+        "pickup_to"
+      ]
+    },
+    "shipment_type": {
+      "fieldname": "shipment_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Shipment Type",
+      "options": [
+        "Goods",
+        "Documents"
+      ],
+      "default_value": "Goods",
+      "user_input_synonyms": [
+        "shipment_type",
+        "shipment type",
+        "Shipment Type"
+      ]
+    },
+    "pickup_type": {
+      "fieldname": "pickup_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Pickup Type",
+      "options": [
+        "Pickup",
+        "Self delivery"
+      ],
+      "default_value": "Pickup",
+      "user_input_synonyms": [
+        "Pickup Type",
+        "pickup_type",
+        "pickup type"
+      ]
+    },
+    "incoterm": {
+      "fieldname": "incoterm",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Incoterm",
+      "options": "Incoterm",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Incoterm",
+        "incoterm"
+      ]
+    },
+    "description_of_content": {
+      "fieldname": "description_of_content",
+      "fieldtype": "Small Text",
+      "mandatory": true,
+      "label": "Description of Content",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Description of Content",
+        "description of content",
+        "description_of_content"
+      ]
+    },
+    "service_provider": {
+      "fieldname": "service_provider",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Service Provider",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "service provider",
+        "Service Provider",
+        "service_provider"
+      ]
+    },
+    "shipment_id": {
+      "fieldname": "shipment_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Shipment ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Shipment ID",
+        "shipment_id",
+        "shipment id"
+      ]
+    },
+    "shipment_amount": {
+      "fieldname": "shipment_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Shipment Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipment_amount",
+        "Shipment Amount",
+        "shipment amount"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "Booked",
+        "Cancelled",
+        "Completed"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "tracking_url": {
+      "fieldname": "tracking_url",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Tracking URL",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "tracking url",
+        "Tracking URL",
+        "tracking_url"
+      ]
+    },
+    "carrier": {
+      "fieldname": "carrier",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Carrier",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Carrier",
+        "carrier"
+      ]
+    },
+    "carrier_service": {
+      "fieldname": "carrier_service",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Carrier Service",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "carrier_service",
+        "Carrier Service",
+        "carrier service"
+      ]
+    },
+    "awb_number": {
+      "fieldname": "awb_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "AWB Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "AWB Number",
+        "awb number",
+        "awb_number"
+      ]
+    },
+    "tracking_status": {
+      "fieldname": "tracking_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Tracking Status",
+      "options": [
+        "In Progress",
+        "Delivered",
+        "Returned",
+        "Lost"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tracking Status",
+        "tracking_status",
+        "tracking status"
+      ]
+    },
+    "tracking_status_info": {
+      "fieldname": "tracking_status_info",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Tracking Status Info",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tracking Status Info",
+        "tracking_status_info",
+        "tracking status info"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Shipment",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

@@ -1,0 +1,76 @@
+{
+  "doctype_name": "Item Alternative",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "item alternative",
+    "item_alternative"
+  ],
+  "field_mappings": {
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "alternative_item_code": {
+      "fieldname": "alternative_item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Alternative Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Alternative Item Code",
+        "alternative_item_code",
+        "alternative item code"
+      ]
+    },
+    "two_way": {
+      "fieldname": "two_way",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Two-way",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "two_way",
+        "two-way",
+        "two way",
+        "Two-way"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "alternative_item_name": {
+      "fieldname": "alternative_item_name",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Alternative Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "alternative_item_name",
+        "alternative item name",
+        "Alternative Item Name"
+      ]
+    }
+  }
+}

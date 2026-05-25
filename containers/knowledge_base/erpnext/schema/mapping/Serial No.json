@@ -1,0 +1,312 @@
+{
+  "doctype_name": "Serial No",
+  "mandatory_fields": [
+    "serial_no",
+    "item_code",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "serial no",
+    "serial_no"
+  ],
+  "field_mappings": {
+    "serial_no": {
+      "fieldname": "serial_no",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Serial No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "serial no",
+        "serial_no",
+        "Serial No"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "batch_no": {
+      "fieldname": "batch_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Batch No",
+      "options": "Batch",
+      "default_value": null,
+      "user_input_synonyms": [
+        "batch no",
+        "batch_no",
+        "Batch No"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "purchase_rate": {
+      "fieldname": "purchase_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Incoming Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "purchase rate",
+        "purchase_rate",
+        "Incoming Rate",
+        "incoming_rate",
+        "incoming rate"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Active",
+        "Inactive",
+        "Consumed",
+        "Delivered",
+        "Expired"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "item_group": {
+      "fieldname": "item_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Item Group",
+        "item_group",
+        "item group"
+      ]
+    },
+    "brand": {
+      "fieldname": "brand",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Brand",
+      "options": "Brand",
+      "default_value": null,
+      "user_input_synonyms": [
+        "brand",
+        "Brand"
+      ]
+    },
+    "asset": {
+      "fieldname": "asset",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Asset",
+      "options": "Asset",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Asset",
+        "asset"
+      ]
+    },
+    "asset_status": {
+      "fieldname": "asset_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Asset Status",
+      "options": [
+        "Issue",
+        "Receipt",
+        "Transfer"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "asset_status",
+        "Asset Status",
+        "asset status"
+      ]
+    },
+    "location": {
+      "fieldname": "location",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Location",
+      "options": "Location",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Location",
+        "location"
+      ]
+    },
+    "employee": {
+      "fieldname": "employee",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Employee",
+      "options": "Employee",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Employee",
+        "employee"
+      ]
+    },
+    "warranty_expiry_date": {
+      "fieldname": "warranty_expiry_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Warranty Expiry Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Warranty Expiry Date",
+        "warranty_expiry_date",
+        "warranty expiry date"
+      ]
+    },
+    "amc_expiry_date": {
+      "fieldname": "amc_expiry_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "AMC Expiry Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "amc expiry date",
+        "AMC Expiry Date",
+        "amc_expiry_date"
+      ]
+    },
+    "maintenance_status": {
+      "fieldname": "maintenance_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Maintenance Status",
+      "options": [
+        "Under Warranty",
+        "Out of Warranty",
+        "Under AMC",
+        "Out of AMC"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "maintenance status",
+        "Maintenance Status",
+        "maintenance_status"
+      ]
+    },
+    "warranty_period": {
+      "fieldname": "warranty_period",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Warranty Period (Days)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "warranty period",
+        "warranty_period_(days)",
+        "Warranty Period (Days)",
+        "warranty_period",
+        "warranty period (days)"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "work_order": {
+      "fieldname": "work_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Work Order",
+      "options": "Work Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "work order",
+        "work_order",
+        "Work Order"
+      ]
+    },
+    "purchase_document_no": {
+      "fieldname": "purchase_document_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Creation Document No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "creation_document_no",
+        "Creation Document No",
+        "purchase_document_no",
+        "purchase document no",
+        "creation document no"
+      ]
+    }
+  }
+}

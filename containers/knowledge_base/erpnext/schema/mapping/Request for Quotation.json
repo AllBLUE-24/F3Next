@@ -1,0 +1,307 @@
+{
+  "doctype_name": "Request for Quotation",
+  "mandatory_fields": [
+    "naming_series",
+    "company",
+    "transaction_date",
+    "status",
+    "suppliers",
+    "items",
+    "message_for_supplier"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "request for quotation",
+    "request_for_quotation"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "PUR-RFQ-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "billing_address": {
+      "fieldname": "billing_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company Billing Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "company_billing_address",
+        "billing address",
+        "billing_address",
+        "Company Billing Address",
+        "company billing address"
+      ]
+    },
+    "billing_address_display": {
+      "fieldname": "billing_address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Billing Address Details",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "billing_address_details",
+        "billing address display",
+        "billing_address_display",
+        "Billing Address Details",
+        "billing address details"
+      ]
+    },
+    "vendor": {
+      "fieldname": "vendor",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "vendor",
+        "Supplier"
+      ]
+    },
+    "transaction_date": {
+      "fieldname": "transaction_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "transaction date",
+        "transaction_date",
+        "date",
+        "Date"
+      ]
+    },
+    "schedule_date": {
+      "fieldname": "schedule_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Required Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "required date",
+        "required_date",
+        "schedule_date",
+        "Required Date",
+        "schedule date"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "Cancelled"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "has_unit_price_items": {
+      "fieldname": "has_unit_price_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Unit Price Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has unit price items",
+        "has_unit_price_items",
+        "Has Unit Price Items"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Request for Quotation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "email_template": {
+      "fieldname": "email_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Email Template",
+      "options": "Email Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "email template",
+        "email_template",
+        "Email Template"
+      ]
+    },
+    "send_attached_files": {
+      "fieldname": "send_attached_files",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Send Attached Files",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "send_attached_files",
+        "send attached files",
+        "Send Attached Files"
+      ]
+    },
+    "send_document_print": {
+      "fieldname": "send_document_print",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Send Document Print",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Send Document Print",
+        "send_document_print",
+        "send document print"
+      ]
+    },
+    "message_for_supplier": {
+      "fieldname": "message_for_supplier",
+      "fieldtype": "Text Editor",
+      "mandatory": true,
+      "label": "Message for Supplier",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "message_for_supplier",
+        "message for supplier",
+        "Message for Supplier"
+      ]
+    },
+    "incoterm": {
+      "fieldname": "incoterm",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Incoterm",
+      "options": "Incoterm",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Incoterm",
+        "incoterm"
+      ]
+    },
+    "named_place": {
+      "fieldname": "named_place",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Named Place",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "named_place",
+        "named place",
+        "Named Place"
+      ]
+    },
+    "tc_name": {
+      "fieldname": "tc_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Terms",
+      "options": "Terms and Conditions",
+      "default_value": null,
+      "user_input_synonyms": [
+        "tc_name",
+        "tc name",
+        "terms",
+        "Terms"
+      ]
+    },
+    "terms": {
+      "fieldname": "terms",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Terms and Conditions",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Terms and Conditions",
+        "terms_and_conditions",
+        "terms and conditions",
+        "terms"
+      ]
+    },
+    "select_print_heading": {
+      "fieldname": "select_print_heading",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Heading",
+      "options": "Print Heading",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_heading",
+        "print heading",
+        "select print heading",
+        "Print Heading",
+        "select_print_heading"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "opportunity": {
+      "fieldname": "opportunity",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Opportunity",
+      "options": "Opportunity",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Opportunity",
+        "opportunity"
+      ]
+    }
+  },
+  "is_submittable": true
+}

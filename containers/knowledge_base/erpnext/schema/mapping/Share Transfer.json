@@ -1,0 +1,243 @@
+{
+  "doctype_name": "Share Transfer",
+  "mandatory_fields": [
+    "transfer_type",
+    "date",
+    "equity_or_liability_account",
+    "share_type",
+    "from_no",
+    "rate",
+    "no_of_shares",
+    "to_no",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "share transfer",
+    "share_transfer"
+  ],
+  "field_mappings": {
+    "transfer_type": {
+      "fieldname": "transfer_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Transfer Type",
+      "options": [
+        "Issue",
+        "Purchase",
+        "Transfer"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "transfer type",
+        "transfer_type",
+        "Transfer Type"
+      ]
+    },
+    "date": {
+      "fieldname": "date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "date",
+        "Date"
+      ]
+    },
+    "from_shareholder": {
+      "fieldname": "from_shareholder",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "From Shareholder",
+      "options": "Shareholder",
+      "default_value": null,
+      "user_input_synonyms": [
+        "from shareholder",
+        "from_shareholder",
+        "From Shareholder"
+      ]
+    },
+    "from_folio_no": {
+      "fieldname": "from_folio_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "From Folio No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from folio no",
+        "From Folio No",
+        "from_folio_no"
+      ]
+    },
+    "to_shareholder": {
+      "fieldname": "to_shareholder",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "To Shareholder",
+      "options": "Shareholder",
+      "default_value": null,
+      "user_input_synonyms": [
+        "to shareholder",
+        "To Shareholder",
+        "to_shareholder"
+      ]
+    },
+    "to_folio_no": {
+      "fieldname": "to_folio_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "To Folio No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to_folio_no",
+        "To Folio No",
+        "to folio no"
+      ]
+    },
+    "equity_or_liability_account": {
+      "fieldname": "equity_or_liability_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Equity/Liability Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "equity/liability_account",
+        "equity_or_liability_account",
+        "Equity/Liability Account",
+        "equity or liability account",
+        "equity/liability account"
+      ]
+    },
+    "asset_account": {
+      "fieldname": "asset_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Asset Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "asset_account",
+        "asset account",
+        "Asset Account"
+      ]
+    },
+    "share_type": {
+      "fieldname": "share_type",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Share Type",
+      "options": "Share Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "share_type",
+        "share type",
+        "Share Type"
+      ]
+    },
+    "from_no": {
+      "fieldname": "from_no",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "From No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From No",
+        "from_no",
+        "from no"
+      ]
+    },
+    "rate": {
+      "fieldname": "rate",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Rate",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "rate",
+        "Rate"
+      ]
+    },
+    "no_of_shares": {
+      "fieldname": "no_of_shares",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "No of Shares",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "no_of_shares",
+        "No of Shares",
+        "no of shares"
+      ]
+    },
+    "to_no": {
+      "fieldname": "to_no",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "To No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to no",
+        "to_no",
+        "To No"
+      ]
+    },
+    "amount": {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amount",
+        "amount"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Share Transfer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

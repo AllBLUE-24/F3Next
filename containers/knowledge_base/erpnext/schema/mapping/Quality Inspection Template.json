@@ -1,0 +1,26 @@
+{
+  "doctype_name": "Quality Inspection Template",
+  "mandatory_fields": [
+    "quality_inspection_template_name",
+    "item_quality_inspection_parameter"
+  ],
+  "doctype_classifier_hints": [
+    "quality inspection template",
+    "quality_inspection_template"
+  ],
+  "field_mappings": {
+    "quality_inspection_template_name": {
+      "fieldname": "quality_inspection_template_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Quality Inspection Template Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "quality_inspection_template_name",
+        "Quality Inspection Template Name",
+        "quality inspection template name"
+      ]
+    }
+  }
+}

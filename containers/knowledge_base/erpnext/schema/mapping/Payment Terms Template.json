@@ -1,0 +1,38 @@
+{
+  "doctype_name": "Payment Terms Template",
+  "mandatory_fields": [
+    "terms"
+  ],
+  "doctype_classifier_hints": [
+    "payment terms template",
+    "payment_terms_template"
+  ],
+  "field_mappings": {
+    "template_name": {
+      "fieldname": "template_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Template Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "template name",
+        "Template Name",
+        "template_name"
+      ]
+    },
+    "allocate_payment_based_on_payment_terms": {
+      "fieldname": "allocate_payment_based_on_payment_terms",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allocate Payment Based On Payment Terms",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allocate payment based on payment terms",
+        "allocate_payment_based_on_payment_terms",
+        "Allocate Payment Based On Payment Terms"
+      ]
+    }
+  }
+}

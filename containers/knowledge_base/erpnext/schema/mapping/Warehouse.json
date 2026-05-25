@@ -1,0 +1,269 @@
+{
+  "doctype_name": "Warehouse",
+  "mandatory_fields": [
+    "warehouse_name",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "warehouse"
+  ],
+  "field_mappings": {
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "warehouse_name": {
+      "fieldname": "warehouse_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Warehouse Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse_name",
+        "Warehouse Name",
+        "warehouse name"
+      ]
+    },
+    "is_group": {
+      "fieldname": "is_group",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Group Warehouse",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_group_warehouse",
+        "is_group",
+        "is group warehouse",
+        "Is Group Warehouse",
+        "is group"
+      ]
+    },
+    "parent_warehouse": {
+      "fieldname": "parent_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Parent Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "parent_warehouse",
+        "parent warehouse",
+        "Parent Warehouse"
+      ]
+    },
+    "is_rejected_warehouse": {
+      "fieldname": "is_rejected_warehouse",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Rejected Warehouse",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_rejected_warehouse",
+        "Is Rejected Warehouse",
+        "is rejected warehouse"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "email_id": {
+      "fieldname": "email_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Email Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "email_id",
+        "email address",
+        "Email Address",
+        "email_address",
+        "email id"
+      ]
+    },
+    "phone_no": {
+      "fieldname": "phone_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Phone No",
+      "options": "Phone",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Phone No",
+        "phone no",
+        "phone_no"
+      ]
+    },
+    "mobile_no": {
+      "fieldname": "mobile_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Mobile No",
+      "options": "Phone",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Mobile No",
+        "mobile no",
+        "mobile_no"
+      ]
+    },
+    "address_line_1": {
+      "fieldname": "address_line_1",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Address Line 1",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "address_line_1",
+        "Address Line 1",
+        "address line 1"
+      ]
+    },
+    "address_line_2": {
+      "fieldname": "address_line_2",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Address Line 2",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "address line 2",
+        "Address Line 2",
+        "address_line_2"
+      ]
+    },
+    "city": {
+      "fieldname": "city",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "City",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "City",
+        "city"
+      ]
+    },
+    "state": {
+      "fieldname": "state",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "State/Province",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "state/province",
+        "state",
+        "State/Province"
+      ]
+    },
+    "pin": {
+      "fieldname": "pin",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "PIN",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "PIN",
+        "pin"
+      ]
+    },
+    "warehouse_type": {
+      "fieldname": "warehouse_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse Type",
+      "options": "Warehouse Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse type",
+        "Warehouse Type",
+        "warehouse_type"
+      ]
+    },
+    "default_in_transit_warehouse": {
+      "fieldname": "default_in_transit_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default In-Transit Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_in_transit_warehouse",
+        "default_in-transit_warehouse",
+        "default in transit warehouse",
+        "default in-transit warehouse",
+        "Default In-Transit Warehouse"
+      ]
+    },
+    "lft": {
+      "fieldname": "lft",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "lft",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "lft"
+      ]
+    },
+    "rgt": {
+      "fieldname": "rgt",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "rgt",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "rgt"
+      ]
+    },
+    "old_parent": {
+      "fieldname": "old_parent",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Old Parent",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Old Parent",
+        "old_parent",
+        "old parent"
+      ]
+    }
+  }
+}

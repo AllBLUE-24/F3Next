@@ -1,0 +1,147 @@
+{
+  "doctype_name": "SMS Center",
+  "mandatory_fields": [
+    "message"
+  ],
+  "doctype_classifier_hints": [
+    "sms center",
+    "sms_center"
+  ],
+  "field_mappings": {
+    "send_to": {
+      "fieldname": "send_to",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Send To",
+      "options": [
+        "All Contact",
+        "All Customer Contact",
+        "All Supplier Contact",
+        "All Sales Partner Contact",
+        "All Lead (Open)",
+        "All Employee (Active)",
+        "All Sales Person"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "send_to",
+        "send to",
+        "Send To"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "sales_partner": {
+      "fieldname": "sales_partner",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Partner",
+      "options": "Sales Partner",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales partner",
+        "sales_partner",
+        "Sales Partner"
+      ]
+    },
+    "department": {
+      "fieldname": "department",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Department",
+      "options": "Department",
+      "default_value": null,
+      "user_input_synonyms": [
+        "department",
+        "Department"
+      ]
+    },
+    "branch": {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Branch",
+      "options": "Branch",
+      "default_value": null,
+      "user_input_synonyms": [
+        "branch",
+        "Branch"
+      ]
+    },
+    "receiver_list": {
+      "fieldname": "receiver_list",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Receiver List",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "receiver_list",
+        "receiver list",
+        "Receiver List"
+      ]
+    },
+    "message": {
+      "fieldname": "message",
+      "fieldtype": "Text",
+      "mandatory": true,
+      "label": "Message",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "message",
+        "Message"
+      ]
+    },
+    "total_characters": {
+      "fieldname": "total_characters",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Total Characters",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_characters",
+        "total characters",
+        "Total Characters"
+      ]
+    },
+    "total_messages": {
+      "fieldname": "total_messages",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Total Message(s)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_messages",
+        "Total Message(s)",
+        "total_message(s)",
+        "total message(s)",
+        "total messages"
+      ]
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "doctype_name": "Routing",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "routing"
+  ],
+  "field_mappings": {
+    "routing_name": {
+      "fieldname": "routing_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Routing Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Routing Name",
+        "routing_name",
+        "routing name"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    }
+  }
+}

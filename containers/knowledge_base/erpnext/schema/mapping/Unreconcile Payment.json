@@ -1,0 +1,62 @@
+{
+  "doctype_name": "Unreconcile Payment",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "unreconcile payment",
+    "unreconcile_payment"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Voucher Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher type",
+        "Voucher Type",
+        "voucher_type"
+      ]
+    },
+    "voucher_no": {
+      "fieldname": "voucher_no",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Voucher No",
+      "options": "voucher_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_no",
+        "Voucher No",
+        "voucher no"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Unreconcile Payment",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

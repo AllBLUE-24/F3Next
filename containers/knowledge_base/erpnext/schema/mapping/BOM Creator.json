@@ -1,0 +1,296 @@
+{
+  "doctype_name": "BOM Creator",
+  "mandatory_fields": [
+    "item_code",
+    "qty",
+    "rm_cost_as_per",
+    "currency",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "bom creator",
+    "bom_creator"
+  ],
+  "field_mappings": {
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Finished Good",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "finished good",
+        "finished_good",
+        "item_code",
+        "Finished Good"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "item_group": {
+      "fieldname": "item_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Item Group",
+        "item_group",
+        "item group"
+      ]
+    },
+    "qty": {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "qty",
+        "Quantity",
+        "quantity"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "uom": {
+      "fieldname": "uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "uom",
+        "UOM"
+      ]
+    },
+    "rm_cost_as_per": {
+      "fieldname": "rm_cost_as_per",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Rate Of Materials Based On",
+      "options": [
+        "Valuation Rate",
+        "Last Purchase Rate",
+        "Price List"
+      ],
+      "default_value": "Valuation Rate",
+      "user_input_synonyms": [
+        "Rate Of Materials Based On",
+        "rm_cost_as_per",
+        "rate of materials based on",
+        "rm cost as per",
+        "rate_of_materials_based_on"
+      ]
+    },
+    "set_rate_based_on_warehouse": {
+      "fieldname": "set_rate_based_on_warehouse",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Set Valuation Rate Based on Source Warehouse",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "set_rate_based_on_warehouse",
+        "set rate based on warehouse",
+        "set valuation rate based on source warehouse",
+        "Set Valuation Rate Based on Source Warehouse",
+        "set_valuation_rate_based_on_source_warehouse"
+      ]
+    },
+    "buying_price_list": {
+      "fieldname": "buying_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "buying price list",
+        "buying_price_list",
+        "price list",
+        "Price List",
+        "price_list"
+      ]
+    },
+    "price_list_currency": {
+      "fieldname": "price_list_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "price list currency",
+        "price_list_currency",
+        "Price List Currency"
+      ]
+    },
+    "plc_conversion_rate": {
+      "fieldname": "plc_conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Price List Exchange Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "price_list_exchange_rate",
+        "Price List Exchange Rate",
+        "plc conversion rate",
+        "price list exchange rate",
+        "plc_conversion_rate"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "conversion_rate": {
+      "fieldname": "conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Conversion Rate",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "conversion rate",
+        "conversion_rate",
+        "Conversion Rate"
+      ]
+    },
+    "default_warehouse": {
+      "fieldname": "default_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Source Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_source_warehouse",
+        "Default Source Warehouse",
+        "default_warehouse",
+        "default warehouse",
+        "default source warehouse"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "raw_material_cost": {
+      "fieldname": "raw_material_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Cost",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "raw material cost",
+        "Total Cost",
+        "total cost",
+        "total_cost",
+        "raw_material_cost"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "In Progress",
+        "Completed",
+        "Failed",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "error_log": {
+      "fieldname": "error_log",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Error Log",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_log",
+        "Error Log",
+        "error log"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "BOM Creator",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

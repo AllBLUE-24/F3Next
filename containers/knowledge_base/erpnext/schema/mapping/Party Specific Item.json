@@ -1,0 +1,77 @@
+{
+  "doctype_name": "Party Specific Item",
+  "mandatory_fields": [
+    "party_type",
+    "party",
+    "restrict_based_on",
+    "based_on_value"
+  ],
+  "doctype_classifier_hints": [
+    "party specific item",
+    "party_specific_item"
+  ],
+  "field_mappings": {
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Party Type",
+      "options": [
+        "Customer",
+        "Supplier"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Type",
+        "party type",
+        "party_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": true,
+      "label": "Party Name",
+      "options": "party_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "party name",
+        "Party Name",
+        "party_name"
+      ]
+    },
+    "restrict_based_on": {
+      "fieldname": "restrict_based_on",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Restrict Items Based On",
+      "options": [
+        "Item",
+        "Item Group",
+        "Brand"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "restrict items based on",
+        "restrict_based_on",
+        "restrict based on",
+        "restrict_items_based_on",
+        "Restrict Items Based On"
+      ]
+    },
+    "based_on_value": {
+      "fieldname": "based_on_value",
+      "fieldtype": "Dynamic Link",
+      "mandatory": true,
+      "label": "Based On Value",
+      "options": "restrict_based_on",
+      "default_value": null,
+      "user_input_synonyms": [
+        "based on value",
+        "Based On Value",
+        "based_on_value"
+      ]
+    }
+  }
+}

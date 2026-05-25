@@ -1,0 +1,85 @@
+{
+  "doctype_name": "Shipment Parcel Template",
+  "mandatory_fields": [
+    "parcel_template_name",
+    "length",
+    "width",
+    "height",
+    "weight"
+  ],
+  "doctype_classifier_hints": [
+    "shipment parcel template",
+    "shipment_parcel_template"
+  ],
+  "field_mappings": {
+    "parcel_template_name": {
+      "fieldname": "parcel_template_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Parcel Template Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "parcel_template_name",
+        "Parcel Template Name",
+        "parcel template name"
+      ]
+    },
+    "length": {
+      "fieldname": "length",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "Length (cm)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Length (cm)",
+        "length (cm)",
+        "length_(cm)",
+        "length"
+      ]
+    },
+    "width": {
+      "fieldname": "width",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "Width (cm)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "width",
+        "Width (cm)",
+        "width (cm)",
+        "width_(cm)"
+      ]
+    },
+    "height": {
+      "fieldname": "height",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "Height (cm)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "height_(cm)",
+        "height (cm)",
+        "Height (cm)",
+        "height"
+      ]
+    },
+    "weight": {
+      "fieldname": "weight",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Weight (kg)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "weight_(kg)",
+        "Weight (kg)",
+        "weight",
+        "weight (kg)"
+      ]
+    }
+  }
+}

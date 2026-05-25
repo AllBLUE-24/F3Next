@@ -1,0 +1,140 @@
+{
+  "doctype_name": "Payment Order",
+  "mandatory_fields": [
+    "naming_series",
+    "company",
+    "payment_order_type",
+    "company_bank_account",
+    "references"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "payment order",
+    "payment_order"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "PMO-"
+      ],
+      "default_value": "PMO-",
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "payment_order_type": {
+      "fieldname": "payment_order_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Payment Order Type",
+      "options": [
+        "Payment Request",
+        "Payment Entry"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Payment Order Type",
+        "payment order type",
+        "payment_order_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "company_bank": {
+      "fieldname": "company_bank",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank",
+      "options": "Bank",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank",
+        "company bank",
+        "Bank",
+        "company_bank"
+      ]
+    },
+    "company_bank_account": {
+      "fieldname": "company_bank_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company Bank Account",
+        "company bank account",
+        "company_bank_account"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Account",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Payment Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

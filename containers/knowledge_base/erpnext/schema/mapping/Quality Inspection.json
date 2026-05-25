@@ -1,0 +1,322 @@
+{
+  "doctype_name": "Quality Inspection",
+  "mandatory_fields": [
+    "naming_series",
+    "report_date",
+    "status",
+    "inspection_type",
+    "reference_type",
+    "reference_name",
+    "item_code",
+    "sample_size",
+    "inspected_by"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "quality inspection",
+    "quality_inspection"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MAT-QA-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "report_date": {
+      "fieldname": "report_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Report Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Report Date",
+        "report date",
+        "report_date"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Status",
+      "options": [
+        "Accepted",
+        "Rejected"
+      ],
+      "default_value": "Accepted",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "child_row_reference": {
+      "fieldname": "child_row_reference",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Child Row Reference",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Child Row Reference",
+        "child row reference",
+        "child_row_reference"
+      ]
+    },
+    "inspection_type": {
+      "fieldname": "inspection_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Inspection Type",
+      "options": [
+        "Incoming",
+        "Outgoing",
+        "In Process"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "inspection type",
+        "Inspection Type",
+        "inspection_type"
+      ]
+    },
+    "reference_type": {
+      "fieldname": "reference_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Reference Type",
+      "options": [
+        "Purchase Receipt",
+        "Purchase Invoice",
+        "Subcontracting Receipt",
+        "Delivery Note",
+        "Sales Invoice",
+        "Stock Entry",
+        "Job Card"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference type",
+        "reference_type",
+        "Reference Type"
+      ]
+    },
+    "reference_name": {
+      "fieldname": "reference_name",
+      "fieldtype": "Dynamic Link",
+      "mandatory": true,
+      "label": "Reference Name",
+      "options": "reference_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference_name",
+        "reference name",
+        "Reference Name"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "item_serial_no": {
+      "fieldname": "item_serial_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Serial No",
+      "options": "Serial No",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item serial no",
+        "item_serial_no",
+        "Item Serial No"
+      ]
+    },
+    "batch_no": {
+      "fieldname": "batch_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Batch No",
+      "options": "Batch",
+      "default_value": null,
+      "user_input_synonyms": [
+        "batch no",
+        "batch_no",
+        "Batch No"
+      ]
+    },
+    "sample_size": {
+      "fieldname": "sample_size",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Sample Size",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Sample Size",
+        "sample_size",
+        "sample size"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "bom_no": {
+      "fieldname": "bom_no",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "BOM No",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bom_no",
+        "bom no",
+        "BOM No"
+      ]
+    },
+    "quality_inspection_template": {
+      "fieldname": "quality_inspection_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Quality Inspection Template",
+      "options": "Quality Inspection Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Quality Inspection Template",
+        "quality_inspection_template",
+        "quality inspection template"
+      ]
+    },
+    "manual_inspection": {
+      "fieldname": "manual_inspection",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Manual Inspection",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "manual inspection",
+        "manual_inspection",
+        "Manual Inspection"
+      ]
+    },
+    "inspected_by": {
+      "fieldname": "inspected_by",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Inspected By",
+      "options": "User",
+      "default_value": "user",
+      "user_input_synonyms": [
+        "inspected by",
+        "Inspected By",
+        "inspected_by"
+      ]
+    },
+    "verified_by": {
+      "fieldname": "verified_by",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Verified By",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "verified by",
+        "verified_by",
+        "Verified By"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Quality Inspection",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    }
+  },
+  "is_submittable": true
+}

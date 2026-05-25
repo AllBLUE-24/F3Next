@@ -1,0 +1,67 @@
+{
+  "doctype_name": "Accounting Period",
+  "mandatory_fields": [
+    "period_name",
+    "start_date",
+    "end_date",
+    "company",
+    "closed_documents"
+  ],
+  "doctype_classifier_hints": [
+    "accounting period",
+    "accounting_period"
+  ],
+  "field_mappings": {
+    "period_name": {
+      "fieldname": "period_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Period Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "period_name",
+        "Period Name",
+        "period name"
+      ]
+    },
+    "start_date": {
+      "fieldname": "start_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "start_date",
+        "Start Date",
+        "start date"
+      ]
+    },
+    "end_date": {
+      "fieldname": "end_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "End Date",
+        "end_date",
+        "end date"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    }
+  }
+}

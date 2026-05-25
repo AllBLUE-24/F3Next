@@ -1,0 +1,37 @@
+{
+  "doctype_name": "Customs Tariff Number",
+  "mandatory_fields": [
+    "tariff_number"
+  ],
+  "doctype_classifier_hints": [
+    "customs tariff number",
+    "customs_tariff_number"
+  ],
+  "field_mappings": {
+    "tariff_number": {
+      "fieldname": "tariff_number",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Tariff Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "tariff number",
+        "tariff_number",
+        "Tariff Number"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

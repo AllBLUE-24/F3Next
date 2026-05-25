@@ -1,0 +1,188 @@
+{
+  "doctype_name": "Loyalty Program",
+  "mandatory_fields": [
+    "loyalty_program_name",
+    "from_date",
+    "collection_rules"
+  ],
+  "doctype_classifier_hints": [
+    "loyalty program",
+    "loyalty_program"
+  ],
+  "field_mappings": {
+    "loyalty_program_name": {
+      "fieldname": "loyalty_program_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Loyalty Program Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program name",
+        "Loyalty Program Name",
+        "loyalty_program_name"
+      ]
+    },
+    "loyalty_program_type": {
+      "fieldname": "loyalty_program_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Loyalty Program Type",
+      "options": [
+        "Single Tier Program",
+        "Multiple Tier Program"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program type",
+        "Loyalty Program Type",
+        "loyalty_program_type"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Group",
+      "options": "Customer Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_group",
+        "Customer Group",
+        "customer group"
+      ]
+    },
+    "customer_territory": {
+      "fieldname": "customer_territory",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Territory",
+      "options": "Territory",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Customer Territory",
+        "customer_territory",
+        "customer territory"
+      ]
+    },
+    "auto_opt_in": {
+      "fieldname": "auto_opt_in",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Auto Opt In (For all customers)",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Auto Opt In (For all customers)",
+        "auto_opt_in",
+        "auto opt in",
+        "auto_opt_in_(for_all_customers)",
+        "auto opt in (for all customers)"
+      ]
+    },
+    "conversion_factor": {
+      "fieldname": "conversion_factor",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Conversion Factor",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "conversion factor",
+        "conversion_factor",
+        "Conversion Factor"
+      ]
+    },
+    "expiry_duration": {
+      "fieldname": "expiry_duration",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Expiry Duration (in days)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "expiry_duration_(in_days)",
+        "expiry duration (in days)",
+        "Expiry Duration (in days)",
+        "expiry duration",
+        "expiry_duration"
+      ]
+    },
+    "expense_account": {
+      "fieldname": "expense_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Expense Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "expense_account",
+        "Expense Account",
+        "expense account"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    }
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "doctype_name": "Bin",
+  "mandatory_fields": [
+    "item_code",
+    "warehouse"
+  ],
+  "doctype_classifier_hints": [
+    "bin"
+  ],
+  "field_mappings": {
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "actual_qty": {
+      "fieldname": "actual_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Actual Qty",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Actual Qty",
+        "actual qty",
+        "actual_qty"
+      ]
+    },
+    "planned_qty": {
+      "fieldname": "planned_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Planned Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "planned_qty",
+        "Planned Qty",
+        "planned qty"
+      ]
+    },
+    "indented_qty": {
+      "fieldname": "indented_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Requested Qty",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "requested_qty",
+        "indented qty",
+        "indented_qty",
+        "Requested Qty",
+        "requested qty"
+      ]
+    },
+    "ordered_qty": {
+      "fieldname": "ordered_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Ordered Qty",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Ordered Qty",
+        "ordered_qty",
+        "ordered qty"
+      ]
+    },
+    "projected_qty": {
+      "fieldname": "projected_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Projected Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "projected_qty",
+        "projected qty",
+        "Projected Qty"
+      ]
+    },
+    "reserved_qty": {
+      "fieldname": "reserved_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Reserved Qty",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "reserved qty",
+        "reserved_qty",
+        "Reserved Qty"
+      ]
+    },
+    "reserved_qty_for_production": {
+      "fieldname": "reserved_qty_for_production",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Reserved Qty for Production",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "reserved qty for production",
+        "reserved_qty_for_production",
+        "Reserved Qty for Production"
+      ]
+    },
+    "reserved_qty_for_sub_contract": {
+      "fieldname": "reserved_qty_for_sub_contract",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Reserved Qty for Subcontract",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Reserved Qty for Subcontract",
+        "reserved_qty_for_subcontract",
+        "reserved qty for sub contract",
+        "reserved qty for subcontract",
+        "reserved_qty_for_sub_contract"
+      ]
+    },
+    "reserved_qty_for_production_plan": {
+      "fieldname": "reserved_qty_for_production_plan",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Reserved Qty for Production Plan",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Reserved Qty for Production Plan",
+        "reserved qty for production plan",
+        "reserved_qty_for_production_plan"
+      ]
+    },
+    "reserved_stock": {
+      "fieldname": "reserved_stock",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Reserved Stock",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "reserved_stock",
+        "Reserved Stock",
+        "reserved stock"
+      ]
+    },
+    "stock_uom": {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "uom",
+        "stock uom",
+        "stock_uom",
+        "UOM"
+      ]
+    },
+    "valuation_rate": {
+      "fieldname": "valuation_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Valuation Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Valuation Rate",
+        "valuation_rate",
+        "valuation rate"
+      ]
+    },
+    "stock_value": {
+      "fieldname": "stock_value",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Stock Value",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Stock Value",
+        "stock_value",
+        "stock value"
+      ]
+    }
+  }
+}

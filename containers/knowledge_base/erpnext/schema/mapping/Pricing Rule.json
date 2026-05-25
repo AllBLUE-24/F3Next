@@ -1,0 +1,843 @@
+{
+  "doctype_name": "Pricing Rule",
+  "mandatory_fields": [
+    "title",
+    "apply_on",
+    "price_or_product_discount",
+    "currency"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "pricing rule",
+    "pricing_rule"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Naming Series",
+      "options": [
+        "PRLE-.####"
+      ],
+      "default_value": "PRLE-.####",
+      "user_input_synonyms": [
+        "naming_series",
+        "Naming Series",
+        "naming series"
+      ]
+    },
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "disable": {
+      "fieldname": "disable",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disable",
+        "Disable"
+      ]
+    },
+    "apply_on": {
+      "fieldname": "apply_on",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Apply On",
+      "options": [
+        "Item Code",
+        "Item Group",
+        "Brand",
+        "Transaction"
+      ],
+      "default_value": "Item Code",
+      "user_input_synonyms": [
+        "apply_on",
+        "Apply On",
+        "apply on"
+      ]
+    },
+    "price_or_product_discount": {
+      "fieldname": "price_or_product_discount",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Price or Product Discount",
+      "options": [
+        "Price",
+        "Product"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "price_or_product_discount",
+        "price or product discount",
+        "Price or Product Discount"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "mixed_conditions": {
+      "fieldname": "mixed_conditions",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Mixed Conditions",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "mixed conditions",
+        "Mixed Conditions",
+        "mixed_conditions"
+      ]
+    },
+    "is_cumulative": {
+      "fieldname": "is_cumulative",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Cumulative",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is cumulative",
+        "is_cumulative",
+        "Is Cumulative"
+      ]
+    },
+    "coupon_code_based": {
+      "fieldname": "coupon_code_based",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Coupon Code Based",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Coupon Code Based",
+        "coupon_code_based",
+        "coupon code based"
+      ]
+    },
+    "apply_rule_on_other": {
+      "fieldname": "apply_rule_on_other",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Apply Rule On Other",
+      "options": [
+        "Item Code",
+        "Item Group",
+        "Brand"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "apply_rule_on_other",
+        "apply rule on other",
+        "Apply Rule On Other"
+      ]
+    },
+    "other_item_code": {
+      "fieldname": "other_item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "other_item_code",
+        "Item Code",
+        "other item code",
+        "item_code"
+      ]
+    },
+    "other_item_group": {
+      "fieldname": "other_item_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_group",
+        "Item Group",
+        "other_item_group",
+        "other item group",
+        "item group"
+      ]
+    },
+    "other_brand": {
+      "fieldname": "other_brand",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Brand",
+      "options": "Brand",
+      "default_value": null,
+      "user_input_synonyms": [
+        "other_brand",
+        "Brand",
+        "other brand",
+        "brand"
+      ]
+    },
+    "selling": {
+      "fieldname": "selling",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Selling",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Selling",
+        "selling"
+      ]
+    },
+    "buying": {
+      "fieldname": "buying",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Buying",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "buying",
+        "Buying"
+      ]
+    },
+    "applicable_for": {
+      "fieldname": "applicable_for",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Applicable For",
+      "options": [
+        "Customer",
+        "Customer Group",
+        "Territory",
+        "Sales Partner",
+        "Campaign",
+        "Supplier",
+        "Supplier Group"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Applicable For",
+        "applicable for",
+        "applicable_for"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Group",
+      "options": "Customer Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_group",
+        "Customer Group",
+        "customer group"
+      ]
+    },
+    "territory": {
+      "fieldname": "territory",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Territory",
+      "options": "Territory",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Territory",
+        "territory"
+      ]
+    },
+    "sales_partner": {
+      "fieldname": "sales_partner",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Partner",
+      "options": "Sales Partner",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales partner",
+        "sales_partner",
+        "Sales Partner"
+      ]
+    },
+    "campaign": {
+      "fieldname": "campaign",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Campaign",
+      "options": "Campaign",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Campaign",
+        "campaign"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "supplier_group": {
+      "fieldname": "supplier_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier Group",
+      "options": "Supplier Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_group",
+        "Supplier Group",
+        "supplier group"
+      ]
+    },
+    "min_qty": {
+      "fieldname": "min_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Min Qty (As Per Stock UOM)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "min_qty_(as_per_stock_uom)",
+        "min qty (as per stock uom)",
+        "min qty",
+        "min_qty",
+        "Min Qty (As Per Stock UOM)"
+      ]
+    },
+    "max_qty": {
+      "fieldname": "max_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Max Qty (As Per Stock UOM)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "max_qty",
+        "max_qty_(as_per_stock_uom)",
+        "max qty",
+        "Max Qty (As Per Stock UOM)",
+        "max qty (as per stock uom)"
+      ]
+    },
+    "min_amt": {
+      "fieldname": "min_amt",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Min Amt",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Min Amt",
+        "min amt",
+        "min_amt"
+      ]
+    },
+    "max_amt": {
+      "fieldname": "max_amt",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Max Amt",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Max Amt",
+        "max amt",
+        "max_amt"
+      ]
+    },
+    "same_item": {
+      "fieldname": "same_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Same Item",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "same_item",
+        "Same Item",
+        "same item"
+      ]
+    },
+    "free_item": {
+      "fieldname": "free_item",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Free Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "free_item",
+        "free item",
+        "Free Item"
+      ]
+    },
+    "free_qty": {
+      "fieldname": "free_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "free qty",
+        "qty",
+        "Qty",
+        "free_qty"
+      ]
+    },
+    "free_item_rate": {
+      "fieldname": "free_item_rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Free Item Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "free_item_rate",
+        "Free Item Rate",
+        "free item rate"
+      ]
+    },
+    "free_item_uom": {
+      "fieldname": "free_item_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "UOM",
+        "uom",
+        "free item uom",
+        "free_item_uom"
+      ]
+    },
+    "round_free_qty": {
+      "fieldname": "round_free_qty",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Round Free Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Round Free Qty",
+        "round free qty",
+        "round_free_qty"
+      ]
+    },
+    "dont_enforce_free_item_qty": {
+      "fieldname": "dont_enforce_free_item_qty",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Don't Enforce Free Item Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Don't Enforce Free Item Qty",
+        "dont enforce free item qty",
+        "don't_enforce_free_item_qty",
+        "dont_enforce_free_item_qty",
+        "don't enforce free item qty"
+      ]
+    },
+    "is_recursive": {
+      "fieldname": "is_recursive",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Recursive",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is recursive",
+        "Is Recursive",
+        "is_recursive"
+      ]
+    },
+    "recurse_for": {
+      "fieldname": "recurse_for",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Recurse Every (As Per Transaction UOM)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "recurse for",
+        "Recurse Every (As Per Transaction UOM)",
+        "recurse_for",
+        "recurse every (as per transaction uom)",
+        "recurse_every_(as_per_transaction_uom)"
+      ]
+    },
+    "apply_recursion_over": {
+      "fieldname": "apply_recursion_over",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Apply Recursion Over (As Per Transaction UOM)",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "apply_recursion_over",
+        "apply recursion over (as per transaction uom)",
+        "apply recursion over",
+        "Apply Recursion Over (As Per Transaction UOM)",
+        "apply_recursion_over_(as_per_transaction_uom)"
+      ]
+    },
+    "valid_from": {
+      "fieldname": "valid_from",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Valid From",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "valid_from",
+        "Valid From",
+        "valid from"
+      ]
+    },
+    "valid_upto": {
+      "fieldname": "valid_upto",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Valid Upto",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Valid Upto",
+        "valid_upto",
+        "valid upto"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "margin_type": {
+      "fieldname": "margin_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Margin Type",
+      "options": [
+        "Percentage",
+        "Amount"
+      ],
+      "default_value": "Percentage",
+      "user_input_synonyms": [
+        "Margin Type",
+        "margin type",
+        "margin_type"
+      ]
+    },
+    "margin_rate_or_amount": {
+      "fieldname": "margin_rate_or_amount",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Margin Rate or Amount",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Margin Rate or Amount",
+        "margin rate or amount",
+        "margin_rate_or_amount"
+      ]
+    },
+    "rate_or_discount": {
+      "fieldname": "rate_or_discount",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Rate or Discount",
+      "options": [
+        "Rate",
+        "Discount Percentage",
+        "Discount Amount"
+      ],
+      "default_value": "Discount Percentage",
+      "user_input_synonyms": [
+        "rate_or_discount",
+        "Rate or Discount",
+        "rate or discount"
+      ]
+    },
+    "apply_discount_on": {
+      "fieldname": "apply_discount_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Apply Discount On",
+      "options": [
+        "Grand Total",
+        "Net Total"
+      ],
+      "default_value": "Grand Total",
+      "user_input_synonyms": [
+        "apply_discount_on",
+        "Apply Discount On",
+        "apply discount on"
+      ]
+    },
+    "rate": {
+      "fieldname": "rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rate",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "rate",
+        "Rate"
+      ]
+    },
+    "discount_amount": {
+      "fieldname": "discount_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Discount Amount",
+      "options": "currency",
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Discount Amount",
+        "discount amount",
+        "discount_amount"
+      ]
+    },
+    "discount_percentage": {
+      "fieldname": "discount_percentage",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Discount Percentage",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "discount_percentage",
+        "Discount Percentage",
+        "discount percentage"
+      ]
+    },
+    "for_price_list": {
+      "fieldname": "for_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "For Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "for_price_list",
+        "For Price List",
+        "for price list"
+      ]
+    },
+    "condition": {
+      "fieldname": "condition",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Condition",
+      "options": "PythonExpression",
+      "default_value": null,
+      "user_input_synonyms": [
+        "condition",
+        "Condition"
+      ]
+    },
+    "apply_multiple_pricing_rules": {
+      "fieldname": "apply_multiple_pricing_rules",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Apply Multiple Pricing Rules",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "apply_multiple_pricing_rules",
+        "apply multiple pricing rules",
+        "Apply Multiple Pricing Rules"
+      ]
+    },
+    "apply_discount_on_rate": {
+      "fieldname": "apply_discount_on_rate",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Apply Discount on Discounted Rate",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "apply_discount_on_rate",
+        "apply discount on rate",
+        "apply_discount_on_discounted_rate",
+        "apply discount on discounted rate",
+        "Apply Discount on Discounted Rate"
+      ]
+    },
+    "threshold_percentage": {
+      "fieldname": "threshold_percentage",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Threshold for Suggestion (In Percentage)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Threshold for Suggestion (In Percentage)",
+        "threshold for suggestion (in percentage)",
+        "threshold percentage",
+        "threshold_for_suggestion_(in_percentage)",
+        "threshold_percentage"
+      ]
+    },
+    "validate_applied_rule": {
+      "fieldname": "validate_applied_rule",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Validate Applied Rule",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Validate Applied Rule",
+        "validate_applied_rule",
+        "validate applied rule"
+      ]
+    },
+    "rule_description": {
+      "fieldname": "rule_description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Rule Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "rule description",
+        "Rule Description",
+        "rule_description"
+      ]
+    },
+    "has_priority": {
+      "fieldname": "has_priority",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Priority",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has_priority",
+        "Has Priority",
+        "has priority"
+      ]
+    },
+    "priority": {
+      "fieldname": "priority",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Priority",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "priority",
+        "Priority"
+      ]
+    },
+    "promotional_scheme_id": {
+      "fieldname": "promotional_scheme_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Promotional Scheme Id",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Promotional Scheme Id",
+        "promotional scheme id",
+        "promotional_scheme_id"
+      ]
+    },
+    "promotional_scheme": {
+      "fieldname": "promotional_scheme",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Promotional Scheme",
+      "options": "Promotional Scheme",
+      "default_value": null,
+      "user_input_synonyms": [
+        "promotional_scheme",
+        "promotional scheme",
+        "Promotional Scheme"
+      ]
+    }
+  }
+}

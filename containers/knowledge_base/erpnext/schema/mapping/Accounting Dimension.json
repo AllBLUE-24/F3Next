@@ -1,0 +1,66 @@
+{
+  "doctype_name": "Accounting Dimension",
+  "mandatory_fields": [
+    "document_type"
+  ],
+  "doctype_classifier_hints": [
+    "accounting dimension",
+    "accounting_dimension"
+  ],
+  "field_mappings": {
+    "document_type": {
+      "fieldname": "document_type",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Reference Document Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference_document_type",
+        "reference document type",
+        "document_type",
+        "Reference Document Type",
+        "document type"
+      ]
+    },
+    "label": {
+      "fieldname": "label",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Dimension Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "dimension_name",
+        "dimension name",
+        "label",
+        "Dimension Name"
+      ]
+    },
+    "fieldname": {
+      "fieldname": "fieldname",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Fieldname",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "fieldname",
+        "Fieldname"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "disable",
+        "Disable"
+      ]
+    }
+  }
+}

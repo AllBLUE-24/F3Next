@@ -1,0 +1,49 @@
+{
+  "doctype_name": "Quality Inspection Parameter",
+  "mandatory_fields": [
+    "parameter"
+  ],
+  "doctype_classifier_hints": [
+    "quality inspection parameter",
+    "quality_inspection_parameter"
+  ],
+  "field_mappings": {
+    "parameter": {
+      "fieldname": "parameter",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Parameter",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "parameter",
+        "Parameter"
+      ]
+    },
+    "parameter_group": {
+      "fieldname": "parameter_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Parameter Group",
+      "options": "Quality Inspection Parameter Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Parameter Group",
+        "parameter group",
+        "parameter_group"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

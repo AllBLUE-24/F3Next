@@ -1,0 +1,36 @@
+{
+  "doctype_name": "Share Type",
+  "mandatory_fields": [
+    "title"
+  ],
+  "doctype_classifier_hints": [
+    "share type",
+    "share_type"
+  ],
+  "field_mappings": {
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

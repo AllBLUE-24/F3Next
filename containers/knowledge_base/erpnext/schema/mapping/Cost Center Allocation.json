@@ -1,0 +1,67 @@
+{
+  "doctype_name": "Cost Center Allocation",
+  "mandatory_fields": [
+    "main_cost_center",
+    "company",
+    "valid_from",
+    "allocation_percentages"
+  ],
+  "doctype_classifier_hints": [
+    "cost center allocation",
+    "cost_center_allocation"
+  ],
+  "field_mappings": {
+    "main_cost_center": {
+      "fieldname": "main_cost_center",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Main Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Main Cost Center",
+        "main cost center",
+        "main_cost_center"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "valid_from": {
+      "fieldname": "valid_from",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Valid From",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "valid_from",
+        "Valid From",
+        "valid from"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Cost Center Allocation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

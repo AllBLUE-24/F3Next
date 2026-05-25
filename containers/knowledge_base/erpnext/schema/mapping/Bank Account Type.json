@@ -1,0 +1,23 @@
+{
+  "doctype_name": "Bank Account Type",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "bank account type",
+    "bank_account_type"
+  ],
+  "field_mappings": {
+    "account_type": {
+      "fieldname": "account_type",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Account Type",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Type",
+        "account type",
+        "account_type"
+      ]
+    }
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "doctype_name": "Journal Entry Template",
+  "mandatory_fields": [
+    "template_title",
+    "voucher_type",
+    "naming_series",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "journal entry template",
+    "journal_entry_template"
+  ],
+  "field_mappings": {
+    "template_title": {
+      "fieldname": "template_title",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Template Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "template_title",
+        "template title",
+        "Template Title"
+      ]
+    },
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Journal Entry Type",
+      "options": [
+        "Journal Entry",
+        "Inter Company Journal Entry",
+        "Bank Entry",
+        "Cash Entry",
+        "Credit Card Entry",
+        "Debit Note",
+        "Credit Note",
+        "Contra Entry",
+        "Excise Entry",
+        "Write Off Entry",
+        "Opening Entry",
+        "Depreciation Entry",
+        "Exchange Rate Revaluation"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_type",
+        "journal_entry_type",
+        "journal entry type",
+        "voucher type",
+        "Journal Entry Type"
+      ]
+    },
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "is_opening": {
+      "fieldname": "is_opening",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Is Opening",
+      "options": [
+        "No",
+        "Yes"
+      ],
+      "default_value": "No",
+      "user_input_synonyms": [
+        "is_opening",
+        "is opening",
+        "Is Opening"
+      ]
+    },
+    "multi_currency": {
+      "fieldname": "multi_currency",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Multi Currency",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Multi Currency",
+        "multi currency",
+        "multi_currency"
+      ]
+    }
+  }
+}

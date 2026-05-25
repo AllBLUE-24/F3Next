@@ -1,0 +1,124 @@
+{
+  "doctype_name": "Cost Center",
+  "mandatory_fields": [
+    "cost_center_name",
+    "parent_cost_center",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "cost center",
+    "cost_center"
+  ],
+  "field_mappings": {
+    "cost_center_name": {
+      "fieldname": "cost_center_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Cost Center Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Cost Center Name",
+        "cost center name",
+        "cost_center_name"
+      ]
+    },
+    "cost_center_number": {
+      "fieldname": "cost_center_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Cost Center Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center_number",
+        "cost center number",
+        "Cost Center Number"
+      ]
+    },
+    "parent_cost_center": {
+      "fieldname": "parent_cost_center",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Parent Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "parent_cost_center",
+        "parent cost center",
+        "Parent Cost Center"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "is_group": {
+      "fieldname": "is_group",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Group",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Group",
+        "is_group",
+        "is group"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "lft": {
+      "fieldname": "lft",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "lft",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "lft"
+      ]
+    },
+    "rgt": {
+      "fieldname": "rgt",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "rgt",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "rgt"
+      ]
+    },
+    "old_parent": {
+      "fieldname": "old_parent",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "old_parent",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "old_parent",
+        "old parent"
+      ]
+    }
+  }
+}

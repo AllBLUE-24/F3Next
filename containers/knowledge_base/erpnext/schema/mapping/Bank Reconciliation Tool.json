@@ -1,0 +1,145 @@
+{
+  "doctype_name": "Bank Reconciliation Tool",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "bank reconciliation tool",
+    "bank_reconciliation_tool"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "bank_account": {
+      "fieldname": "bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account",
+        "bank_account",
+        "bank account"
+      ]
+    },
+    "bank_statement_from_date": {
+      "fieldname": "bank_statement_from_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "bank_statement_from_date",
+        "from date",
+        "From Date",
+        "bank statement from date"
+      ]
+    },
+    "bank_statement_to_date": {
+      "fieldname": "bank_statement_to_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "bank_statement_to_date",
+        "to_date",
+        "bank statement to date",
+        "To Date"
+      ]
+    },
+    "from_reference_date": {
+      "fieldname": "from_reference_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Reference Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Reference Date",
+        "from reference date",
+        "from_reference_date"
+      ]
+    },
+    "to_reference_date": {
+      "fieldname": "to_reference_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Reference Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to reference date",
+        "to_reference_date",
+        "To Reference Date"
+      ]
+    },
+    "filter_by_reference_date": {
+      "fieldname": "filter_by_reference_date",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Filter by Reference Date",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "filter by reference date",
+        "filter_by_reference_date",
+        "Filter by Reference Date"
+      ]
+    },
+    "account_currency": {
+      "fieldname": "account_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Currency",
+        "account currency",
+        "account_currency"
+      ]
+    },
+    "account_opening_balance": {
+      "fieldname": "account_opening_balance",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Account Opening Balance",
+      "options": "account_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Opening Balance",
+        "account opening balance",
+        "account_opening_balance"
+      ]
+    },
+    "bank_statement_closing_balance": {
+      "fieldname": "bank_statement_closing_balance",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Closing Balance",
+      "options": "account_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "closing_balance",
+        "bank_statement_closing_balance",
+        "Closing Balance",
+        "bank statement closing balance",
+        "closing balance"
+      ]
+    }
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "doctype_name": "Inventory Dimension",
+  "mandatory_fields": [
+    "dimension_name",
+    "reference_document"
+  ],
+  "doctype_classifier_hints": [
+    "inventory dimension",
+    "inventory_dimension"
+  ],
+  "field_mappings": {
+    "dimension_name": {
+      "fieldname": "dimension_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Dimension Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "dimension_name",
+        "dimension name",
+        "Dimension Name"
+      ]
+    },
+    "reference_document": {
+      "fieldname": "reference_document",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Reference Document",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference document",
+        "reference_document",
+        "Reference Document"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "source_fieldname": {
+      "fieldname": "source_fieldname",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Source Fieldname",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Source Fieldname",
+        "source_fieldname",
+        "source fieldname"
+      ]
+    },
+    "target_fieldname": {
+      "fieldname": "target_fieldname",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Target Fieldname (Stock Ledger Entry)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "target_fieldname",
+        "Target Fieldname (Stock Ledger Entry)",
+        "target_fieldname_(stock_ledger_entry)",
+        "target fieldname (stock ledger entry)",
+        "target fieldname"
+      ]
+    },
+    "apply_to_all_doctypes": {
+      "fieldname": "apply_to_all_doctypes",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Apply to All Inventory Documents",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "apply to all doctypes",
+        "apply_to_all_doctypes",
+        "apply to all inventory documents",
+        "apply_to_all_inventory_documents",
+        "Apply to All Inventory Documents"
+      ]
+    },
+    "validate_negative_stock": {
+      "fieldname": "validate_negative_stock",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Validate Negative Stock",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Validate Negative Stock",
+        "validate negative stock",
+        "validate_negative_stock"
+      ]
+    },
+    "document_type": {
+      "fieldname": "document_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Apply to Document",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Apply to Document",
+        "apply to document",
+        "apply_to_document",
+        "document_type",
+        "document type"
+      ]
+    },
+    "type_of_transaction": {
+      "fieldname": "type_of_transaction",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Type of Transaction",
+      "options": [
+        "Inward",
+        "Outward",
+        "Both"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "type of transaction",
+        "Type of Transaction",
+        "type_of_transaction"
+      ]
+    },
+    "fetch_from_parent": {
+      "fieldname": "fetch_from_parent",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Fetch Value From",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "fetch from parent",
+        "fetch_from_parent",
+        "Fetch Value From",
+        "fetch_value_from",
+        "fetch value from"
+      ]
+    },
+    "istable": {
+      "fieldname": "istable",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": " Is Child Table",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is child table",
+        "is_child_table",
+        "Is Child Table",
+        "istable"
+      ]
+    },
+    "condition": {
+      "fieldname": "condition",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Conditional Rule",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "conditional rule",
+        "condition",
+        "conditional_rule",
+        "Conditional Rule"
+      ]
+    },
+    "reqd": {
+      "fieldname": "reqd",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Mandatory",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "reqd",
+        "Mandatory",
+        "mandatory"
+      ]
+    },
+    "mandatory_depends_on": {
+      "fieldname": "mandatory_depends_on",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Mandatory Depends On",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "mandatory_depends_on",
+        "mandatory depends on",
+        "Mandatory Depends On"
+      ]
+    }
+  }
+}

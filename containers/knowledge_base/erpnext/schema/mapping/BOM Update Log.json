@@ -1,0 +1,122 @@
+{
+  "doctype_name": "BOM Update Log",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "bom update log",
+    "bom_update_log"
+  ],
+  "field_mappings": {
+    "update_type": {
+      "fieldname": "update_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Update Type",
+      "options": [
+        "Replace BOM",
+        "Update Cost"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "update type",
+        "update_type",
+        "Update Type"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Queued",
+        "In Progress",
+        "Completed",
+        "Failed"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "current_bom": {
+      "fieldname": "current_bom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Current BOM",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "current_bom",
+        "current bom",
+        "Current BOM"
+      ]
+    },
+    "new_bom": {
+      "fieldname": "new_bom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "New BOM",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "New BOM",
+        "new_bom",
+        "new bom"
+      ]
+    },
+    "error_log": {
+      "fieldname": "error_log",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Error Log",
+      "options": "Error Log",
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_log",
+        "Error Log",
+        "error log"
+      ]
+    },
+    "current_level": {
+      "fieldname": "current_level",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Current Level",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "current_level",
+        "current level",
+        "Current Level"
+      ]
+    },
+    "processed_boms": {
+      "fieldname": "processed_boms",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Processed BOMs",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Processed BOMs",
+        "processed_boms",
+        "processed boms"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "BOM Update Log",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

@@ -1,0 +1,60 @@
+{
+  "doctype_name": "Stock Entry Type",
+  "mandatory_fields": [
+    "purpose"
+  ],
+  "doctype_classifier_hints": [
+    "stock entry type",
+    "stock_entry_type"
+  ],
+  "field_mappings": {
+    "purpose": {
+      "fieldname": "purpose",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Purpose",
+      "options": [
+        "Material Issue",
+        "Material Receipt",
+        "Material Transfer",
+        "Material Transfer for Manufacture",
+        "Material Consumption for Manufacture",
+        "Manufacture",
+        "Repack",
+        "Send to Subcontractor",
+        "Disassemble"
+      ],
+      "default_value": "Material Issue",
+      "user_input_synonyms": [
+        "purpose",
+        "Purpose"
+      ]
+    },
+    "add_to_transit": {
+      "fieldname": "add_to_transit",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Add to Transit",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "add to transit",
+        "add_to_transit",
+        "Add to Transit"
+      ]
+    },
+    "is_standard": {
+      "fieldname": "is_standard",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Standard",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Standard",
+        "is_standard",
+        "is standard"
+      ]
+    }
+  }
+}

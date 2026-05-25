@@ -1,0 +1,88 @@
+{
+  "doctype_name": "Item Attribute",
+  "mandatory_fields": [
+    "attribute_name"
+  ],
+  "doctype_classifier_hints": [
+    "item attribute",
+    "item_attribute"
+  ],
+  "field_mappings": {
+    "attribute_name": {
+      "fieldname": "attribute_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Attribute Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "attribute_name",
+        "attribute name",
+        "Attribute Name"
+      ]
+    },
+    "numeric_values": {
+      "fieldname": "numeric_values",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Numeric Values",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "numeric_values",
+        "Numeric Values",
+        "numeric values"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "from_range": {
+      "fieldname": "from_range",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "From Range",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "from range",
+        "From Range",
+        "from_range"
+      ]
+    },
+    "increment": {
+      "fieldname": "increment",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Increment",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Increment",
+        "increment"
+      ]
+    },
+    "to_range": {
+      "fieldname": "to_range",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "To Range",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "To Range",
+        "to range",
+        "to_range"
+      ]
+    }
+  }
+}

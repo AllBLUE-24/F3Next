@@ -1,0 +1,221 @@
+{
+  "doctype_name": "Bank Statement Import",
+  "mandatory_fields": [
+    "company",
+    "bank_account",
+    "reference_doctype",
+    "import_type"
+  ],
+  "doctype_classifier_hints": [
+    "bank statement import",
+    "bank_statement_import"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "bank_account": {
+      "fieldname": "bank_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account",
+        "bank_account",
+        "bank account"
+      ]
+    },
+    "bank": {
+      "fieldname": "bank",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank",
+      "options": "Bank",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank",
+        "Bank"
+      ]
+    },
+    "custom_delimiters": {
+      "fieldname": "custom_delimiters",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Custom delimiters",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "custom_delimiters",
+        "Custom delimiters",
+        "custom delimiters"
+      ]
+    },
+    "delimiter_options": {
+      "fieldname": "delimiter_options",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Delimiter options",
+      "options": null,
+      "default_value": ",;\\t|",
+      "user_input_synonyms": [
+        "delimiter_options",
+        "Delimiter options",
+        "delimiter options"
+      ]
+    },
+    "google_sheets_url": {
+      "fieldname": "google_sheets_url",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Import from Google Sheets",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "import from google sheets",
+        "import_from_google_sheets",
+        "google_sheets_url",
+        "Import from Google Sheets",
+        "google sheets url"
+      ]
+    },
+    "import_file": {
+      "fieldname": "import_file",
+      "fieldtype": "Attach",
+      "mandatory": false,
+      "label": "Import File",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "import file",
+        "Import File",
+        "import_file"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Pending",
+        "Success",
+        "Partial Success",
+        "Error"
+      ],
+      "default_value": "Pending",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "template_options": {
+      "fieldname": "template_options",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Template Options",
+      "options": "JSON",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Template Options",
+        "template_options",
+        "template options"
+      ]
+    },
+    "template_warnings": {
+      "fieldname": "template_warnings",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Template Warnings",
+      "options": "JSON",
+      "default_value": null,
+      "user_input_synonyms": [
+        "template warnings",
+        "template_warnings",
+        "Template Warnings"
+      ]
+    },
+    "show_failed_logs": {
+      "fieldname": "show_failed_logs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Show Failed Logs",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Show Failed Logs",
+        "show_failed_logs",
+        "show failed logs"
+      ]
+    },
+    "reference_doctype": {
+      "fieldname": "reference_doctype",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Document Type",
+      "options": "DocType",
+      "default_value": "Bank Transaction",
+      "user_input_synonyms": [
+        "reference doctype",
+        "reference_doctype",
+        "document_type",
+        "Document Type",
+        "document type"
+      ]
+    },
+    "import_type": {
+      "fieldname": "import_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Import Type",
+      "options": [
+        "Insert New Records",
+        "Update Existing Records"
+      ],
+      "default_value": "Insert New Records",
+      "user_input_synonyms": [
+        "import_type",
+        "Import Type",
+        "import type"
+      ]
+    },
+    "submit_after_import": {
+      "fieldname": "submit_after_import",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Submit After Import",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "submit after import",
+        "Submit After Import",
+        "submit_after_import"
+      ]
+    },
+    "mute_emails": {
+      "fieldname": "mute_emails",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Don't Send Emails",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "don't send emails",
+        "mute_emails",
+        "Don't Send Emails",
+        "mute emails",
+        "don't_send_emails"
+      ]
+    }
+  }
+}

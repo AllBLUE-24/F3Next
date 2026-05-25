@@ -1,0 +1,151 @@
+{
+  "doctype_name": "POS Invoice Merge Log",
+  "mandatory_fields": [
+    "company",
+    "posting_date",
+    "posting_time",
+    "merge_invoices_based_on",
+    "customer",
+    "pos_invoices"
+  ],
+  "doctype_classifier_hints": [
+    "pos invoice merge log",
+    "pos_invoice_merge_log"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "merge_invoices_based_on": {
+      "fieldname": "merge_invoices_based_on",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Merge Invoices Based On",
+      "options": [
+        "Customer",
+        "Customer Group"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "merge_invoices_based_on",
+        "Merge Invoices Based On",
+        "merge invoices based on"
+      ]
+    },
+    "pos_closing_entry": {
+      "fieldname": "pos_closing_entry",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "POS Closing Entry",
+      "options": "POS Closing Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pos_closing_entry",
+        "pos closing entry",
+        "POS Closing Entry"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Group",
+      "options": "Customer Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_group",
+        "Customer Group",
+        "customer group"
+      ]
+    },
+    "consolidated_invoice": {
+      "fieldname": "consolidated_invoice",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Consolidated Sales Invoice",
+      "options": "Sales Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "consolidated sales invoice",
+        "consolidated_sales_invoice",
+        "consolidated_invoice",
+        "consolidated invoice",
+        "Consolidated Sales Invoice"
+      ]
+    },
+    "consolidated_credit_note": {
+      "fieldname": "consolidated_credit_note",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Consolidated Credit Note",
+      "options": "Sales Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "consolidated_credit_note",
+        "Consolidated Credit Note",
+        "consolidated credit note"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "POS Invoice Merge Log",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

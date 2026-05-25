@@ -1,0 +1,114 @@
+{
+  "doctype_name": "Supplier Scorecard Period",
+  "mandatory_fields": [
+    "supplier",
+    "naming_series",
+    "start_date",
+    "end_date",
+    "criteria",
+    "scorecard"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "supplier scorecard period",
+    "supplier_scorecard_period"
+  ],
+  "field_mappings": {
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Naming Series",
+      "options": [
+        "PU-SSP-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Naming Series",
+        "naming series"
+      ]
+    },
+    "total_score": {
+      "fieldname": "total_score",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Period Score",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "period score",
+        "Period Score",
+        "total_score",
+        "total score",
+        "period_score"
+      ]
+    },
+    "start_date": {
+      "fieldname": "start_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "start_date",
+        "Start Date",
+        "start date"
+      ]
+    },
+    "end_date": {
+      "fieldname": "end_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "End Date",
+        "end_date",
+        "end date"
+      ]
+    },
+    "scorecard": {
+      "fieldname": "scorecard",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Supplier Scorecard Setup",
+      "options": "Supplier Scorecard",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Supplier Scorecard Setup",
+        "supplier_scorecard_setup",
+        "supplier scorecard setup",
+        "scorecard"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Supplier Scorecard Period",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

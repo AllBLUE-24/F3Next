@@ -1,0 +1,88 @@
+{
+  "doctype_name": "Process Period Closing Voucher",
+  "mandatory_fields": [
+    "parent_pcv"
+  ],
+  "doctype_classifier_hints": [
+    "process period closing voucher",
+    "process_period_closing_voucher"
+  ],
+  "field_mappings": {
+    "parent_pcv": {
+      "fieldname": "parent_pcv",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "PCV",
+      "options": "Period Closing Voucher",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pcv",
+        "parent_pcv",
+        "parent pcv",
+        "PCV"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Queued",
+        "Running",
+        "Paused",
+        "Completed",
+        "Cancelled"
+      ],
+      "default_value": "Queued",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "p_l_closing_balance": {
+      "fieldname": "p_l_closing_balance",
+      "fieldtype": "JSON",
+      "mandatory": false,
+      "label": "P&L Closing Balance",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "P&L Closing Balance",
+        "p l closing balance",
+        "p&l closing balance",
+        "p&l_closing_balance",
+        "p_l_closing_balance"
+      ]
+    },
+    "bs_closing_balance": {
+      "fieldname": "bs_closing_balance",
+      "fieldtype": "JSON",
+      "mandatory": false,
+      "label": "Balance Sheet Closing Balance",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "balance sheet closing balance",
+        "Balance Sheet Closing Balance",
+        "bs_closing_balance",
+        "bs closing balance",
+        "balance_sheet_closing_balance"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Process Period Closing Voucher",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

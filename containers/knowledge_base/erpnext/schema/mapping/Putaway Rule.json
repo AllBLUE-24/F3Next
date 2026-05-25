@@ -1,0 +1,155 @@
+{
+  "doctype_name": "Putaway Rule",
+  "mandatory_fields": [
+    "item_code",
+    "warehouse",
+    "company",
+    "capacity"
+  ],
+  "doctype_classifier_hints": [
+    "putaway rule",
+    "putaway_rule"
+  ],
+  "field_mappings": {
+    "disable": {
+      "fieldname": "disable",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disable",
+        "Disable"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item",
+        "Item",
+        "item code",
+        "item_code"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "priority": {
+      "fieldname": "priority",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Priority",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "priority",
+        "Priority"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "capacity": {
+      "fieldname": "capacity",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Capacity",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Capacity",
+        "capacity"
+      ]
+    },
+    "uom": {
+      "fieldname": "uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "uom",
+        "UOM"
+      ]
+    },
+    "conversion_factor": {
+      "fieldname": "conversion_factor",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Conversion Factor",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "conversion factor",
+        "conversion_factor",
+        "Conversion Factor"
+      ]
+    },
+    "stock_uom": {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Stock UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock uom",
+        "stock_uom",
+        "Stock UOM"
+      ]
+    },
+    "stock_capacity": {
+      "fieldname": "stock_capacity",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Capacity in Stock UOM",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock_capacity",
+        "Capacity in Stock UOM",
+        "capacity_in_stock_uom",
+        "stock capacity",
+        "capacity in stock uom"
+      ]
+    }
+  }
+}

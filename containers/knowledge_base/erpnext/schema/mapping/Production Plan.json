@@ -1,0 +1,405 @@
+{
+  "doctype_name": "Production Plan",
+  "mandatory_fields": [
+    "naming_series",
+    "company",
+    "posting_date",
+    "po_items"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "production plan",
+    "production_plan"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Naming Series",
+      "options": [
+        "MFG-PP-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Naming Series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "get_items_from": {
+      "fieldname": "get_items_from",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Get Items From",
+      "options": [
+        "Sales Order",
+        "Material Request"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Get Items From",
+        "get items from",
+        "get_items_from"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "sales_order_status": {
+      "fieldname": "sales_order_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Sales Order Status",
+      "options": [
+        "To Deliver and Bill",
+        "To Bill",
+        "To Deliver"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales order status",
+        "sales_order_status",
+        "Sales Order Status"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "from_delivery_date": {
+      "fieldname": "from_delivery_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Delivery Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from delivery date",
+        "From Delivery Date",
+        "from_delivery_date"
+      ]
+    },
+    "to_delivery_date": {
+      "fieldname": "to_delivery_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Delivery Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "To Delivery Date",
+        "to delivery date",
+        "to_delivery_date"
+      ]
+    },
+    "combine_items": {
+      "fieldname": "combine_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Consolidate Sales Order Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "combine_items",
+        "combine items",
+        "consolidate sales order items",
+        "Consolidate Sales Order Items",
+        "consolidate_sales_order_items"
+      ]
+    },
+    "combine_sub_items": {
+      "fieldname": "combine_sub_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Consolidate Sub Assembly Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "consolidate_sub_assembly_items",
+        "combine sub items",
+        "consolidate sub assembly items",
+        "combine_sub_items",
+        "Consolidate Sub Assembly Items"
+      ]
+    },
+    "sub_assembly_warehouse": {
+      "fieldname": "sub_assembly_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sub Assembly Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sub assembly warehouse",
+        "Sub Assembly Warehouse",
+        "sub_assembly_warehouse"
+      ]
+    },
+    "skip_available_sub_assembly_item": {
+      "fieldname": "skip_available_sub_assembly_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Skip Available Sub Assembly Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "skip available sub assembly item",
+        "skip_available_sub_assembly_items",
+        "skip_available_sub_assembly_item",
+        "Skip Available Sub Assembly Items",
+        "skip available sub assembly items"
+      ]
+    },
+    "include_non_stock_items": {
+      "fieldname": "include_non_stock_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include Non Stock Items",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Include Non Stock Items",
+        "include non stock items",
+        "include_non_stock_items"
+      ]
+    },
+    "include_subcontracted_items": {
+      "fieldname": "include_subcontracted_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include Subcontracted Items",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "include_subcontracted_items",
+        "include subcontracted items",
+        "Include Subcontracted Items"
+      ]
+    },
+    "consider_minimum_order_qty": {
+      "fieldname": "consider_minimum_order_qty",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Consider Minimum Order Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "consider minimum order qty",
+        "consider_minimum_order_qty",
+        "Consider Minimum Order Qty"
+      ]
+    },
+    "include_safety_stock": {
+      "fieldname": "include_safety_stock",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include Safety Stock in Required Qty Calculation",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "include safety stock in required qty calculation",
+        "include safety stock",
+        "Include Safety Stock in Required Qty Calculation",
+        "include_safety_stock_in_required_qty_calculation",
+        "include_safety_stock"
+      ]
+    },
+    "ignore_existing_ordered_qty": {
+      "fieldname": "ignore_existing_ordered_qty",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Ignore Available Stock",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "ignore_available_stock",
+        "ignore available stock",
+        "Ignore Available Stock",
+        "ignore existing ordered qty",
+        "ignore_existing_ordered_qty"
+      ]
+    },
+    "for_warehouse": {
+      "fieldname": "for_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Raw Materials Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "for warehouse",
+        "raw_materials_warehouse",
+        "Raw Materials Warehouse",
+        "for_warehouse",
+        "raw materials warehouse"
+      ]
+    },
+    "total_planned_qty": {
+      "fieldname": "total_planned_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Planned Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "total_planned_qty",
+        "Total Planned Qty",
+        "total planned qty"
+      ]
+    },
+    "total_produced_qty": {
+      "fieldname": "total_produced_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Produced Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Total Produced Qty",
+        "total produced qty",
+        "total_produced_qty"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "Not Started",
+        "In Process",
+        "Completed",
+        "Closed",
+        "Cancelled",
+        "Material Requested"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "warehouses": {
+      "fieldname": "warehouses",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Warehouses",
+      "options": "Production Plan Material Request Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouses",
+        "Warehouses"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Production Plan",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

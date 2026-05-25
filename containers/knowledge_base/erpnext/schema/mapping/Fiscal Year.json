@@ -1,0 +1,94 @@
+{
+  "doctype_name": "Fiscal Year",
+  "mandatory_fields": [
+    "year",
+    "year_start_date",
+    "year_end_date"
+  ],
+  "doctype_classifier_hints": [
+    "fiscal year",
+    "fiscal_year"
+  ],
+  "field_mappings": {
+    "year": {
+      "fieldname": "year",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Year Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "year_name",
+        "year",
+        "Year Name",
+        "year name"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "is_short_year": {
+      "fieldname": "is_short_year",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Short/Long Year",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is short/long year",
+        "is short year",
+        "Is Short/Long Year",
+        "is_short_year",
+        "is_short/long_year"
+      ]
+    },
+    "year_start_date": {
+      "fieldname": "year_start_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Year Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "year_start_date",
+        "year start date",
+        "Year Start Date"
+      ]
+    },
+    "year_end_date": {
+      "fieldname": "year_end_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Year End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "year end date",
+        "year_end_date",
+        "Year End Date"
+      ]
+    },
+    "auto_created": {
+      "fieldname": "auto_created",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Auto Created",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "auto created",
+        "auto_created",
+        "Auto Created"
+      ]
+    }
+  }
+}

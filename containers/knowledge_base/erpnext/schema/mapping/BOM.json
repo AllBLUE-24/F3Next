@@ -1,27 +1,32 @@
 {
   "doctype_name": "BOM",
-  "naming_series": "BOM-",
   "mandatory_fields": [
     "item",
-    "quantity"
+    "company",
+    "quantity",
+    "currency",
+    "conversion_rate",
+    "items"
   ],
   "doctype_classifier_hints": [
     "bill of materials",
     "bom",
-    "recipe",
-    "formula",
-    "raw material components",
+    "bom_recipe",
     "child_item_code",
     "fg_item",
     "finished_good_item",
-    "bom_recipe"
+    "formula",
+    "raw material components",
+    "recipe"
   ],
   "field_mappings": {
     "item": {
       "fieldname": "item",
       "fieldtype": "Link",
-      "options": "Item",
       "mandatory": true,
+      "label": "Item",
+      "options": "Item",
+      "default_value": null,
       "user_input_synonyms": [
         "fg_item",
         "finished_good",
@@ -30,53 +35,633 @@
         "output_item",
         "bom_item",
         "product",
-        "parent_item"
+        "parent_item",
+        "item",
+        "Item"
       ],
       "note": "The finished good item this BOM produces"
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "uom": {
+      "fieldname": "uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item UOM",
+      "options": "UOM",
+      "default_value": "fetch_from_item_master",
+      "user_input_synonyms": [
+        "unit",
+        "unit_of_measure",
+        "stock_uom",
+        "uom",
+        "item uom",
+        "Item UOM",
+        "item_uom"
+      ]
     },
     "quantity": {
       "fieldname": "quantity",
       "fieldtype": "Float",
       "mandatory": true,
+      "label": "Quantity",
+      "options": null,
+      "default_value": "1",
       "user_input_synonyms": [
         "qty",
         "bom_qty",
         "output_qty",
-        "yield_qty"
+        "yield_qty",
+        "Quantity",
+        "quantity"
       ],
       "note": "Quantity of the finished good this BOM produces per run"
-    },
-    "uom": {
-      "fieldname": "uom",
-      "fieldtype": "Link",
-      "options": "UOM",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "unit",
-        "unit_of_measure",
-        "stock_uom"
-      ],
-      "default_value": "fetch_from_item_master"
     },
     "is_active": {
       "fieldname": "is_active",
       "fieldtype": "Check",
       "mandatory": false,
-      "default_value": 1,
+      "label": "Is Active",
+      "options": null,
+      "default_value": "1",
       "user_input_synonyms": [
         "active",
         "enabled",
-        "status"
+        "status",
+        "is_active",
+        "is active",
+        "Is Active"
       ]
     },
     "is_default": {
       "fieldname": "is_default",
       "fieldtype": "Check",
       "mandatory": false,
-      "default_value": 1,
+      "label": "Is Default",
+      "options": null,
+      "default_value": "1",
       "user_input_synonyms": [
         "default",
-        "primary"
+        "primary",
+        "is_default",
+        "Is Default",
+        "is default"
+      ]
+    },
+    "allow_alternative_item": {
+      "fieldname": "allow_alternative_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Alternative Item",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_alternative_item",
+        "Allow Alternative Item",
+        "allow alternative item"
+      ]
+    },
+    "set_rate_of_sub_assembly_item_based_on_bom": {
+      "fieldname": "set_rate_of_sub_assembly_item_based_on_bom",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Set rate of sub-assembly item based on BOM",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Set rate of sub-assembly item based on BOM",
+        "set rate of sub-assembly item based on bom",
+        "set_rate_of_sub_assembly_item_based_on_bom",
+        "set rate of sub assembly item based on bom",
+        "set_rate_of_sub-assembly_item_based_on_bom"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Image",
+      "options": "image",
+      "default_value": null,
+      "user_input_synonyms": [
+        "image",
+        "Image"
+      ]
+    },
+    "rm_cost_as_per": {
+      "fieldname": "rm_cost_as_per",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Rate Of Materials Based On",
+      "options": [
+        "Valuation Rate",
+        "Last Purchase Rate",
+        "Price List"
+      ],
+      "default_value": "Valuation Rate",
+      "user_input_synonyms": [
+        "Rate Of Materials Based On",
+        "rm_cost_as_per",
+        "rate of materials based on",
+        "rm cost as per",
+        "rate_of_materials_based_on"
+      ]
+    },
+    "buying_price_list": {
+      "fieldname": "buying_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "buying price list",
+        "buying_price_list",
+        "price list",
+        "Price List",
+        "price_list"
+      ]
+    },
+    "price_list_currency": {
+      "fieldname": "price_list_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "price list currency",
+        "price_list_currency",
+        "Price List Currency"
+      ]
+    },
+    "plc_conversion_rate": {
+      "fieldname": "plc_conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Price List Exchange Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "price_list_exchange_rate",
+        "Price List Exchange Rate",
+        "plc conversion rate",
+        "price list exchange rate",
+        "plc_conversion_rate"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "conversion_rate": {
+      "fieldname": "conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Conversion Rate",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "conversion rate",
+        "conversion_rate",
+        "Conversion Rate"
+      ]
+    },
+    "with_operations": {
+      "fieldname": "with_operations",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "With Operations",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "With Operations",
+        "with operations",
+        "with_operations"
+      ]
+    },
+    "transfer_material_against": {
+      "fieldname": "transfer_material_against",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Transfer Material Against",
+      "options": [
+        "Work Order",
+        "Job Card"
+      ],
+      "default_value": "Work Order",
+      "user_input_synonyms": [
+        "transfer material against",
+        "transfer_material_against",
+        "Transfer Material Against"
+      ]
+    },
+    "routing": {
+      "fieldname": "routing",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Routing",
+      "options": "Routing",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Routing",
+        "routing"
+      ]
+    },
+    "fg_based_operating_cost": {
+      "fieldname": "fg_based_operating_cost",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Finished Goods based Operating Cost",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Finished Goods based Operating Cost",
+        "fg based operating cost",
+        "fg_based_operating_cost",
+        "finished goods based operating cost",
+        "finished_goods_based_operating_cost"
+      ]
+    },
+    "operating_cost_per_bom_quantity": {
+      "fieldname": "operating_cost_per_bom_quantity",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Operating Cost Per BOM Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Operating Cost Per BOM Quantity",
+        "operating cost per bom quantity",
+        "operating_cost_per_bom_quantity"
+      ]
+    },
+    "process_loss_percentage": {
+      "fieldname": "process_loss_percentage",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "% Process Loss",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "process loss percentage",
+        "% Process Loss",
+        "% process loss",
+        "%_process_loss",
+        "process_loss_percentage"
+      ]
+    },
+    "process_loss_qty": {
+      "fieldname": "process_loss_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Process Loss Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "process loss qty",
+        "Process Loss Qty",
+        "process_loss_qty"
+      ]
+    },
+    "operating_cost": {
+      "fieldname": "operating_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Operating Cost",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Operating Cost",
+        "operating cost",
+        "operating_cost"
+      ]
+    },
+    "raw_material_cost": {
+      "fieldname": "raw_material_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Raw Material Cost",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "raw material cost",
+        "raw_material_cost",
+        "Raw Material Cost"
+      ]
+    },
+    "scrap_material_cost": {
+      "fieldname": "scrap_material_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Scrap Material Cost",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Scrap Material Cost",
+        "scrap_material_cost",
+        "scrap material cost"
+      ]
+    },
+    "base_operating_cost": {
+      "fieldname": "base_operating_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Operating Cost (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "operating cost (company currency)",
+        "operating_cost_(company_currency)",
+        "base operating cost",
+        "Operating Cost (Company Currency)",
+        "base_operating_cost"
+      ]
+    },
+    "base_raw_material_cost": {
+      "fieldname": "base_raw_material_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Raw Material Cost (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base raw material cost",
+        "raw material cost (company currency)",
+        "raw_material_cost_(company_currency)",
+        "base_raw_material_cost",
+        "Raw Material Cost (Company Currency)"
+      ]
+    },
+    "base_scrap_material_cost": {
+      "fieldname": "base_scrap_material_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Scrap Material Cost(Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "scrap material cost(company currency)",
+        "Scrap Material Cost(Company Currency)",
+        "base_scrap_material_cost",
+        "base scrap material cost",
+        "scrap_material_cost(company_currency)"
+      ]
+    },
+    "total_cost": {
+      "fieldname": "total_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Cost",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Cost",
+        "total cost",
+        "total_cost"
+      ]
+    },
+    "base_total_cost": {
+      "fieldname": "base_total_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Cost (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_cost_(company_currency)",
+        "Total Cost (Company Currency)",
+        "total cost (company currency)",
+        "base total cost",
+        "base_total_cost"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Item Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "item description",
+        "item_description",
+        "Item Description"
+      ]
+    },
+    "has_variants": {
+      "fieldname": "has_variants",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Variants",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Has Variants",
+        "has variants",
+        "has_variants"
+      ]
+    },
+    "inspection_required": {
+      "fieldname": "inspection_required",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Quality Inspection Required",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Quality Inspection Required",
+        "inspection required",
+        "quality_inspection_required",
+        "inspection_required",
+        "quality inspection required"
+      ]
+    },
+    "quality_inspection_template": {
+      "fieldname": "quality_inspection_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Quality Inspection Template",
+      "options": "Quality Inspection Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Quality Inspection Template",
+        "quality_inspection_template",
+        "quality inspection template"
+      ]
+    },
+    "show_in_website": {
+      "fieldname": "show_in_website",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Show in Website",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Show in Website",
+        "show_in_website",
+        "show in website"
+      ]
+    },
+    "route": {
+      "fieldname": "route",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Route",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "route",
+        "Route"
+      ]
+    },
+    "website_image": {
+      "fieldname": "website_image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Website Image",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "website_image",
+        "Website Image",
+        "website image"
+      ]
+    },
+    "thumbnail": {
+      "fieldname": "thumbnail",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Thumbnail",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "thumbnail",
+        "Thumbnail"
+      ]
+    },
+    "show_items": {
+      "fieldname": "show_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Show Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "show items",
+        "show_items",
+        "Show Items"
+      ]
+    },
+    "show_operations": {
+      "fieldname": "show_operations",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Show Operations",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Show Operations",
+        "show_operations",
+        "show operations"
+      ]
+    },
+    "web_long_description": {
+      "fieldname": "web_long_description",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Website Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Website Description",
+        "web_long_description",
+        "website description",
+        "web long description",
+        "website_description"
+      ]
+    },
+    "bom_creator": {
+      "fieldname": "bom_creator",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "BOM Creator",
+      "options": "BOM Creator",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bom creator",
+        "bom_creator",
+        "BOM Creator"
+      ]
+    },
+    "bom_creator_item": {
+      "fieldname": "bom_creator_item",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "BOM Creator Item",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "BOM Creator Item",
+        "bom_creator_item",
+        "bom creator item"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
       ]
     },
     "items": {
@@ -138,5 +723,7 @@
         }
       }
     }
-  }
+  },
+  "is_submittable": true,
+  "naming_series": "BOM-"
 }

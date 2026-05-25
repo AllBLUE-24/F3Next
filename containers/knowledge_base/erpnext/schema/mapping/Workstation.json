@@ -1,0 +1,239 @@
+{
+  "doctype_name": "Workstation",
+  "mandatory_fields": [
+    "workstation_name",
+    "production_capacity"
+  ],
+  "doctype_classifier_hints": [
+    "workstation"
+  ],
+  "field_mappings": {
+    "workstation_name": {
+      "fieldname": "workstation_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Workstation Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "workstation name",
+        "Workstation Name",
+        "workstation_name"
+      ]
+    },
+    "workstation_type": {
+      "fieldname": "workstation_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Workstation Type",
+      "options": "Workstation Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Workstation Type",
+        "workstation_type",
+        "workstation type"
+      ]
+    },
+    "plant_floor": {
+      "fieldname": "plant_floor",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Plant Floor",
+      "options": "Plant Floor",
+      "default_value": null,
+      "user_input_synonyms": [
+        "plant_floor",
+        "Plant Floor",
+        "plant floor"
+      ]
+    },
+    "production_capacity": {
+      "fieldname": "production_capacity",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "Job Capacity",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "production capacity",
+        "production_capacity",
+        "job capacity",
+        "Job Capacity",
+        "job_capacity"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Production",
+        "Off",
+        "Idle",
+        "Problem",
+        "Maintenance",
+        "Setup"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "on_status_image": {
+      "fieldname": "on_status_image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Active Status",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "active status",
+        "on status image",
+        "Active Status",
+        "on_status_image",
+        "active_status"
+      ]
+    },
+    "off_status_image": {
+      "fieldname": "off_status_image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Inactive Status",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "off_status_image",
+        "inactive status",
+        "Inactive Status",
+        "inactive_status",
+        "off status image"
+      ]
+    },
+    "hour_rate_electricity": {
+      "fieldname": "hour_rate_electricity",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Electricity Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Electricity Cost",
+        "hour rate electricity",
+        "electricity_cost",
+        "hour_rate_electricity",
+        "electricity cost"
+      ]
+    },
+    "hour_rate_consumable": {
+      "fieldname": "hour_rate_consumable",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Consumable Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour_rate_consumable",
+        "consumable_cost",
+        "hour rate consumable",
+        "consumable cost",
+        "Consumable Cost"
+      ]
+    },
+    "hour_rate_rent": {
+      "fieldname": "hour_rate_rent",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rent Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour_rate_rent",
+        "rent_cost",
+        "rent cost",
+        "Rent Cost",
+        "hour rate rent"
+      ]
+    },
+    "hour_rate_labour": {
+      "fieldname": "hour_rate_labour",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Wages",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour rate labour",
+        "Wages",
+        "wages",
+        "hour_rate_labour"
+      ]
+    },
+    "hour_rate": {
+      "fieldname": "hour_rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Net Hour Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "net hour rate",
+        "net_hour_rate",
+        "hour_rate",
+        "hour rate",
+        "Net Hour Rate"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "holiday_list": {
+      "fieldname": "holiday_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Holiday List",
+      "options": "Holiday List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Holiday List",
+        "holiday list",
+        "holiday_list"
+      ]
+    },
+    "total_working_hours": {
+      "fieldname": "total_working_hours",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Working Hours",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total working hours",
+        "total_working_hours",
+        "Total Working Hours"
+      ]
+    }
+  }
+}

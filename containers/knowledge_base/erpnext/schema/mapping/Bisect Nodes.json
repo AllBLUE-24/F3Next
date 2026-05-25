@@ -1,0 +1,126 @@
+{
+  "doctype_name": "Bisect Nodes",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "bisect nodes",
+    "bisect_nodes"
+  ],
+  "field_mappings": {
+    "root": {
+      "fieldname": "root",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Root",
+      "options": "Bisect Nodes",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Root",
+        "root"
+      ]
+    },
+    "left_child": {
+      "fieldname": "left_child",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Left Child",
+      "options": "Bisect Nodes",
+      "default_value": null,
+      "user_input_synonyms": [
+        "left_child",
+        "left child",
+        "Left Child"
+      ]
+    },
+    "right_child": {
+      "fieldname": "right_child",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Right Child",
+      "options": "Bisect Nodes",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Right Child",
+        "right child",
+        "right_child"
+      ]
+    },
+    "period_from_date": {
+      "fieldname": "period_from_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Period_from_date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Period_from_date",
+        "period from date",
+        "period_from_date"
+      ]
+    },
+    "period_to_date": {
+      "fieldname": "period_to_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Period To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Period To Date",
+        "period to date",
+        "period_to_date"
+      ]
+    },
+    "difference": {
+      "fieldname": "difference",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Difference",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "difference",
+        "Difference"
+      ]
+    },
+    "balance_sheet_summary": {
+      "fieldname": "balance_sheet_summary",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Balance Sheet Summary",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Balance Sheet Summary",
+        "balance_sheet_summary",
+        "balance sheet summary"
+      ]
+    },
+    "profit_loss_summary": {
+      "fieldname": "profit_loss_summary",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Profit and Loss Summary",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "profit_loss_summary",
+        "profit and loss summary",
+        "profit_and_loss_summary",
+        "profit loss summary",
+        "Profit and Loss Summary"
+      ]
+    },
+    "generated": {
+      "fieldname": "generated",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Generated",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Generated",
+        "generated"
+      ]
+    }
+  }
+}

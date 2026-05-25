@@ -1,54 +1,589 @@
 {
   "doctype_name": "Customer",
-  "naming_series": "CUST-",
   "mandatory_fields": [
     "customer_name",
-    "customer_type",
-    "customer_group",
-    "territory"
+    "customer_type"
+  ],
+  "doctype_classifier_hints": [
+    "customer",
+    "naming_series"
   ],
   "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Series",
+      "options": [
+        "CUST-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "salutation": {
+      "fieldname": "salutation",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Salutation",
+      "options": "Salutation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "salutation",
+        "Salutation"
+      ]
+    },
     "customer_name": {
       "fieldname": "customer_name",
       "fieldtype": "Data",
       "mandatory": true,
+      "label": "Customer Name",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "entity name",
         "company name",
         "name",
         "client_name",
         "buyer_name",
-        "party_name"
+        "party_name",
+        "customer_name",
+        "Customer Name",
+        "customer name"
       ]
     },
     "customer_type": {
       "fieldname": "customer_type",
       "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Customer Type",
       "options": [
         "Company",
-        "Individual"
+        "Individual",
+        "Partnership"
       ],
-      "mandatory": true,
-      "default_value": "Company"
+      "default_value": "Company",
+      "user_input_synonyms": [
+        "customer type",
+        "customer_type",
+        "Customer Type"
+      ]
     },
     "customer_group": {
       "fieldname": "customer_group",
       "fieldtype": "Link",
-      "options": "Customer Group",
       "mandatory": true,
+      "label": "Customer Group",
+      "options": "Customer Group",
       "default_value": "All Customer Groups",
       "user_input_synonyms": [
         "party_group",
         "customer_category",
-        "group"
+        "group",
+        "customer_group",
+        "Customer Group",
+        "customer group"
       ]
     },
     "territory": {
       "fieldname": "territory",
       "fieldtype": "Link",
-      "options": "Territory",
       "mandatory": true,
-      "default_value": "All Territories"
+      "label": "Territory",
+      "options": "Territory",
+      "default_value": "All Territories",
+      "user_input_synonyms": [
+        "Territory",
+        "territory"
+      ]
+    },
+    "gender": {
+      "fieldname": "gender",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Gender",
+      "options": "Gender",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Gender",
+        "gender"
+      ]
+    },
+    "lead_name": {
+      "fieldname": "lead_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "From Lead",
+      "options": "Lead",
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Lead",
+        "from lead",
+        "lead name",
+        "from_lead",
+        "lead_name"
+      ]
+    },
+    "opportunity_name": {
+      "fieldname": "opportunity_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "From Opportunity",
+      "options": "Opportunity",
+      "default_value": null,
+      "user_input_synonyms": [
+        "opportunity name",
+        "from opportunity",
+        "from_opportunity",
+        "opportunity_name",
+        "From Opportunity"
+      ]
+    },
+    "prospect_name": {
+      "fieldname": "prospect_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "From Prospect",
+      "options": "Prospect",
+      "default_value": null,
+      "user_input_synonyms": [
+        "prospect name",
+        "From Prospect",
+        "from prospect",
+        "from_prospect",
+        "prospect_name"
+      ]
+    },
+    "account_manager": {
+      "fieldname": "account_manager",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account Manager",
+      "options": "User",
+      "default_value": null,
+      "user_input_synonyms": [
+        "account manager",
+        "Account Manager",
+        "account_manager"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Image",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "image",
+        "Image"
+      ]
+    },
+    "default_currency": {
+      "fieldname": "default_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Billing Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Billing Currency",
+        "default currency",
+        "billing currency",
+        "billing_currency",
+        "default_currency"
+      ]
+    },
+    "default_bank_account": {
+      "fieldname": "default_bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Company Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_bank_account",
+        "default company bank account",
+        "default bank account",
+        "Default Company Bank Account",
+        "default_company_bank_account"
+      ]
+    },
+    "default_price_list": {
+      "fieldname": "default_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Default Price List",
+        "default price list",
+        "default_price_list"
+      ]
+    },
+    "is_internal_customer": {
+      "fieldname": "is_internal_customer",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Internal Customer",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Internal Customer",
+        "is_internal_customer",
+        "is internal customer"
+      ]
+    },
+    "represents_company": {
+      "fieldname": "represents_company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Represents Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "represents company",
+        "Represents Company",
+        "represents_company"
+      ]
+    },
+    "market_segment": {
+      "fieldname": "market_segment",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Market Segment",
+      "options": "Market Segment",
+      "default_value": null,
+      "user_input_synonyms": [
+        "market segment",
+        "market_segment",
+        "Market Segment"
+      ]
+    },
+    "industry": {
+      "fieldname": "industry",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Industry",
+      "options": "Industry Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Industry",
+        "industry"
+      ]
+    },
+    "customer_pos_id": {
+      "fieldname": "customer_pos_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Customer POS id",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer pos id",
+        "customer_pos_id",
+        "Customer POS id"
+      ]
+    },
+    "website": {
+      "fieldname": "website",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Website",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Website",
+        "website"
+      ]
+    },
+    "language": {
+      "fieldname": "language",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Language",
+      "options": "Language",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_language",
+        "print language",
+        "Print Language",
+        "language"
+      ]
+    },
+    "customer_details": {
+      "fieldname": "customer_details",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Customer Details",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_details",
+        "Customer Details",
+        "customer details"
+      ]
+    },
+    "customer_primary_address": {
+      "fieldname": "customer_primary_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Primary Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer primary address",
+        "customer_primary_address",
+        "Customer Primary Address"
+      ]
+    },
+    "primary_address": {
+      "fieldname": "primary_address",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Primary Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "primary_address",
+        "primary address",
+        "Primary Address"
+      ]
+    },
+    "customer_primary_contact": {
+      "fieldname": "customer_primary_contact",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Primary Contact",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Customer Primary Contact",
+        "customer primary contact",
+        "customer_primary_contact"
+      ]
+    },
+    "mobile_no": {
+      "fieldname": "mobile_no",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Mobile No",
+      "options": "Mobile",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Mobile No",
+        "mobile no",
+        "mobile_no"
+      ]
+    },
+    "email_id": {
+      "fieldname": "email_id",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Email Id",
+      "options": "Email",
+      "default_value": null,
+      "user_input_synonyms": [
+        "email id",
+        "email_id",
+        "Email Id"
+      ]
+    },
+    "first_name": {
+      "fieldname": "first_name",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "First Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "first name",
+        "First Name",
+        "first_name"
+      ]
+    },
+    "last_name": {
+      "fieldname": "last_name",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Last Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "last name",
+        "Last Name",
+        "last_name"
+      ]
+    },
+    "tax_id": {
+      "fieldname": "tax_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Tax ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "tax_id",
+        "tax id",
+        "Tax ID"
+      ]
+    },
+    "tax_category": {
+      "fieldname": "tax_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Category",
+      "options": "Tax Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Category",
+        "tax_category",
+        "tax category"
+      ]
+    },
+    "tax_withholding_category": {
+      "fieldname": "tax_withholding_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Withholding Category",
+      "options": "Tax Withholding Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Withholding Category",
+        "tax withholding category",
+        "tax_withholding_category"
+      ]
+    },
+    "payment_terms": {
+      "fieldname": "payment_terms",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Payment Terms Template",
+      "options": "Payment Terms Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "payment terms",
+        "default_payment_terms_template",
+        "Default Payment Terms Template",
+        "default payment terms template",
+        "payment_terms"
+      ]
+    },
+    "loyalty_program": {
+      "fieldname": "loyalty_program",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Loyalty Program",
+      "options": "Loyalty Program",
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program",
+        "Loyalty Program",
+        "loyalty_program"
+      ]
+    },
+    "loyalty_program_tier": {
+      "fieldname": "loyalty_program_tier",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Loyalty Program Tier",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program tier",
+        "loyalty_program_tier",
+        "Loyalty Program Tier"
+      ]
+    },
+    "default_sales_partner": {
+      "fieldname": "default_sales_partner",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Partner",
+      "options": "Sales Partner",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales partner",
+        "default_sales_partner",
+        "default sales partner",
+        "Sales Partner",
+        "sales_partner"
+      ]
+    },
+    "default_commission_rate": {
+      "fieldname": "default_commission_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Commission Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "commission rate",
+        "default commission rate",
+        "Commission Rate",
+        "commission_rate",
+        "default_commission_rate"
+      ]
+    },
+    "so_required": {
+      "fieldname": "so_required",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Sales Invoice Creation Without Sales Order",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "so_required",
+        "so required",
+        "Allow Sales Invoice Creation Without Sales Order",
+        "allow_sales_invoice_creation_without_sales_order",
+        "allow sales invoice creation without sales order"
+      ]
+    },
+    "dn_required": {
+      "fieldname": "dn_required",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Sales Invoice Creation Without Delivery Note",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_sales_invoice_creation_without_delivery_note",
+        "dn_required",
+        "Allow Sales Invoice Creation Without Delivery Note",
+        "allow sales invoice creation without delivery note",
+        "dn required"
+      ]
+    },
+    "is_frozen": {
+      "fieldname": "is_frozen",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Frozen",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is frozen",
+        "Is Frozen",
+        "is_frozen"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
     },
     "gst_category": {
       "fieldname": "gst_category",
@@ -71,5 +606,6 @@
       "mandatory_if": "gst_category in ['Registered Regular', 'Registered Composition', 'SEZ', 'UIN Holders']",
       "validation": "15_character_alphanumeric"
     }
-  }
+  },
+  "naming_series": "CUST-"
 }

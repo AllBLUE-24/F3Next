@@ -1,0 +1,306 @@
+{
+  "doctype_name": "Repost Item Valuation",
+  "mandatory_fields": [
+    "based_on",
+    "posting_date"
+  ],
+  "doctype_classifier_hints": [
+    "repost item valuation",
+    "repost_item_valuation"
+  ],
+  "field_mappings": {
+    "based_on": {
+      "fieldname": "based_on",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Based On",
+      "options": [
+        "Transaction",
+        "Item and Warehouse"
+      ],
+      "default_value": "Transaction",
+      "user_input_synonyms": [
+        "Based On",
+        "based_on",
+        "based on"
+      ]
+    },
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Voucher Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher type",
+        "Voucher Type",
+        "voucher_type"
+      ]
+    },
+    "voucher_no": {
+      "fieldname": "voucher_no",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Voucher No",
+      "options": "voucher_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_no",
+        "Voucher No",
+        "voucher no"
+      ]
+    },
+    "item_code": {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "Item Code",
+        "item_code"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": false,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Queued",
+        "In Progress",
+        "Completed",
+        "Skipped",
+        "Failed"
+      ],
+      "default_value": "Queued",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "allow_negative_stock": {
+      "fieldname": "allow_negative_stock",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Negative Stock",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "allow negative stock",
+        "Allow Negative Stock",
+        "allow_negative_stock"
+      ]
+    },
+    "via_landed_cost_voucher": {
+      "fieldname": "via_landed_cost_voucher",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Via Landed Cost Voucher",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "via_landed_cost_voucher",
+        "via landed cost voucher",
+        "Via Landed Cost Voucher"
+      ]
+    },
+    "allow_zero_rate": {
+      "fieldname": "allow_zero_rate",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Zero Rate",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_zero_rate",
+        "Allow Zero Rate",
+        "allow zero rate"
+      ]
+    },
+    "recreate_stock_ledgers": {
+      "fieldname": "recreate_stock_ledgers",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Recreate Stock Ledgers",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "recreate_stock_ledgers",
+        "recreate stock ledgers",
+        "Recreate Stock Ledgers"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Repost Item Valuation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "error_log": {
+      "fieldname": "error_log",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Error Log",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_log",
+        "Error Log",
+        "error log"
+      ]
+    },
+    "reposting_data_file": {
+      "fieldname": "reposting_data_file",
+      "fieldtype": "Attach",
+      "mandatory": false,
+      "label": "Reposting Data File",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "reposting_data_file",
+        "reposting data file",
+        "Reposting Data File"
+      ]
+    },
+    "items_to_be_repost": {
+      "fieldname": "items_to_be_repost",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Items to Be Repost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "items_to_be_repost",
+        "Items to Be Repost",
+        "items to be repost"
+      ]
+    },
+    "distinct_item_and_warehouse": {
+      "fieldname": "distinct_item_and_warehouse",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Distinct Item and Warehouse",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Distinct Item and Warehouse",
+        "distinct_item_and_warehouse",
+        "distinct item and warehouse"
+      ]
+    },
+    "total_reposting_count": {
+      "fieldname": "total_reposting_count",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Total Reposting Count",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_reposting_count",
+        "total reposting count",
+        "Total Reposting Count"
+      ]
+    },
+    "current_index": {
+      "fieldname": "current_index",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Current Index",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "current_index",
+        "current index",
+        "Current Index"
+      ]
+    },
+    "gl_reposting_index": {
+      "fieldname": "gl_reposting_index",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "GL reposting index",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "gl reposting index",
+        "gl_reposting_index",
+        "GL reposting index"
+      ]
+    },
+    "affected_transactions": {
+      "fieldname": "affected_transactions",
+      "fieldtype": "Code",
+      "mandatory": false,
+      "label": "Affected Transactions",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "affected transactions",
+        "Affected Transactions",
+        "affected_transactions"
+      ]
+    }
+  },
+  "is_submittable": true
+}

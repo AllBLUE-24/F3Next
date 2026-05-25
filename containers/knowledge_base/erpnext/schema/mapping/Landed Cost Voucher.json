@@ -1,0 +1,107 @@
+{
+  "doctype_name": "Landed Cost Voucher",
+  "mandatory_fields": [
+    "naming_series",
+    "company",
+    "posting_date",
+    "purchase_receipts",
+    "items",
+    "taxes",
+    "total_taxes_and_charges",
+    "distribute_charges_based_on"
+  ],
+  "doctype_classifier_hints": [
+    "landed cost voucher",
+    "landed_cost_voucher",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MAT-LCV-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "total_taxes_and_charges": {
+      "fieldname": "total_taxes_and_charges",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Total Taxes and Charges (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_taxes_and_charges",
+        "total taxes and charges (company currency)",
+        "Total Taxes and Charges (Company Currency)",
+        "total_taxes_and_charges_(company_currency)",
+        "total taxes and charges"
+      ]
+    },
+    "distribute_charges_based_on": {
+      "fieldname": "distribute_charges_based_on",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Distribute Charges Based On",
+      "options": [
+        "Qty",
+        "Amount",
+        "Distribute Manually"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "distribute_charges_based_on",
+        "distribute charges based on",
+        "Distribute Charges Based On"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Landed Cost Voucher",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

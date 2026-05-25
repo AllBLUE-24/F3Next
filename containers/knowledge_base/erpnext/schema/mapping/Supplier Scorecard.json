@@ -1,0 +1,190 @@
+{
+  "doctype_name": "Supplier Scorecard",
+  "mandatory_fields": [
+    "period",
+    "weighting_function",
+    "standings",
+    "criteria"
+  ],
+  "doctype_classifier_hints": [
+    "supplier scorecard",
+    "supplier_scorecard"
+  ],
+  "field_mappings": {
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "supplier_score": {
+      "fieldname": "supplier_score",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Supplier Score",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_score",
+        "Supplier Score",
+        "supplier score"
+      ]
+    },
+    "indicator_color": {
+      "fieldname": "indicator_color",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Indicator Color",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Indicator Color",
+        "indicator color",
+        "indicator_color"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Status",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "period": {
+      "fieldname": "period",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Evaluation Period",
+      "options": [
+        "Per Week",
+        "Per Month",
+        "Per Year"
+      ],
+      "default_value": "Per Month",
+      "user_input_synonyms": [
+        "Evaluation Period",
+        "period",
+        "evaluation_period",
+        "evaluation period"
+      ]
+    },
+    "weighting_function": {
+      "fieldname": "weighting_function",
+      "fieldtype": "Small Text",
+      "mandatory": true,
+      "label": "Weighting Function",
+      "options": null,
+      "default_value": "{total_score} * max( 0, min ( 1 , (12 - {period_number}) / 12) )",
+      "user_input_synonyms": [
+        "Weighting Function",
+        "weighting_function",
+        "weighting function"
+      ]
+    },
+    "warn_rfqs": {
+      "fieldname": "warn_rfqs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Warn for new Request for Quotations",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "warn_for_new_request_for_quotations",
+        "warn_rfqs",
+        "Warn for new Request for Quotations",
+        "warn rfqs",
+        "warn for new request for quotations"
+      ]
+    },
+    "warn_pos": {
+      "fieldname": "warn_pos",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Warn for new Purchase Orders",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "warn for new purchase orders",
+        "warn_for_new_purchase_orders",
+        "warn_pos",
+        "Warn for new Purchase Orders",
+        "warn pos"
+      ]
+    },
+    "prevent_rfqs": {
+      "fieldname": "prevent_rfqs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prevent RFQs",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "prevent rfqs",
+        "Prevent RFQs",
+        "prevent_rfqs"
+      ]
+    },
+    "prevent_pos": {
+      "fieldname": "prevent_pos",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prevent POs",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Prevent POs",
+        "prevent pos",
+        "prevent_pos"
+      ]
+    },
+    "notify_supplier": {
+      "fieldname": "notify_supplier",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Notify Supplier",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Notify Supplier",
+        "notify supplier",
+        "notify_supplier"
+      ]
+    },
+    "notify_employee": {
+      "fieldname": "notify_employee",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Notify Employee",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "notify_employee",
+        "notify employee",
+        "Notify Employee"
+      ]
+    },
+    "employee": {
+      "fieldname": "employee",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Employee",
+      "options": "Employee",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Employee",
+        "employee"
+      ]
+    }
+  }
+}

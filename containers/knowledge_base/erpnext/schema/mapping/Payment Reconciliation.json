@@ -1,0 +1,280 @@
+{
+  "doctype_name": "Payment Reconciliation",
+  "mandatory_fields": [
+    "company",
+    "party_type",
+    "party",
+    "receivable_payable_account"
+  ],
+  "doctype_classifier_hints": [
+    "payment reconciliation",
+    "payment_reconciliation"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Party Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Type",
+        "party type",
+        "party_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": true,
+      "label": "Party",
+      "options": "party_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "Party"
+      ]
+    },
+    "receivable_payable_account": {
+      "fieldname": "receivable_payable_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Receivable / Payable Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "receivable_/_payable_account",
+        "receivable payable account",
+        "Receivable / Payable Account",
+        "receivable_payable_account",
+        "receivable / payable account"
+      ]
+    },
+    "default_advance_account": {
+      "fieldname": "default_advance_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Advance Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Default Advance Account",
+        "default_advance_account",
+        "default advance account"
+      ]
+    },
+    "from_invoice_date": {
+      "fieldname": "from_invoice_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Invoice Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Invoice Date",
+        "from invoice date",
+        "from_invoice_date"
+      ]
+    },
+    "from_payment_date": {
+      "fieldname": "from_payment_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Payment Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_payment_date",
+        "From Payment Date",
+        "from payment date"
+      ]
+    },
+    "minimum_invoice_amount": {
+      "fieldname": "minimum_invoice_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Minimum Invoice Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "minimum invoice amount",
+        "minimum_invoice_amount",
+        "Minimum Invoice Amount"
+      ]
+    },
+    "minimum_payment_amount": {
+      "fieldname": "minimum_payment_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Minimum Payment Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "minimum payment amount",
+        "Minimum Payment Amount",
+        "minimum_payment_amount"
+      ]
+    },
+    "to_invoice_date": {
+      "fieldname": "to_invoice_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Invoice Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to_invoice_date",
+        "To Invoice Date",
+        "to invoice date"
+      ]
+    },
+    "to_payment_date": {
+      "fieldname": "to_payment_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Payment Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to_payment_date",
+        "To Payment Date",
+        "to payment date"
+      ]
+    },
+    "maximum_invoice_amount": {
+      "fieldname": "maximum_invoice_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Maximum Invoice Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "maximum_invoice_amount",
+        "maximum invoice amount",
+        "Maximum Invoice Amount"
+      ]
+    },
+    "maximum_payment_amount": {
+      "fieldname": "maximum_payment_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Maximum Payment Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "maximum payment amount",
+        "maximum_payment_amount",
+        "Maximum Payment Amount"
+      ]
+    },
+    "invoice_limit": {
+      "fieldname": "invoice_limit",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Invoice Limit",
+      "options": null,
+      "default_value": "50",
+      "user_input_synonyms": [
+        "invoice limit",
+        "invoice_limit",
+        "Invoice Limit"
+      ]
+    },
+    "payment_limit": {
+      "fieldname": "payment_limit",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Payment Limit",
+      "options": null,
+      "default_value": "50",
+      "user_input_synonyms": [
+        "Payment Limit",
+        "payment_limit",
+        "payment limit"
+      ]
+    },
+    "bank_cash_account": {
+      "fieldname": "bank_cash_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank / Cash Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank / cash account",
+        "Bank / Cash Account",
+        "bank cash account",
+        "bank_/_cash_account",
+        "bank_cash_account"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "invoice_name": {
+      "fieldname": "invoice_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Filter on Invoice",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "invoice_name",
+        "invoice name",
+        "filter on invoice",
+        "filter_on_invoice",
+        "Filter on Invoice"
+      ]
+    },
+    "payment_name": {
+      "fieldname": "payment_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Filter on Payment",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "payment_name",
+        "filter_on_payment",
+        "filter on payment",
+        "Filter on Payment",
+        "payment name"
+      ]
+    }
+  }
+}

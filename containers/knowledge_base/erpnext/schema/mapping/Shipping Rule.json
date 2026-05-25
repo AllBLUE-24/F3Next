@@ -1,0 +1,138 @@
+{
+  "doctype_name": "Shipping Rule",
+  "mandatory_fields": [
+    "label",
+    "company",
+    "account",
+    "cost_center"
+  ],
+  "doctype_classifier_hints": [
+    "shipping rule",
+    "shipping_rule"
+  ],
+  "field_mappings": {
+    "label": {
+      "fieldname": "label",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Shipping Rule Label",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping_rule_label",
+        "shipping rule label",
+        "label",
+        "Shipping Rule Label"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "shipping_rule_type": {
+      "fieldname": "shipping_rule_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Shipping Rule Type",
+      "options": [
+        "Selling",
+        "Buying"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping_rule_type",
+        "shipping rule type",
+        "Shipping Rule Type"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Shipping Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping account",
+        "shipping_account",
+        "Shipping Account",
+        "account"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "calculate_based_on": {
+      "fieldname": "calculate_based_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Calculate Based On",
+      "options": [
+        "Fixed",
+        "Net Total",
+        "Net Weight"
+      ],
+      "default_value": "Fixed",
+      "user_input_synonyms": [
+        "Calculate Based On",
+        "calculate_based_on",
+        "calculate based on"
+      ]
+    },
+    "shipping_amount": {
+      "fieldname": "shipping_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Shipping Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping_amount",
+        "Shipping Amount",
+        "shipping amount"
+      ]
+    }
+  }
+}

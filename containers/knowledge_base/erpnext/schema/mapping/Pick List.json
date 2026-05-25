@@ -1,0 +1,294 @@
+{
+  "doctype_name": "Pick List",
+  "mandatory_fields": [
+    "naming_series",
+    "company",
+    "status"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "pick list",
+    "pick_list"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "STO-PICK-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "purpose": {
+      "fieldname": "purpose",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Purpose",
+      "options": [
+        "Material Transfer for Manufacture",
+        "Material Transfer",
+        "Delivery"
+      ],
+      "default_value": "Material Transfer for Manufacture",
+      "user_input_synonyms": [
+        "purpose",
+        "Purpose"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_name": {
+      "fieldname": "customer_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Customer Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_name",
+        "Customer Name",
+        "customer name"
+      ]
+    },
+    "work_order": {
+      "fieldname": "work_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Work Order",
+      "options": "Work Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "work order",
+        "work_order",
+        "Work Order"
+      ]
+    },
+    "material_request": {
+      "fieldname": "material_request",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Material Request",
+      "options": "Material Request",
+      "default_value": null,
+      "user_input_synonyms": [
+        "material request",
+        "material_request",
+        "Material Request"
+      ]
+    },
+    "for_qty": {
+      "fieldname": "for_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Qty of Finished Goods Item",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "qty_of_finished_goods_item",
+        "for qty",
+        "for_qty",
+        "Qty of Finished Goods Item",
+        "qty of finished goods item"
+      ]
+    },
+    "parent_warehouse": {
+      "fieldname": "parent_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "parent_warehouse",
+        "Warehouse",
+        "parent warehouse"
+      ]
+    },
+    "consider_rejected_warehouses": {
+      "fieldname": "consider_rejected_warehouses",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Consider Rejected Warehouses",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Consider Rejected Warehouses",
+        "consider rejected warehouses",
+        "consider_rejected_warehouses"
+      ]
+    },
+    "pick_manually": {
+      "fieldname": "pick_manually",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Pick Manually",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "pick manually",
+        "Pick Manually",
+        "pick_manually"
+      ]
+    },
+    "ignore_pricing_rule": {
+      "fieldname": "ignore_pricing_rule",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Ignore Pricing Rule",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "ignore pricing rule",
+        "ignore_pricing_rule",
+        "Ignore Pricing Rule"
+      ]
+    },
+    "scan_barcode": {
+      "fieldname": "scan_barcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Scan Barcode",
+      "options": "Barcode",
+      "default_value": null,
+      "user_input_synonyms": [
+        "scan barcode",
+        "scan_barcode",
+        "Scan Barcode"
+      ]
+    },
+    "scan_mode": {
+      "fieldname": "scan_mode",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Scan Mode",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "scan_mode",
+        "scan mode",
+        "Scan Mode"
+      ]
+    },
+    "prompt_qty": {
+      "fieldname": "prompt_qty",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prompt Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "prompt qty",
+        "Prompt Qty",
+        "prompt_qty"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Pick List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "group_same_items": {
+      "fieldname": "group_same_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Group Same Items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "group_same_items",
+        "Group Same Items",
+        "group same items"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Open",
+        "Partly Delivered",
+        "Completed",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "delivery_status": {
+      "fieldname": "delivery_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Delivery Status",
+      "options": [
+        "Not Delivered",
+        "Fully Delivered",
+        "Partly Delivered"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "delivery_status",
+        "delivery status",
+        "Delivery Status"
+      ]
+    },
+    "per_delivered": {
+      "fieldname": "per_delivered",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "% Delivered",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "% Delivered",
+        "% delivered",
+        "per delivered",
+        "per_delivered",
+        "%_delivered"
+      ]
+    }
+  },
+  "is_submittable": true
+}

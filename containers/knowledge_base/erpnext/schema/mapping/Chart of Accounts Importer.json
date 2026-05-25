@@ -1,0 +1,37 @@
+{
+  "doctype_name": "Chart of Accounts Importer",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "chart of accounts importer",
+    "chart_of_accounts_importer"
+  ],
+  "field_mappings": {
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "import_file": {
+      "fieldname": "import_file",
+      "fieldtype": "Attach",
+      "mandatory": false,
+      "label": "Attach custom Chart of Accounts file",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "import_file",
+        "attach_custom_chart_of_accounts_file",
+        "attach custom chart of accounts file",
+        "Attach custom Chart of Accounts file",
+        "import file"
+      ]
+    }
+  }
+}

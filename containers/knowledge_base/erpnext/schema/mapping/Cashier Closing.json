@@ -1,0 +1,158 @@
+{
+  "doctype_name": "Cashier Closing",
+  "mandatory_fields": [
+    "user",
+    "from_time",
+    "time"
+  ],
+  "doctype_classifier_hints": [
+    "cashier closing",
+    "cashier_closing",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Series",
+      "options": [
+        "POS-CLO-"
+      ],
+      "default_value": "POS-CLO-",
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "user": {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "User",
+      "options": "User",
+      "default_value": null,
+      "user_input_synonyms": [
+        "User",
+        "user"
+      ]
+    },
+    "date": {
+      "fieldname": "date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "date",
+        "Date"
+      ]
+    },
+    "from_time": {
+      "fieldname": "from_time",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "From Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Time",
+        "from_time",
+        "from time"
+      ]
+    },
+    "time": {
+      "fieldname": "time",
+      "fieldtype": "Time",
+      "mandatory": true,
+      "label": "To Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "time",
+        "To Time",
+        "to_time",
+        "to time"
+      ]
+    },
+    "expense": {
+      "fieldname": "expense",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Expense",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Expense",
+        "expense"
+      ]
+    },
+    "custody": {
+      "fieldname": "custody",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Custody",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Custody",
+        "custody"
+      ]
+    },
+    "returns": {
+      "fieldname": "returns",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Returns",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Returns",
+        "returns"
+      ]
+    },
+    "outstanding_amount": {
+      "fieldname": "outstanding_amount",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Outstanding Amount",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Outstanding Amount",
+        "outstanding amount",
+        "outstanding_amount"
+      ]
+    },
+    "net_amount": {
+      "fieldname": "net_amount",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Net Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Net Amount",
+        "net_amount",
+        "net amount"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Cashier Closing",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

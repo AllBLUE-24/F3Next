@@ -1,0 +1,307 @@
+{
+  "doctype_name": "Bank Transaction",
+  "mandatory_fields": [
+    "naming_series"
+  ],
+  "doctype_classifier_hints": [
+    "bank transaction",
+    "bank_transaction",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "ACC-BTN-.YYYY.-"
+      ],
+      "default_value": "ACC-BTN-.YYYY.-",
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "date": {
+      "fieldname": "date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "date",
+        "Date"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Pending",
+        "Settled",
+        "Unreconciled",
+        "Reconciled",
+        "Cancelled"
+      ],
+      "default_value": "Pending",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "bank_account": {
+      "fieldname": "bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account",
+        "bank_account",
+        "bank account"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Bank Transaction",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "deposit": {
+      "fieldname": "deposit",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Deposit",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "deposit",
+        "Deposit"
+      ]
+    },
+    "withdrawal": {
+      "fieldname": "withdrawal",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Withdrawal",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Withdrawal",
+        "withdrawal"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "reference_number": {
+      "fieldname": "reference_number",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Reference Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference_number",
+        "reference number",
+        "Reference Number"
+      ]
+    },
+    "transaction_id": {
+      "fieldname": "transaction_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Transaction ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "transaction id",
+        "transaction_id",
+        "Transaction ID"
+      ]
+    },
+    "transaction_type": {
+      "fieldname": "transaction_type",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Transaction Type",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "transaction_type",
+        "transaction type",
+        "Transaction Type"
+      ]
+    },
+    "allocated_amount": {
+      "fieldname": "allocated_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Allocated Amount",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Allocated Amount",
+        "allocated amount",
+        "allocated_amount"
+      ]
+    },
+    "unallocated_amount": {
+      "fieldname": "unallocated_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Unallocated Amount",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "unallocated_amount",
+        "unallocated amount",
+        "Unallocated Amount"
+      ]
+    },
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Party Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Type",
+        "party type",
+        "party_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Party",
+      "options": "party_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "Party"
+      ]
+    },
+    "bank_party_name": {
+      "fieldname": "bank_party_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Party Name/Account Holder (Bank Statement)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank_party_name",
+        "Party Name/Account Holder (Bank Statement)",
+        "party_name/account_holder_(bank_statement)",
+        "party name/account holder (bank statement)",
+        "bank party name"
+      ]
+    },
+    "bank_party_account_number": {
+      "fieldname": "bank_party_account_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Party Account No. (Bank Statement)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "party account no. (bank statement)",
+        "bank_party_account_number",
+        "party_account_no._(bank_statement)",
+        "bank party account number",
+        "Party Account No. (Bank Statement)"
+      ]
+    },
+    "bank_party_iban": {
+      "fieldname": "bank_party_iban",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Party IBAN (Bank Statement)",
+      "options": "IBAN",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank_party_iban",
+        "bank party iban",
+        "Party IBAN (Bank Statement)",
+        "party_iban_(bank_statement)",
+        "party iban (bank statement)"
+      ]
+    },
+    "included_fee": {
+      "fieldname": "included_fee",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Included Fee",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "included_fee",
+        "Included Fee",
+        "included fee"
+      ]
+    },
+    "excluded_fee": {
+      "fieldname": "excluded_fee",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Excluded Fee",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "excluded_fee",
+        "excluded fee",
+        "Excluded Fee"
+      ]
+    }
+  },
+  "is_submittable": true
+}

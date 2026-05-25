@@ -1,0 +1,68 @@
+{
+  "doctype_name": "Supplier Scorecard Criteria",
+  "mandatory_fields": [
+    "criteria_name",
+    "max_score",
+    "formula"
+  ],
+  "doctype_classifier_hints": [
+    "supplier scorecard criteria",
+    "supplier_scorecard_criteria"
+  ],
+  "field_mappings": {
+    "criteria_name": {
+      "fieldname": "criteria_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Criteria Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "criteria name",
+        "criteria_name",
+        "Criteria Name"
+      ]
+    },
+    "max_score": {
+      "fieldname": "max_score",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Max Score",
+      "options": null,
+      "default_value": "100",
+      "user_input_synonyms": [
+        "max_score",
+        "max score",
+        "Max Score"
+      ]
+    },
+    "formula": {
+      "fieldname": "formula",
+      "fieldtype": "Small Text",
+      "mandatory": true,
+      "label": "Criteria Formula",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "formula",
+        "Criteria Formula",
+        "criteria_formula",
+        "criteria formula"
+      ]
+    },
+    "weight": {
+      "fieldname": "weight",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Criteria Weight",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "criteria_weight",
+        "Criteria Weight",
+        "criteria weight",
+        "weight"
+      ]
+    }
+  }
+}

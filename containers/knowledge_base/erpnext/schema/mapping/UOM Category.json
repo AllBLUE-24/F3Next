@@ -1,0 +1,25 @@
+{
+  "doctype_name": "UOM Category",
+  "mandatory_fields": [
+    "category_name"
+  ],
+  "doctype_classifier_hints": [
+    "uom category",
+    "uom_category"
+  ],
+  "field_mappings": {
+    "category_name": {
+      "fieldname": "category_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Category Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "category_name",
+        "category name",
+        "Category Name"
+      ]
+    }
+  }
+}

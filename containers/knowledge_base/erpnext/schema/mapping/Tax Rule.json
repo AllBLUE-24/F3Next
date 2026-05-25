@@ -1,0 +1,333 @@
+{
+  "doctype_name": "Tax Rule",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "tax rule",
+    "tax_rule"
+  ],
+  "field_mappings": {
+    "tax_type": {
+      "fieldname": "tax_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Tax Type",
+      "options": [
+        "Sales",
+        "Purchase"
+      ],
+      "default_value": "Sales",
+      "user_input_synonyms": [
+        "tax_type",
+        "Tax Type",
+        "tax type"
+      ]
+    },
+    "use_for_shopping_cart": {
+      "fieldname": "use_for_shopping_cart",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Use for Shopping Cart",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "use_for_shopping_cart",
+        "use for shopping cart",
+        "Use for Shopping Cart"
+      ]
+    },
+    "sales_tax_template": {
+      "fieldname": "sales_tax_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Tax Template",
+      "options": "Sales Taxes and Charges Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales tax template",
+        "Sales Tax Template",
+        "sales_tax_template"
+      ]
+    },
+    "purchase_tax_template": {
+      "fieldname": "purchase_tax_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Purchase Tax Template",
+      "options": "Purchase Taxes and Charges Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "purchase tax template",
+        "Purchase Tax Template",
+        "purchase_tax_template"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "item": {
+      "fieldname": "item",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item",
+        "Item"
+      ]
+    },
+    "billing_city": {
+      "fieldname": "billing_city",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Billing City",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "billing_city",
+        "billing city",
+        "Billing City"
+      ]
+    },
+    "billing_county": {
+      "fieldname": "billing_county",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Billing County",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "billing county",
+        "Billing County",
+        "billing_county"
+      ]
+    },
+    "billing_state": {
+      "fieldname": "billing_state",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Billing State",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "billing state",
+        "Billing State",
+        "billing_state"
+      ]
+    },
+    "billing_zipcode": {
+      "fieldname": "billing_zipcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Billing Zipcode",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "billing_zipcode",
+        "Billing Zipcode",
+        "billing zipcode"
+      ]
+    },
+    "billing_country": {
+      "fieldname": "billing_country",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Billing Country",
+      "options": "Country",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Billing Country",
+        "billing_country",
+        "billing country"
+      ]
+    },
+    "tax_category": {
+      "fieldname": "tax_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Category",
+      "options": "Tax Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Category",
+        "tax_category",
+        "tax category"
+      ]
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Group",
+      "options": "Customer Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_group",
+        "Customer Group",
+        "customer group"
+      ]
+    },
+    "supplier_group": {
+      "fieldname": "supplier_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier Group",
+      "options": "Supplier Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_group",
+        "Supplier Group",
+        "supplier group"
+      ]
+    },
+    "item_group": {
+      "fieldname": "item_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Item Group",
+        "item_group",
+        "item group"
+      ]
+    },
+    "shipping_city": {
+      "fieldname": "shipping_city",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Shipping City",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping city",
+        "Shipping City",
+        "shipping_city"
+      ]
+    },
+    "shipping_county": {
+      "fieldname": "shipping_county",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Shipping County",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Shipping County",
+        "shipping county",
+        "shipping_county"
+      ]
+    },
+    "shipping_state": {
+      "fieldname": "shipping_state",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Shipping State",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Shipping State",
+        "shipping state",
+        "shipping_state"
+      ]
+    },
+    "shipping_zipcode": {
+      "fieldname": "shipping_zipcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Shipping Zipcode",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Shipping Zipcode",
+        "shipping zipcode",
+        "shipping_zipcode"
+      ]
+    },
+    "shipping_country": {
+      "fieldname": "shipping_country",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Shipping Country",
+      "options": "Country",
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping_country",
+        "shipping country",
+        "Shipping Country"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "priority": {
+      "fieldname": "priority",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Priority",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "priority",
+        "Priority"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    }
+  }
+}

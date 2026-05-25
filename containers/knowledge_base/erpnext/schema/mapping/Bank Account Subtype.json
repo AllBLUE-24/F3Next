@@ -1,0 +1,23 @@
+{
+  "doctype_name": "Bank Account Subtype",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "bank account subtype",
+    "bank_account_subtype"
+  ],
+  "field_mappings": {
+    "account_subtype": {
+      "fieldname": "account_subtype",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Account Subtype",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "account subtype",
+        "account_subtype",
+        "Account Subtype"
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "doctype_name": "Quality Inspection Parameter Group",
+  "mandatory_fields": [
+    "group_name"
+  ],
+  "doctype_classifier_hints": [
+    "quality inspection parameter group",
+    "quality_inspection_parameter_group"
+  ],
+  "field_mappings": {
+    "group_name": {
+      "fieldname": "group_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Parameter Group Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "parameter_group_name",
+        "Parameter Group Name",
+        "group name",
+        "group_name",
+        "parameter group name"
+      ]
+    }
+  }
+}

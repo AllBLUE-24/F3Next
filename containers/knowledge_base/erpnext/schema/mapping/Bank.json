@@ -1,0 +1,62 @@
+{
+  "doctype_name": "Bank",
+  "mandatory_fields": [
+    "bank_name"
+  ],
+  "doctype_classifier_hints": [
+    "bank"
+  ],
+  "field_mappings": {
+    "bank_name": {
+      "fieldname": "bank_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Bank Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank name",
+        "bank_name",
+        "Bank Name"
+      ]
+    },
+    "swift_number": {
+      "fieldname": "swift_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "SWIFT number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "SWIFT number",
+        "swift_number",
+        "swift number"
+      ]
+    },
+    "website": {
+      "fieldname": "website",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Website",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Website",
+        "website"
+      ]
+    },
+    "plaid_access_token": {
+      "fieldname": "plaid_access_token",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Plaid Access Token",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "plaid access token",
+        "plaid_access_token",
+        "Plaid Access Token"
+      ]
+    }
+  }
+}

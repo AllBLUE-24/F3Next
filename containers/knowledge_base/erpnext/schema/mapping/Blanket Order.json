@@ -1,0 +1,208 @@
+{
+  "doctype_name": "Blanket Order",
+  "mandatory_fields": [
+    "naming_series",
+    "blanket_order_type",
+    "from_date",
+    "to_date",
+    "company",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "blanket order",
+    "blanket_order",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MFG-BLR-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "blanket_order_type": {
+      "fieldname": "blanket_order_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Order Type",
+      "options": [
+        "Selling",
+        "Purchasing"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Order Type",
+        "order type",
+        "order_type",
+        "blanket_order_type",
+        "blanket order type"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_name": {
+      "fieldname": "customer_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Customer Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_name",
+        "Customer Name",
+        "customer name"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "supplier_name": {
+      "fieldname": "supplier_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Supplier Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Supplier Name",
+        "supplier_name",
+        "supplier name"
+      ]
+    },
+    "order_no": {
+      "fieldname": "order_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Order No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "order no",
+        "order_no",
+        "Order No"
+      ]
+    },
+    "order_date": {
+      "fieldname": "order_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Order Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "order_date",
+        "Order Date",
+        "order date"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Blanket Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "tc_name": {
+      "fieldname": "tc_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Terms",
+      "options": "Terms and Conditions",
+      "default_value": null,
+      "user_input_synonyms": [
+        "tc_name",
+        "tc name",
+        "terms",
+        "Terms"
+      ]
+    },
+    "terms": {
+      "fieldname": "terms",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Terms and Conditions Details",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "terms and conditions details",
+        "Terms and Conditions Details",
+        "terms",
+        "terms_and_conditions_details"
+      ]
+    }
+  },
+  "is_submittable": true
+}

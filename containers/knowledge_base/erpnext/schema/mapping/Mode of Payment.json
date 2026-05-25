@@ -1,0 +1,54 @@
+{
+  "doctype_name": "Mode of Payment",
+  "mandatory_fields": [
+    "mode_of_payment"
+  ],
+  "doctype_classifier_hints": [
+    "mode of payment",
+    "mode_of_payment"
+  ],
+  "field_mappings": {
+    "mode_of_payment": {
+      "fieldname": "mode_of_payment",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Mode of Payment",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "mode of payment",
+        "mode_of_payment",
+        "Mode of Payment"
+      ]
+    },
+    "enabled": {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Enabled",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "enabled",
+        "Enabled"
+      ]
+    },
+    "type": {
+      "fieldname": "type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Type",
+      "options": [
+        "Cash",
+        "Bank",
+        "General",
+        "Phone"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "type",
+        "Type"
+      ]
+    }
+  }
+}

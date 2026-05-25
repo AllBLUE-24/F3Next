@@ -1,0 +1,312 @@
+{
+  "doctype_name": "Promotional Scheme",
+  "mandatory_fields": [
+    "apply_on",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "promotional scheme",
+    "promotional_scheme"
+  ],
+  "field_mappings": {
+    "apply_on": {
+      "fieldname": "apply_on",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Apply On",
+      "options": [
+        "Item Code",
+        "Item Group",
+        "Brand",
+        "Transaction"
+      ],
+      "default_value": "Item Code",
+      "user_input_synonyms": [
+        "apply_on",
+        "Apply On",
+        "apply on"
+      ]
+    },
+    "disable": {
+      "fieldname": "disable",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disable",
+        "Disable"
+      ]
+    },
+    "mixed_conditions": {
+      "fieldname": "mixed_conditions",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Mixed Conditions",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "mixed conditions",
+        "Mixed Conditions",
+        "mixed_conditions"
+      ]
+    },
+    "is_cumulative": {
+      "fieldname": "is_cumulative",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Cumulative",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is cumulative",
+        "is_cumulative",
+        "Is Cumulative"
+      ]
+    },
+    "apply_rule_on_other": {
+      "fieldname": "apply_rule_on_other",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Apply Rule On Other",
+      "options": [
+        "Item Code",
+        "Item Group",
+        "Brand"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "apply_rule_on_other",
+        "apply rule on other",
+        "Apply Rule On Other"
+      ]
+    },
+    "other_item_code": {
+      "fieldname": "other_item_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Code",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item code",
+        "other_item_code",
+        "Item Code",
+        "other item code",
+        "item_code"
+      ]
+    },
+    "other_item_group": {
+      "fieldname": "other_item_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_group",
+        "Item Group",
+        "other_item_group",
+        "other item group",
+        "item group"
+      ]
+    },
+    "other_brand": {
+      "fieldname": "other_brand",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Brand",
+      "options": "Brand",
+      "default_value": null,
+      "user_input_synonyms": [
+        "other_brand",
+        "Brand",
+        "other brand",
+        "brand"
+      ]
+    },
+    "selling": {
+      "fieldname": "selling",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Selling",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Selling",
+        "selling"
+      ]
+    },
+    "buying": {
+      "fieldname": "buying",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Buying",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "buying",
+        "Buying"
+      ]
+    },
+    "applicable_for": {
+      "fieldname": "applicable_for",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Applicable For",
+      "options": [
+        "Customer",
+        "Customer Group",
+        "Territory",
+        "Sales Partner",
+        "Campaign",
+        "Supplier",
+        "Supplier Group"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Applicable For",
+        "applicable for",
+        "applicable_for"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Customer Group",
+      "options": "Customer Group Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_group",
+        "Customer Group",
+        "customer group"
+      ]
+    },
+    "territory": {
+      "fieldname": "territory",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Territory",
+      "options": "Territory Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Territory",
+        "territory"
+      ]
+    },
+    "sales_partner": {
+      "fieldname": "sales_partner",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Sales Partner",
+      "options": "Sales Partner Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales partner",
+        "sales_partner",
+        "Sales Partner"
+      ]
+    },
+    "campaign": {
+      "fieldname": "campaign",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Campaign",
+      "options": "Campaign Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Campaign",
+        "campaign"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "supplier_group": {
+      "fieldname": "supplier_group",
+      "fieldtype": "Table MultiSelect",
+      "mandatory": false,
+      "label": "Supplier Group",
+      "options": "Supplier Group Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_group",
+        "Supplier Group",
+        "supplier group"
+      ]
+    },
+    "valid_from": {
+      "fieldname": "valid_from",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Valid From",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "valid_from",
+        "Valid From",
+        "valid from"
+      ]
+    },
+    "valid_upto": {
+      "fieldname": "valid_upto",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Valid Upto",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Valid Upto",
+        "valid_upto",
+        "valid upto"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    }
+  }
+}

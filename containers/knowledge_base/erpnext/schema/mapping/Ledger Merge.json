@@ -1,0 +1,102 @@
+{
+  "doctype_name": "Ledger Merge",
+  "mandatory_fields": [
+    "root_type",
+    "account",
+    "account_name",
+    "company",
+    "merge_accounts"
+  ],
+  "doctype_classifier_hints": [
+    "ledger merge",
+    "ledger_merge"
+  ],
+  "field_mappings": {
+    "root_type": {
+      "fieldname": "root_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Root Type",
+      "options": [
+        "Asset",
+        "Liability",
+        "Income",
+        "Expense",
+        "Equity"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "root type",
+        "root_type",
+        "Root Type"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "account_name": {
+      "fieldname": "account_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Account Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "account_name",
+        "Account Name",
+        "account name"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Pending",
+        "Success",
+        "Partial Success",
+        "Error"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "is_group": {
+      "fieldname": "is_group",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Group",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Group",
+        "is_group",
+        "is group"
+      ]
+    }
+  }
+}

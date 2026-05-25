@@ -1,0 +1,1614 @@
+{
+  "doctype_name": "POS Invoice",
+  "mandatory_fields": [
+    "naming_series",
+    "is_pos",
+    "company",
+    "posting_date",
+    "currency",
+    "conversion_rate",
+    "selling_price_list",
+    "price_list_currency",
+    "plc_conversion_rate",
+    "items",
+    "base_net_total",
+    "base_grand_total",
+    "grand_total",
+    "debit_to"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "pos invoice",
+    "pos_invoice"
+  ],
+  "field_mappings": {
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Title",
+      "options": null,
+      "default_value": "{customer_name}",
+      "user_input_synonyms": [
+        "title",
+        "Title"
+      ]
+    },
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "ACC-PSINV-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "customer_name": {
+      "fieldname": "customer_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Customer Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_name",
+        "Customer Name",
+        "customer name"
+      ]
+    },
+    "tax_id": {
+      "fieldname": "tax_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Tax Id",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "tax_id",
+        "tax id",
+        "Tax Id"
+      ]
+    },
+    "pos_profile": {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "POS Profile",
+      "options": "POS Profile",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pos profile",
+        "pos_profile",
+        "POS Profile"
+      ]
+    },
+    "consolidated_invoice": {
+      "fieldname": "consolidated_invoice",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Consolidated Sales Invoice",
+      "options": "Sales Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "consolidated sales invoice",
+        "consolidated_sales_invoice",
+        "consolidated_invoice",
+        "consolidated invoice",
+        "Consolidated Sales Invoice"
+      ]
+    },
+    "is_pos": {
+      "fieldname": "is_pos",
+      "fieldtype": "Check",
+      "mandatory": true,
+      "label": "Include Payment (POS)",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Include Payment (POS)",
+        "include_payment_(pos)",
+        "include payment (pos)",
+        "is pos",
+        "is_pos"
+      ]
+    },
+    "is_return": {
+      "fieldname": "is_return",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Return (Credit Note)",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is return (credit note)",
+        "is return",
+        "is_return",
+        "Is Return (Credit Note)",
+        "is_return_(credit_note)"
+      ]
+    },
+    "update_billed_amount_in_sales_order": {
+      "fieldname": "update_billed_amount_in_sales_order",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Update Billed Amount in Sales Order",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Update Billed Amount in Sales Order",
+        "update billed amount in sales order",
+        "update_billed_amount_in_sales_order"
+      ]
+    },
+    "update_billed_amount_in_delivery_note": {
+      "fieldname": "update_billed_amount_in_delivery_note",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Update Billed Amount in Delivery Note",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "update_billed_amount_in_delivery_note",
+        "update billed amount in delivery note",
+        "Update Billed Amount in Delivery Note"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "date",
+        "Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "posting_time": {
+      "fieldname": "posting_time",
+      "fieldtype": "Time",
+      "mandatory": false,
+      "label": "Posting Time",
+      "options": null,
+      "default_value": "Now",
+      "user_input_synonyms": [
+        "posting time",
+        "posting_time",
+        "Posting Time"
+      ]
+    },
+    "set_posting_time": {
+      "fieldname": "set_posting_time",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Edit Posting Date and Time",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "set posting time",
+        "Edit Posting Date and Time",
+        "set_posting_time",
+        "edit_posting_date_and_time",
+        "edit posting date and time"
+      ]
+    },
+    "due_date": {
+      "fieldname": "due_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Payment Due Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Payment Due Date",
+        "due date",
+        "payment due date",
+        "due_date",
+        "payment_due_date"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "POS Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "return_against": {
+      "fieldname": "return_against",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Return Against",
+      "options": "POS Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "return_against",
+        "Return Against",
+        "return against"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "po_no": {
+      "fieldname": "po_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Customer's Purchase Order",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "po no",
+        "customer's purchase order",
+        "Customer's Purchase Order",
+        "customer's_purchase_order",
+        "po_no"
+      ]
+    },
+    "po_date": {
+      "fieldname": "po_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Customer's Purchase Order Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Customer's Purchase Order Date",
+        "po date",
+        "po_date",
+        "customer's_purchase_order_date",
+        "customer's purchase order date"
+      ]
+    },
+    "customer_address": {
+      "fieldname": "customer_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer address",
+        "customer_address",
+        "Customer Address"
+      ]
+    },
+    "address_display": {
+      "fieldname": "address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Address",
+        "address display",
+        "address_display",
+        "address"
+      ]
+    },
+    "contact_person": {
+      "fieldname": "contact_person",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Contact Person",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact person",
+        "Contact Person",
+        "contact_person"
+      ]
+    },
+    "contact_display": {
+      "fieldname": "contact_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Contact",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact",
+        "contact_display",
+        "contact display",
+        "Contact"
+      ]
+    },
+    "contact_mobile": {
+      "fieldname": "contact_mobile",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Mobile No",
+      "options": "Phone",
+      "default_value": null,
+      "user_input_synonyms": [
+        "contact_mobile",
+        "mobile_no",
+        "mobile no",
+        "Mobile No",
+        "contact mobile"
+      ]
+    },
+    "contact_email": {
+      "fieldname": "contact_email",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Contact Email",
+      "options": "Email",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Contact Email",
+        "contact_email",
+        "contact email"
+      ]
+    },
+    "territory": {
+      "fieldname": "territory",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Territory",
+      "options": "Territory",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Territory",
+        "territory"
+      ]
+    },
+    "shipping_address_name": {
+      "fieldname": "shipping_address_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Shipping Address Name",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping_address_name",
+        "shipping address name",
+        "Shipping Address Name"
+      ]
+    },
+    "shipping_address": {
+      "fieldname": "shipping_address",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Shipping Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping address",
+        "Shipping Address",
+        "shipping_address"
+      ]
+    },
+    "company_address": {
+      "fieldname": "company_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company Address Name",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company Address Name",
+        "company address name",
+        "company_address",
+        "company address",
+        "company_address_name"
+      ]
+    },
+    "company_address_display": {
+      "fieldname": "company_address_display",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Company Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "company address display",
+        "company_address",
+        "company_address_display",
+        "company address",
+        "Company Address"
+      ]
+    },
+    "company_contact_person": {
+      "fieldname": "company_contact_person",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company Contact Person",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "company_contact_person",
+        "company contact person",
+        "Company Contact Person"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "conversion_rate": {
+      "fieldname": "conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Exchange Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "exchange rate",
+        "exchange_rate",
+        "conversion_rate",
+        "conversion rate",
+        "Exchange Rate"
+      ]
+    },
+    "selling_price_list": {
+      "fieldname": "selling_price_list",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "selling price list",
+        "selling_price_list",
+        "price list",
+        "Price List",
+        "price_list"
+      ]
+    },
+    "price_list_currency": {
+      "fieldname": "price_list_currency",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Price List Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "price list currency",
+        "price_list_currency",
+        "Price List Currency"
+      ]
+    },
+    "plc_conversion_rate": {
+      "fieldname": "plc_conversion_rate",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Price List Exchange Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "price_list_exchange_rate",
+        "Price List Exchange Rate",
+        "plc conversion rate",
+        "price list exchange rate",
+        "plc_conversion_rate"
+      ]
+    },
+    "ignore_pricing_rule": {
+      "fieldname": "ignore_pricing_rule",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Ignore Pricing Rule",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "ignore pricing rule",
+        "ignore_pricing_rule",
+        "Ignore Pricing Rule"
+      ]
+    },
+    "set_warehouse": {
+      "fieldname": "set_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Source Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "set_warehouse",
+        "Source Warehouse",
+        "source warehouse",
+        "source_warehouse",
+        "set warehouse"
+      ]
+    },
+    "update_stock": {
+      "fieldname": "update_stock",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Update Stock",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Update Stock",
+        "update_stock",
+        "update stock"
+      ]
+    },
+    "scan_barcode": {
+      "fieldname": "scan_barcode",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Scan Barcode",
+      "options": "Barcode",
+      "default_value": null,
+      "user_input_synonyms": [
+        "scan barcode",
+        "scan_barcode",
+        "Scan Barcode"
+      ]
+    },
+    "last_scanned_warehouse": {
+      "fieldname": "last_scanned_warehouse",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Last Scanned Warehouse",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Last Scanned Warehouse",
+        "last scanned warehouse",
+        "last_scanned_warehouse"
+      ]
+    },
+    "total_billing_amount": {
+      "fieldname": "total_billing_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Billing Amount",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "total billing amount",
+        "Total Billing Amount",
+        "total_billing_amount"
+      ]
+    },
+    "total_qty": {
+      "fieldname": "total_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total qty",
+        "total_quantity",
+        "total quantity",
+        "Total Quantity",
+        "total_qty"
+      ]
+    },
+    "base_total": {
+      "fieldname": "base_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base_total",
+        "base total",
+        "total_(company_currency)",
+        "total (company currency)",
+        "Total (Company Currency)"
+      ]
+    },
+    "base_net_total": {
+      "fieldname": "base_net_total",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Net Total (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "net_total_(company_currency)",
+        "base net total",
+        "Net Total (Company Currency)",
+        "net total (company currency)",
+        "base_net_total"
+      ]
+    },
+    "total": {
+      "fieldname": "total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total",
+        "total"
+      ]
+    },
+    "net_total": {
+      "fieldname": "net_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Net Total",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Net Total",
+        "net total",
+        "net_total"
+      ]
+    },
+    "total_net_weight": {
+      "fieldname": "total_net_weight",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Net Weight",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Net Weight",
+        "total_net_weight",
+        "total net weight"
+      ]
+    },
+    "taxes_and_charges": {
+      "fieldname": "taxes_and_charges",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Taxes and Charges Template",
+      "options": "Sales Taxes and Charges Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales taxes and charges template",
+        "taxes and charges",
+        "taxes_and_charges",
+        "Sales Taxes and Charges Template",
+        "sales_taxes_and_charges_template"
+      ]
+    },
+    "shipping_rule": {
+      "fieldname": "shipping_rule",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Shipping Rule",
+      "options": "Shipping Rule",
+      "default_value": null,
+      "user_input_synonyms": [
+        "shipping_rule",
+        "Shipping Rule",
+        "shipping rule"
+      ]
+    },
+    "tax_category": {
+      "fieldname": "tax_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Category",
+      "options": "Tax Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Category",
+        "tax_category",
+        "tax category"
+      ]
+    },
+    "other_charges_calculation": {
+      "fieldname": "other_charges_calculation",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Taxes and Charges Calculation",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "taxes_and_charges_calculation",
+        "taxes and charges calculation",
+        "other_charges_calculation",
+        "other charges calculation",
+        "Taxes and Charges Calculation"
+      ]
+    },
+    "base_total_taxes_and_charges": {
+      "fieldname": "base_total_taxes_and_charges",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Taxes and Charges (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base total taxes and charges",
+        "base_total_taxes_and_charges",
+        "total taxes and charges (company currency)",
+        "Total Taxes and Charges (Company Currency)",
+        "total_taxes_and_charges_(company_currency)"
+      ]
+    },
+    "total_taxes_and_charges": {
+      "fieldname": "total_taxes_and_charges",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Taxes and Charges",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_taxes_and_charges",
+        "total taxes and charges",
+        "Total Taxes and Charges"
+      ]
+    },
+    "loyalty_points": {
+      "fieldname": "loyalty_points",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Loyalty Points",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty points",
+        "loyalty_points",
+        "Loyalty Points"
+      ]
+    },
+    "loyalty_amount": {
+      "fieldname": "loyalty_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Loyalty Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Loyalty Amount",
+        "loyalty_amount",
+        "loyalty amount"
+      ]
+    },
+    "redeem_loyalty_points": {
+      "fieldname": "redeem_loyalty_points",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Redeem Loyalty Points",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Redeem Loyalty Points",
+        "redeem loyalty points",
+        "redeem_loyalty_points"
+      ]
+    },
+    "loyalty_program": {
+      "fieldname": "loyalty_program",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Loyalty Program",
+      "options": "Loyalty Program",
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program",
+        "Loyalty Program",
+        "loyalty_program"
+      ]
+    },
+    "loyalty_redemption_account": {
+      "fieldname": "loyalty_redemption_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Redemption Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty redemption account",
+        "loyalty_redemption_account",
+        "redemption_account",
+        "Redemption Account",
+        "redemption account"
+      ]
+    },
+    "loyalty_redemption_cost_center": {
+      "fieldname": "loyalty_redemption_cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Redemption Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "redemption_cost_center",
+        "redemption cost center",
+        "loyalty redemption cost center",
+        "loyalty_redemption_cost_center",
+        "Redemption Cost Center"
+      ]
+    },
+    "coupon_code": {
+      "fieldname": "coupon_code",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Coupon Code",
+      "options": "Coupon Code",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Coupon Code",
+        "coupon_code",
+        "coupon code"
+      ]
+    },
+    "apply_discount_on": {
+      "fieldname": "apply_discount_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Apply Additional Discount On",
+      "options": [
+        "Grand Total",
+        "Net Total"
+      ],
+      "default_value": "Grand Total",
+      "user_input_synonyms": [
+        "Apply Additional Discount On",
+        "apply_discount_on",
+        "apply_additional_discount_on",
+        "apply discount on",
+        "apply additional discount on"
+      ]
+    },
+    "base_discount_amount": {
+      "fieldname": "base_discount_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Additional Discount Amount (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base discount amount",
+        "Additional Discount Amount (Company Currency)",
+        "additional_discount_amount_(company_currency)",
+        "additional discount amount (company currency)",
+        "base_discount_amount"
+      ]
+    },
+    "additional_discount_percentage": {
+      "fieldname": "additional_discount_percentage",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Additional Discount Percentage",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "additional_discount_percentage",
+        "Additional Discount Percentage",
+        "additional discount percentage"
+      ]
+    },
+    "discount_amount": {
+      "fieldname": "discount_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Additional Discount Amount",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "additional discount amount",
+        "additional_discount_amount",
+        "discount amount",
+        "Additional Discount Amount",
+        "discount_amount"
+      ]
+    },
+    "base_grand_total": {
+      "fieldname": "base_grand_total",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Grand Total (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base grand total",
+        "base_grand_total",
+        "grand total (company currency)",
+        "Grand Total (Company Currency)",
+        "grand_total_(company_currency)"
+      ]
+    },
+    "base_rounding_adjustment": {
+      "fieldname": "base_rounding_adjustment",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rounding Adjustment (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base rounding adjustment",
+        "rounding adjustment (company currency)",
+        "base_rounding_adjustment",
+        "rounding_adjustment_(company_currency)",
+        "Rounding Adjustment (Company Currency)"
+      ]
+    },
+    "base_rounded_total": {
+      "fieldname": "base_rounded_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rounded Total (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "rounded total (company currency)",
+        "base_rounded_total",
+        "base rounded total",
+        "Rounded Total (Company Currency)",
+        "rounded_total_(company_currency)"
+      ]
+    },
+    "base_in_words": {
+      "fieldname": "base_in_words",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "In Words (Company Currency)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "In Words (Company Currency)",
+        "base in words",
+        "in words (company currency)",
+        "base_in_words",
+        "in_words_(company_currency)"
+      ]
+    },
+    "grand_total": {
+      "fieldname": "grand_total",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Grand Total",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "grand total",
+        "Grand Total",
+        "grand_total"
+      ]
+    },
+    "rounding_adjustment": {
+      "fieldname": "rounding_adjustment",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rounding Adjustment",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "rounding_adjustment",
+        "rounding adjustment",
+        "Rounding Adjustment"
+      ]
+    },
+    "rounded_total": {
+      "fieldname": "rounded_total",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rounded Total",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Rounded Total",
+        "rounded total",
+        "rounded_total"
+      ]
+    },
+    "in_words": {
+      "fieldname": "in_words",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "In Words",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "in words",
+        "In Words",
+        "in_words"
+      ]
+    },
+    "total_advance": {
+      "fieldname": "total_advance",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Advance",
+      "options": "party_account_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Advance",
+        "total_advance",
+        "total advance"
+      ]
+    },
+    "outstanding_amount": {
+      "fieldname": "outstanding_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Outstanding Amount",
+      "options": "party_account_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Outstanding Amount",
+        "outstanding amount",
+        "outstanding_amount"
+      ]
+    },
+    "allocate_advances_automatically": {
+      "fieldname": "allocate_advances_automatically",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allocate Advances Automatically (FIFO)",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allocate_advances_automatically",
+        "allocate_advances_automatically_(fifo)",
+        "Allocate Advances Automatically (FIFO)",
+        "allocate advances automatically",
+        "allocate advances automatically (fifo)"
+      ]
+    },
+    "payment_terms_template": {
+      "fieldname": "payment_terms_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Payment Terms Template",
+      "options": "Payment Terms Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Payment Terms Template",
+        "payment terms template",
+        "payment_terms_template"
+      ]
+    },
+    "cash_bank_account": {
+      "fieldname": "cash_bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cash/Bank Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cash/bank_account",
+        "cash_bank_account",
+        "cash/bank account",
+        "Cash/Bank Account",
+        "cash bank account"
+      ]
+    },
+    "base_paid_amount": {
+      "fieldname": "base_paid_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Paid Amount (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "base paid amount",
+        "base_paid_amount",
+        "paid amount (company currency)",
+        "Paid Amount (Company Currency)",
+        "paid_amount_(company_currency)"
+      ]
+    },
+    "paid_amount": {
+      "fieldname": "paid_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Paid Amount",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "paid_amount",
+        "Paid Amount",
+        "paid amount"
+      ]
+    },
+    "base_change_amount": {
+      "fieldname": "base_change_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Base Change Amount (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Base Change Amount (Company Currency)",
+        "base_change_amount",
+        "base_change_amount_(company_currency)",
+        "base change amount (company currency)",
+        "base change amount"
+      ]
+    },
+    "change_amount": {
+      "fieldname": "change_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Change Amount",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "change_amount",
+        "Change Amount",
+        "change amount"
+      ]
+    },
+    "account_for_change_amount": {
+      "fieldname": "account_for_change_amount",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account for Change Amount",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "account_for_change_amount",
+        "Account for Change Amount",
+        "account for change amount"
+      ]
+    },
+    "write_off_amount": {
+      "fieldname": "write_off_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Write Off Amount",
+      "options": "currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Write Off Amount",
+        "write_off_amount",
+        "write off amount"
+      ]
+    },
+    "base_write_off_amount": {
+      "fieldname": "base_write_off_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Write Off Amount (Company Currency)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Write Off Amount (Company Currency)",
+        "base_write_off_amount",
+        "base write off amount",
+        "write off amount (company currency)",
+        "write_off_amount_(company_currency)"
+      ]
+    },
+    "write_off_outstanding_amount_automatically": {
+      "fieldname": "write_off_outstanding_amount_automatically",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Write Off Outstanding Amount",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "write off outstanding amount automatically",
+        "Write Off Outstanding Amount",
+        "write_off_outstanding_amount_automatically",
+        "write off outstanding amount",
+        "write_off_outstanding_amount"
+      ]
+    },
+    "write_off_account": {
+      "fieldname": "write_off_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Write Off Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "write_off_account",
+        "write off account",
+        "Write Off Account"
+      ]
+    },
+    "write_off_cost_center": {
+      "fieldname": "write_off_cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Write Off Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Write Off Cost Center",
+        "write off cost center",
+        "write_off_cost_center"
+      ]
+    },
+    "tc_name": {
+      "fieldname": "tc_name",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Terms",
+      "options": "Terms and Conditions",
+      "default_value": null,
+      "user_input_synonyms": [
+        "tc_name",
+        "tc name",
+        "terms",
+        "Terms"
+      ]
+    },
+    "terms": {
+      "fieldname": "terms",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Terms and Conditions Details",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "terms and conditions details",
+        "Terms and Conditions Details",
+        "terms",
+        "terms_and_conditions_details"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "group_same_items": {
+      "fieldname": "group_same_items",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Group same items",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "group_same_items",
+        "Group same items",
+        "group same items"
+      ]
+    },
+    "language": {
+      "fieldname": "language",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Print Language",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_language",
+        "print language",
+        "Print Language",
+        "language"
+      ]
+    },
+    "select_print_heading": {
+      "fieldname": "select_print_heading",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Heading",
+      "options": "Print Heading",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_heading",
+        "print heading",
+        "select print heading",
+        "Print Heading",
+        "select_print_heading"
+      ]
+    },
+    "inter_company_invoice_reference": {
+      "fieldname": "inter_company_invoice_reference",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Inter Company Invoice Reference",
+      "options": "Purchase Invoice",
+      "default_value": null,
+      "user_input_synonyms": [
+        "inter_company_invoice_reference",
+        "inter company invoice reference",
+        "Inter Company Invoice Reference"
+      ]
+    },
+    "customer_group": {
+      "fieldname": "customer_group",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer Group",
+      "options": "Customer Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer_group",
+        "Customer Group",
+        "customer group"
+      ]
+    },
+    "campaign": {
+      "fieldname": "campaign",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Campaign",
+      "options": "Campaign",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Campaign",
+        "campaign"
+      ]
+    },
+    "is_discounted": {
+      "fieldname": "is_discounted",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Discounted",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Discounted",
+        "is discounted",
+        "is_discounted"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Return",
+        "Credit Note Issued",
+        "Consolidated",
+        "Submitted",
+        "Paid",
+        "Unpaid",
+        "Unpaid and Discounted",
+        "Overdue and Discounted",
+        "Overdue",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "source": {
+      "fieldname": "source",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Source",
+      "options": "Lead Source",
+      "default_value": null,
+      "user_input_synonyms": [
+        "source",
+        "Source"
+      ]
+    },
+    "debit_to": {
+      "fieldname": "debit_to",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Debit To",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "debit to",
+        "debit_to",
+        "Debit To"
+      ]
+    },
+    "party_account_currency": {
+      "fieldname": "party_account_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Party Account Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Account Currency",
+        "party account currency",
+        "party_account_currency"
+      ]
+    },
+    "is_opening": {
+      "fieldname": "is_opening",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Is Opening Entry",
+      "options": [
+        "No",
+        "Yes"
+      ],
+      "default_value": "No",
+      "user_input_synonyms": [
+        "is_opening",
+        "is opening",
+        "is_opening_entry",
+        "is opening entry",
+        "Is Opening Entry"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "sales_partner": {
+      "fieldname": "sales_partner",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Partner",
+      "options": "Sales Partner",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales partner",
+        "sales_partner",
+        "Sales Partner"
+      ]
+    },
+    "amount_eligible_for_commission": {
+      "fieldname": "amount_eligible_for_commission",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Amount Eligible for Commission",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "amount eligible for commission",
+        "Amount Eligible for Commission",
+        "amount_eligible_for_commission"
+      ]
+    },
+    "commission_rate": {
+      "fieldname": "commission_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Commission Rate (%)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Commission Rate (%)",
+        "commission rate",
+        "commission_rate",
+        "commission_rate_(%)",
+        "commission rate (%)"
+      ]
+    },
+    "total_commission": {
+      "fieldname": "total_commission",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Commission",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_commission",
+        "total commission",
+        "Total Commission"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "auto_repeat": {
+      "fieldname": "auto_repeat",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Auto Repeat",
+      "options": "Auto Repeat",
+      "default_value": null,
+      "user_input_synonyms": [
+        "auto_repeat",
+        "Auto Repeat",
+        "auto repeat"
+      ]
+    },
+    "against_income_account": {
+      "fieldname": "against_income_account",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Against Income Account",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "against_income_account",
+        "against income account",
+        "Against Income Account"
+      ]
+    }
+  },
+  "is_submittable": true
+}

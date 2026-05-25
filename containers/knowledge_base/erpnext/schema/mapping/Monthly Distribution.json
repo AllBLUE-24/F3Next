@@ -1,0 +1,40 @@
+{
+  "doctype_name": "Monthly Distribution",
+  "mandatory_fields": [
+    "distribution_id"
+  ],
+  "doctype_classifier_hints": [
+    "monthly distribution",
+    "monthly_distribution"
+  ],
+  "field_mappings": {
+    "distribution_id": {
+      "fieldname": "distribution_id",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Distribution Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "distribution_name",
+        "distribution name",
+        "distribution_id",
+        "Distribution Name",
+        "distribution id"
+      ]
+    },
+    "fiscal_year": {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Fiscal Year",
+      "options": "Fiscal Year",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Fiscal Year",
+        "fiscal year",
+        "fiscal_year"
+      ]
+    }
+  }
+}

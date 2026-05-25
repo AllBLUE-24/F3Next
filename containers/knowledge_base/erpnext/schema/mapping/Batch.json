@@ -4,11 +4,44 @@
     "batch_id",
     "item"
   ],
+  "doctype_classifier_hints": [
+    "batch"
+  ],
   "field_mappings": {
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "use_batchwise_valuation": {
+      "fieldname": "use_batchwise_valuation",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Use Batch-wise Valuation",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "use batchwise valuation",
+        "Use Batch-wise Valuation",
+        "use_batch-wise_valuation",
+        "use_batchwise_valuation",
+        "use batch-wise valuation"
+      ]
+    },
     "batch_id": {
       "fieldname": "batch_id",
       "fieldtype": "Data",
       "mandatory": true,
+      "label": "Batch ID",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "batch_no",
         "batch_number",
@@ -17,57 +50,218 @@
         "batch_wo",
         "Batch_WO",
         "batch_code",
-        "lot_id"
+        "lot_id",
+        "Batch ID",
+        "batch_id",
+        "batch id"
       ]
     },
     "item": {
       "fieldname": "item",
       "fieldtype": "Link",
-      "options": "Item",
       "mandatory": true,
+      "label": "Item",
+      "options": "Item",
+      "default_value": null,
       "user_input_synonyms": [
         "item_code",
         "item_produced",
         "Item_Produced",
         "product",
         "material",
-        "batch_item"
+        "batch_item",
+        "item",
+        "Item"
       ]
     },
-    "expiry_date": {
-      "fieldname": "expiry_date",
-      "fieldtype": "Date",
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
       "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
-        "expiry",
-        "expiration_date",
-        "Expiry_Date",
-        "best_before",
-        "use_by_date",
-        "exp_date"
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "image",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "image"
+      ]
+    },
+    "parent_batch": {
+      "fieldname": "parent_batch",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Parent Batch",
+      "options": "Batch",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Parent Batch",
+        "parent_batch",
+        "parent batch"
       ]
     },
     "manufacturing_date": {
       "fieldname": "manufacturing_date",
       "fieldtype": "Date",
       "mandatory": false,
+      "label": "Manufacturing Date",
+      "options": null,
+      "default_value": "Today",
       "user_input_synonyms": [
         "mfg_date",
         "production_date",
         "manufacture_date",
-        "batch_date"
+        "batch_date",
+        "manufacturing_date",
+        "Manufacturing Date",
+        "manufacturing date"
+      ]
+    },
+    "batch_qty": {
+      "fieldname": "batch_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Batch Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "batch quantity",
+        "batch_qty",
+        "Batch Quantity",
+        "batch qty",
+        "batch_quantity"
+      ]
+    },
+    "stock_uom": {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Batch UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock uom",
+        "Batch UOM",
+        "batch_uom",
+        "stock_uom",
+        "batch uom"
+      ]
+    },
+    "expiry_date": {
+      "fieldname": "expiry_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Expiry Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "expiry",
+        "expiration_date",
+        "Expiry_Date",
+        "best_before",
+        "use_by_date",
+        "exp_date",
+        "expiry date",
+        "expiry_date",
+        "Expiry Date"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "reference_doctype": {
+      "fieldname": "reference_doctype",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Source Document Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference doctype",
+        "Source Document Type",
+        "source document type",
+        "reference_doctype",
+        "source_document_type"
+      ]
+    },
+    "reference_name": {
+      "fieldname": "reference_name",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Source Document Name",
+      "options": "reference_doctype",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Source Document Name",
+        "source document name",
+        "source_document_name",
+        "reference_name",
+        "reference name"
       ]
     },
     "description": {
       "fieldname": "description",
       "fieldtype": "Small Text",
       "mandatory": false,
+      "label": "Batch Description",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "notes",
         "operator_notes",
         "Operator_Notes",
         "remarks",
-        "batch_notes"
+        "batch_notes",
+        "description",
+        "batch_description",
+        "Batch Description",
+        "batch description"
+      ]
+    },
+    "qty_to_produce": {
+      "fieldname": "qty_to_produce",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Qty To Produce",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Qty To Produce",
+        "qty_to_produce",
+        "qty to produce"
+      ]
+    },
+    "produced_qty": {
+      "fieldname": "produced_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Produced Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "produced_qty",
+        "Produced Qty",
+        "produced qty"
       ]
     }
   }

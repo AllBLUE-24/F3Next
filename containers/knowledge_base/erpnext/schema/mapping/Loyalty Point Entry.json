@@ -1,0 +1,150 @@
+{
+  "doctype_name": "Loyalty Point Entry",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "loyalty point entry",
+    "loyalty_point_entry"
+  ],
+  "field_mappings": {
+    "loyalty_program": {
+      "fieldname": "loyalty_program",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Loyalty Program",
+      "options": "Loyalty Program",
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program",
+        "Loyalty Program",
+        "loyalty_program"
+      ]
+    },
+    "loyalty_program_tier": {
+      "fieldname": "loyalty_program_tier",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Loyalty Program Tier",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty program tier",
+        "loyalty_program_tier",
+        "Loyalty Program Tier"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "invoice_type": {
+      "fieldname": "invoice_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Invoice Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "invoice type",
+        "invoice_type",
+        "Invoice Type"
+      ]
+    },
+    "invoice": {
+      "fieldname": "invoice",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Invoice",
+      "options": "invoice_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "invoice",
+        "Invoice"
+      ]
+    },
+    "redeem_against": {
+      "fieldname": "redeem_against",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Redeem Against",
+      "options": "Loyalty Point Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Redeem Against",
+        "redeem_against",
+        "redeem against"
+      ]
+    },
+    "loyalty_points": {
+      "fieldname": "loyalty_points",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Loyalty Points",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "loyalty points",
+        "loyalty_points",
+        "Loyalty Points"
+      ]
+    },
+    "purchase_amount": {
+      "fieldname": "purchase_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Purchase Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "purchase_amount",
+        "Purchase Amount",
+        "purchase amount"
+      ]
+    },
+    "expiry_date": {
+      "fieldname": "expiry_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Expiry Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "expiry date",
+        "expiry_date",
+        "Expiry Date"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    }
+  }
+}

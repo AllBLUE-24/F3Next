@@ -1,0 +1,104 @@
+{
+  "doctype_name": "Bank Clearance",
+  "mandatory_fields": [
+    "account",
+    "from_date",
+    "to_date"
+  ],
+  "doctype_classifier_hints": [
+    "bank clearance",
+    "bank_clearance"
+  ],
+  "field_mappings": {
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "account_currency": {
+      "fieldname": "account_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Currency",
+        "account currency",
+        "account_currency"
+      ]
+    },
+    "from_date": {
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "From Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "from_date",
+        "From Date",
+        "from date"
+      ]
+    },
+    "to_date": {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "To Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to date",
+        "to_date",
+        "To Date"
+      ]
+    },
+    "bank_account": {
+      "fieldname": "bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account",
+        "bank_account",
+        "bank account"
+      ]
+    },
+    "include_reconciled_entries": {
+      "fieldname": "include_reconciled_entries",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include Reconciled Entries",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Include Reconciled Entries",
+        "include reconciled entries",
+        "include_reconciled_entries"
+      ]
+    },
+    "include_pos_transactions": {
+      "fieldname": "include_pos_transactions",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include POS Transactions",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "include_pos_transactions",
+        "include pos transactions",
+        "Include POS Transactions"
+      ]
+    }
+  }
+}

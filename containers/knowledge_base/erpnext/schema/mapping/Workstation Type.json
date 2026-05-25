@@ -1,0 +1,111 @@
+{
+  "doctype_name": "Workstation Type",
+  "mandatory_fields": [
+    "workstation_type"
+  ],
+  "doctype_classifier_hints": [
+    "workstation type",
+    "workstation_type"
+  ],
+  "field_mappings": {
+    "workstation_type": {
+      "fieldname": "workstation_type",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Workstation Type",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Workstation Type",
+        "workstation_type",
+        "workstation type"
+      ]
+    },
+    "hour_rate_electricity": {
+      "fieldname": "hour_rate_electricity",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Electricity Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Electricity Cost",
+        "hour rate electricity",
+        "electricity_cost",
+        "hour_rate_electricity",
+        "electricity cost"
+      ]
+    },
+    "hour_rate_consumable": {
+      "fieldname": "hour_rate_consumable",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Consumable Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour_rate_consumable",
+        "consumable_cost",
+        "hour rate consumable",
+        "consumable cost",
+        "Consumable Cost"
+      ]
+    },
+    "hour_rate_rent": {
+      "fieldname": "hour_rate_rent",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Rent Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour_rate_rent",
+        "rent_cost",
+        "rent cost",
+        "Rent Cost",
+        "hour rate rent"
+      ]
+    },
+    "hour_rate_labour": {
+      "fieldname": "hour_rate_labour",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Wages",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "hour rate labour",
+        "Wages",
+        "wages",
+        "hour_rate_labour"
+      ]
+    },
+    "hour_rate": {
+      "fieldname": "hour_rate",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Net Hour Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "net hour rate",
+        "net_hour_rate",
+        "hour_rate",
+        "hour rate",
+        "Net Hour Rate"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

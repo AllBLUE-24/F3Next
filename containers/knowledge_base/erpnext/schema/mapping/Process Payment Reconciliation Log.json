@@ -1,0 +1,111 @@
+{
+  "doctype_name": "Process Payment Reconciliation Log",
+  "mandatory_fields": [
+    "process_pr"
+  ],
+  "doctype_classifier_hints": [
+    "process payment reconciliation log",
+    "process_payment_reconciliation_log"
+  ],
+  "field_mappings": {
+    "process_pr": {
+      "fieldname": "process_pr",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Parent Document",
+      "options": "Process Payment Reconciliation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Parent Document",
+        "parent document",
+        "parent_document",
+        "process pr",
+        "process_pr"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Running",
+        "Paused",
+        "Reconciled",
+        "Partially Reconciled",
+        "Failed",
+        "Cancelled"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "allocated": {
+      "fieldname": "allocated",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allocated",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allocated",
+        "Allocated"
+      ]
+    },
+    "reconciled": {
+      "fieldname": "reconciled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Reconciled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Reconciled",
+        "reconciled"
+      ]
+    },
+    "total_allocations": {
+      "fieldname": "total_allocations",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Total Allocations",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Allocations",
+        "total allocations",
+        "total_allocations"
+      ]
+    },
+    "reconciled_entries": {
+      "fieldname": "reconciled_entries",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Reconciled Entries",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "reconciled entries",
+        "Reconciled Entries",
+        "reconciled_entries"
+      ]
+    },
+    "error_log": {
+      "fieldname": "error_log",
+      "fieldtype": "Long Text",
+      "mandatory": false,
+      "label": "Reconciliation Error Log",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_log",
+        "reconciliation error log",
+        "Reconciliation Error Log",
+        "error log",
+        "reconciliation_error_log"
+      ]
+    }
+  }
+}

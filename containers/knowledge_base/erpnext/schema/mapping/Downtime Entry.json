@@ -1,0 +1,130 @@
+{
+  "doctype_name": "Downtime Entry",
+  "mandatory_fields": [
+    "naming_series",
+    "workstation",
+    "operator",
+    "from_time",
+    "to_time",
+    "stop_reason"
+  ],
+  "doctype_classifier_hints": [
+    "downtime entry",
+    "downtime_entry",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Naming Series",
+      "options": [
+        "DT-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Naming Series",
+        "naming series"
+      ]
+    },
+    "workstation": {
+      "fieldname": "workstation",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Workstation / Machine",
+      "options": "Workstation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "workstation",
+        "workstation / machine",
+        "Workstation / Machine",
+        "workstation_/_machine"
+      ]
+    },
+    "operator": {
+      "fieldname": "operator",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Operator",
+      "options": "Employee",
+      "default_value": null,
+      "user_input_synonyms": [
+        "operator",
+        "Operator"
+      ]
+    },
+    "from_time": {
+      "fieldname": "from_time",
+      "fieldtype": "Datetime",
+      "mandatory": true,
+      "label": "From Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Time",
+        "from_time",
+        "from time"
+      ]
+    },
+    "to_time": {
+      "fieldname": "to_time",
+      "fieldtype": "Datetime",
+      "mandatory": true,
+      "label": "To Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "To Time",
+        "to_time",
+        "to time"
+      ]
+    },
+    "downtime": {
+      "fieldname": "downtime",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Downtime",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Downtime",
+        "downtime"
+      ]
+    },
+    "stop_reason": {
+      "fieldname": "stop_reason",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Stop Reason",
+      "options": [
+        "Excessive machine set up time",
+        "Unplanned machine maintenance",
+        "On-machine press checks",
+        "Machine operator errors",
+        "Machine malfunction",
+        "Electricity down",
+        "Other"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "stop reason",
+        "Stop Reason",
+        "stop_reason"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    }
+  }
+}

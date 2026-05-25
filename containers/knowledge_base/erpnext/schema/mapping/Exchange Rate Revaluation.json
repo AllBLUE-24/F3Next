@@ -1,0 +1,111 @@
+{
+  "doctype_name": "Exchange Rate Revaluation",
+  "mandatory_fields": [
+    "posting_date",
+    "company",
+    "accounts"
+  ],
+  "doctype_classifier_hints": [
+    "exchange rate revaluation",
+    "exchange_rate_revaluation"
+  ],
+  "field_mappings": {
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "rounding_loss_allowance": {
+      "fieldname": "rounding_loss_allowance",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Rounding Loss Allowance",
+      "options": null,
+      "default_value": "0.05",
+      "user_input_synonyms": [
+        "Rounding Loss Allowance",
+        "rounding loss allowance",
+        "rounding_loss_allowance"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "gain_loss_unbooked": {
+      "fieldname": "gain_loss_unbooked",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Gain/Loss from Revaluation",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Gain/Loss from Revaluation",
+        "gain/loss from revaluation",
+        "gain loss unbooked",
+        "gain/loss_from_revaluation",
+        "gain_loss_unbooked"
+      ]
+    },
+    "gain_loss_booked": {
+      "fieldname": "gain_loss_booked",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Gain/Loss already booked",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "gain/loss already booked",
+        "gain loss booked",
+        "Gain/Loss already booked",
+        "gain_loss_booked",
+        "gain/loss_already_booked"
+      ]
+    },
+    "total_gain_loss": {
+      "fieldname": "total_gain_loss",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Gain/Loss",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Gain/Loss",
+        "total_gain/loss",
+        "total gain loss",
+        "total gain/loss",
+        "total_gain_loss"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Exchange Rate Revaluation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

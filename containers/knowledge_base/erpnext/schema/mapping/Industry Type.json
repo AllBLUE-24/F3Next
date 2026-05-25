@@ -1,0 +1,24 @@
+{
+  "doctype_name": "Industry Type",
+  "mandatory_fields": [
+    "industry"
+  ],
+  "doctype_classifier_hints": [
+    "industry type",
+    "industry_type"
+  ],
+  "field_mappings": {
+    "industry": {
+      "fieldname": "industry",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Industry",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Industry",
+        "industry"
+      ]
+    }
+  }
+}

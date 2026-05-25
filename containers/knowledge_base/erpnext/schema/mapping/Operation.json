@@ -1,0 +1,100 @@
+{
+  "doctype_name": "Operation",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "operation"
+  ],
+  "field_mappings": {
+    "workstation": {
+      "fieldname": "workstation",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Workstation",
+      "options": "Workstation",
+      "default_value": null,
+      "user_input_synonyms": [
+        "workstation",
+        "Default Workstation",
+        "default workstation",
+        "default_workstation"
+      ]
+    },
+    "is_corrective_operation": {
+      "fieldname": "is_corrective_operation",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Corrective Operation",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is corrective operation",
+        "is_corrective_operation",
+        "Is Corrective Operation"
+      ]
+    },
+    "create_job_card_based_on_batch_size": {
+      "fieldname": "create_job_card_based_on_batch_size",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Create Job Card based on Batch Size",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "create_job_card_based_on_batch_size",
+        "Create Job Card based on Batch Size",
+        "create job card based on batch size"
+      ]
+    },
+    "quality_inspection_template": {
+      "fieldname": "quality_inspection_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Quality Inspection Template",
+      "options": "Quality Inspection Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Quality Inspection Template",
+        "quality_inspection_template",
+        "quality inspection template"
+      ]
+    },
+    "batch_size": {
+      "fieldname": "batch_size",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Batch Size",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "batch size",
+        "Batch Size",
+        "batch_size"
+      ]
+    },
+    "total_operation_time": {
+      "fieldname": "total_operation_time",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Operation Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total operation time",
+        "Total Operation Time",
+        "total_operation_time"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

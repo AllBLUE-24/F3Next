@@ -1,0 +1,83 @@
+{
+  "doctype_name": "Supplier Scorecard Variable",
+  "mandatory_fields": [
+    "variable_label",
+    "is_custom",
+    "param_name",
+    "path"
+  ],
+  "doctype_classifier_hints": [
+    "supplier scorecard variable",
+    "supplier_scorecard_variable"
+  ],
+  "field_mappings": {
+    "variable_label": {
+      "fieldname": "variable_label",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Variable Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "variable_name",
+        "Variable Name",
+        "variable name",
+        "variable label",
+        "variable_label"
+      ]
+    },
+    "is_custom": {
+      "fieldname": "is_custom",
+      "fieldtype": "Check",
+      "mandatory": true,
+      "label": "Custom?",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "custom?",
+        "Custom?",
+        "is custom",
+        "is_custom"
+      ]
+    },
+    "param_name": {
+      "fieldname": "param_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Parameter Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "parameter name",
+        "parameter_name",
+        "param_name",
+        "param name",
+        "Parameter Name"
+      ]
+    },
+    "path": {
+      "fieldname": "path",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Path",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Path",
+        "path"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

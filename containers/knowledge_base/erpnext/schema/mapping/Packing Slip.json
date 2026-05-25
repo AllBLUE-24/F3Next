@@ -1,0 +1,157 @@
+{
+  "doctype_name": "Packing Slip",
+  "mandatory_fields": [
+    "delivery_note",
+    "naming_series",
+    "from_case_no",
+    "items"
+  ],
+  "doctype_classifier_hints": [
+    "packing slip",
+    "packing_slip"
+  ],
+  "field_mappings": {
+    "delivery_note": {
+      "fieldname": "delivery_note",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Delivery Note",
+      "options": "Delivery Note",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Delivery Note",
+        "delivery_note",
+        "delivery note"
+      ]
+    },
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MAT-PAC-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "from_case_no": {
+      "fieldname": "from_case_no",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "From Package No.",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "From Package No.",
+        "from_case_no",
+        "from package no.",
+        "from_package_no.",
+        "from case no"
+      ]
+    },
+    "to_case_no": {
+      "fieldname": "to_case_no",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "To Package No.",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "to case no",
+        "to_package_no.",
+        "to package no.",
+        "to_case_no",
+        "To Package No."
+      ]
+    },
+    "net_weight_pkg": {
+      "fieldname": "net_weight_pkg",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Net Weight",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Net Weight",
+        "net weight",
+        "net weight pkg",
+        "net_weight",
+        "net_weight_pkg"
+      ]
+    },
+    "net_weight_uom": {
+      "fieldname": "net_weight_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Net Weight UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "net_weight_uom",
+        "Net Weight UOM",
+        "net weight uom"
+      ]
+    },
+    "gross_weight_pkg": {
+      "fieldname": "gross_weight_pkg",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Gross Weight",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "gross weight",
+        "Gross Weight",
+        "gross weight pkg",
+        "gross_weight",
+        "gross_weight_pkg"
+      ]
+    },
+    "gross_weight_uom": {
+      "fieldname": "gross_weight_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Gross Weight UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "gross weight uom",
+        "Gross Weight UOM",
+        "gross_weight_uom"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Packing Slip",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

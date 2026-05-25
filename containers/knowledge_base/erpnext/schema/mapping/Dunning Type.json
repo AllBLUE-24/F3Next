@@ -1,0 +1,105 @@
+{
+  "doctype_name": "Dunning Type",
+  "mandatory_fields": [
+    "dunning_type",
+    "company"
+  ],
+  "doctype_classifier_hints": [
+    "dunning type",
+    "dunning_type"
+  ],
+  "field_mappings": {
+    "dunning_type": {
+      "fieldname": "dunning_type",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Dunning Type",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "dunning type",
+        "dunning_type",
+        "Dunning Type"
+      ]
+    },
+    "is_default": {
+      "fieldname": "is_default",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Default",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_default",
+        "Is Default",
+        "is default"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "dunning_fee": {
+      "fieldname": "dunning_fee",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Dunning Fee",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "dunning fee",
+        "Dunning Fee",
+        "dunning_fee"
+      ]
+    },
+    "rate_of_interest": {
+      "fieldname": "rate_of_interest",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Rate of Interest (%) Yearly",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "rate_of_interest_(%)_yearly",
+        "rate_of_interest",
+        "Rate of Interest (%) Yearly",
+        "rate of interest (%) yearly",
+        "rate of interest"
+      ]
+    },
+    "income_account": {
+      "fieldname": "income_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Income Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "income account",
+        "Income Account",
+        "income_account"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    }
+  }
+}

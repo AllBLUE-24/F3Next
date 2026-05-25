@@ -1,0 +1,168 @@
+{
+  "doctype_name": "Supplier Scorecard Standing",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "supplier scorecard standing",
+    "supplier_scorecard_standing"
+  ],
+  "field_mappings": {
+    "standing_name": {
+      "fieldname": "standing_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Standing Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Standing Name",
+        "standing_name",
+        "standing name"
+      ]
+    },
+    "standing_color": {
+      "fieldname": "standing_color",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Color",
+      "options": [
+        "Blue",
+        "Purple",
+        "Green",
+        "Yellow",
+        "Orange",
+        "Red"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "standing_color",
+        "standing color",
+        "color",
+        "Color"
+      ]
+    },
+    "min_grade": {
+      "fieldname": "min_grade",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Min Grade",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Min Grade",
+        "min grade",
+        "min_grade"
+      ]
+    },
+    "max_grade": {
+      "fieldname": "max_grade",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Max Grade",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "max grade",
+        "max_grade",
+        "Max Grade"
+      ]
+    },
+    "warn_rfqs": {
+      "fieldname": "warn_rfqs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Warn RFQs",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Warn RFQs",
+        "warn_rfqs",
+        "warn rfqs"
+      ]
+    },
+    "warn_pos": {
+      "fieldname": "warn_pos",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Warn Purchase Orders",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "warn_purchase_orders",
+        "warn purchase orders",
+        "warn_pos",
+        "Warn Purchase Orders",
+        "warn pos"
+      ]
+    },
+    "prevent_rfqs": {
+      "fieldname": "prevent_rfqs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prevent RFQs",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "prevent rfqs",
+        "Prevent RFQs",
+        "prevent_rfqs"
+      ]
+    },
+    "prevent_pos": {
+      "fieldname": "prevent_pos",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prevent Purchase Orders",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Prevent Purchase Orders",
+        "prevent_pos",
+        "prevent pos",
+        "prevent_purchase_orders",
+        "prevent purchase orders"
+      ]
+    },
+    "notify_supplier": {
+      "fieldname": "notify_supplier",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Notify Supplier",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Notify Supplier",
+        "notify supplier",
+        "notify_supplier"
+      ]
+    },
+    "notify_employee": {
+      "fieldname": "notify_employee",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Notify Other",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "notify other",
+        "notify_other",
+        "Notify Other",
+        "notify_employee",
+        "notify employee"
+      ]
+    },
+    "employee_link": {
+      "fieldname": "employee_link",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Other",
+      "options": "Employee",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Other",
+        "employee link",
+        "other",
+        "employee_link"
+      ]
+    }
+  }
+}

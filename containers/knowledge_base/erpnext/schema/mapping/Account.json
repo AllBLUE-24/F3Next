@@ -1,0 +1,280 @@
+{
+  "doctype_name": "Account",
+  "mandatory_fields": [
+    "account_name",
+    "company",
+    "parent_account"
+  ],
+  "doctype_classifier_hints": [
+    "account"
+  ],
+  "field_mappings": {
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disable",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "disable",
+        "Disable"
+      ]
+    },
+    "account_name": {
+      "fieldname": "account_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Account Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "account_name",
+        "Account Name",
+        "account name"
+      ]
+    },
+    "account_number": {
+      "fieldname": "account_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Account Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "account_number",
+        "account number",
+        "Account Number"
+      ]
+    },
+    "is_group": {
+      "fieldname": "is_group",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Group",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Group",
+        "is_group",
+        "is group"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "root_type": {
+      "fieldname": "root_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Root Type",
+      "options": [
+        "Asset",
+        "Liability",
+        "Income",
+        "Expense",
+        "Equity"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "root type",
+        "root_type",
+        "Root Type"
+      ]
+    },
+    "report_type": {
+      "fieldname": "report_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Report Type",
+      "options": [
+        "Balance Sheet",
+        "Profit and Loss"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "report_type",
+        "Report Type",
+        "report type"
+      ]
+    },
+    "account_currency": {
+      "fieldname": "account_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "account currency",
+        "account_currency",
+        "currency"
+      ]
+    },
+    "parent_account": {
+      "fieldname": "parent_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Parent Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "parent_account",
+        "parent account",
+        "Parent Account"
+      ]
+    },
+    "account_type": {
+      "fieldname": "account_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Account Type",
+      "options": [
+        "Accumulated Depreciation",
+        "Asset Received But Not Billed",
+        "Bank",
+        "Cash",
+        "Chargeable",
+        "Capital Work in Progress",
+        "Cost of Goods Sold",
+        "Current Asset",
+        "Current Liability",
+        "Depreciation",
+        "Direct Expense",
+        "Direct Income",
+        "Equity",
+        "Expense Account",
+        "Expenses Included In Asset Valuation",
+        "Expenses Included In Valuation",
+        "Fixed Asset",
+        "Income Account",
+        "Indirect Expense",
+        "Indirect Income",
+        "Liability",
+        "Payable",
+        "Receivable",
+        "Round Off",
+        "Round Off for Opening",
+        "Stock",
+        "Stock Adjustment",
+        "Stock Received But Not Billed",
+        "Service Received But Not Billed",
+        "Tax",
+        "Temporary"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Type",
+        "account type",
+        "account_type"
+      ]
+    },
+    "tax_rate": {
+      "fieldname": "tax_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Tax Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "tax_rate",
+        "tax rate",
+        "Tax Rate"
+      ]
+    },
+    "freeze_account": {
+      "fieldname": "freeze_account",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Frozen",
+      "options": [
+        "No",
+        "Yes"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "freeze account",
+        "freeze_account",
+        "Frozen",
+        "frozen"
+      ]
+    },
+    "balance_must_be": {
+      "fieldname": "balance_must_be",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Balance must be",
+      "options": [
+        "Debit",
+        "Credit"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "balance_must_be",
+        "Balance must be",
+        "balance must be"
+      ]
+    },
+    "lft": {
+      "fieldname": "lft",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Lft",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "lft",
+        "Lft"
+      ]
+    },
+    "rgt": {
+      "fieldname": "rgt",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Rgt",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "rgt",
+        "Rgt"
+      ]
+    },
+    "old_parent": {
+      "fieldname": "old_parent",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Old Parent",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Old Parent",
+        "old_parent",
+        "old parent"
+      ]
+    },
+    "include_in_gross": {
+      "fieldname": "include_in_gross",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include in gross",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "include_in_gross",
+        "include in gross",
+        "Include in gross"
+      ]
+    }
+  }
+}

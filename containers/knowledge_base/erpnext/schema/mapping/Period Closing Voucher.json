@@ -1,0 +1,152 @@
+{
+  "doctype_name": "Period Closing Voucher",
+  "mandatory_fields": [
+    "company",
+    "fiscal_year",
+    "period_start_date",
+    "period_end_date",
+    "closing_account_head",
+    "remarks"
+  ],
+  "doctype_classifier_hints": [
+    "period closing voucher",
+    "period_closing_voucher"
+  ],
+  "field_mappings": {
+    "transaction_date": {
+      "fieldname": "transaction_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Transaction Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "transaction date",
+        "Transaction Date",
+        "transaction_date"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "fiscal_year": {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Fiscal Year",
+      "options": "Fiscal Year",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Fiscal Year",
+        "fiscal year",
+        "fiscal_year"
+      ]
+    },
+    "period_start_date": {
+      "fieldname": "period_start_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Period Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Period Start Date",
+        "period_start_date",
+        "period start date"
+      ]
+    },
+    "period_end_date": {
+      "fieldname": "period_end_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Period End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "period end date",
+        "Period End Date",
+        "period_end_date"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Period Closing Voucher",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "closing_account_head": {
+      "fieldname": "closing_account_head",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Closing Account Head",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "closing_account_head",
+        "Closing Account Head",
+        "closing account head"
+      ]
+    },
+    "gle_processing_status": {
+      "fieldname": "gle_processing_status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "GL Entry Processing Status",
+      "options": [
+        "In Progress",
+        "Completed",
+        "Failed"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "gl entry processing status",
+        "gle processing status",
+        "gl_entry_processing_status",
+        "gle_processing_status",
+        "GL Entry Processing Status"
+      ]
+    },
+    "remarks": {
+      "fieldname": "remarks",
+      "fieldtype": "Small Text",
+      "mandatory": true,
+      "label": "Remarks",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Remarks",
+        "remarks"
+      ]
+    },
+    "error_message": {
+      "fieldname": "error_message",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Error Message",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "error_message",
+        "error message",
+        "Error Message"
+      ]
+    }
+  },
+  "is_submittable": true
+}

@@ -1,0 +1,372 @@
+{
+  "doctype_name": "Cheque Print Template",
+  "mandatory_fields": [
+    "bank_name"
+  ],
+  "doctype_classifier_hints": [
+    "cheque print template",
+    "cheque_print_template"
+  ],
+  "field_mappings": {
+    "has_print_format": {
+      "fieldname": "has_print_format",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Print Format",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "has print format",
+        "has_print_format",
+        "Has Print Format"
+      ]
+    },
+    "bank_name": {
+      "fieldname": "bank_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Bank Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank name",
+        "bank_name",
+        "Bank Name"
+      ]
+    },
+    "cheque_size": {
+      "fieldname": "cheque_size",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Cheque Size",
+      "options": [
+        "Regular",
+        "A4"
+      ],
+      "default_value": "Regular",
+      "user_input_synonyms": [
+        "Cheque Size",
+        "cheque_size",
+        "cheque size"
+      ]
+    },
+    "starting_position_from_top_edge": {
+      "fieldname": "starting_position_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting position from top edge",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "starting_position_from_top_edge",
+        "Starting position from top edge",
+        "starting position from top edge"
+      ]
+    },
+    "cheque_width": {
+      "fieldname": "cheque_width",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Cheque Width",
+      "options": null,
+      "default_value": "20.00",
+      "user_input_synonyms": [
+        "cheque_width",
+        "Cheque Width",
+        "cheque width"
+      ]
+    },
+    "cheque_height": {
+      "fieldname": "cheque_height",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Cheque Height",
+      "options": null,
+      "default_value": "9.00",
+      "user_input_synonyms": [
+        "cheque_height",
+        "Cheque Height",
+        "cheque height"
+      ]
+    },
+    "scanned_cheque": {
+      "fieldname": "scanned_cheque",
+      "fieldtype": "Attach",
+      "mandatory": false,
+      "label": "Scanned Cheque",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Scanned Cheque",
+        "scanned_cheque",
+        "scanned cheque"
+      ]
+    },
+    "is_account_payable": {
+      "fieldname": "is_account_payable",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Account Payable",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "is account payable",
+        "Is Account Payable",
+        "is_account_payable"
+      ]
+    },
+    "acc_pay_dist_from_top_edge": {
+      "fieldname": "acc_pay_dist_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "1.00",
+      "user_input_synonyms": [
+        "acc pay dist from top edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge",
+        "acc_pay_dist_from_top_edge"
+      ]
+    },
+    "acc_pay_dist_from_left_edge": {
+      "fieldname": "acc_pay_dist_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from left edge",
+      "options": null,
+      "default_value": "9.00",
+      "user_input_synonyms": [
+        "Distance from left edge",
+        "acc pay dist from left edge",
+        "distance from left edge",
+        "acc_pay_dist_from_left_edge",
+        "distance_from_left_edge"
+      ]
+    },
+    "message_to_show": {
+      "fieldname": "message_to_show",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Message to show",
+      "options": null,
+      "default_value": "Acc. Payee",
+      "user_input_synonyms": [
+        "message_to_show",
+        "Message to show",
+        "message to show"
+      ]
+    },
+    "date_dist_from_top_edge": {
+      "fieldname": "date_dist_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "1.00",
+      "user_input_synonyms": [
+        "date_dist_from_top_edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge",
+        "date dist from top edge"
+      ]
+    },
+    "date_dist_from_left_edge": {
+      "fieldname": "date_dist_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting location from left edge",
+      "options": null,
+      "default_value": "15.00",
+      "user_input_synonyms": [
+        "starting_location_from_left_edge",
+        "date_dist_from_left_edge",
+        "starting location from left edge",
+        "Starting location from left edge",
+        "date dist from left edge"
+      ]
+    },
+    "payer_name_from_top_edge": {
+      "fieldname": "payer_name_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "2.00",
+      "user_input_synonyms": [
+        "payer name from top edge",
+        "payer_name_from_top_edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge"
+      ]
+    },
+    "payer_name_from_left_edge": {
+      "fieldname": "payer_name_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting location from left edge",
+      "options": null,
+      "default_value": "3.00",
+      "user_input_synonyms": [
+        "starting_location_from_left_edge",
+        "starting location from left edge",
+        "Starting location from left edge",
+        "payer name from left edge",
+        "payer_name_from_left_edge"
+      ]
+    },
+    "amt_in_words_from_top_edge": {
+      "fieldname": "amt_in_words_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "3.00",
+      "user_input_synonyms": [
+        "amt in words from top edge",
+        "amt_in_words_from_top_edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge"
+      ]
+    },
+    "amt_in_words_from_left_edge": {
+      "fieldname": "amt_in_words_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting location from left edge",
+      "options": null,
+      "default_value": "4.00",
+      "user_input_synonyms": [
+        "starting_location_from_left_edge",
+        "amt in words from left edge",
+        "starting location from left edge",
+        "Starting location from left edge",
+        "amt_in_words_from_left_edge"
+      ]
+    },
+    "amt_in_word_width": {
+      "fieldname": "amt_in_word_width",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Width of amount in word",
+      "options": null,
+      "default_value": "15.00",
+      "user_input_synonyms": [
+        "amt in word width",
+        "Width of amount in word",
+        "width_of_amount_in_word",
+        "width of amount in word",
+        "amt_in_word_width"
+      ]
+    },
+    "amt_in_words_line_spacing": {
+      "fieldname": "amt_in_words_line_spacing",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Line spacing for amount in words",
+      "options": null,
+      "default_value": "0.50",
+      "user_input_synonyms": [
+        "line_spacing_for_amount_in_words",
+        "Line spacing for amount in words",
+        "amt_in_words_line_spacing",
+        "amt in words line spacing",
+        "line spacing for amount in words"
+      ]
+    },
+    "amt_in_figures_from_top_edge": {
+      "fieldname": "amt_in_figures_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "3.50",
+      "user_input_synonyms": [
+        "amt_in_figures_from_top_edge",
+        "amt in figures from top edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge"
+      ]
+    },
+    "amt_in_figures_from_left_edge": {
+      "fieldname": "amt_in_figures_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting location from left edge",
+      "options": null,
+      "default_value": "16.00",
+      "user_input_synonyms": [
+        "starting_location_from_left_edge",
+        "amt_in_figures_from_left_edge",
+        "amt in figures from left edge",
+        "Starting location from left edge",
+        "starting location from left edge"
+      ]
+    },
+    "acc_no_dist_from_top_edge": {
+      "fieldname": "acc_no_dist_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "5.00",
+      "user_input_synonyms": [
+        "acc no dist from top edge",
+        "acc_no_dist_from_top_edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge"
+      ]
+    },
+    "acc_no_dist_from_left_edge": {
+      "fieldname": "acc_no_dist_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting location from left edge",
+      "options": null,
+      "default_value": "4.00",
+      "user_input_synonyms": [
+        "starting_location_from_left_edge",
+        "starting location from left edge",
+        "Starting location from left edge",
+        "acc_no_dist_from_left_edge",
+        "acc no dist from left edge"
+      ]
+    },
+    "signatory_from_top_edge": {
+      "fieldname": "signatory_from_top_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Distance from top edge",
+      "options": null,
+      "default_value": "6.00",
+      "user_input_synonyms": [
+        "signatory_from_top_edge",
+        "Distance from top edge",
+        "distance_from_top_edge",
+        "distance from top edge",
+        "signatory from top edge"
+      ]
+    },
+    "signatory_from_left_edge": {
+      "fieldname": "signatory_from_left_edge",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Starting location from left edge",
+      "options": null,
+      "default_value": "15.00",
+      "user_input_synonyms": [
+        "starting_location_from_left_edge",
+        "starting location from left edge",
+        "Starting location from left edge",
+        "signatory_from_left_edge",
+        "signatory from left edge"
+      ]
+    }
+  }
+}

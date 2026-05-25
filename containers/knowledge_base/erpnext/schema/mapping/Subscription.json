@@ -1,0 +1,359 @@
+{
+  "doctype_name": "Subscription",
+  "mandatory_fields": [
+    "party_type",
+    "party",
+    "generate_invoice_at",
+    "plans"
+  ],
+  "doctype_classifier_hints": [
+    "subscription"
+  ],
+  "field_mappings": {
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Party Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Type",
+        "party type",
+        "party_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": true,
+      "label": "Party",
+      "options": "party_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "Party"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Trialling",
+        "Active",
+        "Past Due Date",
+        "Cancelled",
+        "Unpaid",
+        "Completed"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "start_date": {
+      "fieldname": "start_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Subscription Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "start_date",
+        "Subscription Start Date",
+        "subscription start date",
+        "subscription_start_date",
+        "start date"
+      ]
+    },
+    "end_date": {
+      "fieldname": "end_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Subscription End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "end_date",
+        "end date",
+        "subscription end date",
+        "Subscription End Date",
+        "subscription_end_date"
+      ]
+    },
+    "cancelation_date": {
+      "fieldname": "cancelation_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Cancelation Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "cancelation date",
+        "Cancelation Date",
+        "cancelation_date"
+      ]
+    },
+    "trial_period_start": {
+      "fieldname": "trial_period_start",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Trial Period Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "trial period start",
+        "trial_period_start_date",
+        "Trial Period Start Date",
+        "trial period start date",
+        "trial_period_start"
+      ]
+    },
+    "trial_period_end": {
+      "fieldname": "trial_period_end",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Trial Period End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "trial period end",
+        "trial period end date",
+        "Trial Period End Date",
+        "trial_period_end_date",
+        "trial_period_end"
+      ]
+    },
+    "follow_calendar_months": {
+      "fieldname": "follow_calendar_months",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Follow Calendar Months",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Follow Calendar Months",
+        "follow_calendar_months",
+        "follow calendar months"
+      ]
+    },
+    "generate_new_invoices_past_due_date": {
+      "fieldname": "generate_new_invoices_past_due_date",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Generate New Invoices Past Due Date",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Generate New Invoices Past Due Date",
+        "generate_new_invoices_past_due_date",
+        "generate new invoices past due date"
+      ]
+    },
+    "submit_invoice": {
+      "fieldname": "submit_invoice",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Submit Generated Invoices",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "submit_generated_invoices",
+        "submit generated invoices",
+        "submit_invoice",
+        "submit invoice",
+        "Submit Generated Invoices"
+      ]
+    },
+    "current_invoice_start": {
+      "fieldname": "current_invoice_start",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Current Invoice Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "current_invoice_start",
+        "Current Invoice Start Date",
+        "current invoice start",
+        "current invoice start date",
+        "current_invoice_start_date"
+      ]
+    },
+    "current_invoice_end": {
+      "fieldname": "current_invoice_end",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Current Invoice End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "current invoice end date",
+        "current_invoice_end",
+        "current invoice end",
+        "current_invoice_end_date",
+        "Current Invoice End Date"
+      ]
+    },
+    "days_until_due": {
+      "fieldname": "days_until_due",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Days Until Due",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "days until due",
+        "Days Until Due",
+        "days_until_due"
+      ]
+    },
+    "generate_invoice_at": {
+      "fieldname": "generate_invoice_at",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Generate Invoice At",
+      "options": [
+        "End of the current subscription period",
+        "Beginning of the current subscription period",
+        "Days before the current subscription period"
+      ],
+      "default_value": "End of the current subscription period",
+      "user_input_synonyms": [
+        "generate invoice at",
+        "Generate Invoice At",
+        "generate_invoice_at"
+      ]
+    },
+    "number_of_days": {
+      "fieldname": "number_of_days",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Number of Days",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "number of days",
+        "Number of Days",
+        "number_of_days"
+      ]
+    },
+    "cancel_at_period_end": {
+      "fieldname": "cancel_at_period_end",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Cancel At End Of Period",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "cancel_at_period_end",
+        "Cancel At End Of Period",
+        "cancel at period end",
+        "cancel_at_end_of_period",
+        "cancel at end of period"
+      ]
+    },
+    "sales_tax_template": {
+      "fieldname": "sales_tax_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Taxes and Charges Template",
+      "options": "Sales Taxes and Charges Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales taxes and charges template",
+        "sales tax template",
+        "sales_tax_template",
+        "Sales Taxes and Charges Template",
+        "sales_taxes_and_charges_template"
+      ]
+    },
+    "purchase_tax_template": {
+      "fieldname": "purchase_tax_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Purchase Taxes and Charges Template",
+      "options": "Purchase Taxes and Charges Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "purchase tax template",
+        "Purchase Taxes and Charges Template",
+        "purchase taxes and charges template",
+        "purchase_taxes_and_charges_template",
+        "purchase_tax_template"
+      ]
+    },
+    "apply_additional_discount": {
+      "fieldname": "apply_additional_discount",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Apply Additional Discount On",
+      "options": [
+        "Grand Total",
+        "Net Total"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Apply Additional Discount On",
+        "apply_additional_discount_on",
+        "apply_additional_discount",
+        "apply additional discount",
+        "apply additional discount on"
+      ]
+    },
+    "additional_discount_percentage": {
+      "fieldname": "additional_discount_percentage",
+      "fieldtype": "Percent",
+      "mandatory": false,
+      "label": "Additional Discount Percentage",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "additional_discount_percentage",
+        "Additional Discount Percentage",
+        "additional discount percentage"
+      ]
+    },
+    "additional_discount_amount": {
+      "fieldname": "additional_discount_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Additional Discount Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Additional Discount Amount",
+        "additional_discount_amount",
+        "additional discount amount"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    }
+  }
+}

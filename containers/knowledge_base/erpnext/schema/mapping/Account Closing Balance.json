@@ -1,0 +1,182 @@
+{
+  "doctype_name": "Account Closing Balance",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "account closing balance",
+    "account_closing_balance"
+  ],
+  "field_mappings": {
+    "closing_date": {
+      "fieldname": "closing_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Closing Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "closing date",
+        "closing_date",
+        "Closing Date"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "debit": {
+      "fieldname": "debit",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Debit Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Debit Amount",
+        "debit_amount",
+        "debit amount",
+        "debit"
+      ]
+    },
+    "credit": {
+      "fieldname": "credit",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Credit Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "credit_amount",
+        "Credit Amount",
+        "credit",
+        "credit amount"
+      ]
+    },
+    "account_currency": {
+      "fieldname": "account_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Currency",
+        "account currency",
+        "account_currency"
+      ]
+    },
+    "debit_in_account_currency": {
+      "fieldname": "debit_in_account_currency",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Debit Amount in Account Currency",
+      "options": "account_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "debit_amount_in_account_currency",
+        "Debit Amount in Account Currency",
+        "debit in account currency",
+        "debit_in_account_currency",
+        "debit amount in account currency"
+      ]
+    },
+    "credit_in_account_currency": {
+      "fieldname": "credit_in_account_currency",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Credit Amount in Account Currency",
+      "options": "account_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "credit amount in account currency",
+        "credit_amount_in_account_currency",
+        "credit in account currency",
+        "credit_in_account_currency",
+        "Credit Amount in Account Currency"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "finance_book": {
+      "fieldname": "finance_book",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Finance Book",
+      "options": "Finance Book",
+      "default_value": null,
+      "user_input_synonyms": [
+        "finance_book",
+        "finance book",
+        "Finance Book"
+      ]
+    },
+    "period_closing_voucher": {
+      "fieldname": "period_closing_voucher",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Period Closing Voucher",
+      "options": "Period Closing Voucher",
+      "default_value": null,
+      "user_input_synonyms": [
+        "period_closing_voucher",
+        "Period Closing Voucher",
+        "period closing voucher"
+      ]
+    },
+    "is_period_closing_voucher_entry": {
+      "fieldname": "is_period_closing_voucher_entry",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Period Closing Voucher Entry",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Period Closing Voucher Entry",
+        "is_period_closing_voucher_entry",
+        "is period closing voucher entry"
+      ]
+    }
+  }
+}

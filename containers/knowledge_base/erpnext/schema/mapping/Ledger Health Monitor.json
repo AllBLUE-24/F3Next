@@ -1,0 +1,70 @@
+{
+  "doctype_name": "Ledger Health Monitor",
+  "mandatory_fields": [
+    "monitor_for_last_x_days"
+  ],
+  "doctype_classifier_hints": [
+    "ledger health monitor",
+    "ledger_health_monitor"
+  ],
+  "field_mappings": {
+    "enable_health_monitor": {
+      "fieldname": "enable_health_monitor",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Enable Health Monitor",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "enable health monitor",
+        "enable_health_monitor",
+        "Enable Health Monitor"
+      ]
+    },
+    "monitor_for_last_x_days": {
+      "fieldname": "monitor_for_last_x_days",
+      "fieldtype": "Int",
+      "mandatory": true,
+      "label": "Monitor for Last 'X' days",
+      "options": null,
+      "default_value": "60",
+      "user_input_synonyms": [
+        "monitor for last 'x' days",
+        "monitor_for_last_x_days",
+        "monitor for last x days",
+        "monitor_for_last_'x'_days",
+        "Monitor for Last 'X' days"
+      ]
+    },
+    "debit_credit_mismatch": {
+      "fieldname": "debit_credit_mismatch",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Debit-Credit Mismatch",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "debit-credit mismatch",
+        "Debit-Credit Mismatch",
+        "debit-credit_mismatch",
+        "debit_credit_mismatch",
+        "debit credit mismatch"
+      ]
+    },
+    "general_and_payment_ledger_mismatch": {
+      "fieldname": "general_and_payment_ledger_mismatch",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Discrepancy between General and Payment Ledger",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "general and payment ledger mismatch",
+        "Discrepancy between General and Payment Ledger",
+        "general_and_payment_ledger_mismatch",
+        "discrepancy between general and payment ledger",
+        "discrepancy_between_general_and_payment_ledger"
+      ]
+    }
+  }
+}

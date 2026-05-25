@@ -1,0 +1,333 @@
+{
+  "doctype_name": "Bank Guarantee",
+  "mandatory_fields": [
+    "bg_type",
+    "amount",
+    "start_date"
+  ],
+  "doctype_classifier_hints": [
+    "bank guarantee",
+    "bank_guarantee"
+  ],
+  "field_mappings": {
+    "bg_type": {
+      "fieldname": "bg_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Bank Guarantee Type",
+      "options": [
+        "Receiving",
+        "Providing"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank_guarantee_type",
+        "bg type",
+        "bank guarantee type",
+        "bg_type",
+        "Bank Guarantee Type"
+      ]
+    },
+    "reference_doctype": {
+      "fieldname": "reference_doctype",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Reference Document Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference_document_type",
+        "reference doctype",
+        "reference_doctype",
+        "reference document type",
+        "Reference Document Type"
+      ]
+    },
+    "reference_docname": {
+      "fieldname": "reference_docname",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Reference Document Name",
+      "options": "reference_doctype",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Reference Document Name",
+        "reference docname",
+        "reference document name",
+        "reference_docname",
+        "reference_document_name"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "supplier": {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier",
+      "options": "Supplier",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier",
+        "Supplier"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "amount": {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "mandatory": true,
+      "label": "Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amount",
+        "amount"
+      ]
+    },
+    "start_date": {
+      "fieldname": "start_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "start_date",
+        "Start Date",
+        "start date"
+      ]
+    },
+    "validity": {
+      "fieldname": "validity",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Validity in Days",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "validity_in_days",
+        "validity",
+        "validity in days",
+        "Validity in Days"
+      ]
+    },
+    "end_date": {
+      "fieldname": "end_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "End Date",
+        "end_date",
+        "end date"
+      ]
+    },
+    "bank": {
+      "fieldname": "bank",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank",
+      "options": "Bank",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank",
+        "Bank"
+      ]
+    },
+    "bank_account": {
+      "fieldname": "bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account",
+        "bank_account",
+        "bank account"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account",
+        "account"
+      ]
+    },
+    "bank_account_no": {
+      "fieldname": "bank_account_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Bank Account No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account No",
+        "bank_account_no",
+        "bank account no"
+      ]
+    },
+    "iban": {
+      "fieldname": "iban",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "IBAN",
+      "options": "IBAN",
+      "default_value": null,
+      "user_input_synonyms": [
+        "iban",
+        "IBAN"
+      ]
+    },
+    "branch_code": {
+      "fieldname": "branch_code",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Branch Code",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "branch_code",
+        "branch code",
+        "Branch Code"
+      ]
+    },
+    "swift_number": {
+      "fieldname": "swift_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "SWIFT number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "SWIFT number",
+        "swift_number",
+        "swift number"
+      ]
+    },
+    "more_information": {
+      "fieldname": "more_information",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Clauses and Conditions",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "more_information",
+        "clauses and conditions",
+        "more information",
+        "clauses_and_conditions",
+        "Clauses and Conditions"
+      ]
+    },
+    "bank_guarantee_number": {
+      "fieldname": "bank_guarantee_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Bank Guarantee Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank guarantee number",
+        "bank_guarantee_number",
+        "Bank Guarantee Number"
+      ]
+    },
+    "name_of_beneficiary": {
+      "fieldname": "name_of_beneficiary",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Name of Beneficiary",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "name of beneficiary",
+        "name_of_beneficiary",
+        "Name of Beneficiary"
+      ]
+    },
+    "margin_money": {
+      "fieldname": "margin_money",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Margin Money",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Margin Money",
+        "margin_money",
+        "margin money"
+      ]
+    },
+    "charges": {
+      "fieldname": "charges",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Charges Incurred",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "charges_incurred",
+        "Charges Incurred",
+        "charges incurred",
+        "charges"
+      ]
+    },
+    "fixed_deposit_number": {
+      "fieldname": "fixed_deposit_number",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Fixed Deposit Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "fixed deposit number",
+        "fixed_deposit_number",
+        "Fixed Deposit Number"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Bank Guarantee",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

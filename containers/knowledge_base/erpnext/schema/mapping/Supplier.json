@@ -1,57 +1,501 @@
 {
   "doctype_name": "Supplier",
-  "naming_series": "SUP-",
   "mandatory_fields": [
     "supplier_name",
-    "supplier_group"
+    "supplier_type"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "supplier"
   ],
   "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Series",
+      "options": [
+        "SUP-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
     "supplier_name": {
       "fieldname": "supplier_name",
       "fieldtype": "Data",
       "mandatory": true,
+      "label": "Supplier Name",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "vendor_name",
         "seller_name",
         "entity name",
         "company name",
         "name",
-        "party_name"
-      ]
-    },
-    "supplier_group": {
-      "fieldname": "supplier_group",
-      "fieldtype": "Link",
-      "options": "Supplier Group",
-      "mandatory": true,
-      "default_value": "All Supplier Groups",
-      "user_input_synonyms": [
-        "vendor_group",
-        "supplier_category",
-        "category",
-        "party_group"
-      ]
-    },
-    "supplier_type": {
-      "fieldname": "supplier_type",
-      "fieldtype": "Select",
-      "options": [
-        "Company",
-        "Individual"
-      ],
-      "mandatory": false,
-      "default_value": "Company",
-      "user_input_synonyms": [
-        "vendor_type",
-        "supplier_type"
+        "party_name",
+        "Supplier Name",
+        "supplier_name",
+        "supplier name"
       ]
     },
     "country": {
       "fieldname": "country",
       "fieldtype": "Link",
-      "options": "Country",
       "mandatory": false,
-      "default_value": "India"
+      "label": "Country",
+      "options": "Country",
+      "default_value": "India",
+      "user_input_synonyms": [
+        "country",
+        "Country"
+      ]
+    },
+    "supplier_group": {
+      "fieldname": "supplier_group",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Supplier Group",
+      "options": "Supplier Group",
+      "default_value": "All Supplier Groups",
+      "user_input_synonyms": [
+        "vendor_group",
+        "supplier_category",
+        "category",
+        "party_group",
+        "supplier_group",
+        "Supplier Group",
+        "supplier group"
+      ]
+    },
+    "supplier_type": {
+      "fieldname": "supplier_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Supplier Type",
+      "options": [
+        "Company",
+        "Individual",
+        "Partnership"
+      ],
+      "default_value": "Company",
+      "user_input_synonyms": [
+        "vendor_type",
+        "supplier_type",
+        "Supplier Type",
+        "supplier type"
+      ]
+    },
+    "is_transporter": {
+      "fieldname": "is_transporter",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Transporter",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is transporter",
+        "Is Transporter",
+        "is_transporter"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Image",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "image",
+        "Image"
+      ]
+    },
+    "default_currency": {
+      "fieldname": "default_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Billing Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Billing Currency",
+        "default currency",
+        "billing currency",
+        "billing_currency",
+        "default_currency"
+      ]
+    },
+    "default_bank_account": {
+      "fieldname": "default_bank_account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Company Bank Account",
+      "options": "Bank Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_bank_account",
+        "default company bank account",
+        "default bank account",
+        "Default Company Bank Account",
+        "default_company_bank_account"
+      ]
+    },
+    "default_price_list": {
+      "fieldname": "default_price_list",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Price List",
+      "options": "Price List",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_price_list",
+        "price list",
+        "Price List",
+        "price_list",
+        "default price list"
+      ]
+    },
+    "is_internal_supplier": {
+      "fieldname": "is_internal_supplier",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Internal Supplier",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Internal Supplier",
+        "is_internal_supplier",
+        "is internal supplier"
+      ]
+    },
+    "represents_company": {
+      "fieldname": "represents_company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Represents Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "represents company",
+        "Represents Company",
+        "represents_company"
+      ]
+    },
+    "supplier_details": {
+      "fieldname": "supplier_details",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Supplier Details",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_details",
+        "supplier details",
+        "Supplier Details"
+      ]
+    },
+    "website": {
+      "fieldname": "website",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Website",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Website",
+        "website"
+      ]
+    },
+    "language": {
+      "fieldname": "language",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Language",
+      "options": "Language",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_language",
+        "print language",
+        "Print Language",
+        "language"
+      ]
+    },
+    "tax_id": {
+      "fieldname": "tax_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Tax ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "tax_id",
+        "tax id",
+        "Tax ID"
+      ]
+    },
+    "tax_category": {
+      "fieldname": "tax_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Category",
+      "options": "Tax Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Category",
+        "tax_category",
+        "tax category"
+      ]
+    },
+    "tax_withholding_category": {
+      "fieldname": "tax_withholding_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Withholding Category",
+      "options": "Tax Withholding Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Withholding Category",
+        "tax withholding category",
+        "tax_withholding_category"
+      ]
+    },
+    "supplier_primary_address": {
+      "fieldname": "supplier_primary_address",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier Primary Address",
+      "options": "Address",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier primary address",
+        "Supplier Primary Address",
+        "supplier_primary_address"
+      ]
+    },
+    "primary_address": {
+      "fieldname": "primary_address",
+      "fieldtype": "Text",
+      "mandatory": false,
+      "label": "Primary Address",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "primary_address",
+        "primary address",
+        "Primary Address"
+      ]
+    },
+    "supplier_primary_contact": {
+      "fieldname": "supplier_primary_contact",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Supplier Primary Contact",
+      "options": "Contact",
+      "default_value": null,
+      "user_input_synonyms": [
+        "supplier_primary_contact",
+        "Supplier Primary Contact",
+        "supplier primary contact"
+      ]
+    },
+    "mobile_no": {
+      "fieldname": "mobile_no",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Mobile No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Mobile No",
+        "mobile no",
+        "mobile_no"
+      ]
+    },
+    "email_id": {
+      "fieldname": "email_id",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Email Id",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "email id",
+        "email_id",
+        "Email Id"
+      ]
+    },
+    "payment_terms": {
+      "fieldname": "payment_terms",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Payment Terms Template",
+      "options": "Payment Terms Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "payment_terms",
+        "credit_terms",
+        "terms",
+        "payment_terms_template",
+        "default_payment_terms",
+        "payment terms",
+        "default_payment_terms_template",
+        "Default Payment Terms Template",
+        "default payment terms template"
+      ]
+    },
+    "allow_purchase_invoice_creation_without_purchase_order": {
+      "fieldname": "allow_purchase_invoice_creation_without_purchase_order",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Purchase Invoice Creation Without Purchase Order",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow purchase invoice creation without purchase order",
+        "allow_purchase_invoice_creation_without_purchase_order",
+        "Allow Purchase Invoice Creation Without Purchase Order"
+      ]
+    },
+    "allow_purchase_invoice_creation_without_purchase_receipt": {
+      "fieldname": "allow_purchase_invoice_creation_without_purchase_receipt",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Purchase Invoice Creation Without Purchase Receipt",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow purchase invoice creation without purchase receipt",
+        "Allow Purchase Invoice Creation Without Purchase Receipt",
+        "allow_purchase_invoice_creation_without_purchase_receipt"
+      ]
+    },
+    "is_frozen": {
+      "fieldname": "is_frozen",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Frozen",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is frozen",
+        "Is Frozen",
+        "is_frozen"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "warn_rfqs": {
+      "fieldname": "warn_rfqs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Warn RFQs",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Warn RFQs",
+        "warn_rfqs",
+        "warn rfqs"
+      ]
+    },
+    "warn_pos": {
+      "fieldname": "warn_pos",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Warn POs",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Warn POs",
+        "warn_pos",
+        "warn pos"
+      ]
+    },
+    "prevent_rfqs": {
+      "fieldname": "prevent_rfqs",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prevent RFQs",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "prevent rfqs",
+        "Prevent RFQs",
+        "prevent_rfqs"
+      ]
+    },
+    "prevent_pos": {
+      "fieldname": "prevent_pos",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Prevent POs",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Prevent POs",
+        "prevent pos",
+        "prevent_pos"
+      ]
+    },
+    "on_hold": {
+      "fieldname": "on_hold",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Block Supplier",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "on hold",
+        "block supplier",
+        "on_hold",
+        "block_supplier",
+        "Block Supplier"
+      ]
+    },
+    "hold_type": {
+      "fieldname": "hold_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Hold Type",
+      "options": [
+        "All",
+        "Invoices",
+        "Payments"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "hold type",
+        "Hold Type",
+        "hold_type"
+      ]
+    },
+    "release_date": {
+      "fieldname": "release_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Release Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "release date",
+        "Release Date",
+        "release_date"
+      ]
     },
     "gstin": {
       "fieldname": "gstin",
@@ -76,19 +520,6 @@
       ],
       "mandatory": false,
       "default_value": "Unregistered"
-    },
-    "payment_terms": {
-      "fieldname": "payment_terms",
-      "fieldtype": "Link",
-      "options": "Payment Terms Template",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "payment_terms",
-        "credit_terms",
-        "terms",
-        "payment_terms_template",
-        "default_payment_terms"
-      ]
     },
     "contact_person": {
       "fieldname": "supplier_primary_contact",
@@ -122,5 +553,6 @@
         "cell"
       ]
     }
-  }
+  },
+  "naming_series": "SUP-"
 }

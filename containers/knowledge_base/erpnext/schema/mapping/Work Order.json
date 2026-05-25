@@ -1,13 +1,720 @@
 {
   "doctype_name": "Work Order",
-  "naming_series": "WO-",
   "mandatory_fields": [
+    "naming_series",
+    "status",
     "production_item",
     "bom_no",
+    "company",
     "qty",
-    "company"
+    "fg_warehouse",
+    "planned_start_date"
+  ],
+  "doctype_classifier_hints": [
+    "naming_series",
+    "work order",
+    "work_order"
   ],
   "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "MFG-WO-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Submitted",
+        "Not Started",
+        "In Process",
+        "Completed",
+        "Stopped",
+        "Closed",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "qc_status",
+        "QC_Status",
+        "quality_status",
+        "production_status",
+        "order_status",
+        "wo_status",
+        "batch_status",
+        "status",
+        "Status"
+      ]
+    },
+    "production_item": {
+      "fieldname": "production_item",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Item To Manufacture",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_produced",
+        "Item_Produced",
+        "finished_item",
+        "product",
+        "finished_good",
+        "output_item",
+        "batch_item",
+        "manufactured_item",
+        "production_item_code",
+        "item_to_manufacture",
+        "production_item",
+        "item to manufacture",
+        "production item",
+        "Item To Manufacture"
+      ]
+    },
+    "item_name": {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "item_name",
+        "Item Name",
+        "item name"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Image",
+      "options": "image",
+      "default_value": null,
+      "user_input_synonyms": [
+        "image",
+        "Image"
+      ]
+    },
+    "bom_no": {
+      "fieldname": "bom_no",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "BOM No",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bom",
+        "bill_of_materials",
+        "formula",
+        "formulation",
+        "recipe",
+        "bom_no",
+        "bom no",
+        "BOM No"
+      ]
+    },
+    "sales_order": {
+      "fieldname": "sales_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Sales Order",
+      "options": "Sales Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales order",
+        "sales_order",
+        "Sales Order"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": "user_default_company_or_first_company",
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "qty": {
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "mandatory": true,
+      "label": "Qty To Manufacture",
+      "options": null,
+      "default_value": "1.0",
+      "user_input_synonyms": [
+        "target_qty",
+        "Target_Qty",
+        "planned_qty",
+        "order_qty",
+        "quantity",
+        "production_qty",
+        "target_quantity",
+        "required_qty",
+        "qty",
+        "qty_to_manufacture",
+        "Qty To Manufacture",
+        "qty to manufacture"
+      ]
+    },
+    "material_transferred_for_manufacturing": {
+      "fieldname": "material_transferred_for_manufacturing",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Material Transferred for Manufacturing",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "material transferred for manufacturing",
+        "material_transferred_for_manufacturing",
+        "Material Transferred for Manufacturing"
+      ]
+    },
+    "produced_qty": {
+      "fieldname": "produced_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Manufactured Qty",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "actual_yield",
+        "Actual_Yield",
+        "actual_qty",
+        "completed_qty",
+        "output_qty",
+        "yield_qty",
+        "manufactured_qty",
+        "actual_output",
+        "produced_qty",
+        "produced qty",
+        "Manufactured Qty",
+        "manufactured qty"
+      ]
+    },
+    "disassembled_qty": {
+      "fieldname": "disassembled_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Disassembled Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "disassembled_qty",
+        "disassembled qty",
+        "Disassembled Qty"
+      ]
+    },
+    "process_loss_qty": {
+      "fieldname": "process_loss_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Process Loss Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "process loss qty",
+        "Process Loss Qty",
+        "process_loss_qty"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "allow_alternative_item": {
+      "fieldname": "allow_alternative_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Alternative Item",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_alternative_item",
+        "Allow Alternative Item",
+        "allow alternative item"
+      ]
+    },
+    "use_multi_level_bom": {
+      "fieldname": "use_multi_level_bom",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Use Multi-Level BOM",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "use multi-level bom",
+        "use_multi_level_bom",
+        "use_multi-level_bom",
+        "Use Multi-Level BOM",
+        "use multi level bom"
+      ]
+    },
+    "skip_transfer": {
+      "fieldname": "skip_transfer",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Skip Material Transfer to WIP Warehouse",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "skip_material_transfer_to_wip_warehouse",
+        "skip_transfer",
+        "skip transfer",
+        "skip material transfer to wip warehouse",
+        "Skip Material Transfer to WIP Warehouse"
+      ]
+    },
+    "from_wip_warehouse": {
+      "fieldname": "from_wip_warehouse",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Backflush Raw Materials From Work-in-Progress Warehouse",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "backflush raw materials from work-in-progress warehouse",
+        "Backflush Raw Materials From Work-in-Progress Warehouse",
+        "from wip warehouse",
+        "from_wip_warehouse",
+        "backflush_raw_materials_from_work-in-progress_warehouse"
+      ]
+    },
+    "update_consumed_material_cost_in_project": {
+      "fieldname": "update_consumed_material_cost_in_project",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Update Consumed Material Cost In Project",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "update_consumed_material_cost_in_project",
+        "update consumed material cost in project",
+        "Update Consumed Material Cost In Project"
+      ]
+    },
+    "source_warehouse": {
+      "fieldname": "source_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Source Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "source warehouse",
+        "source_warehouse",
+        "Source Warehouse"
+      ]
+    },
+    "wip_warehouse": {
+      "fieldname": "wip_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Work-in-Progress Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "wip_store",
+        "work_in_progress_warehouse",
+        "production_warehouse",
+        "work-in-progress warehouse",
+        "wip warehouse",
+        "Work-in-Progress Warehouse",
+        "work-in-progress_warehouse",
+        "wip_warehouse"
+      ]
+    },
+    "fg_warehouse": {
+      "fieldname": "fg_warehouse",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Target Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "finished_goods_warehouse",
+        "output_warehouse",
+        "fg_store",
+        "target warehouse",
+        "target_warehouse",
+        "fg_warehouse",
+        "fg warehouse",
+        "Target Warehouse"
+      ]
+    },
+    "scrap_warehouse": {
+      "fieldname": "scrap_warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Scrap Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Scrap Warehouse",
+        "scrap_warehouse",
+        "scrap warehouse"
+      ]
+    },
+    "has_serial_no": {
+      "fieldname": "has_serial_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Serial No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has serial no",
+        "has_serial_no",
+        "Has Serial No"
+      ]
+    },
+    "has_batch_no": {
+      "fieldname": "has_batch_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Batch No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has batch no",
+        "Has Batch No",
+        "has_batch_no"
+      ]
+    },
+    "batch_size": {
+      "fieldname": "batch_size",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Batch Size",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "batch size",
+        "Batch Size",
+        "batch_size"
+      ]
+    },
+    "transfer_material_against": {
+      "fieldname": "transfer_material_against",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Transfer Material Against",
+      "options": [
+        "Work Order",
+        "Job Card"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "transfer material against",
+        "transfer_material_against",
+        "Transfer Material Against"
+      ]
+    },
+    "planned_start_date": {
+      "fieldname": "planned_start_date",
+      "fieldtype": "Datetime",
+      "mandatory": true,
+      "label": "Planned Start Date",
+      "options": null,
+      "default_value": "now",
+      "user_input_synonyms": [
+        "start_date",
+        "production_date",
+        "batch_date",
+        "scheduled_date",
+        "Planned Start Date",
+        "planned_start_date",
+        "planned start date"
+      ]
+    },
+    "planned_end_date": {
+      "fieldname": "planned_end_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Planned End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Planned End Date",
+        "planned_end_date",
+        "planned end date"
+      ]
+    },
+    "expected_delivery_date": {
+      "fieldname": "expected_delivery_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Expected Delivery Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Expected Delivery Date",
+        "expected_delivery_date",
+        "expected delivery date"
+      ]
+    },
+    "actual_start_date": {
+      "fieldname": "actual_start_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Actual Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "actual start date",
+        "Actual Start Date",
+        "actual_start_date"
+      ]
+    },
+    "actual_end_date": {
+      "fieldname": "actual_end_date",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Actual End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "actual end date",
+        "Actual End Date",
+        "actual_end_date"
+      ]
+    },
+    "lead_time": {
+      "fieldname": "lead_time",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Lead Time",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "lead_time",
+        "lead time",
+        "Lead Time"
+      ]
+    },
+    "planned_operating_cost": {
+      "fieldname": "planned_operating_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Planned Operating Cost",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "planned operating cost",
+        "Planned Operating Cost",
+        "planned_operating_cost"
+      ]
+    },
+    "actual_operating_cost": {
+      "fieldname": "actual_operating_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Actual Operating Cost",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "actual_operating_cost",
+        "actual operating cost",
+        "Actual Operating Cost"
+      ]
+    },
+    "additional_operating_cost": {
+      "fieldname": "additional_operating_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Additional Operating Cost",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "additional operating cost",
+        "additional_operating_cost",
+        "Additional Operating Cost"
+      ]
+    },
+    "corrective_operation_cost": {
+      "fieldname": "corrective_operation_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Corrective Operation Cost",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "corrective_operation_cost",
+        "corrective operation cost",
+        "Corrective Operation Cost"
+      ]
+    },
+    "total_operating_cost": {
+      "fieldname": "total_operating_cost",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Operating Cost",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total operating cost",
+        "Total Operating Cost",
+        "total_operating_cost"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Item Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "item description",
+        "item_description",
+        "Item Description"
+      ]
+    },
+    "stock_uom": {
+      "fieldname": "stock_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Stock UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock uom",
+        "stock_uom",
+        "Stock UOM"
+      ]
+    },
+    "material_request": {
+      "fieldname": "material_request",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Material Request",
+      "options": "Material Request",
+      "default_value": null,
+      "user_input_synonyms": [
+        "material request",
+        "material_request",
+        "Material Request"
+      ]
+    },
+    "material_request_item": {
+      "fieldname": "material_request_item",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Material Request Item",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "material_request_item",
+        "material request item",
+        "Material Request Item"
+      ]
+    },
+    "sales_order_item": {
+      "fieldname": "sales_order_item",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Sales Order Item",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "sales_order_item",
+        "Sales Order Item",
+        "sales order item"
+      ]
+    },
+    "production_plan": {
+      "fieldname": "production_plan",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Production Plan",
+      "options": "Production Plan",
+      "default_value": null,
+      "user_input_synonyms": [
+        "production plan",
+        "production_plan",
+        "Production Plan"
+      ]
+    },
+    "production_plan_item": {
+      "fieldname": "production_plan_item",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Production Plan Item",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "production plan item",
+        "Production Plan Item",
+        "production_plan_item"
+      ]
+    },
+    "production_plan_sub_assembly_item": {
+      "fieldname": "production_plan_sub_assembly_item",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Production Plan Sub-assembly Item",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "production plan sub-assembly item",
+        "production_plan_sub_assembly_item",
+        "production plan sub assembly item",
+        "production_plan_sub-assembly_item",
+        "Production Plan Sub-assembly Item"
+      ]
+    },
+    "product_bundle_item": {
+      "fieldname": "product_bundle_item",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Product Bundle Item",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "product bundle item",
+        "product_bundle_item",
+        "Product Bundle Item"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Work Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
     "name": {
       "fieldname": "name",
       "fieldtype": "Data",
@@ -29,76 +736,6 @@
         "work_order"
       ]
     },
-    "production_item": {
-      "fieldname": "production_item",
-      "fieldtype": "Link",
-      "options": "Item",
-      "mandatory": true,
-      "user_input_synonyms": [
-        "item_produced",
-        "Item_Produced",
-        "finished_item",
-        "product",
-        "finished_good",
-        "output_item",
-        "batch_item",
-        "manufactured_item",
-        "production_item_code"
-      ]
-    },
-    "qty": {
-      "fieldname": "qty",
-      "fieldtype": "Float",
-      "mandatory": true,
-      "user_input_synonyms": [
-        "target_qty",
-        "Target_Qty",
-        "planned_qty",
-        "order_qty",
-        "quantity",
-        "production_qty",
-        "target_quantity",
-        "required_qty"
-      ]
-    },
-    "produced_qty": {
-      "fieldname": "produced_qty",
-      "fieldtype": "Float",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "actual_yield",
-        "Actual_Yield",
-        "actual_qty",
-        "completed_qty",
-        "output_qty",
-        "yield_qty",
-        "manufactured_qty",
-        "actual_output"
-      ]
-    },
-    "status": {
-      "fieldname": "status",
-      "fieldtype": "Select",
-      "options": [
-        "Draft",
-        "Submitted",
-        "Not Started",
-        "In Process",
-        "Completed",
-        "Stopped",
-        "Cancelled"
-      ],
-      "mandatory": false,
-      "user_input_synonyms": [
-        "qc_status",
-        "QC_Status",
-        "quality_status",
-        "production_status",
-        "order_status",
-        "wo_status",
-        "batch_status"
-      ]
-    },
     "remarks": {
       "fieldname": "remarks",
       "fieldtype": "Small Text",
@@ -113,59 +750,8 @@
         "remarks",
         "observation"
       ]
-    },
-    "bom_no": {
-      "fieldname": "bom_no",
-      "fieldtype": "Link",
-      "options": "BOM",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "bom",
-        "bill_of_materials",
-        "formula",
-        "formulation",
-        "recipe"
-      ]
-    },
-    "company": {
-      "fieldname": "company",
-      "fieldtype": "Link",
-      "options": "Company",
-      "mandatory": true,
-      "default_value": "user_default_company_or_first_company"
-    },
-    "planned_start_date": {
-      "fieldname": "planned_start_date",
-      "fieldtype": "Date",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "start_date",
-        "production_date",
-        "batch_date",
-        "scheduled_date"
-      ]
-    },
-    "wip_warehouse": {
-      "fieldname": "wip_warehouse",
-      "fieldtype": "Link",
-      "options": "Warehouse",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "wip_store",
-        "work_in_progress_warehouse",
-        "production_warehouse"
-      ]
-    },
-    "fg_warehouse": {
-      "fieldname": "fg_warehouse",
-      "fieldtype": "Link",
-      "options": "Warehouse",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "finished_goods_warehouse",
-        "output_warehouse",
-        "fg_store"
-      ]
     }
-  }
+  },
+  "is_submittable": true,
+  "naming_series": "WO-"
 }

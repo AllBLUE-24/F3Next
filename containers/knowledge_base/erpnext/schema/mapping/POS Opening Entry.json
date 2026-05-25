@@ -1,0 +1,151 @@
+{
+  "doctype_name": "POS Opening Entry",
+  "mandatory_fields": [
+    "period_start_date",
+    "posting_date",
+    "company",
+    "pos_profile",
+    "user",
+    "balance_details"
+  ],
+  "doctype_classifier_hints": [
+    "pos opening entry",
+    "pos_opening_entry"
+  ],
+  "field_mappings": {
+    "period_start_date": {
+      "fieldname": "period_start_date",
+      "fieldtype": "Datetime",
+      "mandatory": true,
+      "label": "Period Start Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Period Start Date",
+        "period_start_date",
+        "period start date"
+      ]
+    },
+    "period_end_date": {
+      "fieldname": "period_end_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Period End Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "period end date",
+        "Period End Date",
+        "period_end_date"
+      ]
+    },
+    "status": {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Open",
+        "Closed",
+        "Cancelled"
+      ],
+      "default_value": "Draft",
+      "user_input_synonyms": [
+        "status",
+        "Status"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "Today",
+      "user_input_synonyms": [
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "set_posting_date": {
+      "fieldname": "set_posting_date",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Set Posting Date",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "set posting date",
+        "set_posting_date",
+        "Set Posting Date"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "pos_profile": {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "POS Profile",
+      "options": "POS Profile",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pos profile",
+        "pos_profile",
+        "POS Profile"
+      ]
+    },
+    "pos_closing_entry": {
+      "fieldname": "pos_closing_entry",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "POS Closing Entry",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "pos_closing_entry",
+        "pos closing entry",
+        "POS Closing Entry"
+      ]
+    },
+    "user": {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Cashier",
+      "options": "User",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cashier",
+        "Cashier",
+        "user"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "POS Opening Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  },
+  "is_submittable": true
+}

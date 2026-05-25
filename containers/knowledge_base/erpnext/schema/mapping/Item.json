@@ -1,24 +1,45 @@
 {
   "doctype_name": "Item",
-  "naming_series": "ITEM-",
   "mandatory_fields": [
     "item_code",
-    "item_name",
     "item_group",
     "stock_uom"
   ],
+  "doctype_classifier_hints": [
+    "item"
+  ],
   "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Series",
+      "options": [
+        "STO-ITEM-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
     "item_code": {
       "fieldname": "item_code",
       "fieldtype": "Data",
       "mandatory": true,
-      "unique": true,
+      "label": "Item Code",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "item code",
         "item_id",
         "product_code",
         "sku",
-        "code"
+        "code",
+        "Item Code",
+        "item_code"
       ],
       "note": "Auto-generated if item_naming_by = Naming Series in Stock Settings"
     },
@@ -26,19 +47,31 @@
       "fieldname": "item_name",
       "fieldtype": "Data",
       "mandatory": true,
+      "label": "Item Name",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "item name",
         "product_name",
         "product name",
         "description",
-        "material_name"
+        "material_name",
+        "item_name",
+        "Item Name"
       ]
     },
     "item_group": {
       "fieldname": "item_group",
       "fieldtype": "Link",
-      "options": "Item Group",
       "mandatory": true,
+      "label": "Item Group",
+      "options": "Item Group",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Item Group",
+        "item_group",
+        "item group"
+      ],
       "common_values": [
         "Raw Material",
         "Finished Goods",
@@ -50,8 +83,21 @@
     "stock_uom": {
       "fieldname": "stock_uom",
       "fieldtype": "Link",
-      "options": "UOM",
       "mandatory": true,
+      "label": "Default Unit of Measure",
+      "options": "UOM",
+      "default_value": "Nos",
+      "user_input_synonyms": [
+        "uom",
+        "unit",
+        "unit of measure",
+        "measure",
+        "stock uom",
+        "Default Unit of Measure",
+        "default_unit_of_measure",
+        "stock_uom",
+        "default unit of measure"
+      ],
       "common_values": [
         "Nos",
         "Kg",
@@ -59,37 +105,88 @@
         "Meter",
         "Box",
         "Piece"
-      ],
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
       "user_input_synonyms": [
-        "uom",
-        "unit",
-        "unit of measure",
-        "measure"
-      ],
-      "default_value": "Nos"
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "allow_alternative_item": {
+      "fieldname": "allow_alternative_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Alternative Item",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow_alternative_item",
+        "Allow Alternative Item",
+        "allow alternative item"
+      ]
     },
     "is_stock_item": {
       "fieldname": "is_stock_item",
       "fieldtype": "Check",
-      "default_value": 1,
+      "mandatory": false,
+      "label": "Maintain Stock",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "maintain_stock",
+        "Maintain Stock",
+        "is_stock_item",
+        "is stock item",
+        "maintain stock"
+      ],
       "note": "Uncheck for services"
     },
-    "has_batch_no": {
-      "fieldname": "has_batch_no",
+    "has_variants": {
+      "fieldname": "has_variants",
       "fieldtype": "Check",
-      "default_value": 0,
-      "note": "Enable for food, pharma, chemicals"
+      "mandatory": false,
+      "label": "Has Variants",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Has Variants",
+        "has variants",
+        "has_variants"
+      ]
     },
-    "has_serial_no": {
-      "fieldname": "has_serial_no",
-      "fieldtype": "Check",
-      "default_value": 0,
-      "note": "Enable for electronics, equipment"
+    "opening_stock": {
+      "fieldname": "opening_stock",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Opening Stock",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock qty",
+        "stock_qty",
+        "current_stock",
+        "qty",
+        "quantity",
+        "opening_qty",
+        "opening_stock",
+        "opening stock",
+        "Opening Stock"
+      ]
     },
     "valuation_rate": {
       "fieldname": "valuation_rate",
       "fieldtype": "Currency",
       "mandatory": false,
+      "label": "Valuation Rate",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "cost rate",
         "cost_rate",
@@ -97,34 +194,823 @@
         "cost",
         "buying_rate",
         "purchase_rate",
-        "cost rate (inr)"
+        "cost rate (inr)",
+        "Valuation Rate",
+        "valuation_rate",
+        "valuation rate"
       ]
     },
     "standard_rate": {
       "fieldname": "standard_rate",
       "fieldtype": "Currency",
       "mandatory": false,
+      "label": "Standard Selling Rate",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
         "selling rate",
         "selling_rate",
         "selling price",
         "mrp",
         "price",
-        "selling rate (inr)"
+        "selling rate (inr)",
+        "standard_selling_rate",
+        "standard rate",
+        "Standard Selling Rate",
+        "standard selling rate",
+        "standard_rate"
       ]
     },
-    "opening_stock": {
-      "fieldname": "opening_stock",
+    "is_fixed_asset": {
+      "fieldname": "is_fixed_asset",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Fixed Asset",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Is Fixed Asset",
+        "is_fixed_asset",
+        "is fixed asset"
+      ]
+    },
+    "auto_create_assets": {
+      "fieldname": "auto_create_assets",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Auto Create Assets on Purchase",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "auto create assets",
+        "auto create assets on purchase",
+        "auto_create_assets",
+        "Auto Create Assets on Purchase",
+        "auto_create_assets_on_purchase"
+      ]
+    },
+    "is_grouped_asset": {
+      "fieldname": "is_grouped_asset",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Create Grouped Asset",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Create Grouped Asset",
+        "is_grouped_asset",
+        "is grouped asset",
+        "create grouped asset",
+        "create_grouped_asset"
+      ]
+    },
+    "asset_category": {
+      "fieldname": "asset_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Asset Category",
+      "options": "Asset Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "asset_category",
+        "asset category",
+        "Asset Category"
+      ]
+    },
+    "asset_naming_series": {
+      "fieldname": "asset_naming_series",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Asset Naming Series",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "asset_naming_series",
+        "asset naming series",
+        "Asset Naming Series"
+      ]
+    },
+    "over_delivery_receipt_allowance": {
+      "fieldname": "over_delivery_receipt_allowance",
       "fieldtype": "Float",
       "mandatory": false,
+      "label": "Over Delivery/Receipt Allowance (%)",
+      "options": null,
+      "default_value": null,
       "user_input_synonyms": [
-        "stock qty",
-        "stock_qty",
-        "current_stock",
-        "qty",
-        "quantity",
-        "opening_qty"
+        "over_delivery/receipt_allowance_(%)",
+        "over_delivery_receipt_allowance",
+        "over delivery receipt allowance",
+        "Over Delivery/Receipt Allowance (%)",
+        "over delivery/receipt allowance (%)"
+      ]
+    },
+    "over_billing_allowance": {
+      "fieldname": "over_billing_allowance",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Over Billing Allowance (%)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "over billing allowance",
+        "over billing allowance (%)",
+        "Over Billing Allowance (%)",
+        "over_billing_allowance",
+        "over_billing_allowance_(%)"
+      ]
+    },
+    "image": {
+      "fieldname": "image",
+      "fieldtype": "Attach Image",
+      "mandatory": false,
+      "label": "Image",
+      "options": "image",
+      "default_value": null,
+      "user_input_synonyms": [
+        "image",
+        "Image"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    },
+    "brand": {
+      "fieldname": "brand",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Brand",
+      "options": "Brand",
+      "default_value": null,
+      "user_input_synonyms": [
+        "brand",
+        "Brand"
+      ]
+    },
+    "shelf_life_in_days": {
+      "fieldname": "shelf_life_in_days",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Shelf Life In Days",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "shelf life in days",
+        "shelf_life_in_days",
+        "Shelf Life In Days"
+      ]
+    },
+    "end_of_life": {
+      "fieldname": "end_of_life",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "End of Life",
+      "options": null,
+      "default_value": "2099-12-31",
+      "user_input_synonyms": [
+        "end of life",
+        "End of Life",
+        "end_of_life"
+      ]
+    },
+    "default_material_request_type": {
+      "fieldname": "default_material_request_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Default Material Request Type",
+      "options": [
+        "Purchase",
+        "Material Transfer",
+        "Material Issue",
+        "Manufacture",
+        "Customer Provided"
+      ],
+      "default_value": "Purchase",
+      "user_input_synonyms": [
+        "default material request type",
+        "Default Material Request Type",
+        "default_material_request_type"
+      ]
+    },
+    "valuation_method": {
+      "fieldname": "valuation_method",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Valuation Method",
+      "options": [
+        "FIFO",
+        "Moving Average",
+        "LIFO"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "valuation_method",
+        "valuation method",
+        "Valuation Method"
+      ]
+    },
+    "warranty_period": {
+      "fieldname": "warranty_period",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Warranty Period (in days)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "warranty period",
+        "warranty_period_(in_days)",
+        "warranty_period",
+        "Warranty Period (in days)",
+        "warranty period (in days)"
+      ]
+    },
+    "weight_per_unit": {
+      "fieldname": "weight_per_unit",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Weight Per Unit",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Weight Per Unit",
+        "weight per unit",
+        "weight_per_unit"
+      ]
+    },
+    "weight_uom": {
+      "fieldname": "weight_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Weight UOM",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "weight uom",
+        "weight_uom",
+        "Weight UOM"
+      ]
+    },
+    "allow_negative_stock": {
+      "fieldname": "allow_negative_stock",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Negative Stock",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "allow negative stock",
+        "Allow Negative Stock",
+        "allow_negative_stock"
+      ]
+    },
+    "has_batch_no": {
+      "fieldname": "has_batch_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Batch No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has batch no",
+        "Has Batch No",
+        "has_batch_no"
+      ],
+      "note": "Enable for food, pharma, chemicals"
+    },
+    "create_new_batch": {
+      "fieldname": "create_new_batch",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Automatically Create New Batch",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "create new batch",
+        "Automatically Create New Batch",
+        "automatically_create_new_batch",
+        "create_new_batch",
+        "automatically create new batch"
+      ]
+    },
+    "batch_number_series": {
+      "fieldname": "batch_number_series",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Batch Number Series",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "batch_number_series",
+        "Batch Number Series",
+        "batch number series"
+      ]
+    },
+    "has_expiry_date": {
+      "fieldname": "has_expiry_date",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Expiry Date",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has_expiry_date",
+        "has expiry date",
+        "Has Expiry Date"
+      ]
+    },
+    "retain_sample": {
+      "fieldname": "retain_sample",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Retain Sample",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "retain sample",
+        "Retain Sample",
+        "retain_sample"
+      ]
+    },
+    "sample_quantity": {
+      "fieldname": "sample_quantity",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Max Sample Quantity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "sample_quantity",
+        "Max Sample Quantity",
+        "sample quantity",
+        "max_sample_quantity",
+        "max sample quantity"
+      ]
+    },
+    "has_serial_no": {
+      "fieldname": "has_serial_no",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Has Serial No",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "has serial no",
+        "has_serial_no",
+        "Has Serial No"
+      ],
+      "note": "Enable for electronics, equipment"
+    },
+    "serial_no_series": {
+      "fieldname": "serial_no_series",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Serial Number Series",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "serial number series",
+        "Serial Number Series",
+        "serial_number_series",
+        "serial_no_series",
+        "serial no series"
+      ]
+    },
+    "variant_of": {
+      "fieldname": "variant_of",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Variant Of",
+      "options": "Item",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Variant Of",
+        "variant_of",
+        "variant of"
+      ]
+    },
+    "variant_based_on": {
+      "fieldname": "variant_based_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Variant Based On",
+      "options": [
+        "Item Attribute",
+        "Manufacturer"
+      ],
+      "default_value": "Item Attribute",
+      "user_input_synonyms": [
+        "variant based on",
+        "Variant Based On",
+        "variant_based_on"
+      ]
+    },
+    "enable_deferred_expense": {
+      "fieldname": "enable_deferred_expense",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Enable Deferred Expense",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "enable deferred expense",
+        "Enable Deferred Expense",
+        "enable_deferred_expense"
+      ]
+    },
+    "no_of_months_exp": {
+      "fieldname": "no_of_months_exp",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "No of Months (Expense)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "no_of_months_exp",
+        "no of months (expense)",
+        "No of Months (Expense)",
+        "no_of_months_(expense)",
+        "no of months exp"
+      ]
+    },
+    "enable_deferred_revenue": {
+      "fieldname": "enable_deferred_revenue",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Enable Deferred Revenue",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "enable_deferred_revenue",
+        "Enable Deferred Revenue",
+        "enable deferred revenue"
+      ]
+    },
+    "no_of_months": {
+      "fieldname": "no_of_months",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "No of Months (Revenue)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "no_of_months",
+        "no of months (revenue)",
+        "No of Months (Revenue)",
+        "no of months",
+        "no_of_months_(revenue)"
+      ]
+    },
+    "purchase_uom": {
+      "fieldname": "purchase_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Purchase Unit of Measure",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "purchase_uom",
+        "default_purchase_unit_of_measure",
+        "Default Purchase Unit of Measure",
+        "purchase uom",
+        "default purchase unit of measure"
+      ]
+    },
+    "min_order_qty": {
+      "fieldname": "min_order_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Minimum Order Qty",
+      "options": null,
+      "default_value": "0.00",
+      "user_input_synonyms": [
+        "Minimum Order Qty",
+        "minimum_order_qty",
+        "minimum order qty",
+        "min_order_qty",
+        "min order qty"
+      ]
+    },
+    "safety_stock": {
+      "fieldname": "safety_stock",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Safety Stock",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "safety stock",
+        "safety_stock",
+        "Safety Stock"
+      ]
+    },
+    "is_purchase_item": {
+      "fieldname": "is_purchase_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Purchase",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "is_purchase_item",
+        "allow_purchase",
+        "is purchase item",
+        "allow purchase",
+        "Allow Purchase"
+      ]
+    },
+    "lead_time_days": {
+      "fieldname": "lead_time_days",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Lead Time in days",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "lead_time_days",
+        "lead time in days",
+        "lead_time_in_days",
+        "Lead Time in days",
+        "lead time days"
+      ]
+    },
+    "last_purchase_rate": {
+      "fieldname": "last_purchase_rate",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Last Purchase Rate",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "last purchase rate",
+        "last_purchase_rate",
+        "Last Purchase Rate"
+      ]
+    },
+    "is_customer_provided_item": {
+      "fieldname": "is_customer_provided_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Customer Provided Item",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_customer_provided_item",
+        "is customer provided item",
+        "Is Customer Provided Item"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "delivered_by_supplier": {
+      "fieldname": "delivered_by_supplier",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Delivered by Supplier (Drop Ship)",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "delivered by supplier",
+        "Delivered by Supplier (Drop Ship)",
+        "delivered_by_supplier",
+        "delivered by supplier (drop ship)",
+        "delivered_by_supplier_(drop_ship)"
+      ]
+    },
+    "country_of_origin": {
+      "fieldname": "country_of_origin",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Country of Origin",
+      "options": "Country",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Country of Origin",
+        "country_of_origin",
+        "country of origin"
+      ]
+    },
+    "customs_tariff_number": {
+      "fieldname": "customs_tariff_number",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customs Tariff Number",
+      "options": "Customs Tariff Number",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Customs Tariff Number",
+        "customs tariff number",
+        "customs_tariff_number"
+      ]
+    },
+    "sales_uom": {
+      "fieldname": "sales_uom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Sales Unit of Measure",
+      "options": "UOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_sales_unit_of_measure",
+        "sales uom",
+        "default sales unit of measure",
+        "Default Sales Unit of Measure",
+        "sales_uom"
+      ]
+    },
+    "grant_commission": {
+      "fieldname": "grant_commission",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Grant Commission",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "Grant Commission",
+        "grant_commission",
+        "grant commission"
+      ]
+    },
+    "is_sales_item": {
+      "fieldname": "is_sales_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Allow Sales",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "allow sales",
+        "is sales item",
+        "allow_sales",
+        "Allow Sales",
+        "is_sales_item"
+      ]
+    },
+    "max_discount": {
+      "fieldname": "max_discount",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Max Discount (%)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Max Discount (%)",
+        "max_discount",
+        "max discount",
+        "max discount (%)",
+        "max_discount_(%)"
+      ]
+    },
+    "inspection_required_before_purchase": {
+      "fieldname": "inspection_required_before_purchase",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Inspection Required before Purchase",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "inspection required before purchase",
+        "inspection_required_before_purchase",
+        "Inspection Required before Purchase"
+      ]
+    },
+    "quality_inspection_template": {
+      "fieldname": "quality_inspection_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Quality Inspection Template",
+      "options": "Quality Inspection Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Quality Inspection Template",
+        "quality_inspection_template",
+        "quality inspection template"
+      ]
+    },
+    "inspection_required_before_delivery": {
+      "fieldname": "inspection_required_before_delivery",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Inspection Required before Delivery",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Inspection Required before Delivery",
+        "inspection_required_before_delivery",
+        "inspection required before delivery"
+      ]
+    },
+    "include_item_in_manufacturing": {
+      "fieldname": "include_item_in_manufacturing",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Include Item In Manufacturing",
+      "options": null,
+      "default_value": "1",
+      "user_input_synonyms": [
+        "include_item_in_manufacturing",
+        "include item in manufacturing",
+        "Include Item In Manufacturing"
+      ]
+    },
+    "is_sub_contracted_item": {
+      "fieldname": "is_sub_contracted_item",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Supply Raw Materials for Purchase",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Supply Raw Materials for Purchase",
+        "is_sub_contracted_item",
+        "is sub contracted item",
+        "supply_raw_materials_for_purchase",
+        "supply raw materials for purchase"
+      ]
+    },
+    "default_bom": {
+      "fieldname": "default_bom",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default BOM",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_bom",
+        "Default BOM",
+        "default bom"
+      ]
+    },
+    "customer_code": {
+      "fieldname": "customer_code",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Customer Code",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer code",
+        "Customer Code",
+        "customer_code"
+      ]
+    },
+    "default_item_manufacturer": {
+      "fieldname": "default_item_manufacturer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Default Item Manufacturer",
+      "options": "Manufacturer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "default_item_manufacturer",
+        "Default Item Manufacturer",
+        "default item manufacturer"
+      ]
+    },
+    "default_manufacturer_part_no": {
+      "fieldname": "default_manufacturer_part_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Default Manufacturer Part No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Default Manufacturer Part No",
+        "default_manufacturer_part_no",
+        "default manufacturer part no"
+      ]
+    },
+    "total_projected_qty": {
+      "fieldname": "total_projected_qty",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Total Projected Qty",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "total projected qty",
+        "total_projected_qty",
+        "Total Projected Qty"
       ]
     }
-  }
+  },
+  "naming_series": "ITEM-"
 }

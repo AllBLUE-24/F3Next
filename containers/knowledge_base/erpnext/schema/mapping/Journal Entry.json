@@ -1,37 +1,593 @@
 {
   "doctype_name": "Journal Entry",
-  "naming_series": "JV-",
   "mandatory_fields": [
+    "voucher_type",
+    "naming_series",
+    "company",
     "posting_date",
     "accounts"
   ],
+  "doctype_classifier_hints": [
+    "journal entry",
+    "journal_entry",
+    "naming_series"
+  ],
   "field_mappings": {
-    "posting_date": {
-      "fieldname": "posting_date",
-      "fieldtype": "Date",
-      "mandatory": true,
-      "default_value": "today",
+    "is_system_generated": {
+      "fieldname": "is_system_generated",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is System Generated",
+      "options": null,
+      "default_value": "0",
       "user_input_synonyms": [
-        "date",
-        "entry_date",
-        "voucher_date"
+        "is system generated",
+        "is_system_generated",
+        "Is System Generated"
+      ]
+    },
+    "title": {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Title",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "title",
+        "Title"
       ]
     },
     "voucher_type": {
       "fieldname": "voucher_type",
       "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Entry Type",
       "options": [
         "Journal Entry",
-        "Opening Entry",
+        "Inter Company Journal Entry",
         "Bank Entry",
         "Cash Entry",
-        "Depreciation Entry"
+        "Credit Card Entry",
+        "Debit Note",
+        "Credit Note",
+        "Contra Entry",
+        "Excise Entry",
+        "Write Off Entry",
+        "Opening Entry",
+        "Depreciation Entry",
+        "Exchange Rate Revaluation",
+        "Exchange Gain Or Loss",
+        "Deferred Revenue",
+        "Deferred Expense"
       ],
-      "mandatory": false,
       "default_value": "Journal Entry",
       "user_input_synonyms": [
         "entry_type",
-        "type"
+        "type",
+        "Entry Type",
+        "voucher_type",
+        "entry type",
+        "voucher type"
+      ]
+    },
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "ACC-JV-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "finance_book": {
+      "fieldname": "finance_book",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Finance Book",
+      "options": "Finance Book",
+      "default_value": null,
+      "user_input_synonyms": [
+        "finance_book",
+        "finance book",
+        "Finance Book"
+      ]
+    },
+    "process_deferred_accounting": {
+      "fieldname": "process_deferred_accounting",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Process Deferred Accounting",
+      "options": "Process Deferred Accounting",
+      "default_value": null,
+      "user_input_synonyms": [
+        "process deferred accounting",
+        "process_deferred_accounting",
+        "Process Deferred Accounting"
+      ]
+    },
+    "reversal_of": {
+      "fieldname": "reversal_of",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Reversal Of",
+      "options": "Journal Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "reversal of",
+        "Reversal Of",
+        "reversal_of"
+      ]
+    },
+    "tax_withholding_category": {
+      "fieldname": "tax_withholding_category",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Tax Withholding Category",
+      "options": "Tax Withholding Category",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Tax Withholding Category",
+        "tax withholding category",
+        "tax_withholding_category"
+      ]
+    },
+    "from_template": {
+      "fieldname": "from_template",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "From Template",
+      "options": "Journal Entry Template",
+      "default_value": null,
+      "user_input_synonyms": [
+        "from template",
+        "from_template",
+        "From Template"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "posting_date": {
+      "fieldname": "posting_date",
+      "fieldtype": "Date",
+      "mandatory": true,
+      "label": "Posting Date",
+      "options": null,
+      "default_value": "today",
+      "user_input_synonyms": [
+        "date",
+        "entry_date",
+        "voucher_date",
+        "Posting Date",
+        "posting_date",
+        "posting date"
+      ]
+    },
+    "apply_tds": {
+      "fieldname": "apply_tds",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Apply Tax Withholding Amount ",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "apply tds",
+        "apply_tds",
+        "Apply Tax Withholding Amount",
+        "apply tax withholding amount",
+        "apply_tax_withholding_amount"
+      ]
+    },
+    "cheque_no": {
+      "fieldname": "cheque_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Reference Number",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "reference number",
+        "Reference Number",
+        "cheque no",
+        "cheque_no",
+        "reference_number"
+      ]
+    },
+    "cheque_date": {
+      "fieldname": "cheque_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Reference Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "cheque_date",
+        "Reference Date",
+        "reference date",
+        "reference_date",
+        "cheque date"
+      ]
+    },
+    "user_remark": {
+      "fieldname": "user_remark",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "User Remark",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "user_remark",
+        "user remark",
+        "User Remark"
+      ]
+    },
+    "total_debit": {
+      "fieldname": "total_debit",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Debit",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Debit",
+        "total_debit",
+        "total debit"
+      ]
+    },
+    "total_credit": {
+      "fieldname": "total_credit",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Credit",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Credit",
+        "total credit",
+        "total_credit"
+      ]
+    },
+    "difference": {
+      "fieldname": "difference",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Difference (Dr - Cr)",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "difference",
+        "difference_(dr_-_cr)",
+        "difference (dr - cr)",
+        "Difference (Dr - Cr)"
+      ]
+    },
+    "multi_currency": {
+      "fieldname": "multi_currency",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Multi Currency",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Multi Currency",
+        "multi currency",
+        "multi_currency"
+      ]
+    },
+    "total_amount_currency": {
+      "fieldname": "total_amount_currency",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Total Amount Currency",
+      "options": "Currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_amount_currency",
+        "Total Amount Currency",
+        "total amount currency"
+      ]
+    },
+    "total_amount": {
+      "fieldname": "total_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Total Amount",
+      "options": "total_amount_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "total_amount",
+        "total amount",
+        "Total Amount"
+      ]
+    },
+    "total_amount_in_words": {
+      "fieldname": "total_amount_in_words",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Total Amount in Words",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Total Amount in Words",
+        "total amount in words",
+        "total_amount_in_words"
+      ]
+    },
+    "clearance_date": {
+      "fieldname": "clearance_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Clearance Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Clearance Date",
+        "clearance date",
+        "clearance_date"
+      ]
+    },
+    "remark": {
+      "fieldname": "remark",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Remark",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "narration",
+        "description",
+        "notes",
+        "memo",
+        "remark",
+        "Remark"
+      ]
+    },
+    "paid_loan": {
+      "fieldname": "paid_loan",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Paid Loan",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "paid loan",
+        "paid_loan",
+        "Paid Loan"
+      ]
+    },
+    "inter_company_journal_entry_reference": {
+      "fieldname": "inter_company_journal_entry_reference",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Inter Company Journal Entry Reference",
+      "options": "Journal Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "inter_company_journal_entry_reference",
+        "Inter Company Journal Entry Reference",
+        "inter company journal entry reference"
+      ]
+    },
+    "bill_no": {
+      "fieldname": "bill_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Bill No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "bill_no",
+        "bill no",
+        "Bill No"
+      ]
+    },
+    "bill_date": {
+      "fieldname": "bill_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Bill Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "bill date",
+        "bill_date",
+        "Bill Date"
+      ]
+    },
+    "due_date": {
+      "fieldname": "due_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Due Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "due_date",
+        "due date",
+        "Due Date"
+      ]
+    },
+    "write_off_based_on": {
+      "fieldname": "write_off_based_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Write Off Based On",
+      "options": [
+        "Accounts Receivable",
+        "Accounts Payable"
+      ],
+      "default_value": "Accounts Receivable",
+      "user_input_synonyms": [
+        "write_off_based_on",
+        "Write Off Based On",
+        "write off based on"
+      ]
+    },
+    "write_off_amount": {
+      "fieldname": "write_off_amount",
+      "fieldtype": "Currency",
+      "mandatory": false,
+      "label": "Write Off Amount",
+      "options": "Company:company:default_currency",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Write Off Amount",
+        "write_off_amount",
+        "write off amount"
+      ]
+    },
+    "pay_to_recd_from": {
+      "fieldname": "pay_to_recd_from",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Pay To / Recd From",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "pay to / recd from",
+        "pay to recd from",
+        "pay_to_/_recd_from",
+        "Pay To / Recd From",
+        "pay_to_recd_from"
+      ]
+    },
+    "letter_head": {
+      "fieldname": "letter_head",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Letter Head",
+      "options": "Letter Head",
+      "default_value": null,
+      "user_input_synonyms": [
+        "letter_head",
+        "letter head",
+        "Letter Head"
+      ]
+    },
+    "select_print_heading": {
+      "fieldname": "select_print_heading",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Print Heading",
+      "options": "Print Heading",
+      "default_value": null,
+      "user_input_synonyms": [
+        "print_heading",
+        "print heading",
+        "select print heading",
+        "Print Heading",
+        "select_print_heading"
+      ]
+    },
+    "mode_of_payment": {
+      "fieldname": "mode_of_payment",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Mode of Payment",
+      "options": "Mode of Payment",
+      "default_value": null,
+      "user_input_synonyms": [
+        "mode of payment",
+        "mode_of_payment",
+        "Mode of Payment"
+      ]
+    },
+    "payment_order": {
+      "fieldname": "payment_order",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Payment Order",
+      "options": "Payment Order",
+      "default_value": null,
+      "user_input_synonyms": [
+        "payment_order",
+        "payment order",
+        "Payment Order"
+      ]
+    },
+    "party_not_required": {
+      "fieldname": "party_not_required",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Party Not Required",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Party Not Required",
+        "party_not_required",
+        "party not required"
+      ]
+    },
+    "is_opening": {
+      "fieldname": "is_opening",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Is Opening",
+      "options": [
+        "No",
+        "Yes"
+      ],
+      "default_value": "No",
+      "user_input_synonyms": [
+        "is_opening",
+        "is opening",
+        "Is Opening"
+      ]
+    },
+    "stock_entry": {
+      "fieldname": "stock_entry",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Stock Entry",
+      "options": "Stock Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "stock entry",
+        "Stock Entry",
+        "stock_entry"
+      ]
+    },
+    "auto_repeat": {
+      "fieldname": "auto_repeat",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Auto Repeat",
+      "options": "Auto Repeat",
+      "default_value": null,
+      "user_input_synonyms": [
+        "auto_repeat",
+        "Auto Repeat",
+        "auto repeat"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Journal Entry",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
       ]
     },
     "accounts": {
@@ -85,17 +641,6 @@
         }
       }
     },
-    "remark": {
-      "fieldname": "remark",
-      "fieldtype": "Small Text",
-      "mandatory": false,
-      "user_input_synonyms": [
-        "narration",
-        "description",
-        "notes",
-        "memo"
-      ]
-    },
     "balance": {
       "fieldname": "total_debit",
       "fieldtype": "Currency",
@@ -107,5 +652,7 @@
         "balance_amount"
       ]
     }
-  }
+  },
+  "is_submittable": true,
+  "naming_series": "JV-"
 }

@@ -1,0 +1,164 @@
+{
+  "doctype_name": "Payment Term",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "payment term",
+    "payment_term"
+  ],
+  "field_mappings": {
+    "payment_term_name": {
+      "fieldname": "payment_term_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Payment Term Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Payment Term Name",
+        "payment term name",
+        "payment_term_name"
+      ]
+    },
+    "invoice_portion": {
+      "fieldname": "invoice_portion",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Invoice Portion (%)",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "invoice_portion",
+        "invoice portion (%)",
+        "invoice_portion_(%)",
+        "Invoice Portion (%)",
+        "invoice portion"
+      ]
+    },
+    "mode_of_payment": {
+      "fieldname": "mode_of_payment",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Mode of Payment",
+      "options": "Mode of Payment",
+      "default_value": null,
+      "user_input_synonyms": [
+        "mode of payment",
+        "mode_of_payment",
+        "Mode of Payment"
+      ]
+    },
+    "due_date_based_on": {
+      "fieldname": "due_date_based_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Due Date Based On",
+      "options": [
+        "Day(s) after invoice date",
+        "Day(s) after the end of the invoice month",
+        "Month(s) after the end of the invoice month"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "due_date_based_on",
+        "due date based on",
+        "Due Date Based On"
+      ]
+    },
+    "credit_days": {
+      "fieldname": "credit_days",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Credit Days",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Credit Days",
+        "credit days",
+        "credit_days"
+      ]
+    },
+    "credit_months": {
+      "fieldname": "credit_months",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Credit Months",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "credit_months",
+        "Credit Months",
+        "credit months"
+      ]
+    },
+    "discount_type": {
+      "fieldname": "discount_type",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Discount Type",
+      "options": [
+        "Percentage",
+        "Amount"
+      ],
+      "default_value": "Percentage",
+      "user_input_synonyms": [
+        "discount type",
+        "Discount Type",
+        "discount_type"
+      ]
+    },
+    "discount": {
+      "fieldname": "discount",
+      "fieldtype": "Float",
+      "mandatory": false,
+      "label": "Discount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "discount",
+        "Discount"
+      ]
+    },
+    "discount_validity_based_on": {
+      "fieldname": "discount_validity_based_on",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Discount Validity Based On",
+      "options": [
+        "Day(s) after invoice date",
+        "Day(s) after the end of the invoice month",
+        "Month(s) after the end of the invoice month"
+      ],
+      "default_value": "Day(s) after invoice date",
+      "user_input_synonyms": [
+        "Discount Validity Based On",
+        "discount_validity_based_on",
+        "discount validity based on"
+      ]
+    },
+    "discount_validity": {
+      "fieldname": "discount_validity",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Discount Validity",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Discount Validity",
+        "discount_validity",
+        "discount validity"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "Description"
+      ]
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "doctype_name": "Plant Floor",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "plant floor",
+    "plant_floor"
+  ],
+  "field_mappings": {
+    "floor_name": {
+      "fieldname": "floor_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Floor Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Floor Name",
+        "floor_name",
+        "floor name"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "warehouse": {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Warehouse",
+      "options": "Warehouse",
+      "default_value": null,
+      "user_input_synonyms": [
+        "warehouse",
+        "Warehouse"
+      ]
+    }
+  }
+}

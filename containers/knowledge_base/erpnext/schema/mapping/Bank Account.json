@@ -1,0 +1,231 @@
+{
+  "doctype_name": "Bank Account",
+  "mandatory_fields": [
+    "account_name",
+    "bank"
+  ],
+  "doctype_classifier_hints": [
+    "bank account",
+    "bank_account"
+  ],
+  "field_mappings": {
+    "account_name": {
+      "fieldname": "account_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Account Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "account_name",
+        "Account Name",
+        "account name"
+      ]
+    },
+    "account": {
+      "fieldname": "account",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "company account",
+        "company_account",
+        "Company Account",
+        "account"
+      ]
+    },
+    "bank": {
+      "fieldname": "bank",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Bank",
+      "options": "Bank",
+      "default_value": null,
+      "user_input_synonyms": [
+        "bank",
+        "Bank"
+      ]
+    },
+    "account_type": {
+      "fieldname": "account_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account Type",
+      "options": "Bank Account Type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Account Type",
+        "account type",
+        "account_type"
+      ]
+    },
+    "account_subtype": {
+      "fieldname": "account_subtype",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Account Subtype",
+      "options": "Bank Account Subtype",
+      "default_value": null,
+      "user_input_synonyms": [
+        "account subtype",
+        "account_subtype",
+        "Account Subtype"
+      ]
+    },
+    "disabled": {
+      "fieldname": "disabled",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Disabled",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "disabled",
+        "Disabled"
+      ]
+    },
+    "is_default": {
+      "fieldname": "is_default",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Default Account",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_default_account",
+        "Is Default Account",
+        "is_default",
+        "is default account",
+        "is default"
+      ]
+    },
+    "is_company_account": {
+      "fieldname": "is_company_account",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Company Account",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_company_account",
+        "is company account",
+        "Is Company Account"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "party_type": {
+      "fieldname": "party_type",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Party Type",
+      "options": "DocType",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Party Type",
+        "party type",
+        "party_type"
+      ]
+    },
+    "party": {
+      "fieldname": "party",
+      "fieldtype": "Dynamic Link",
+      "mandatory": false,
+      "label": "Party",
+      "options": "party_type",
+      "default_value": null,
+      "user_input_synonyms": [
+        "party",
+        "Party"
+      ]
+    },
+    "iban": {
+      "fieldname": "iban",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "IBAN",
+      "options": "IBAN",
+      "default_value": null,
+      "user_input_synonyms": [
+        "iban",
+        "IBAN"
+      ]
+    },
+    "branch_code": {
+      "fieldname": "branch_code",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Branch Code",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "branch_code",
+        "branch code",
+        "Branch Code"
+      ]
+    },
+    "bank_account_no": {
+      "fieldname": "bank_account_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Bank Account No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Bank Account No",
+        "bank_account_no",
+        "bank account no"
+      ]
+    },
+    "integration_id": {
+      "fieldname": "integration_id",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Integration ID",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "integration id",
+        "integration_id",
+        "Integration ID"
+      ]
+    },
+    "last_integration_date": {
+      "fieldname": "last_integration_date",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Last Integration Date",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "last integration date",
+        "Last Integration Date",
+        "last_integration_date"
+      ]
+    },
+    "mask": {
+      "fieldname": "mask",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Mask",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Mask",
+        "mask"
+      ]
+    }
+  }
+}

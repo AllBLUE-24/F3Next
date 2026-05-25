@@ -1,0 +1,69 @@
+{
+  "doctype_name": "Tax Withholding Category",
+  "mandatory_fields": [
+    "rates",
+    "accounts"
+  ],
+  "doctype_classifier_hints": [
+    "tax withholding category",
+    "tax_withholding_category"
+  ],
+  "field_mappings": {
+    "category_name": {
+      "fieldname": "category_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Category Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "category_name",
+        "category name",
+        "Category Name"
+      ]
+    },
+    "round_off_tax_amount": {
+      "fieldname": "round_off_tax_amount",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Round Off Tax Amount",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "round off tax amount",
+        "round_off_tax_amount",
+        "Round Off Tax Amount"
+      ]
+    },
+    "consider_party_ledger_amount": {
+      "fieldname": "consider_party_ledger_amount",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Consider Entire Party Ledger Amount",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Consider Entire Party Ledger Amount",
+        "consider party ledger amount",
+        "consider_party_ledger_amount",
+        "consider_entire_party_ledger_amount",
+        "consider entire party ledger amount"
+      ]
+    },
+    "tax_on_excess_amount": {
+      "fieldname": "tax_on_excess_amount",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Only Deduct Tax On Excess Amount ",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Only Deduct Tax On Excess Amount",
+        "only deduct tax on excess amount",
+        "tax on excess amount",
+        "tax_on_excess_amount",
+        "only_deduct_tax_on_excess_amount"
+      ]
+    }
+  }
+}

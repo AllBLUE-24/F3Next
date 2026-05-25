@@ -1,0 +1,77 @@
+{
+  "doctype_name": "Ledger Health",
+  "mandatory_fields": [],
+  "doctype_classifier_hints": [
+    "ledger health",
+    "ledger_health"
+  ],
+  "field_mappings": {
+    "voucher_type": {
+      "fieldname": "voucher_type",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Voucher Type",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher type",
+        "Voucher Type",
+        "voucher_type"
+      ]
+    },
+    "voucher_no": {
+      "fieldname": "voucher_no",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Voucher No",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "voucher_no",
+        "Voucher No",
+        "voucher no"
+      ]
+    },
+    "checked_on": {
+      "fieldname": "checked_on",
+      "fieldtype": "Datetime",
+      "mandatory": false,
+      "label": "Checked On",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "checked_on",
+        "Checked On",
+        "checked on"
+      ]
+    },
+    "debit_credit_mismatch": {
+      "fieldname": "debit_credit_mismatch",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Debit-Credit mismatch",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "debit-credit mismatch",
+        "Debit-Credit mismatch",
+        "debit-credit_mismatch",
+        "debit_credit_mismatch",
+        "debit credit mismatch"
+      ]
+    },
+    "general_and_payment_ledger_mismatch": {
+      "fieldname": "general_and_payment_ledger_mismatch",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "General and Payment Ledger mismatch",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "general_and_payment_ledger_mismatch",
+        "General and Payment Ledger mismatch",
+        "general and payment ledger mismatch"
+      ]
+    }
+  }
+}

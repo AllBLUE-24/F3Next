@@ -1,0 +1,159 @@
+{
+  "doctype_name": "Coupon Code",
+  "mandatory_fields": [
+    "coupon_name",
+    "coupon_type",
+    "pricing_rule"
+  ],
+  "doctype_classifier_hints": [
+    "coupon code",
+    "coupon_code"
+  ],
+  "field_mappings": {
+    "coupon_name": {
+      "fieldname": "coupon_name",
+      "fieldtype": "Data",
+      "mandatory": true,
+      "label": "Coupon Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Coupon Name",
+        "coupon_name",
+        "coupon name"
+      ]
+    },
+    "coupon_type": {
+      "fieldname": "coupon_type",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Coupon Type",
+      "options": [
+        "Promotional",
+        "Gift Card"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "Coupon Type",
+        "coupon type",
+        "coupon_type"
+      ]
+    },
+    "customer": {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Customer",
+      "options": "Customer",
+      "default_value": null,
+      "user_input_synonyms": [
+        "customer",
+        "Customer"
+      ]
+    },
+    "coupon_code": {
+      "fieldname": "coupon_code",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Coupon Code",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Coupon Code",
+        "coupon_code",
+        "coupon code"
+      ]
+    },
+    "pricing_rule": {
+      "fieldname": "pricing_rule",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Pricing Rule",
+      "options": "Pricing Rule",
+      "default_value": null,
+      "user_input_synonyms": [
+        "pricing_rule",
+        "Pricing Rule",
+        "pricing rule"
+      ]
+    },
+    "valid_from": {
+      "fieldname": "valid_from",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Valid From",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "valid_from",
+        "Valid From",
+        "valid from"
+      ]
+    },
+    "valid_upto": {
+      "fieldname": "valid_upto",
+      "fieldtype": "Date",
+      "mandatory": false,
+      "label": "Valid Upto",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Valid Upto",
+        "valid_upto",
+        "valid upto"
+      ]
+    },
+    "maximum_use": {
+      "fieldname": "maximum_use",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Maximum Use",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Maximum Use",
+        "maximum use",
+        "maximum_use"
+      ]
+    },
+    "used": {
+      "fieldname": "used",
+      "fieldtype": "Int",
+      "mandatory": false,
+      "label": "Used",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "used",
+        "Used"
+      ]
+    },
+    "description": {
+      "fieldname": "description",
+      "fieldtype": "Text Editor",
+      "mandatory": false,
+      "label": "Coupon Description",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "description",
+        "coupon description",
+        "coupon_description",
+        "Coupon Description"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Coupon Code",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    }
+  }
+}

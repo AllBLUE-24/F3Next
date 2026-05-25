@@ -1,0 +1,39 @@
+{
+  "doctype_name": "BOM Update Tool",
+  "mandatory_fields": [
+    "current_bom",
+    "new_bom"
+  ],
+  "doctype_classifier_hints": [
+    "bom update tool",
+    "bom_update_tool"
+  ],
+  "field_mappings": {
+    "current_bom": {
+      "fieldname": "current_bom",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Current BOM",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "current_bom",
+        "current bom",
+        "Current BOM"
+      ]
+    },
+    "new_bom": {
+      "fieldname": "new_bom",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "New BOM",
+      "options": "BOM",
+      "default_value": null,
+      "user_input_synonyms": [
+        "New BOM",
+        "new_bom",
+        "new bom"
+      ]
+    }
+  }
+}

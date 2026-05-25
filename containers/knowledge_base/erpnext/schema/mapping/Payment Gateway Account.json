@@ -1,0 +1,107 @@
+{
+  "doctype_name": "Payment Gateway Account",
+  "mandatory_fields": [
+    "payment_gateway",
+    "company",
+    "payment_account"
+  ],
+  "doctype_classifier_hints": [
+    "payment gateway account",
+    "payment_gateway_account"
+  ],
+  "field_mappings": {
+    "payment_gateway": {
+      "fieldname": "payment_gateway",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Payment Gateway",
+      "options": "Payment Gateway",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Payment Gateway",
+        "payment gateway",
+        "payment_gateway"
+      ]
+    },
+    "payment_channel": {
+      "fieldname": "payment_channel",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Payment Channel",
+      "options": [
+        "Email",
+        "Phone"
+      ],
+      "default_value": "Email",
+      "user_input_synonyms": [
+        "payment channel",
+        "Payment Channel",
+        "payment_channel"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "is_default": {
+      "fieldname": "is_default",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Is Default",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "is_default",
+        "Is Default",
+        "is default"
+      ]
+    },
+    "payment_account": {
+      "fieldname": "payment_account",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Payment Account",
+      "options": "Account",
+      "default_value": null,
+      "user_input_synonyms": [
+        "payment account",
+        "payment_account",
+        "Payment Account"
+      ]
+    },
+    "currency": {
+      "fieldname": "currency",
+      "fieldtype": "Read Only",
+      "mandatory": false,
+      "label": "Currency",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "Currency",
+        "currency"
+      ]
+    },
+    "message": {
+      "fieldname": "message",
+      "fieldtype": "Small Text",
+      "mandatory": false,
+      "label": "Default Payment Request Message",
+      "options": null,
+      "default_value": "Please click on the link below to make your payment",
+      "user_input_synonyms": [
+        "message",
+        "default payment request message",
+        "default_payment_request_message",
+        "Default Payment Request Message"
+      ]
+    }
+  }
+}

@@ -1,0 +1,270 @@
+{
+  "doctype_name": "Budget",
+  "mandatory_fields": [
+    "naming_series",
+    "budget_against",
+    "company",
+    "fiscal_year",
+    "accounts"
+  ],
+  "doctype_classifier_hints": [
+    "budget",
+    "naming_series"
+  ],
+  "field_mappings": {
+    "naming_series": {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Series",
+      "options": [
+        "BUDGET-.YYYY.-"
+      ],
+      "default_value": null,
+      "user_input_synonyms": [
+        "naming_series",
+        "Series",
+        "series",
+        "naming series"
+      ]
+    },
+    "budget_against": {
+      "fieldname": "budget_against",
+      "fieldtype": "Select",
+      "mandatory": true,
+      "label": "Budget Against",
+      "options": [
+        "Cost Center",
+        "Project"
+      ],
+      "default_value": "Cost Center",
+      "user_input_synonyms": [
+        "Budget Against",
+        "budget_against",
+        "budget against"
+      ]
+    },
+    "company": {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Company",
+      "options": "Company",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Company",
+        "company"
+      ]
+    },
+    "cost_center": {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Cost Center",
+      "options": "Cost Center",
+      "default_value": null,
+      "user_input_synonyms": [
+        "cost_center",
+        "Cost Center",
+        "cost center"
+      ]
+    },
+    "project": {
+      "fieldname": "project",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Project",
+      "options": "Project",
+      "default_value": null,
+      "user_input_synonyms": [
+        "project",
+        "Project"
+      ]
+    },
+    "fiscal_year": {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "mandatory": true,
+      "label": "Fiscal Year",
+      "options": "Fiscal Year",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Fiscal Year",
+        "fiscal year",
+        "fiscal_year"
+      ]
+    },
+    "monthly_distribution": {
+      "fieldname": "monthly_distribution",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Monthly Distribution",
+      "options": "Monthly Distribution",
+      "default_value": null,
+      "user_input_synonyms": [
+        "monthly distribution",
+        "Monthly Distribution",
+        "monthly_distribution"
+      ]
+    },
+    "amended_from": {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "mandatory": false,
+      "label": "Amended From",
+      "options": "Budget",
+      "default_value": null,
+      "user_input_synonyms": [
+        "Amended From",
+        "amended from",
+        "amended_from"
+      ]
+    },
+    "applicable_on_material_request": {
+      "fieldname": "applicable_on_material_request",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Applicable on Material Request",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "applicable_on_material_request",
+        "Applicable on Material Request",
+        "applicable on material request"
+      ]
+    },
+    "action_if_annual_budget_exceeded_on_mr": {
+      "fieldname": "action_if_annual_budget_exceeded_on_mr",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Action if Annual Budget Exceeded on MR",
+      "options": [
+        "Stop",
+        "Warn",
+        "Ignore"
+      ],
+      "default_value": "Stop",
+      "user_input_synonyms": [
+        "action_if_annual_budget_exceeded_on_mr",
+        "action if annual budget exceeded on mr",
+        "Action if Annual Budget Exceeded on MR"
+      ]
+    },
+    "action_if_accumulated_monthly_budget_exceeded_on_mr": {
+      "fieldname": "action_if_accumulated_monthly_budget_exceeded_on_mr",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Action if Accumulated Monthly Budget Exceeded on MR",
+      "options": [
+        "Stop",
+        "Warn",
+        "Ignore"
+      ],
+      "default_value": "Warn",
+      "user_input_synonyms": [
+        "action if accumulated monthly budget exceeded on mr",
+        "action_if_accumulated_monthly_budget_exceeded_on_mr",
+        "Action if Accumulated Monthly Budget Exceeded on MR"
+      ]
+    },
+    "applicable_on_purchase_order": {
+      "fieldname": "applicable_on_purchase_order",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Applicable on Purchase Order",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Applicable on Purchase Order",
+        "applicable on purchase order",
+        "applicable_on_purchase_order"
+      ]
+    },
+    "action_if_annual_budget_exceeded_on_po": {
+      "fieldname": "action_if_annual_budget_exceeded_on_po",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Action if Annual Budget Exceeded on PO",
+      "options": [
+        "Stop",
+        "Warn",
+        "Ignore"
+      ],
+      "default_value": "Stop",
+      "user_input_synonyms": [
+        "action if annual budget exceeded on po",
+        "action_if_annual_budget_exceeded_on_po",
+        "Action if Annual Budget Exceeded on PO"
+      ]
+    },
+    "action_if_accumulated_monthly_budget_exceeded_on_po": {
+      "fieldname": "action_if_accumulated_monthly_budget_exceeded_on_po",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Action if Accumulated Monthly Budget Exceeded on PO",
+      "options": [
+        "Stop",
+        "Warn",
+        "Ignore"
+      ],
+      "default_value": "Warn",
+      "user_input_synonyms": [
+        "Action if Accumulated Monthly Budget Exceeded on PO",
+        "action if accumulated monthly budget exceeded on po",
+        "action_if_accumulated_monthly_budget_exceeded_on_po"
+      ]
+    },
+    "applicable_on_booking_actual_expenses": {
+      "fieldname": "applicable_on_booking_actual_expenses",
+      "fieldtype": "Check",
+      "mandatory": false,
+      "label": "Applicable on booking actual expenses",
+      "options": null,
+      "default_value": "0",
+      "user_input_synonyms": [
+        "Applicable on booking actual expenses",
+        "applicable_on_booking_actual_expenses",
+        "applicable on booking actual expenses"
+      ]
+    },
+    "action_if_annual_budget_exceeded": {
+      "fieldname": "action_if_annual_budget_exceeded",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Action if Annual Budget Exceeded on Actual",
+      "options": [
+        "Stop",
+        "Warn",
+        "Ignore"
+      ],
+      "default_value": "Stop",
+      "user_input_synonyms": [
+        "action_if_annual_budget_exceeded_on_actual",
+        "action if annual budget exceeded on actual",
+        "action if annual budget exceeded",
+        "Action if Annual Budget Exceeded on Actual",
+        "action_if_annual_budget_exceeded"
+      ]
+    },
+    "action_if_accumulated_monthly_budget_exceeded": {
+      "fieldname": "action_if_accumulated_monthly_budget_exceeded",
+      "fieldtype": "Select",
+      "mandatory": false,
+      "label": "Action if Accumulated Monthly Budget Exceeded on Actual",
+      "options": [
+        "Stop",
+        "Warn",
+        "Ignore"
+      ],
+      "default_value": "Warn",
+      "user_input_synonyms": [
+        "action_if_accumulated_monthly_budget_exceeded_on_actual",
+        "action_if_accumulated_monthly_budget_exceeded",
+        "action if accumulated monthly budget exceeded",
+        "Action if Accumulated Monthly Budget Exceeded on Actual",
+        "action if accumulated monthly budget exceeded on actual"
+      ]
+    }
+  },
+  "is_submittable": true
+}
