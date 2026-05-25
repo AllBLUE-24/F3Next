@@ -6,6 +6,7 @@
 
 **Related docs**
 
+- [`PRIORITIES.md`](./PRIORITIES.md) — **active sprint plan** (tiers, day plan, launch definition)
 - [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) — detailed IS appendix (P0–P4, golden run, known issues)
 - [`ARCH_IMPLEMENTATION.md`](./ARCH_IMPLEMENTATION.md) — IS architecture
 - [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md) — long-term agentic direction
@@ -44,13 +45,15 @@
 
 ## Focus this week (reviewed: 2026-05-25)
 
+> **Active sprint detail:** [`PRIORITIES.md`](./PRIORITIES.md) (tiers 0–6, day plan, launch definition).
+
 | # | Item | Stream | Status |
 |---|------|--------|--------|
-| 1 | Row-level validation + merge quarantine (Green Surface blockers) | IS | pending |
-| 2 | Forgot password + reset password flow (Supabase) | Platform | pending |
-| 3 | Onboarding → invite team step after company setup | Platform | pending |
-| 4 | Validate UI honesty (warnings ≠ green Passed; readiness ≠ 100%) | IS | pending |
-| 5 | Landing page refresh (after IS trust fixes) | Marketing | pending |
+| 1 | IS validate honesty (badges, child preview, readiness) | IS | pending |
+| 2 | Forgot password + reset flow (Supabase) | Platform | pending |
+| 3 | Onboarding → invite team step | Platform | pending |
+| 4 | Chat bar v1 on Validate (context + refine_mapping) | IS | pending |
+| 5 | Landing hero refresh | Marketing | pending |
 
 ---
 
@@ -221,7 +224,7 @@ _Promote to a stream + P-tier on weekly review._
 | Date | Item | Stream | Notes |
 |------|------|--------|-------|
 | 2026-05-25 | Product backlog doc created | — | Master queue + weekly format |
-| 2026-05-25 | IS merge-on-write, modular KB, validate merge | IS | See IS appendix Done table |
+| 2026-05-25 | Tier 0 demo unblock (naming_series, supervisor orphans) | IS | Validation defaults + obsolete prompts |
 
 _For IS-only completions, see also [`IS_V2_BACKLOG.md` Done section](./IS_V2_BACKLOG.md#done-recent)._
 

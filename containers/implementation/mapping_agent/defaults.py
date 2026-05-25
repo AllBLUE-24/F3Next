@@ -275,6 +275,12 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
                 new_items.append(it2)
             r[tname] = new_items
 
+        # Doctype-level naming_series (KB root key, not in field_mappings)
+        naming_series = dt_cfg.get("naming_series")
+        if isinstance(naming_series, str) and naming_series.strip():
+            if r.get("naming_series") in (None, ""):
+                r["naming_series"] = naming_series.strip()
+
         # Inject defaults for missing mandatory fields
         mandatory_fields = set(dt_cfg.get("mandatory_fields") or [])
         for _, cfg in fmap.items():
@@ -325,5 +331,17 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
 
         out.append(r)
 
+    return out
+
+
+def normalize_mapped_payload(doctype: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply KB defaults to an mapped R2 payload (`records` list). Returns a new dict."""
+    if not isinstance(payload, dict):
+        return payload
+    records = payload.get("records")
+    if not isinstance(records, list):
+        return payload
+    out = dict(payload)
+    out["records"] = apply_defaults_and_normalize(doctype, records)
     return out
 

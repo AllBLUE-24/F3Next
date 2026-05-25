@@ -245,6 +245,42 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                 )
             )
 
+        # KB-injectable fields (naming_series, etc.) — auto-fix before asking user
+        kb_auto_fields = {"naming_series"}
+        checks = (st.primary_result or {}).get("checks") if isinstance(st.primary_result, dict) else []
+        if not isinstance(checks, list):
+            checks = []
+
+        doctypes_for_kb_fix: List[str] = []
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            dt = check.get("doctype")
+            errs = check.get("errors") or []
+            needs_kb = any(
+                any(f"Missing required field: {field}" in str(e) for e in errs)
+                for field in kb_auto_fields
+            )
+            if dt and needs_kb and dt not in doctypes_for_kb_fix:
+                doctypes_for_kb_fix.append(str(dt))
+
+        for dt in doctypes_for_kb_fix:
+            actions.append(
+                SupervisorAction(
+                    id=f"auto_fix_kb_defaults_{dt.replace(' ', '_').lower()}",
+                    type="auto_fix",
+                    scope=dt,
+                    changes=[{"target": "r2", "doctype": dt, "op": "apply_kb_defaults"}],
+                    metadata={"reason": "Inject KB defaults (e.g. naming_series) into mapped payload"},
+                )
+            )
+
+        if doctypes_for_kb_fix:
+            missing_required = [
+                f for f in missing_required
+                if f not in kb_auto_fields
+            ]
+
         # Missing required fields → LLM-driven message
         if missing_required:
             final_status = "needs_user_input"
@@ -575,6 +611,19 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
                                     n += 1
                     await r2_write_json(key, payload, bucket="clean-data")
                     applied.append({"id": act.id, "doctype": doctype, "op": op, "updated": n, "key": key})
+                    continue
+
+                if op == "apply_kb_defaults":
+                    from containers.implementation.mapping_agent.defaults import normalize_mapped_payload
+
+                    before = payload.get("records")
+                    payload = normalize_mapped_payload(doctype, payload)
+                    n = len(payload.get("records") or [])
+                    if payload.get("records") != before:
+                        await r2_write_json(key, payload, bucket="clean-data")
+                        applied.append({"id": act.id, "doctype": doctype, "op": op, "updated": n, "key": key})
+                    else:
+                        skipped.append({"id": act.id, "doctype": doctype, "reason": "no_changes_after_kb_defaults"})
                     continue
 
                 skipped.append({"id": act.id, "doctype": doctype, "reason": f"unsupported_op:{op}"})

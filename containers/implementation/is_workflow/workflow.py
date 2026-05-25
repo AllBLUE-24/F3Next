@@ -46,6 +46,8 @@ with workflow.unsafe.imports_passed_through():
         PersistSupervisorPromptInput,
         mark_supervisor_prompt_answered,
         MarkSupervisorPromptAnsweredInput,
+        obsolete_supervisor_prompts,
+        ObsoleteSupervisorPromptsInput,
     )
     from containers.context_versioning.context_store.activities import (
         register_frappe_webhooks,
@@ -1171,7 +1173,7 @@ class ImplementationWorkflow:
                 _kv(L, "supervisor", sup.summary_for_ui)
 
                 auto_fixes = [a for a in (sup.actions or []) if getattr(a, "type", "") == "auto_fix"]
-                if auto_fixes and not auto_fix_attempted and sup.final_status == "resolved":
+                if auto_fixes and not auto_fix_attempted:
                     await workflow.execute_activity(
                         apply_supervisor_actions,
                         ApplySupervisorActionsInput(
@@ -1193,6 +1195,16 @@ class ImplementationWorkflow:
                     continue
 
                 if sup.final_status in ("needs_user_input", "hard_block"):
+                    ask_cycles += 1
+                    if ask_cycles > 2:
+                        L.info("      ⚠️  Supervisor ask_user cycles exceeded; stopping correction loop.")
+                        await workflow.execute_activity(
+                            obsolete_supervisor_prompts,
+                            ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                            **_ACT,
+                        )
+                        break
+
                     # Persist prompt for UI consumption
                     prompt_id = await workflow.execute_activity(
                         persist_supervisor_prompt,
@@ -1206,11 +1218,6 @@ class ImplementationWorkflow:
                         ),
                         **_ACT,
                     )
-
-                    ask_cycles += 1
-                    if ask_cycles > 2:
-                        L.info("      ⚠️  Supervisor ask_user cycles exceeded; stopping correction loop.")
-                        break
 
                     self._supervisor_response_event.clear()
                     L.info("  ⏳ Waiting for supervisor_response signal ...")
@@ -1255,6 +1262,12 @@ class ImplementationWorkflow:
 
                 # Nothing else to do (either already tried auto-fix, or no actionable items)
                 break
+
+            await workflow.execute_activity(
+                obsolete_supervisor_prompts,
+                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                **_ACT,
+            )
 
         self._set_task("t7", "done", f"Status: {v_status or getattr(v_env, 'status', 'unknown')}")
         self._stage = "awaiting_validation_submission"

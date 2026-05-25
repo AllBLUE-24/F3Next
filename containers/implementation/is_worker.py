@@ -61,6 +61,7 @@ from containers.implementation.file_io.persist_audit       import persist_audit
 from containers.implementation.file_io.persist_supervisor_prompt import (
     persist_supervisor_prompt,
     mark_supervisor_prompt_answered,
+    obsolete_supervisor_prompts,
 )
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,7 @@ async def main() -> None:
                         persist_audit,
                         persist_supervisor_prompt,
                         mark_supervisor_prompt_answered,
+                        obsolete_supervisor_prompts,
                        ],
             activity_executor=activity_executor,
         )

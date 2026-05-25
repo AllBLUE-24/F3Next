@@ -1,7 +1,8 @@
 # IS v2 — Backlog & Priorities
 
 > **Detailed IS appendix** — full P0–P4 lists, golden run checklist, known issues.  
-> **Master product priorities:** `[PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md)` (weekly focus + Platform/Marketing/Design streams).  
+> **Master product priorities:** [`PRODUCT_BACKLOG.md`](./PRODUCT_BACKLOG.md) (weekly focus + Platform/Marketing/Design streams).  
+> **Active sprint plan:** [`PRIORITIES.md`](./PRIORITIES.md) (tiers, day plan, launch definition).  
 > **Stream tag:** IS — summarized in master under **Stream: IS**.
 
 > **Living document** — ideas, fixes, features, and UI work for the Implementation System.  
@@ -117,7 +118,7 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 | 2026-05-25 | Party split always-map                                     | `always_map_split_entities` + `_should_map_doctype(from_party_split=True)` |
 | 2026-05-25 | Pass 2.5 link resolution                                   | `link_resolver.py` warehouse aliases                                       |
 | 2026-05-25 | Pass 2.6 BOM auto-submit                                   | `lifecycle.py`                                                             |
-| 2026-05-25 | Import plan before mapping (workflow)                      | Steps 8d–8e                                                                |
+| 2026-05-25 | Tier 0 demo unblock | naming_series at map + validate; supervisor obsolete prompts; auto_fix apply_kb_defaults |
 | 2026-05-25 | Data readiness + supervisor gate                           | Pre-validate                                                               |
 
 

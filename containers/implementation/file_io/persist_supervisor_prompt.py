@@ -59,6 +59,39 @@ class MarkSupervisorPromptAnsweredInput:
     status: str = "answered"
 
 
+@dataclass
+class ObsoleteSupervisorPromptsInput:
+    session_id: str
+
+
+@activity.defn(name="obsolete_supervisor_prompts")
+async def obsolete_supervisor_prompts(inp: ObsoleteSupervisorPromptsInput) -> int:
+    """Mark all open supervisor prompts for a session as obsolete (clears sticky UI banners)."""
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISSupervisorPrompt
+    from sqlalchemy import update
+
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                update(ISSupervisorPrompt)
+                .where(ISSupervisorPrompt.session_id == uuid.UUID(inp.session_id))
+                .where(ISSupervisorPrompt.status == "open")
+                .values(status="obsolete")
+            )
+            await session.commit()
+            count = result.rowcount or 0
+            activity.logger.info(
+                "  ✅ obsolete_supervisor_prompts | session=%s count=%d",
+                inp.session_id,
+                count,
+            )
+            return count
+    except Exception as e:
+        activity.logger.error("  ❌ obsolete_supervisor_prompts failed: %s", e)
+        return 0
+
+
 @activity.defn(name="mark_supervisor_prompt_answered")
 async def mark_supervisor_prompt_answered(inp: MarkSupervisorPromptAnsweredInput) -> str:
     from shared.database.db import AsyncSessionLocal

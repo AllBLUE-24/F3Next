@@ -621,6 +621,9 @@ class ImplementationLauncher:
                 try:
                     payload = load_r2_json(s3, "clean-data", r2_path)
                     if isinstance(payload, dict):
+                        from containers.implementation.mapping_agent.defaults import normalize_mapped_payload
+
+                        payload = normalize_mapped_payload(dt, payload)
                         records = payload.get("records", [])
                         if records:
                             columns = list(records[0].keys())

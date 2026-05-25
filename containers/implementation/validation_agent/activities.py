@@ -390,7 +390,27 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                 continue
 
             records = payload_json.get("records", [])
-            mapped_data[doctype] = payload_json
+            normalized_payload = payload_json
+            try:
+                from containers.implementation.mapping_agent.defaults import normalize_mapped_payload
+
+                normalized_payload = normalize_mapped_payload(doctype, payload_json)
+                if normalized_payload.get("records") != payload_json.get("records"):
+                    s3.put_object(
+                        Bucket="clean-data",
+                        Key=r2_key,
+                        Body=json.dumps(normalized_payload, indent=2, default=str).encode("utf-8"),
+                        ContentType="application/json",
+                    )
+                    activity.logger.info(
+                        "  🔧 Applied KB defaults to %s payload (%d records) → R2 updated",
+                        doctype,
+                        len(normalized_payload.get("records") or []),
+                    )
+            except Exception as e:
+                activity.logger.warning("  ⚠️ KB defaults injection failed for %s: %s", doctype, e)
+
+            mapped_data[doctype] = normalized_payload
             mapped_data_map[doctype] = next(
                 (r for r in mapped_data_rows if r.target_doctype == doctype),
                 None,
@@ -398,7 +418,7 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
             activity.logger.info(
                 "  ✅ Loaded merged payload for %s from R2 (%d records, sources=%s)",
                 doctype,
-                len(records),
+                len(normalized_payload.get("records") or []),
                 source_files_by_doctype.get(doctype, []),
             )
         except Exception as e:
@@ -534,6 +554,7 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         "warning_count": n_warnings,
         "report_r2_path": report_key,
         "doctypes_checked": len(report.get("checks", []) or []),
+        "checks": report.get("checks", []) or [],
     }
 
     if v_status != "pass" or errors:

@@ -149,5 +149,31 @@ class CorpusMergeTest(unittest.TestCase):
         self.assertFalse(filename_conflicts_with_doctype("05_gs_active_projects.csv", "Project"))
 
 
+class DefaultsInjectionTest(unittest.TestCase):
+    def test_injects_naming_series_for_project(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+
+        out = apply_defaults_and_normalize("Project", [{"project_name": "Green Surface Site A"}])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0].get("naming_series"), "PROJ-")
+        self.assertEqual(out[0].get("project_name"), "Green Surface Site A")
+
+    def test_does_not_overwrite_existing_naming_series(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+
+        out = apply_defaults_and_normalize(
+            "Project",
+            [{"project_name": "Site A", "naming_series": "CUSTOM-"}],
+        )
+        self.assertEqual(out[0].get("naming_series"), "CUSTOM-")
+
+    def test_normalize_mapped_payload_injects_naming_series(self) -> None:
+        from containers.implementation.mapping_agent.defaults import normalize_mapped_payload
+
+        payload = {"doctype": "Project", "records": [{"project_name": "Site B"}]}
+        out = normalize_mapped_payload("Project", payload)
+        self.assertEqual(out["records"][0].get("naming_series"), "PROJ-")
+
+
 if __name__ == "__main__":
     unittest.main()
