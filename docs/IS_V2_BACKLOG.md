@@ -50,12 +50,12 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 
 ## P0 — Blockers (do first)
 
-- **Row-level required values** — fail when identity fields are *empty*, not only when the field *key* is absent (`supplier_name`, `customer_name`, `item_code`, `project_name`).
-- **Merge quarantine** — rows missing dedupe key must not become `__anon_*` entries (fixes Supplier 8 rows → 6).
-- **Cross-file merge guard** — block or split when source filename strongly implies a different doctype (e.g. `active_projects` → must not merge into Purchase Receipt).
-- **Confirm Project classification live** — worker restarted with modular KB + column priors; fresh session (not stale R2 from pre-fix run).
-- **Green Surface 8-file harness** — document pass/fail matrix: Item(6), Customer(2), Supplier(6), BOM(2), Project(2), WO(2), PR(3), SE(2).
-- **Customer rows in Supplier payload** — root-cause + fix party split / mapping leak (empty `supplier_name` rows 3–4 in validate UI).
+- [x] **Row-level required values** — validation fails on empty identity/mandatory values. *(2026-05-25)*
+- [x] **Merge quarantine** — no `__anon_*` rows; missing dedupe key dropped at merge. *(2026-05-25)*
+- [x] **Cross-file merge guard** — filename priors remap incompatible files (e.g. `active_projects` → Project). *(2026-05-25)*
+- [ ] **Confirm Project classification live** — restart worker + fresh session (not stale R2).
+- [x] **Green Surface 8-file harness** — matrix: [`GREEN_SURFACE_GOLDEN_MATRIX.md`](../containers/implementation/dev_fixtures/GREEN_SURFACE_GOLDEN_MATRIX.md)
+- [x] **Customer rows in Supplier payload** — quarantine + cross-entity validation. *(2026-05-25)*
 
 ---
 
