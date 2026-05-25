@@ -3,6 +3,9 @@ import unittest
 from containers.implementation.mapping_agent.activities import _MappingEngine
 from containers.implementation.mapping_agent.corpus_merge import (
     aggregate_mapped_data_rows,
+    filename_conflicts_with_doctype,
+    filename_implied_doctype,
+    filter_quarantined_records,
     inject_missing_mapped_steps,
     merge_payloads,
     merge_record_lists,
@@ -116,6 +119,34 @@ class CorpusMergeTest(unittest.TestCase):
         project_steps = updated["phase_d_projects"]["steps"]
         self.assertEqual(len(project_steps), 1)
         self.assertEqual(project_steps[0]["doctype"], "Project")
+
+    def test_quarantine_empty_supplier_identity(self) -> None:
+        rows = [
+            {"supplier_name": "Apex Chemicals Ltd."},
+            {"supplier_group": "All Supplier Groups"},
+            {"customer_name": "Apollo Hospitals", "supplier_group": "All Supplier Groups"},
+        ]
+        kept, quarantined = filter_quarantined_records("Supplier", rows)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(len(quarantined), 2)
+        self.assertEqual(kept[0]["supplier_name"], "Apex Chemicals Ltd.")
+
+    def test_merge_skips_anonymous_rows(self) -> None:
+        existing = [{"supplier_name": "Dow Chemical Bulk"}]
+        incoming = [
+            {"supplier_group": "All Supplier Groups"},
+            {"supplier_name": "Apex Chemicals Ltd."},
+        ]
+        merged = merge_record_lists("Supplier", existing, incoming)
+        self.assertEqual(len(merged), 2)
+        names = {r["supplier_name"] for r in merged}
+        self.assertEqual(names, {"Dow Chemical Bulk", "Apex Chemicals Ltd."})
+
+    def test_active_projects_filename_implies_project(self) -> None:
+        implied = filename_implied_doctype("05_gs_active_projects.csv")
+        self.assertEqual(implied, "Project")
+        self.assertTrue(filename_conflicts_with_doctype("05_gs_active_projects.csv", "Purchase Receipt"))
+        self.assertFalse(filename_conflicts_with_doctype("05_gs_active_projects.csv", "Project"))
 
 
 if __name__ == "__main__":

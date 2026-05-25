@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from containers.knowledge_base.erpnext.schema.compose import merge_policies
+from containers.knowledge_base.erpnext.schema.compose import filename_priors, merge_policies
 
 _RAW_KEY_ALIASES: Dict[str, List[str]] = {
     "supplier_name": ["supplier_name", "party_name", "name", "vendor_name"],
@@ -13,6 +13,12 @@ _RAW_KEY_ALIASES: Dict[str, List[str]] = {
     "item_code": ["item_code", "item code", "sku", "code"],
     "item": ["item", "fg_item", "finished_good"],
     "project_name": ["project_name", "project name", "project", "project_id"],
+}
+
+# Rows with the wrong party identity field populated indicate split/mapping leaks.
+_CROSS_IDENTITY_FIELDS: Dict[str, str] = {
+    "Supplier": "customer_name",
+    "Customer": "supplier_name",
 }
 
 
@@ -34,16 +40,96 @@ def _norm_key(val: Any) -> str:
     return str(val or "").strip().lower()
 
 
+def _is_empty(val: Any) -> bool:
+    return val in (None, "", [], {})
+
+
 def _row_dedupe_key(doctype: str, row: Dict[str, Any]) -> str:
     key_field = dedupe_key_for(doctype)
     if not key_field:
         return ""
-    if row.get(key_field):
+    if row.get(key_field) and not _is_empty(row.get(key_field)):
         return _norm_key(row[key_field])
     for alias in _RAW_KEY_ALIASES.get(key_field, []):
-        if row.get(alias):
+        if row.get(alias) and not _is_empty(row.get(alias)):
             return _norm_key(row[alias])
     return ""
+
+
+def should_quarantine_row(doctype: str, row: Dict[str, Any]) -> bool:
+    """Drop rows that cannot be deduped safely or look like the wrong party entity."""
+    if not isinstance(row, dict):
+        return True
+
+    policies = merge_policies()
+    if policies.get("quarantine_missing_dedupe_key", True) and dedupe_key_for(doctype):
+        if not _row_dedupe_key(doctype, row):
+            return True
+
+    cross_field = _CROSS_IDENTITY_FIELDS.get(doctype)
+    if cross_field:
+        identity = dedupe_key_for(doctype)
+        cross_val = row.get(cross_field)
+        identity_val = row.get(identity) if identity else None
+        if cross_val and not _is_empty(cross_val) and _is_empty(identity_val):
+            return True
+
+    return False
+
+
+def filter_quarantined_records(
+    doctype: str,
+    records: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Return (kept, quarantined) record lists."""
+    kept: List[Dict[str, Any]] = []
+    quarantined: List[Dict[str, Any]] = []
+    for rec in records:
+        if should_quarantine_row(doctype, rec):
+            quarantined.append(rec)
+        else:
+            kept.append(rec)
+    return kept, quarantined
+
+
+def filename_prior_scores(filename: str) -> Dict[str, float]:
+    """Score doctypes from filename substring priors (KB classification)."""
+    f = _norm_key(filename)
+    scores: Dict[str, float] = {}
+    for entry in filename_priors():
+        dt = str(entry.get("doctype") or "")
+        kw = _norm_key(str(entry.get("keyword") or ""))
+        w = float(entry.get("weight") or 0.0)
+        if dt and kw and kw in f:
+            scores[dt] = scores.get(dt, 0.0) + w
+    return scores
+
+
+def filename_implied_doctype(
+    filename: str,
+    *,
+    min_weight: Optional[float] = None,
+) -> Optional[str]:
+    """Strongest doctype hint from filename, if above threshold."""
+    policies = merge_policies()
+    threshold = min_weight if min_weight is not None else float(
+        policies.get("filename_conflict_min_weight") or 2.0
+    )
+    scores = filename_prior_scores(filename)
+    if not scores:
+        return None
+    best_dt, best_score = max(scores.items(), key=lambda kv: (kv[1], kv[0].lower()))
+    if best_score >= threshold:
+        return best_dt
+    return None
+
+
+def filename_conflicts_with_doctype(filename: str, doctype: str) -> bool:
+    """True when filename strongly implies a different doctype than assigned."""
+    implied = filename_implied_doctype(filename)
+    if not implied:
+        return False
+    return implied.lower() != str(doctype or "").strip().lower()
 
 
 def merge_record_lists(
@@ -52,14 +138,19 @@ def merge_record_lists(
     incoming: List[Dict[str, Any]],
     *,
     strategy: Optional[str] = None,
+    quarantine: bool = True,
 ) -> List[Dict[str, Any]]:
     """Union records for a doctype, deduping by KB merge policy."""
     policies = merge_policies()
     strategy = strategy or policies.get("merge_strategy", "union_richest_first")
     key_field = dedupe_key_for(doctype)
+    do_quarantine = quarantine and bool(policies.get("quarantine_missing_dedupe_key", True))
 
     if not key_field:
-        return list(existing) + list(incoming)
+        combined = list(existing) + list(incoming)
+        if do_quarantine:
+            combined, _ = filter_quarantined_records(doctype, combined)
+        return combined
 
     merged: Dict[str, Dict[str, Any]] = {}
     order: List[str] = []
@@ -67,7 +158,11 @@ def merge_record_lists(
     for rec in list(existing) + list(incoming):
         if not isinstance(rec, dict):
             continue
-        k = _row_dedupe_key(doctype, rec) or f"__anon_{len(order)}"
+        if do_quarantine and should_quarantine_row(doctype, rec):
+            continue
+        k = _row_dedupe_key(doctype, rec)
+        if not k:
+            continue
         if k in merged:
             if strategy == "union_richest_first":
                 existing_rec = merged[k]
@@ -78,7 +173,7 @@ def merge_record_lists(
                 elif new_rich == old_rich:
                     combined = dict(existing_rec)
                     for fk, fv in rec.items():
-                        if fv not in (None, "", [], {}) and combined.get(fk) in (None, "", [], {}):
+                        if not _is_empty(fv) and _is_empty(combined.get(fk)):
                             combined[fk] = fv
                     merged[k] = combined
             else:

@@ -1,6 +1,8 @@
 {
   "description": "Corpus merge policies when multiple files map to the same doctype",
   "merge_strategy": "union_richest_first",
+  "quarantine_missing_dedupe_key": true,
+  "filename_conflict_min_weight": 2.0,
   "dedupe_key": {
     "Supplier": "supplier_name",
     "Customer": "customer_name",

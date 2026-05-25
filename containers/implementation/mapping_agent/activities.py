@@ -39,6 +39,9 @@ from containers.implementation.mapping_agent.defaults import (
     apply_defaults_and_normalize,
 )
 from containers.implementation.mapping_agent.corpus_merge import (
+    filename_conflicts_with_doctype,
+    filename_implied_doctype,
+    filter_quarantined_records,
     load_r2_json,
     merge_extracted_rows,
     merge_payloads,
@@ -1044,6 +1047,31 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         field_mapping = result.get("field_mapping", {})
         source_columns = result.get("source_columns", [])
 
+        # Cross-file guard: filename strongly implies a different doctype (e.g. active_projects → Project).
+        implied_dt = filename_implied_doctype(inp.filename)
+        if implied_dt and filename_conflicts_with_doctype(inp.filename, doctype):
+            if implied_dt in candidates:
+                activity.logger.warning(
+                    "  🛡️ Cross-file guard: %s implies %s not %s — remapping",
+                    inp.filename,
+                    implied_dt,
+                    doctype,
+                )
+                doctype = implied_dt
+                if rows and field_mapping and not is_unstructured:
+                    cols = source_columns or [c for c in rows[0].keys() if c]
+                    field_mapping = engine.map_columns(
+                        cols, doctype, sample_row=rows[0] if rows else None
+                    )
+            else:
+                activity.logger.warning(
+                    "  ⏭️ Cross-file guard: %s incompatible with %s (implies %s) — skipping",
+                    inp.filename,
+                    doctype,
+                    implied_dt,
+                )
+                continue
+
         activity.logger.info("  Mapped %s → %s | fields=%d rows=%d",
                              inp.filename, doctype, len(field_mapping), len(rows))
 
@@ -1091,7 +1119,17 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         except Exception:
             pass
 
+        mapped_records, quarantined_rows = filter_quarantined_records(doctype, mapped_records)
+        if quarantined_rows:
+            activity.logger.warning(
+                "  🚫 Quarantined %d row(s) for %s (missing identity or cross-entity leak)",
+                len(quarantined_rows),
+                doctype,
+            )
 
+        if not mapped_records:
+            activity.logger.info("  ⚠️ No valid rows left for %s after quarantine", doctype)
+            continue
 
         # ── Build link_fields metadata from schema ────────────────────────────
         # Extract every Link field for this doctype from field_mappings.json so
@@ -1118,7 +1156,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         }
 
         existing_payload = load_r2_json(s3, "clean-data", payload_key)
-        if isinstance(existing_payload, dict) and existing_payload.get("records") is not None:
+        if (
+            isinstance(existing_payload, dict)
+            and existing_payload.get("records") is not None
+            and not filename_conflicts_with_doctype(inp.filename, doctype)
+        ):
             prev_count = len(existing_payload.get("records") or [])
             erpnext_payload = merge_payloads(doctype, existing_payload, erpnext_payload)
             activity.logger.info(

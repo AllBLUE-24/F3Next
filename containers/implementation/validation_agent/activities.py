@@ -24,6 +24,7 @@ _KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "er
 _GRAPH_PATH = _KB_DIR / "erpnext_doctype_graph.json"
 
 from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+from containers.implementation.mapping_agent.corpus_merge import dedupe_key_for
 
 
 def _load_graph() -> Dict:
@@ -222,9 +223,7 @@ class _ValidationEngine:
                     f"{doctype}: records have only {fields_per_record} non-empty field(s) — critically sparse data"
                 )
 
-        # Required-field check: scan first 10 rows, not just row 0.
-        # A field is only truly missing if it is absent from ALL sample rows
-        # (avoids false positives when the first record comes from a partial mapping).
+        # Required-field check: scan first 10 rows for column presence (legacy).
         required = self._get_required_fields(doctype)
         if rows and required:
             sample_rows = rows[:10]
@@ -238,6 +237,42 @@ class _ValidationEngine:
                     check["errors"].append(f"Missing required field: {field}")
                     check["status"] = "fail"
 
+        # Row-level required VALUES — identity + mandatory fields must be non-empty.
+        identity_field = dedupe_key_for(doctype)
+        value_check_fields: List[str] = list(required)
+        if identity_field and identity_field not in value_check_fields:
+            value_check_fields.insert(0, identity_field)
+
+        if rows and value_check_fields:
+            for i, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    continue
+                for field in value_check_fields:
+                    if field not in row:
+                        continue
+                    val = row.get(field)
+                    if val is None or (isinstance(val, str) and not str(val).strip()):
+                        check["errors"].append(
+                            f"Row {i + 1}: empty required value for '{field}'"
+                        )
+                        check["status"] = "fail"
+
+        # Cross-entity leak detection (Supplier row with customer_name only, etc.)
+        if rows and doctype in ("Supplier", "Customer"):
+            leak_field = "customer_name" if doctype == "Supplier" else "supplier_name"
+            identity = identity_field or ("supplier_name" if doctype == "Supplier" else "customer_name")
+            for i, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    continue
+                cross_val = row.get(leak_field)
+                id_val = row.get(identity)
+                if cross_val and str(cross_val).strip() and (
+                    id_val is None or not str(id_val).strip()
+                ):
+                    check["errors"].append(
+                        f"Row {i + 1}: {doctype} record has '{leak_field}' but empty '{identity}'"
+                    )
+                    check["status"] = "fail"
 
         # ── ENUM VALUE VALIDATION ──
         enum_rules = self._get_enum_rules(doctype)
