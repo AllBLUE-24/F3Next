@@ -56,7 +56,7 @@ def _load_defaults_baseline() -> Dict[str, List]:
 
 
 def _normalize_doctype_name(name: str) -> str:
-    from containers.implementation.shared.doctype_resolver import normalize_doctype_name
+    from containers.implementation.is_common.doctype_resolver import normalize_doctype_name
 
     return normalize_doctype_name(name)
 
@@ -69,7 +69,7 @@ def _load_kb_doctypes() -> Dict[str, Any]:
 
 
 def _canonicalize_doctypes(doctypes: List[str], graph: Dict[str, Any]) -> List[str]:
-    from containers.implementation.shared.doctype_resolver import resolve_doctype, unique_canonical
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype, unique_canonical
 
     graph_doctypes = graph.get("doctypes", {}) if isinstance(graph, dict) else {}
     kb_doctypes = _load_kb_doctypes()

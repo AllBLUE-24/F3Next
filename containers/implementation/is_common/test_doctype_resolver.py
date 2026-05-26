@@ -1,6 +1,6 @@
 import unittest
 
-from containers.implementation.shared.doctype_resolver import (
+from containers.implementation.is_common.doctype_resolver import (
     normalize_doctype_name,
     resolve_doctype,
     strip_annotations,

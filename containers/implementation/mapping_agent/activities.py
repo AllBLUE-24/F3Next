@@ -29,7 +29,7 @@ from shared.models.is_models import (
     ISMappedData,
     ISSession,
 )
-from containers.implementation.shared.doctype_resolver import resolve_doctype
+from containers.implementation.is_common.doctype_resolver import resolve_doctype
 from shared.models.is_status import NodeStatusEnvelope
 from containers.implementation.utils.llm_helper import generate_json
 
@@ -646,7 +646,7 @@ async def _should_map_doctype(
     Party-split groups always map when corpus rules require it.
     Strong filename priors can bypass a negative plan decision.
     """
-    from containers.implementation.shared.doctype_resolver import (
+    from containers.implementation.is_common.doctype_resolver import (
         contains_doctype,
         resolve_doctype,
     )

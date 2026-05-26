@@ -536,7 +536,7 @@ class _ImportEngine:
         validation_status: str,
         playbook_context: str = "",
     ) -> Dict[str, Any]:
-        from containers.implementation.shared.doctype_resolver import lookup_normalized, resolve_doctype
+        from containers.implementation.is_common.doctype_resolver import lookup_normalized, resolve_doctype
 
         if validation_status == "fail":
             return {
@@ -745,7 +745,7 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
     ready_or_partial = set(ready_names) | set(partial_names)
 
     from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
-    from containers.implementation.shared.doctype_resolver import resolve_doctype
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype
 
     for dt in ready_or_partial:
         if dt:

@@ -191,7 +191,7 @@ def analyze_gaps(
             # Filename priors (align with mapping classifier)
             try:
                 from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
-                from containers.implementation.shared.doctype_resolver import resolve_doctype
+                from containers.implementation.is_common.doctype_resolver import resolve_doctype
 
                 fscores = filename_prior_scores(fname)
                 score += float(fscores.get(resolve_doctype(doctype), 0.0) or 0.0)
@@ -249,7 +249,7 @@ def analyze_gaps(
     # ── Corpus expansion: strong filename priors for KB doctypes ─────────────
     try:
         from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
-        from containers.implementation.shared.doctype_resolver import resolve_doctype
+        from containers.implementation.is_common.doctype_resolver import resolve_doctype
 
         seen_ready = {resolve_doctype(r["doctype"]) for r in ready_doctypes}
         seen_partial = {resolve_doctype(p["doctype"]) for p in partial_doctypes}
@@ -285,7 +285,7 @@ def analyze_gaps(
                 score, _, _ = _score_columns_vs_doctype(meta["columns"], doctype, field_mappings_kb)
                 try:
                     from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
-                    from containers.implementation.shared.doctype_resolver import resolve_doctype
+                    from containers.implementation.is_common.doctype_resolver import resolve_doctype
 
                     score += float(filename_prior_scores(fname).get(resolve_doctype(doctype), 0.0) or 0.0)
                 except Exception:
