@@ -338,13 +338,30 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
 
     from shared.database.db import AsyncSessionLocal
     from shared.models.is_models import (
+        ISCompanyProfile,
         ISSession, ISTargetStructure, ISMappedData,
         ISValidationResult, ISValidationError,
     )
     from sqlalchemy import select, update
 
     # ── 1. Read target_structure from is_target_structures ───────────────────
+    defaults_context: Dict[str, Any] = {}
     async with AsyncSessionLocal() as session:
+        prof_stmt = (
+            select(ISCompanyProfile.company_name)
+            .where(ISCompanyProfile.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISCompanyProfile.version.desc())
+            .limit(1)
+        )
+        prof_res = await session.execute(prof_stmt)
+        company_name = prof_res.scalar_one_or_none()
+        if company_name:
+            defaults_context = {"company_name": str(company_name)}
+        elif inp.company_slug and inp.company_slug not in ("unknown", ""):
+            defaults_context = {
+                "company_name": inp.company_slug.replace("-", " ").replace("_", " ").title(),
+            }
+
         stmt = (
             select(ISTargetStructure)
             .where(ISTargetStructure.session_id == uuid.UUID(inp.session_id))
@@ -402,7 +419,9 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
             try:
                 from containers.implementation.mapping_agent.defaults import normalize_mapped_payload
 
-                normalized_payload = normalize_mapped_payload(doctype, payload_json)
+                normalized_payload = normalize_mapped_payload(
+                    doctype, payload_json, context=defaults_context or None
+                )
                 if normalized_payload.get("records") != payload_json.get("records"):
                     s3.put_object(
                         Bucket="clean-data",

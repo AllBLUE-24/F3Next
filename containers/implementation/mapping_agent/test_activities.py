@@ -183,6 +183,50 @@ class DefaultsInjectionTest(unittest.TestCase):
         )
         self.assertEqual(out[0].get("supplier_type"), "Company")
 
+    def test_injects_project_company_from_context(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+
+        out = apply_defaults_and_normalize(
+            "Project",
+            [{"project_name": "Green Surface Site A"}],
+            context={"company_name": "Green Surface Pvt Ltd"},
+        )
+        self.assertEqual(out[0].get("company"), "Green Surface Pvt Ltd")
+
+    def test_resolves_now_as_planned_start_date(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+        from datetime import date
+
+        out = apply_defaults_and_normalize(
+            "Work Order",
+            [{"production_item": "FG-1", "planned_start_date": "now"}],
+        )
+        self.assertEqual(out[0].get("planned_start_date"), date.today().isoformat())
+
+    def test_stock_entries_filename_implies_stock_entry(self) -> None:
+        implied = filename_implied_doctype("stock_entries.csv")
+        self.assertEqual(implied, "Stock Entry")
+
+    def test_coerces_item_naming_series_to_valid_select_option(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+
+        out = apply_defaults_and_normalize(
+            "Item",
+            [{"item_code": "RM-X", "item_name": "Epoxy"}],
+        )
+        ns = out[0].get("naming_series")
+        self.assertIn("YYYY", ns or "")
+        self.assertNotEqual(ns, "ITEM-")
+
+    def test_coerces_customer_naming_series(self) -> None:
+        from containers.implementation.mapping_agent.defaults import apply_defaults_and_normalize
+
+        out = apply_defaults_and_normalize(
+            "Customer",
+            [{"customer_name": "Apollo Hospitals", "naming_series": "CUST-"}],
+        )
+        self.assertEqual(out[0].get("naming_series"), "CUST-.YYYY.-")
+
 
 if __name__ == "__main__":
     unittest.main()

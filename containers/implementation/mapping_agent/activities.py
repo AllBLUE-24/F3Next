@@ -22,7 +22,14 @@ from temporalio import activity
 from sqlalchemy import select, update, delete
 
 from shared.database.db import AsyncSessionLocal
-from shared.models.is_models import ISFieldMapping, ISMappedData, ISFieldMappingHistory, ISSession
+from shared.models.is_models import (
+    ISCompanyProfile,
+    ISFieldMapping,
+    ISFieldMappingHistory,
+    ISMappedData,
+    ISSession,
+)
+from containers.implementation.shared.doctype_resolver import resolve_doctype
 from shared.models.is_status import NodeStatusEnvelope
 from containers.implementation.utils.llm_helper import generate_json
 
@@ -537,15 +544,37 @@ async def _load_session_context(session_id: str) -> Dict[str, Any]:
             stmt = select(ISSession).where(ISSession.id == uuid.UUID(session_id))
             res = await session.execute(stmt)
             row = res.scalar_one_or_none()
-            if not row:
-                return {}
-            return {
-                "user_import_note": row.user_import_note or "",
-                "file_batches": row.file_batches or [],
-                "user_notes": row.user_notes or [],
-            }
+            ctx: Dict[str, Any] = {}
+            if row:
+                ctx = {
+                    "user_import_note": row.user_import_note or "",
+                    "file_batches": row.file_batches or [],
+                    "user_notes": row.user_notes or [],
+                }
+            prof_stmt = (
+                select(ISCompanyProfile.company_name)
+                .where(ISCompanyProfile.session_id == uuid.UUID(session_id))
+                .order_by(ISCompanyProfile.version.desc())
+                .limit(1)
+            )
+            prof_res = await session.execute(prof_stmt)
+            company_name = prof_res.scalar_one_or_none()
+            if company_name:
+                ctx["company_name"] = str(company_name)
+            return ctx
     except Exception:
         return {}
+
+
+def _defaults_context(
+    session_context: Dict[str, Any],
+    *,
+    company_slug: Optional[str] = None,
+) -> Dict[str, Any]:
+    company = (session_context or {}).get("company_name") or ""
+    if not company and company_slug and company_slug not in ("unknown", ""):
+        company = company_slug.replace("-", " ").replace("_", " ").title()
+    return {"company_name": company} if company else {}
 
 
 async def _get_candidate_doctypes(session_id: str) -> List[str]:
@@ -931,7 +960,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             activity.logger.warning("  ⚠️ Unstructured extraction failed for %s → %s: %s", inp.filename, doctype, e)
             records = []
 
-        records = apply_defaults_and_normalize(doctype, records)
+        records = apply_defaults_and_normalize(
+            doctype,
+            records,
+            context=_defaults_context(session_context, company_slug=inp.company_slug),
+        )
         try:
             records = await validate_records_against_schema(doctype, records, project_id=inp.project_id)
         except Exception as e:
@@ -982,11 +1015,18 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                             group_doctype = (split_val or {}).get("doctype")
                             break
 
+                group_doctype = resolve_doctype(group_doctype or "")
+
                 if group_doctype == "Unmapped_Irrelevant":
                     activity.logger.info("  ⏭️ Group %s classified as Unmapped_Irrelevant, skipping.", entity_type)
                     continue
 
-                if not await _should_map_doctype(inp.session_id, group_doctype, from_party_split=True):
+                if not await _should_map_doctype(
+                    inp.session_id,
+                    group_doctype,
+                    from_party_split=True,
+                    filename=inp.filename,
+                ):
                     activity.logger.info("  ⏭️ Skipping split group %s → %s (not scheduled as 'create' in plan)", entity_type, group_doctype)
                     continue
 
@@ -1000,26 +1040,29 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 })
         else:
             # Single doctype
-            from containers.implementation.mapping_agent.corpus_merge import (
-                filename_conflicts_with_doctype,
-                filename_implied_doctype,
-            )
-            from containers.implementation.shared.doctype_resolver import resolve_doctype
-
             if inp.doctype_hint and inp.doctype_hint in candidates:
                 doctype = inp.doctype_hint
             else:
-                cls = await classify_doctype(
-                    filename=inp.filename,
-                    content_snippet="",
-                    columns=columns,
-                    candidates=candidates,
-                    user_import_note=user_note,
-                    model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
-                )
-                doctype = cls.get("doctype")
-                if not doctype and assignment_doctypes:
-                    doctype = assignment_doctypes[0]
+                implied_dt = filename_implied_doctype(inp.filename)
+                if implied_dt and implied_dt in candidates:
+                    doctype = implied_dt
+                    activity.logger.info(
+                        "  📎 Filename prior: %s → %s",
+                        inp.filename,
+                        doctype,
+                    )
+                else:
+                    cls = await classify_doctype(
+                        filename=inp.filename,
+                        content_snippet="",
+                        columns=columns,
+                        candidates=candidates,
+                        user_import_note=user_note,
+                        model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                    )
+                    doctype = cls.get("doctype")
+                    if not doctype and assignment_doctypes:
+                        doctype = assignment_doctypes[0]
 
             if doctype == "Unmapped_Irrelevant":
                 activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping mapping.", inp.filename)
@@ -1159,7 +1202,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
 
         # Deterministic folding + defaults + normalization
         mapped_records = fold_child_tables(doctype, mapped_records)
-        mapped_records = apply_defaults_and_normalize(doctype, mapped_records)
+        mapped_records = apply_defaults_and_normalize(
+            doctype,
+            mapped_records,
+            context=_defaults_context(session_context, company_slug=inp.company_slug),
+        )
         try:
             mapped_records = await validate_records_against_schema(doctype, mapped_records, project_id=inp.project_id)
         except Exception:

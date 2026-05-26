@@ -488,31 +488,20 @@ class ERPNextAdapter(ERPAdapter):
                 except Exception:
                     pass
 
-            # BOM: match by finished-good item (+ company) — names vary (FG-X vs BOM-FG-X-001)
-            if doctype == "BOM":
-                item_code = resolved_data.get("item")
-                company = resolved_data.get("company")
-                if item_code:
-                    bom_filters: list = [["item", "=", item_code]]
-                    if company:
-                        bom_filters.append(["company", "=", company])
-                    try:
-                        existing_boms = await self.list_records(
-                            "BOM",
-                            ["name", "docstatus", "item"],
-                            filters=bom_filters,
-                            limit=5,
-                        )
-                        if existing_boms:
-                            picked = existing_boms[0]
-                            logger.info(
-                                "Record BOM for item '%s' already exists as '%s' — skipping creation",
-                                item_code,
-                                picked.get("name"),
-                            )
-                            return picked
-                    except Exception as exc:
-                        logger.debug("BOM item-level existence check failed: %s", exc)
+            # Business-key idempotency (BOM by item, WO by production_item+bom_no, etc.)
+            try:
+                from shared.erp_adapters.import_idempotency import find_existing_record
+
+                existing_doc = await find_existing_record(self, doctype, resolved_data)
+                if existing_doc:
+                    logger.info(
+                        "Record %s already exists as '%s' — skipping creation",
+                        doctype,
+                        existing_doc.get("name"),
+                    )
+                    return existing_doc
+            except Exception as exc:
+                logger.debug("Import idempotency check failed for %s: %s", doctype, exc)
 
             url = self._resource_url(doctype)
             logger.debug("ERPNextAdapter.create_record: %s", doctype)

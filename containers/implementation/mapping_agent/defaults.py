@@ -88,7 +88,7 @@ def _resolve_relative_dates(s: str, today: date) -> Optional[str]:
     if not s:
         return None
     text = str(s).strip().lower()
-    if text in ("today",):
+    if text in ("today", "now"):
         return today.isoformat()
     if text in ("tomorrow",):
         return (today + timedelta(days=1)).isoformat()
@@ -219,7 +219,102 @@ def fold_child_tables(doctype: str, records: List[Dict[str, Any]]) -> List[Dict[
     return list(grouped.values())
 
 
-def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _resolve_default_value(
+    doctype: str,
+    fname: str,
+    dval: Any,
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Resolve KB default_value tokens into concrete scalars."""
+    if dval == "today" or dval == "now":
+        return _today()
+
+    if isinstance(dval, str) and "user_default" in dval and "company" in dval.lower():
+        company = (context or {}).get("company_name")
+        if company:
+            return company
+
+    if isinstance(dval, (str, int, float, bool)) and dval not in ("today", None):
+        if isinstance(dval, str) and any(tok in dval for tok in ("+", "fetch_from", "user_default")):
+            return None
+        return dval
+
+    return None
+
+
+def _select_field_options(cfg: Dict[str, Any]) -> List[str]:
+    """Parse Select field options from KB field config."""
+    opts_raw = cfg.get("options")
+    if isinstance(opts_raw, list):
+        return [str(o).strip() for o in opts_raw if str(o).strip()]
+    if isinstance(opts_raw, str) and opts_raw.strip():
+        return [o.strip() for o in opts_raw.split("\n") if o.strip()]
+    return []
+
+
+def _coerce_naming_series_value(
+    value: Any,
+    options: List[str],
+    *,
+    doctype_root: Optional[str] = None,
+) -> Optional[str]:
+    """Map short KB prefixes to the first valid ERPNext naming series option."""
+    if not options:
+        return str(value).strip() if value not in (None, "") else None
+
+    current = str(value or "").strip()
+    if current and current in options:
+        return current
+
+    root = str(doctype_root or "").strip()
+    if root and root in options:
+        return root
+
+    # Prefix match: ITEM- → STO-ITEM-.YYYY.-
+    if current:
+        for opt in options:
+            if opt.startswith(current) or current.startswith(opt.split(".")[0]):
+                return opt
+
+    return options[0]
+
+
+def _apply_naming_series_defaults(
+    doctype: str,
+    record: Dict[str, Any],
+    fmap: Dict[str, Any],
+    dt_cfg: Dict[str, Any],
+) -> None:
+    """Ensure naming_series matches a valid Select option when the field exists."""
+    root_series = dt_cfg.get("naming_series")
+    ns_cfg = fmap.get("naming_series") or {}
+    fieldtype = str(ns_cfg.get("fieldtype") or "").lower()
+
+    if fieldtype == "select":
+        options = _select_field_options(ns_cfg)
+        if not options:
+            return
+        coerced = _coerce_naming_series_value(
+            record.get("naming_series") or root_series,
+            options,
+            doctype_root=str(root_series) if root_series else None,
+        )
+        if coerced:
+            record["naming_series"] = coerced
+        return
+
+    if isinstance(root_series, str) and root_series.strip():
+        if record.get("naming_series") in (None, ""):
+            record["naming_series"] = root_series.strip()
+
+
+def apply_defaults_and_normalize(
+    doctype: str,
+    records: List[Dict[str, Any]],
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
     """
     Deterministically:
     - normalize dates & numerics
@@ -254,7 +349,7 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
             ftype = str(cfg.get("fieldtype") or "").strip().lower()
             val = r.get(fname)
 
-            if ftype == "date":
+            if ftype in ("date", "datetime"):
                 # Resolve relative -> known formats -> keep as-is
                 resolved = _resolve_relative_dates(str(val), date.today())
                 if resolved:
@@ -300,11 +395,8 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
                 new_items.append(it2)
             r[tname] = new_items
 
-        # Doctype-level naming_series (KB root key, not in field_mappings)
-        naming_series = dt_cfg.get("naming_series")
-        if isinstance(naming_series, str) and naming_series.strip():
-            if r.get("naming_series") in (None, ""):
-                r["naming_series"] = naming_series.strip()
+        # Doctype-level naming_series — coerce to valid Select option
+        _apply_naming_series_defaults(doctype, r, fmap, dt_cfg)
 
         # Inject defaults for missing mandatory / graph-required fields
         mandatory_fields = set(dt_cfg.get("mandatory_fields") or [])
@@ -324,18 +416,10 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
                 continue
 
             dval = cfg.get("default_value")
-            if dval == "today":
-                r[fname] = _today()
+            resolved = _resolve_default_value(doctype, fname, dval, context=context)
+            if resolved is not None:
+                r[fname] = resolved
                 continue
-
-            # If KB provided a static default
-            if isinstance(dval, (str, int, float, bool)) and dval not in ("today", None):
-                # Avoid copying formula-like strings here; handle only simple constants.
-                if isinstance(dval, str) and any(tok in dval for tok in ("+", "fetch_from", "user_default")):
-                    pass
-                else:
-                    r[fname] = dval
-                    continue
 
             # Baseline-driven safe defaults for core doctypes
             if doctype == "Item":
@@ -355,6 +439,10 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
                     r[fname] = "All Supplier Groups"
                 elif fname == "supplier_type":
                     r[fname] = "Company"
+            if doctype == "Project" and fname == "company":
+                company = (context or {}).get("company_name")
+                if company:
+                    r[fname] = company
 
         # Child table minimum rows: enforce empty list presence; do not invent rows.
         # Validation will still fail if business requires rows; extraction should handle that.
@@ -364,7 +452,12 @@ def apply_defaults_and_normalize(doctype: str, records: List[Dict[str, Any]]) ->
     return out
 
 
-def normalize_mapped_payload(doctype: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_mapped_payload(
+    doctype: str,
+    payload: Dict[str, Any],
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Apply KB defaults to an mapped R2 payload (`records` list). Returns a new dict."""
     if not isinstance(payload, dict):
         return payload
@@ -372,6 +465,6 @@ def normalize_mapped_payload(doctype: str, payload: Dict[str, Any]) -> Dict[str,
     if not isinstance(records, list):
         return payload
     out = dict(payload)
-    out["records"] = apply_defaults_and_normalize(doctype, records)
+    out["records"] = apply_defaults_and_normalize(doctype, records, context=context)
     return out
 

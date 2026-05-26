@@ -1438,6 +1438,8 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             submit_summary = []
         else:
             # 🚀 LIVE IMPORT: Row-by-Row via ERPAdapter
+            from shared.erp_adapters.import_idempotency import find_existing_record
+
             submit_summary = []
             for row_idx, row in enumerate(rows):
                 # ── Runtime normalization: fix known invalid Select values ──
@@ -1452,7 +1454,18 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                         row["customer_type"] = "Company"
                 # ────────────────────────────────────────────────────────────
                 try:
-                    data = await adapter.create_record(dt, row)
+                    existing_doc = await find_existing_record(adapter, dt, row)
+                    if existing_doc:
+                        activity.logger.info(
+                            "  ♻️  Idempotent skip %s row %d → existing '%s'",
+                            dt,
+                            row_idx,
+                            existing_doc.get("name"),
+                        )
+                        data = existing_doc
+                    else:
+                        data = await adapter.create_record(dt, row)
+
                     records_succeeded += 1
                     erpnext_responses.append(data)
 
@@ -1471,7 +1484,9 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                     err_msg = str(exc)
                     if "already exist" in err_msg.lower() or "duplicate" in err_msg.lower():
                         records_succeeded += 1
-                        existing = {"_status": "already_exists"}
+                        existing = await find_existing_record(adapter, dt, row) or {
+                            "_status": "already_exists",
+                        }
                         erpnext_responses.append(existing)
                         submit_entry = await _submit_after_create_if_needed(
                             adapter, dt, existing, inp.auto_submit, activity.logger,

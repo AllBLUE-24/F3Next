@@ -74,6 +74,11 @@ _BUILTIN_LIFECYCLE: dict[str, dict[str, Any]] = {
         "auto_submit_on_import": "ask_user",
         "import_risk_tier": "high",
     },
+    "Purchase Receipt": {
+        "is_submittable": True,
+        "auto_submit_on_import": "ask_user",
+        "import_risk_tier": "high",
+    },
     "Journal Entry": {
         "is_submittable": True,
         "auto_submit_on_import": "ask_user",
