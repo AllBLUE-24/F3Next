@@ -52,7 +52,7 @@
 
 | # | Item | Stream | Status |
 |---|------|--------|--------|
-| 1 | IS validate honesty — finish sidebar (1b) + confirm buttons (1e); 1a/1c/1d done | IS | **partial** |
+| 1 | IS validate honesty (Tier 1 complete) | IS | **done (2026-05-26)** |
 | 2 | Tier 0 worker deploy + golden smoke test (pre-beta) | IS | **pending** |
 | 3 | Forgot password + reset flow (Supabase) | Platform | pending |
 | 4 | Onboarding → invite team step | Platform | pending |
@@ -126,9 +126,9 @@ Summary only — full lists, golden checklist, pillar status, and known issues l
 - [x] Validate UI badges (Passed / Passed with warnings / Failed) *(2026-05-25)*
 - [x] Validate preview: flatten child tables *(2026-05-25; live verify pending)*
 - [x] Session-level `partial` on Validate page *(2026-05-25)*
-- [ ] Post-mapping readiness recheck (sidebar — Tier 1b)
-- [ ] Confirm-button UX (F3iche, mapping approve, validate step — Tier 1e)
-- [ ] Structured `ValidationReport` + supervisor on validate
+- [x] Post-mapping sidebar on Validate (validation summary card) *(2026-05-26)*
+- [x] Confirm-button UX (F3iche, mapping approve, validate step) *(2026-05-26)*
+- [ ] Structured `ValidationReport` + supervisor on validate (Tier 7c backend)
 - [ ] Supervisor contract: ask_user only for data gaps
 
 ### P2 — IS UX (summary)
@@ -263,7 +263,8 @@ _Promote to a stream + P-tier on weekly review._
 | 2026-05-25 | Product backlog doc created | — | Master queue + weekly format |
 | 2026-05-25 | Tier 0 demo unblock (naming_series, supervisor orphans) | IS | Validation defaults + obsolete prompts |
 | 2026-05-25 | Import idempotency (BOM, WO, dedupe keys) | IS | `shared/erp_adapters/import_idempotency.py` |
-| 2026-05-25 | Validate badges + partial status + preview flatten | IS | Tier 1a/1c/1d — Validate screen only |
+| 2026-05-25 | Validate badges + partial status + preview flatten | IS | Tier 1a/1c/1d — Validate screen |
+| 2026-05-26 | Tier 1b sidebar validation summary + 1e confirm UX | IS | `SupervisorPanel`, `AnalyzeView`, `ValidateView` on `feature/is-trust-v2` |
 
 _For IS-only completions, see also [`IS_V2_BACKLOG.md` Done section](./IS_V2_BACKLOG.md#done-recent)._
 
@@ -277,3 +278,4 @@ _For IS-only completions, see also [`IS_V2_BACKLOG.md` Done section](./IS_V2_BAC
 | 2026-05-25 | IS golden run | IS appendix created (Green Surface gaps) |
 | 2026-05-26 | Green Surface beta prep | 10 IS pillars, Tier 7 universal backbone, P0 done sync, focus reordered for beta |
 | 2026-05-26 | Tier 1 status audit | 1a/1c/1d marked done; 1b/1e remain; PRIORITIES Status column added |
+| 2026-05-26 | Tier 1 complete | 1b + 1e shipped on feature/is-trust-v2 |

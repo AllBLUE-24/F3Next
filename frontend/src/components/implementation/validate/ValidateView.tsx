@@ -3,7 +3,7 @@
 // src/components/implementation/validate/ValidateView.tsx
 // Full data review + double-confirm before import
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { DataPreviewTable } from './DataPreviewTable';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
+import { getBaseApiUrl } from '@/lib/config';
+
+const VALIDATE_CONFIRMED_KEY = (jobId: string) => `validate-confirmed-${jobId}`;
 
 interface Props {
   jobId: string;
@@ -37,6 +40,35 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
   const [step, setStep] = useState<'review' | 'confirmed' | 'importing'>('review');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  // Restore confirmed step after refresh or when workflow has moved past validation gate
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem(VALIDATE_CONFIRMED_KEY(jobId)) === '1') {
+      setStep('confirmed');
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${getBaseApiUrl()}/api/implementation/stage/${jobId}`, { cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const stage: string = data.stage || '';
+        if (stage && stage !== 'awaiting_validation_submission') {
+          setStep('confirmed');
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(VALIDATE_CONFIRMED_KEY(jobId), '1');
+          }
+        }
+      } catch {
+        // keep sessionStorage / default step
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
 
   const profile = preview.profile;
   const totalRecords = preview.doctypes.reduce((s, d) => s + d.total_rows, 0);
@@ -61,6 +93,9 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
       formData.append('profileEdits', JSON.stringify({}));
       formData.append('note', '');
       await submitValidation(formData);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(VALIDATE_CONFIRMED_KEY(jobId), '1');
+      }
       setStep('confirmed');
     });
   };

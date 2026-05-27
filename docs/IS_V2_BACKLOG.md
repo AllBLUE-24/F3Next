@@ -58,7 +58,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 6 | **Industry & company context** | F3iche + pgvector RAG + profile | ~60% enricher | Tier 6 F3iche playbooks; v2 Layer 2 |
 | 7 | **Mapping & merge** | Column→field, party split, dedupe, defaults | Strong for GS | P0 done; P3 unified merge |
 | 8 | **Gap analysis & supervisor** | Target vs actual diff; auto_fix; ask_user for data gaps only | ~50% | P1 supervisor contract; post-mapping readiness |
-| 9 | **Validation & trust gate** | pass / partial / fail; block bad import | Validate OK; sidebar lies | P1 **1b** pending |
+| 9 | **Validation & trust gate** | pass / partial / fail; block bad import | Validate + sidebar aligned on Validate route | Tier 7c for full ValidationReport |
 | 10 | **Phased import & verify** | Order, link resolution, idempotency, submit policy | ~70% | lifecycle.py; import idempotency shipped |
 
 **Supported doctypes today (KB mapping modules):** Item, Customer, Supplier, BOM, Work Order, Project, Purchase Receipt, Stock Entry, Sales Order, Sales Invoice, Purchase Order, Payment Entry, Journal Entry, Employee, Batch (~15 of 400+ ERPNext doctypes).
@@ -96,8 +96,8 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Validate preview: flatten child tables** — Stock Entry / Purchase Receipt show `item_code`/`qty` via `preview_flatten.py` + launcher. *(2026-05-25 — live golden verify pending)*
 - [x] **Overall validation status (Validate page)** — session-level `partial` when any doctype has warnings; `validation_overall` + capped data quality score. *(2026-05-25)*
 - [x] **Sparse data → `partial` (validation engine)** — warnings flip doctype status from pass to partial. *(2026-05-25 — `test_activities.py`)*
-- [ ] **Post-mapping readiness recheck** — sidebar score from ValidationReport / validate results, not pre-mapping step 8c only; label must not imply 100% when validate has warnings. *(Tier 1b)*
-- [ ] **Confirm-button UX (Analyze + Validate)** — hide F3iche / mapping approve / validate buttons after stage advances; persist Validate `confirmed` step across refresh. *(Tier 1e)*
+- [x] **Post-mapping readiness (sidebar on Validate)** — validation summary card replaces pre-mapping score on validate/sandbox routes. *(2026-05-26 — `SupervisorPanel.tsx`; full backend recheck → Tier 7c)*
+- [x] **Confirm-button UX (Analyze + Validate)** — optimistic confirm lock + Validate step from stage API / sessionStorage. *(2026-05-26)*
 - [ ] **Tier 1 quality gate** — deterministic rules before any LLM: empty identity, wrong source mix, row count vs dedupe expectation.
 - [ ] **Structured `ValidationReport` JSON** — single artifact: per-doctype sources, row issues, classification confidence (feeds UI + supervisor).
 - [ ] **Extend supervisor on validate** — enable `IS_SUPERVISOR_ENABLED=1`; feed quality report; ask targeted questions (“PR rows from `active_projects` — did you mean Project?”).
@@ -175,6 +175,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-25 | Data readiness + supervisor gate                           | Pre-validate                                                               |
 | 2026-05-25 | Import idempotency (BOM, WO, dedupe keys)                  | `import_idempotency.py` + tests                                            |
 | 2026-05-25 | Validate partial status + preview flatten                  | `validation_agent` partial on warnings; `preview_flatten.py` + launcher    |
+| 2026-05-26 | Tier 1b validation sidebar + Tier 1e confirm UX            | `SupervisorPanel`, `AnalyzeView`, `ValidateView`                           |
 
 
 ---
@@ -190,9 +191,9 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | All panels PASSED, 100% readiness (Validate)                                    | Warnings → partial on Validate page *(fixed)*; **sidebar** still pre-mapping | P1 1d done; **1b pending**          |
 | No Project panel                                                                | `active_projects` mapped to PR                                           | P0 Project classification               |
 | BOM shows 2 rows                                                                | Likely correct (2 FGs); 3 CSV lines = 2 BOMs + components in child table | Verify in harness matrix                |
-| F3iche / mapping approve button still visible after click                       | Stage polling lag; card not hidden when stage advances                   | P1 confirm-button UX                    |
-| Validate “Validate & Confirm” reappears on refresh                              | Local `step` state not persisted                                         | P1 confirm-button UX                    |
-| Sidebar “Pre-mapping assessment” shows 100% while validate has warnings         | Post-mapping recheck not built                                             | P1 post-mapping readiness               |
+| F3iche / mapping approve button still visible after click                       | Stage polling lag; card not hidden when stage advances                   | P1 confirm-button UX — **fixed 2026-05-26** |
+| Validate “Validate & Confirm” reappears on refresh                              | Local `step` state not persisted                                         | P1 confirm-button UX — **fixed 2026-05-26** |
+| Sidebar “Pre-mapping assessment” shows 100% while validate has warnings         | Post-mapping recheck not built                                             | P1 1b — **fixed 2026-05-26** on validate route |
 
 
 ---
@@ -230,5 +231,6 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-25 | IS golden run session | Initial backlog from Green Surface gaps + chat bar idea |
 | 2026-05-26 | Green Surface beta prep | Added 10 IS pillars, universal north star, P3 bridge items, supervisor contract, UI confirm-button gaps |
 | 2026-05-26 | Tier 1 status sync | Marked P1 badge/flatten/partial done; 1b sidebar + 1e buttons still open |
+| 2026-05-26 | Tier 1 complete | 1b + 1e shipped on feature/is-trust-v2 |
 
 

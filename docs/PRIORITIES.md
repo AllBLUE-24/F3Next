@@ -107,18 +107,17 @@ Then terminate stale `impl-{project_id}` workflow in Temporal and re-upload, **o
 Users must trust validate colors, counts, and readiness %.
 
 
-| ID  | Item                                                  | Outcome                                         |
-| --- | ----------------------------------------------------- | ----------------------------------------------- |
-| 1a  | UI badges: Passed / Passed with warnings / Failed     | No green on bad data                            |
-| 1b  | Readiness ≠ 100% when warnings exist                  | Honest session score                            |
-| 1c  | Flatten child tables in validate preview              | Stock Entry / PR show item_code, qty (not `--`) |
-| 1d  | Session-level `partial` when any doctype has warnings | Overall status matches reality                  |
-| 1e  | Confirm-button UX (Analyze + Validate)                | Hide cards after stage advance; persist Validate confirmed step |
+| ID  | Item                                                  | Outcome                                         | Status |
+| --- | ----------------------------------------------------- | ----------------------------------------------- | ------ |
+| 1a  | UI badges: Passed / Passed with warnings / Failed     | No green on bad data on Validate screen         | **done (2026-05-25)** |
+| 1b  | Readiness ≠ 100% when warnings exist                  | Honest sidebar on Validate (post-mapping summary) | **done (2026-05-26)** — `SupervisorPanel` route-aware |
+| 1c  | Flatten child tables in validate preview              | Stock Entry / PR show item_code, qty (not `--`) | **done (2026-05-25)** |
+| 1d  | Session-level `partial` when any doctype has warnings | Overall status on Validate matches reality      | **done (2026-05-25)** |
+| 1e  | Confirm-button UX (Analyze + Validate)                | Hide cards after confirm; persist Validate step | **done (2026-05-26)** — `AnalyzeView` + `ValidateView` |
 
 
 **Defer this sprint:** full `ValidationReport` JSON schema, multi-agent supervisor debate (IS P3).  
-**Quick win before beta:** relabel sidebar “Pre-mapping assessment” if full 1b recheck not done in time.  
-**Tier 1 complete when:** **1b** + **1e** done (1a, 1c, 1d shipped 2026-05-25).
+**Tier 1:** complete as of 2026-05-26 (full post-mapping backend recheck deferred to Tier 7c).
 
 ---
 
@@ -223,7 +222,7 @@ Structural foundations for “any doctype / any tabular data.” **Do not start 
 
 | #   | Item                                                       | Tier | Stream    | Status  |
 | --- | ---------------------------------------------------------- | ---- | --------- | ------- |
-| 1   | IS validate honesty — finish **1b** sidebar + **1e** buttons (1a/1c/1d done) | 1    | IS        | **partial** |
+| 1   | IS validate honesty (Tier 1 complete)                      | 1    | IS        | **done (2026-05-26)** |
 | 2   | Tier 0 worker deploy + golden smoke test (pre-beta)        | 0    | IS        | **pending** — 0a manual |
 | 3   | Forgot password + reset flow                               | 2    | Platform  | pending |
 | 4   | Onboarding → invite team step                              | 2    | Platform  | pending |
@@ -331,5 +330,6 @@ Checklist when re-running: `[GREEN_SURFACE_GOLDEN_MATRIX.md](../containers/imple
 | 2026-05-25 | Created sprint plan; parked golden re-run; ordered Tiers 0–6; mapped founder ideas to tiers |
 | 2026-05-26 | Green Surface beta prep; Tier 7 universal IS backbone; pre-demo day plan; Tier 1e confirm-button UX |
 | 2026-05-26 | Tier 1 Status column; marked 1a/1c/1d done; 1b/1e pending; Focus #1 partial |
+| 2026-05-26 | Tier 1 complete on `feature/is-trust-v2` | 1b validation sidebar + 1e confirm-button UX |
 
 

@@ -16,12 +16,14 @@
  */
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import {
   AlertTriangle, Info, CheckCircle2, Upload,
   ArrowRight, RefreshCw, Sparkles, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { getBaseApiUrl } from "@/lib/config";
 import { useImplementation } from "@/contexts/ImplementationContext";
+import type { ValidatePreviewData } from "@/lib/api/implementation_api";
 
 import { SupervisorInlineUploader } from "./SupervisorInlineUploader";
 
@@ -98,6 +100,92 @@ function ScoreBadge({ score }: { score: number }) {
     <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${color}`}>
       {pct}%
     </span>
+  );
+}
+
+function ValidationOverallBadge({ overall }: { overall: string }) {
+  if (overall === "fail") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/25">
+        <AlertTriangle className="w-2.5 h-2.5" /> Has Errors
+      </span>
+    );
+  }
+  if (overall === "partial") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+        <AlertTriangle className="w-2.5 h-2.5" /> Passed with Warnings
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+      <CheckCircle2 className="w-2.5 h-2.5" /> All Passed
+    </span>
+  );
+}
+
+function ValidationSummaryCard({ preview }: { preview: ValidatePreviewData }) {
+  const totalRecords = preview.doctypes.reduce((s, d) => s + (d.total_rows ?? 0), 0);
+  const withErrors = preview.doctypes.filter(
+    (d) => d.validation_status === "fail" || d.validation_status === "failed" || (d.errors?.length ?? 0) > 0
+  ).length;
+  const withWarnings = preview.doctypes.filter(
+    (d) =>
+      d.validation_status === "partial" ||
+      d.validation_status === "passed_with_warnings" ||
+      (d.warnings?.length ?? 0) > 0
+  ).length;
+
+  const rawDqs = preview.profile?.data_quality_score;
+  const dqsPct =
+    rawDqs != null && !Number.isNaN(Number(rawDqs))
+      ? Math.round(Number(rawDqs) * 100)
+      : null;
+  const dqsCapped = Boolean(preview.profile?.data_quality_capped);
+
+  return (
+    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
+        <div>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Validation</p>
+          <p className="text-xs font-semibold text-zinc-200 mt-0.5">Post-mapping validation</p>
+        </div>
+        <ValidationOverallBadge overall={preview.validation_overall} />
+      </div>
+
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-2.5 py-2 text-center">
+            <p className="text-[10px] text-zinc-500 font-medium">Doctypes</p>
+            <p className="text-sm font-mono text-zinc-200 mt-0.5">{preview.doctypes.length}</p>
+          </div>
+          <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/15 px-2.5 py-2 text-center">
+            <p className="text-[10px] text-amber-400/70 font-medium">Warnings</p>
+            <p className="text-sm font-mono text-amber-300 mt-0.5">{withWarnings}</p>
+          </div>
+          <div className="rounded-lg bg-red-500/[0.08] border border-red-500/15 px-2.5 py-2 text-center">
+            <p className="text-[10px] text-red-400/70 font-medium">Errors</p>
+            <p className="text-sm font-mono text-red-300 mt-0.5">{withErrors}</p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-zinc-500">
+          {totalRecords} total records mapped across {preview.doctypes.length} doctype
+          {preview.doctypes.length === 1 ? "" : "s"}.
+        </p>
+
+        {dqsPct != null && (
+          <p className="text-[11px] text-zinc-400">
+            Data quality:{" "}
+            <span className="font-mono text-zinc-200">
+              {dqsPct}%
+              {dqsCapped ? " (capped — validation warnings)" : ""}
+            </span>
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -411,9 +499,13 @@ function PromptCard({
 export function SupervisorPanel() {
   const { session } = useImplementation();
   const projectId = session.id;
+  const pathname = usePathname();
+  const isPostMappingRoute =
+    pathname.includes("/validate") || pathname.includes("/sandbox");
 
   const [prompts, setPrompts] = useState<SupervisorPrompt[]>([]);
   const [readiness, setReadiness] = useState<DataReadinessReport | null>(null);
+  const [validatePreview, setValidatePreview] = useState<ValidatePreviewData | null>(null);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -431,14 +523,24 @@ export function SupervisorPanel() {
     setError(null);
     try {
       const base = getBaseApiUrl();
-      const [promptsRes, readinessRes, stateRes] = await Promise.all([
+      const fetches: Promise<Response>[] = [
         fetch(`${base}/api/implementation/supervisor-prompts/${projectId}`, { cache: "no-store" }),
         fetch(`${base}/api/implementation/data-readiness/${projectId}`, { cache: "no-store" }),
         fetch(`${base}/api/implementation/state/${projectId}`, { cache: "no-store" }),
-      ]);
+      ];
+      if (isPostMappingRoute) {
+        fetches.push(
+          fetch(`${base}/api/implementation/validate-preview/${projectId}`, { cache: "no-store" })
+        );
+      }
+
+      const results = await Promise.all(fetches);
+      const [promptsRes, readinessRes, stateRes, validateRes] = results;
+
       if (!promptsRes.ok) throw new Error(await promptsRes.text());
       const promptsData = await promptsRes.json();
       setPrompts(Array.isArray(promptsData?.prompts) ? promptsData.prompts : []);
+
       if (readinessRes.ok) {
         const readinessData = await readinessRes.json();
         setReadiness(readinessData?.data_readiness ?? null);
@@ -447,16 +549,27 @@ export function SupervisorPanel() {
       } else {
         throw new Error(await readinessRes.text());
       }
+
       if (stateRes.ok) {
         const stateData = await stateRes.json();
         setSessionSummary(stateData?.session ?? null);
+      }
+
+      if (isPostMappingRoute && validateRes) {
+        if (validateRes.ok) {
+          setValidatePreview(await validateRes.json());
+        } else if (validateRes.status === 404) {
+          setValidatePreview(null);
+        }
+      } else {
+        setValidatePreview(null);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load supervisor data");
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, isPostMappingRoute]);
 
   useEffect(() => {
     refresh();
@@ -564,19 +677,29 @@ export function SupervisorPanel() {
           />
         ))}
 
-        {/* Data readiness summary card */}
-        {readiness && (
+        {/* Post-mapping validation summary (Validate / Sandbox routes) */}
+        {isPostMappingRoute && validatePreview && validatePreview.doctypes.length > 0 && (
+          <ValidationSummaryCard preview={validatePreview} />
+        )}
+
+        {/* Pre-mapping data readiness (Analyze / Upload routes only) */}
+        {readiness && !isPostMappingRoute && (
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
             {/* Summary header */}
             <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
               <div>
                 <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Data readiness</p>
-                <p className="text-xs font-semibold text-zinc-200 mt-0.5">Pre-mapping assessment</p>
+                <p className="text-xs font-semibold text-zinc-200 mt-0.5">Pre-mapping assessment (before validation)</p>
               </div>
               <ScoreBadge score={readiness.import_readiness_score ?? 0} />
             </div>
 
             <div className="p-4 space-y-3">
+              {(readiness.import_readiness_score ?? 0) >= 0.8 && (
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  Final score updates after validation on the next step.
+                </p>
+              )}
               {/* Score bar */}
               <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
                 <div
@@ -645,7 +768,7 @@ export function SupervisorPanel() {
         )}
 
         {/* Empty state */}
-        {openPrompts.length === 0 && !readiness && !loading && (
+        {openPrompts.length === 0 && !readiness && !validatePreview && !loading && (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <CheckCircle2 className="w-8 h-8 text-zinc-700" />
             <p className="text-xs text-zinc-600 leading-relaxed max-w-[200px]">

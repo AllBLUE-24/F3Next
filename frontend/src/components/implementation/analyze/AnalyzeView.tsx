@@ -357,6 +357,8 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   const live = useAnalysis(devTasks ? null : jobId); // skip polling if devTasks provided
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  const [confirmedF3iche, setConfirmedF3iche] = useState(false);
+  const [confirmedMapping, setConfirmedMapping] = useState(false);
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -372,6 +374,19 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
       setSelectedNiche(live.inferredNiche);
     }
   }, [stage, live.inferredNiche, selectedNiche]);
+
+  // Clear confirm locks once workflow advances past each gate
+  useEffect(() => {
+    if (stage && stage !== 'awaiting_f3iche_confirmation') {
+      setConfirmedF3iche(false);
+    }
+  }, [stage]);
+
+  useEffect(() => {
+    if (stage && stage !== 'awaiting_mapping_confirmation') {
+      setConfirmedMapping(false);
+    }
+  }, [stage]);
 
   const doneTasks  = tasks.filter((t) => t.status === 'done').length;
   const totalTasks = tasks.filter((t) => t.status !== 'idle').length || 1;
@@ -402,7 +417,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
         }),
       });
       if (!res.ok) throw new Error('Failed to confirm F3iche');
-      // Restart polling (hook will pick up stage change automatically)
+      setConfirmedF3iche(true);
       live.refresh();
     } catch (err) {
       console.error('F3iche confirmation failed:', err);
@@ -482,7 +497,14 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
       {/* ══════════════════════════════════════════════════════════════════════
           F3ICHE CONFIRMATION CARD — appears when workflow is waiting for signal
          ══════════════════════════════════════════════════════════════════════ */}
-      {stage === 'awaiting_f3iche_confirmation' && (
+      {stage === 'awaiting_f3iche_confirmation' && confirmedF3iche && (
+        <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-5 py-4">
+          <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <p className="text-sm text-emerald-300">Business type confirmed — continuing analysis…</p>
+        </div>
+      )}
+
+      {stage === 'awaiting_f3iche_confirmation' && !confirmedF3iche && (
         <div className="bg-gradient-to-br from-amber-500/10 via-transparent to-transparent border border-amber-500/20 rounded-2xl p-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
@@ -552,7 +574,14 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
       {/* ══════════════════════════════════════════════════════════════════════
           MAPPING CONFIRMATION CARD
          ══════════════════════════════════════════════════════════════════════ */}
-      {stage === 'awaiting_mapping_confirmation' && (
+      {stage === 'awaiting_mapping_confirmation' && confirmedMapping && (
+        <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-5 py-4">
+          <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <p className="text-sm text-emerald-300">Mappings approved — proceeding to validation…</p>
+        </div>
+      )}
+
+      {stage === 'awaiting_mapping_confirmation' && !confirmedMapping && (
         <div className="bg-gradient-to-br from-green-500/10 via-transparent to-transparent border border-green-500/20 rounded-2xl p-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
@@ -582,6 +611,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
                   }),
                 });
                 if (!res.ok) throw new Error('Failed to confirm mapping');
+                setConfirmedMapping(true);
                 live.refresh();
               } catch (err) {
                 console.error(err);
