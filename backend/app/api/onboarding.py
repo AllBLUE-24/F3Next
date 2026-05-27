@@ -82,8 +82,10 @@ async def complete_onboarding(
 
     try:
         await db.commit()
+        await db.refresh(project)
         return {
-            "status": "success", 
+            "status": "success",
+            "project_id": str(project.id),
             "redirect_url": f"/{data.company_slug}/{data.user_slug}/home"
         }
     except Exception as e:

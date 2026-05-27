@@ -124,15 +124,17 @@ Users must trust validate colors, counts, and readiness %.
 ### Tier 2 — Platform: multi-user product (3–5 days)
 
 
-| ID  | Item                               | Outcome                                               | Paths                                         |
-| --- | ---------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
-| 2a  | Forgot password flow               | `/forgot-password` + Supabase `resetPasswordForEmail` | `frontend/src/app/(auth)/login/page.tsx`      |
-| 2b  | Reset password callback page       | Email link lands correctly                            | New route + Supabase redirect config          |
-| 2c  | Onboarding wizard polish           | Company, slug, role, industry — less friction         | `frontend/src/app/(auth)/onboarding/page.tsx` |
-| 2d  | Post-onboarding → invite team      | No single-user dead end after company create          | New step in onboarding                        |
-| 2e  | Invite admin: list / send / revoke | Company admin can manage team                         | API + UI                                      |
-| 2f  | Invite accept page polish          | Premium welcome, mobile-friendly                      | `[companySlug]/invite/[inviteCode]/page.tsx`  |
+| ID  | Item                               | Outcome                                               | Status |
+| --- | ---------------------------------- | ----------------------------------------------------- | ------ |
+| 2a  | Forgot password flow               | `/forgot-password` + Supabase `resetPasswordForEmail` | **done in repo (2026-05-26)** |
+| 2b  | Reset password callback page       | Email link lands correctly                            | **partial** — `/auth/reset-password` + callback `?next=`; Supabase redirect URLs need live verify |
+| 2c  | Onboarding wizard polish           | Company, slug, role, industry — less friction         | **done (2026-05-26)** — 3-step wizard |
+| 2d  | Post-onboarding → invite team      | No single-user dead end after company create          | **done (2026-05-26)** — step 3 + auto invite link |
+| 2e  | Invite admin: list / send / revoke | Company admin can manage team                         | **done in repo (2026-05-26)** — API + `TeamInvitesPanel` on profile |
+| 2f  | Invite accept page polish          | Premium welcome, mobile-friendly                      | **done (2026-05-26)** — amber auth styling + `getBaseApiUrl()` |
 
+
+**Paths:** `onboarding/page.tsx`, `forgot-password/`, `auth/reset-password/`, `invites.py`, `[companySlug]/invite/[inviteCode]/page.tsx`, `TeamInvitesPanel.tsx`.
 
 **Phase B (after 2a–2f work):** login/signup visual redesign, auth email templates, org roles enforcement (Platform P2).
 
@@ -224,8 +226,8 @@ Structural foundations for “any doctype / any tabular data.” **Do not start 
 | --- | ---------------------------------------------------------- | ---- | --------- | ------- |
 | 1   | IS validate honesty (Tier 1 complete)                      | 1    | IS        | **done (2026-05-26)** |
 | 2   | Tier 0 worker deploy + golden smoke test (pre-beta)        | 0    | IS        | **pending** — 0a manual |
-| 3   | Forgot password + reset flow                               | 2    | Platform  | pending |
-| 4   | Onboarding → invite team step                              | 2    | Platform  | pending |
+| 3   | Forgot password + reset flow                               | 2    | Platform  | **partial** — in repo; 2b live verify pending |
+| 4   | Onboarding → invite team step                              | 2    | Platform  | **done (2026-05-26)** |
 | 5   | Chat bar v1 on Validate (input + context + refine_mapping) | 3    | IS        | pending — blocked by #1 |
 
 

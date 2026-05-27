@@ -1,12 +1,11 @@
+from uuid import UUID
+
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from shared.database.db import get_shared_db
-from shared.models.core import Project
-from uuid import UUID
-from pydantic import BaseModel
-from shared.models.core import Client
-
+from shared.models.core import Project, Client, ProjectMember
 router = APIRouter(prefix="/resolve", tags=["Core Resolver"])
 
 class ProjectContext(BaseModel):
@@ -50,18 +49,34 @@ async def resolve_user_context(supabase_uid: str, db: AsyncSession = Depends(get
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 2. Fetch the Project associated with this Client
-    # CORRECTED LOGIC: Search 'projects' table where client_id matches user.id
+    if not user.user_slug:
+        raise HTTPException(status_code=404, detail="User profile incomplete")
+
+    # Owner project
     project_query = select(Project).where(Project.client_id == user.id)
-    
     p_result = await db.execute(project_query)
     project = p_result.scalar_one_or_none()
-    
-    if not project:
-         # Handle case where user exists but has no project yet (maybe redirect to setup?)
-         raise HTTPException(status_code=404, detail="Project context missing")
 
-    return {
-        "user_slug": user.user_slug,
-        "company_slug": project.company_slug
-    }
+    if project and project.company_slug:
+        return {
+            "user_slug": user.user_slug,
+            "company_slug": project.company_slug,
+        }
+
+    # Invited member
+    member_query = (
+        select(Project, ProjectMember)
+        .join(ProjectMember, ProjectMember.project_id == Project.id)
+        .where(ProjectMember.client_id == user.id)
+    )
+    m_result = await db.execute(member_query)
+    member_row = m_result.first()
+    if member_row:
+        member_project, _ = member_row
+        if member_project.company_slug:
+            return {
+                "user_slug": user.user_slug,
+                "company_slug": member_project.company_slug,
+            }
+
+    raise HTTPException(status_code=404, detail="Project context missing")

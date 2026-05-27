@@ -1,4 +1,5 @@
 import enum
+from sqlalchemy.orm import relationship
 from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
 from sqlalchemy.types import Uuid, JSON
 from sqlalchemy.sql import func
@@ -72,4 +73,30 @@ class Project(Base):
     context_tags = Column(JSON, nullable=True, default=[])
     implementation_profile = Column(JSON, nullable=True)  # F3iche, industry, company context (versioned)
 
-    
+    members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
+
+
+class ProjectMember(Base):
+    """Links invited users to an existing company workspace (shared project)."""
+    __tablename__ = "project_members"
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(Uuid(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
+    client_id = Column(String, ForeignKey("clients.id"), nullable=False, unique=True, index=True)
+    role = Column(String, nullable=True)
+    joined_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    project = relationship("Project", back_populates="members")
+
+
+class TeamInvite(Base):
+    __tablename__ = "team_invites"
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(Uuid(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
+    invite_code = Column(String(64), unique=True, nullable=False, index=True)
+    email = Column(String, nullable=True)
+    invited_by = Column(String, ForeignKey("clients.id"), nullable=False)
+    status = Column(String, server_default="pending", nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

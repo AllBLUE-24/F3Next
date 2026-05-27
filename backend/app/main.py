@@ -28,7 +28,7 @@ if sentry_dsn:
         enable_logs=True,
     )
 
-from shared.models.core import Client, Project, ProjectStatus
+from shared.models.core import Client, Project, ProjectStatus, ProjectMember, TeamInvite
 from shared.models.hooks import Hook
 from shared.models.is_models import (
     ISSession, ISFile, ISFileSignal, ISF3icheScore,
@@ -40,6 +40,7 @@ from shared.models.f3iche_models import F3icheDefinition
 from shared.database.db import engine, Base
 from app.api.discovery import router as discovery_router
 from app.api.onboarding import router as onboarding_router
+from app.api.invites import router as invites_router
 from app.api.resolver import router as resolver_router
 from app.api.deploy import router as deploy_router
 from app.api.agents import router as agents_router
@@ -72,7 +73,7 @@ async def prometheus_metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 _all_models = [
-    Base, Client, Project, ProjectStatus, Hook,
+    Base, Client, Project, ProjectStatus, ProjectMember, TeamInvite, Hook,
     ISSession, ISFile, ISFileSignal, ISF3icheScore,
     ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment, ISFieldMapping, ISMappedData,
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
@@ -113,6 +114,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(discovery_router, prefix="/api")
 app.include_router(onboarding_router, prefix="/api")
+app.include_router(invites_router, prefix="/api")
 app.include_router(resolver_router, prefix="/api")
 app.include_router(deploy_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")

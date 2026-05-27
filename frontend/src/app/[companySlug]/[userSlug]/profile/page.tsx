@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { User, Building2, CreditCard, ShieldCheck } from "lucide-react";
+import { TeamInvitesPanel } from "@/components/platform/TeamInvitesPanel";
 
 interface PageProps {
   params: Promise<{ companySlug: string; userSlug: string }>;
@@ -79,6 +80,7 @@ export default function ProfilePage({ params }: PageProps) {
           </div>
         </section>
 
+        <TeamInvitesPanel companySlug={companySlug} />
       </div>
     </div>
   );

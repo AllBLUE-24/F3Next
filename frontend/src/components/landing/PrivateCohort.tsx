@@ -44,58 +44,57 @@ export default function PrivateCohort() {
   };
 
   return (
-    <section className="border-t border-white/[0.06] py-28 bg-[#09090B]" id="cohort">
-      <div className="max-w-6xl mx-auto px-6">
+    <section className="py-28 lg:py-32 bg-[#09090B]" id="cohort">
+      <div className="max-w-5xl mx-auto px-6 lg:px-8">
 
-        <div className="text-center mb-12">
-          <span className="inline-block text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-4">Early Access</span>
-          <h2 className="text-3xl font-bold text-white sm:text-5xl mb-4">
-            Join the Early Access Cohort.
+        {/* Section Header */}
+        <div className="text-center mb-16 lg:mb-20">
+          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-amber-500/80 mb-4">
+            Early Access
+          </p>
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-[-0.03em] leading-tight"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
+            Join the early access <span className="text-amber-500">cohort</span>
           </h2>
-          <p className="text-gray-500 text-lg max-w-xl mx-auto">
-            Be among the first manufacturers to experience AI-powered ERP. Limited spots — get priority onboarding and direct founder support.
+          <p className="mt-5 text-base text-zinc-500 max-w-lg mx-auto leading-relaxed">
+            Be among the first manufacturers to experience autonomous operations. Get priority onboarding and direct founder support.
           </p>
         </div>
 
         {/* Main Card */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0D0D14]">
+        <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.01]">
 
-          {/* Grid bg inside card */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none"></div>
-
-          {/* Amber glow top-right */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 blur-3xl rounded-full pointer-events-none"></div>
+          {/* Subtle top glow */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/[0.04] blur-[100px] rounded-full pointer-events-none" />
 
           <div className="relative grid md:grid-cols-2 gap-0">
 
             {/* Left: Pitch */}
-            <div className="p-10 md:p-14 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/[0.06]">
-              <div className="inline-flex items-center gap-2 text-amber-400 text-xs font-mono uppercase tracking-widest mb-6">
-                <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                Early Access — Limited Spots
-              </div>
-
-              <h3 className="text-3xl font-black text-white mb-5 leading-tight">
-                Get your ERP running<br />
+            <div className="p-10 md:p-12 flex flex-col justify-center border-b md:border-b-0 md:border-r border-white/[0.04]">
+              <h3
+                className="text-2xl font-bold text-white mb-4 leading-tight tracking-tight"
+                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              >
+                Get your operations running<br />
                 <span className="text-amber-500">before everyone else.</span>
               </h3>
 
-              <p className="text-gray-500 mb-8 leading-relaxed text-sm">
-                Includes AI consultant, cloud deployment, intelligent data migration, and prompt-to-action operations.
-                Early members get priority onboarding and direct access to the founding team.
+              <p className="text-zinc-500 mb-8 leading-relaxed text-[14px]">
+                Includes AI-powered setup, cloud deployment, intelligent data migration, and prompt-to-action operations.
               </p>
 
-              <ul className="space-y-2 mb-10">
+              <ul className="space-y-2.5 mb-10">
                 {[
                   'AI-powered ERP recommendation',
                   'Cloud deployment in minutes',
                   'Intelligent data migration',
-                  'Prompt-to-action ERP operations',
                   'Zero upfront cost',
                   'Direct founder support',
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-sm text-gray-400">
-                    <Check className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <li key={item} className="flex items-center gap-3 text-[13px] text-zinc-400">
+                    <Check className="w-4 h-4 text-amber-500/70 flex-shrink-0" />
                     {item}
                   </li>
                 ))}
@@ -103,42 +102,40 @@ export default function PrivateCohort() {
 
               <button
                 onClick={() => setShowModal(true)}
-                className="inline-flex items-center justify-center bg-amber-500 text-black px-7 py-3.5 rounded-xl font-bold hover:bg-amber-400 transition-colors w-fit group shadow-lg shadow-amber-500/20"
+                className="group inline-flex items-center justify-center bg-amber-500 text-black px-6 py-3 rounded-xl font-semibold text-[14px] hover:bg-amber-400 transition-all duration-200 w-fit lift-hover shadow-lg shadow-amber-500/15 cursor-pointer"
               >
                 Join Early Access
-                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
               </button>
-              <p className="text-xs text-gray-700 mt-3">No credit card required.</p>
+              <p className="text-[12px] text-zinc-700 mt-3">No credit card required.</p>
             </div>
 
-            {/* Right: What You Get */}
-            <div className="p-10 md:p-14 flex flex-col justify-center">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-600 mb-8">What changes with F3Next</p>
-              <div className="space-y-6">
+            {/* Right: Comparison Table */}
+            <div className="p-10 md:p-12 flex flex-col justify-center">
+              <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-zinc-600 mb-8">
+                What changes with F3Next
+              </p>
+              <div className="space-y-0">
                 {[
                   { label: 'Setup Time', before: '3–6 Months', after: 'Minutes' },
                   { label: 'Upfront Cost', before: '₹5,00,000+', after: '₹0' },
                   { label: 'Employee Training', before: 'Weeks', after: 'None' },
-                  { label: 'ERP Operations', before: 'Trained staff only', after: 'Anyone — just type' },
+                  { label: 'ERP Operations', before: 'Trained staff', after: 'Anyone — just type' },
                 ].map((stat, i) => (
-                  <div key={i} className="flex justify-between items-center pb-5 border-b border-white/[0.05] last:border-0 last:pb-0">
-                    <span className="text-gray-500 text-sm">{stat.label}</span>
+                  <div key={i} className="flex justify-between items-center py-4 border-b border-white/[0.04] last:border-0">
+                    <span className="text-zinc-500 text-[13px]">{stat.label}</span>
                     <div className="text-right">
-                      <span className="block text-xs text-red-500/70 line-through mb-0.5">{stat.before}</span>
-                      <span className="block text-sm font-bold text-green-400">{stat.after}</span>
+                      <span className="block text-[12px] text-zinc-700 line-through mb-0.5">{stat.before}</span>
+                      <span className="block text-[13px] font-medium text-emerald-400/80">{stat.after}</span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-10 pt-8 border-t border-white/[0.06]">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Spots remaining</span>
-                  <span className="text-amber-400 font-bold">47 / 50</span>
-                </div>
-                <div className="mt-2 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: '94%' }}></div>
-                </div>
+              <div className="mt-8 pt-6 border-t border-white/[0.04]">
+                <p className="text-[12px] text-zinc-600 leading-relaxed">
+                  We onboard 10 factories per cohort to maintain exceptional support quality.
+                </p>
               </div>
             </div>
           </div>
@@ -147,44 +144,44 @@ export default function PrivateCohort() {
 
       {/* ── MODAL ── */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0D0D14] border border-white/[0.1] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111114] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-            <div className="flex justify-between items-center p-6 border-b border-white/[0.08]">
-              <h3 className="font-bold text-white">
-                {step === 'success' ? '🎉 You\'re on the list!' : 'Join Early Access'}
+            <div className="flex justify-between items-center p-6 border-b border-white/[0.06]">
+              <h3 className="font-semibold text-white text-[15px]">
+                {step === 'success' ? 'You\'re on the list!' : 'Join Early Access'}
               </h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-600 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
+              <button onClick={() => setShowModal(false)} className="text-zinc-600 hover:text-white transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-6">
               {step === 'success' ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-5">
-                    <Check className="w-8 h-8 text-amber-500" />
+                <div className="text-center py-6">
+                  <div className="w-14 h-14 bg-amber-500/[0.08] border border-amber-500/15 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <Check className="w-6 h-6 text-amber-500" />
                   </div>
-                  <h4 className="text-xl font-bold text-white mb-2">You're on the list.</h4>
-                  <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                  <h4 className="text-lg font-semibold text-white mb-2">You're on the list.</h4>
+                  <p className="text-zinc-500 text-[13px] mb-8 leading-relaxed">
                     We've recorded your interest. Our team will reach out via WhatsApp to get you onboarded.
                   </p>
                   <button
                     onClick={() => setShowModal(false)}
-                    className="w-full py-3 bg-amber-500 text-black rounded-xl font-bold hover:bg-amber-400 transition-colors"
+                    className="w-full py-3 bg-amber-500 text-black rounded-xl font-semibold text-[13px] hover:bg-amber-400 transition-colors cursor-pointer"
                   >
                     Close
                   </button>
                 </div>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                      What's your biggest ERP pain right now? <span className="text-amber-500">*</span>
+                    <label className="block text-[13px] font-medium text-zinc-400 mb-2">
+                      What's your biggest ERP pain? <span className="text-amber-500">*</span>
                     </label>
                     <textarea
                       autoFocus
-                      className="w-full p-3.5 bg-white/[0.03] border border-white/[0.1] rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm text-white placeholder:text-gray-600 transition resize-none"
+                      className="w-full p-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-[13px] text-white placeholder:text-zinc-700 transition resize-none"
                       rows={3}
                       placeholder="e.g. Our ERP is too expensive, no one knows how to use it..."
                       value={formData.failureReason}
@@ -192,26 +189,26 @@ export default function PrivateCohort() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-2">
+                      <label className="block text-[13px] font-medium text-zinc-400 mb-2">
                         Phone <span className="text-amber-500">*</span>
                       </label>
                       <input
                         type="tel"
-                        className="w-full p-3.5 bg-white/[0.03] border border-white/[0.1] rounded-xl focus:ring-1 focus:ring-amber-500 outline-none text-sm text-white placeholder:text-gray-600"
+                        className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl focus:ring-1 focus:ring-amber-500 outline-none text-[13px] text-white placeholder:text-zinc-700"
                         placeholder="+91..."
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-2">
+                      <label className="block text-[13px] font-medium text-zinc-400 mb-2">
                         WhatsApp <span className="text-amber-500">*</span>
                       </label>
                       <input
                         type="tel"
-                        className="w-full p-3.5 bg-white/[0.03] border border-white/[0.1] rounded-xl focus:ring-1 focus:ring-amber-500 outline-none text-sm text-white placeholder:text-gray-600"
+                        className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl focus:ring-1 focus:ring-amber-500 outline-none text-[13px] text-white placeholder:text-zinc-700"
                         placeholder="+91..."
                         value={formData.whatsapp}
                         onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
@@ -222,15 +219,15 @@ export default function PrivateCohort() {
                   <button
                     onClick={handleFinalListMe}
                     disabled={!formData.phone || !formData.failureReason || isSubmitting}
-                    className="w-full py-3.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center mt-2"
+                    className="w-full py-3 bg-amber-500 text-black font-semibold text-[13px] rounded-xl hover:bg-amber-400 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center mt-1 cursor-pointer"
                   >
                     {isSubmitting ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       'Join Early Access'
                     )}
                   </button>
-                  <p className="text-xs text-center text-gray-600">No credit card. No commitment.</p>
+                  <p className="text-[11px] text-center text-zinc-700">No credit card. No commitment.</p>
                 </div>
               )}
             </div>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono, Syne } from "next/font/google";
+import { Inter, Geist_Mono, Syne, Outfit } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,6 +23,13 @@ const syne = Syne({
   display: "swap",
 });
 
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "F3Next — AI-Powered ERP for Manufacturers",
   description:
@@ -42,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable} ${syne.variable}`}>
+    <html lang="en" className={`${inter.variable} ${geistMono.variable} ${syne.variable} ${outfit.variable}`}>
       <body className="antialiased font-sans bg-[var(--bg-void)] text-[var(--text-primary)]">
         {children}
       </body>

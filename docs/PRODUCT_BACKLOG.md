@@ -54,8 +54,8 @@
 |---|------|--------|--------|
 | 1 | IS validate honesty (Tier 1 complete) | IS | **done (2026-05-26)** |
 | 2 | Tier 0 worker deploy + golden smoke test (pre-beta) | IS | **pending** |
-| 3 | Forgot password + reset flow (Supabase) | Platform | pending |
-| 4 | Onboarding → invite team step | Platform | pending |
+| 3 | Forgot password + reset flow (Supabase) | Platform | **partial** — pages shipped; redirect URLs live verify |
+| 4 | Onboarding → invite team step | Platform | **done (2026-05-26)** |
 | 5 | Chat bar v1 on Validate (context + refine_mapping) | IS | pending — blocked by #1 |
 
 _Landing hero refresh demoted to parallel Tier 4 this week — beta trust takes priority._
@@ -154,23 +154,25 @@ Detail: [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) P3 bridge section; sprint: [`PR
 
 ### P1 — Trust & completeness
 
-- [ ] **Forgot password page** — `/forgot-password` using Supabase `resetPasswordForEmail`; link from login.
+- [x] **Forgot password page** — `/forgot-password` using Supabase `resetPasswordForEmail`; link from login.
   - Added: 2026-05-25
-  - Notes: [`frontend/src/app/(auth)/login/page.tsx`](../frontend/src/app/(auth)/login/page.tsx) — no forgot link today.
+  - Shipped: 2026-05-26 — `frontend/src/app/(auth)/forgot-password/page.tsx`, login link
 
-- [ ] **Reset password page** — `/reset-password` (or `/auth/reset`) for email link callback; match Supabase redirect config.
+- [ ] **Reset password page** — `/auth/reset-password` for email link callback; match Supabase redirect config.
   - Added: 2026-05-25
+  - Shipped in repo: 2026-05-26 — callback via `/auth/callback?next=/auth/reset-password`; **live verify pending**
 
-- [ ] **Onboarding: company-first wizard** — mature multi-step flow (company name, slug, role, industry hint); reduce friction vs single long form.
+- [x] **Onboarding: company-first wizard** — mature multi-step flow (company name, slug, role, industry hint); reduce friction vs single long form.
   - Added: 2026-05-25
-  - Notes: [`frontend/src/app/(auth)/onboarding/page.tsx`](../frontend/src/app/(auth)/onboarding/page.tsx)
+  - Shipped: 2026-05-26 — 3-step wizard in `onboarding/page.tsx`
 
-- [ ] **Post-onboarding: invite team** — after company created, prompt to invite colleagues (email + role); don’t leave single-user dead end.
+- [x] **Post-onboarding: invite team** — after company created, prompt to invite colleagues (email + role); don’t leave single-user dead end.
   - Added: 2026-05-25
+  - Shipped: 2026-05-26 — step 3 + `invites/create` API
 
-- [ ] **Invite admin: send / revoke / list** — company admin can manage pending invites (API + UI).
+- [x] **Invite admin: send / revoke / list** — company admin can manage pending invites (API + UI).
   - Added: 2026-05-25
-  - Notes: accept flow exists at [`frontend/src/app/[companySlug]/invite/[inviteCode]/page.tsx`](../frontend/src/app/[companySlug]/invite/[inviteCode]/page.tsx)
+  - Shipped: 2026-05-26 — `backend/app/api/invites.py`, `TeamInvitesPanel` on profile
 
 - [ ] **Org roles UX** — who can start IS, validate, approve import, manage invites (document + enforce in UI).
   - Added: 2026-05-25
@@ -185,9 +187,9 @@ Detail: [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) P3 bridge section; sprint: [`PR
   - Added: 2026-05-25
   - Notes: [`frontend/src/app/(auth)/signup/page.tsx`](../frontend/src/app/(auth)/signup/page.tsx)
 
-- [ ] **Invite accept page polish** — premium welcome, company branding, mobile-friendly; clear CTA for new vs existing users.
+- [x] **Invite accept page polish** — premium welcome, company branding, mobile-friendly; clear CTA for new vs existing users.
   - Added: 2026-05-25
-  - Notes: [`frontend/src/app/[companySlug]/invite/[inviteCode]/page.tsx`](../frontend/src/app/[companySlug]/invite/[inviteCode]/page.tsx)
+  - Shipped: 2026-05-26 — amber auth styling, `getBaseApiUrl()` on validate/accept
 
 - [ ] **Auth email templates** — reset password, invite, confirm: on-brand HTML (Supabase templates or custom SMTP).
 
@@ -265,6 +267,7 @@ _Promote to a stream + P-tier on weekly review._
 | 2026-05-25 | Import idempotency (BOM, WO, dedupe keys) | IS | `shared/erp_adapters/import_idempotency.py` |
 | 2026-05-25 | Validate badges + partial status + preview flatten | IS | Tier 1a/1c/1d — Validate screen |
 | 2026-05-26 | Tier 1b sidebar validation summary + 1e confirm UX | IS | `SupervisorPanel`, `AnalyzeView`, `ValidateView` on `feature/is-trust-v2` |
+| 2026-05-26 | Tier 2 Platform: onboarding wizard, invites API, forgot/reset password | Platform | `feature/platform-tier2` — multi-user workspace via `ProjectMember` |
 
 _For IS-only completions, see also [`IS_V2_BACKLOG.md` Done section](./IS_V2_BACKLOG.md#done-recent)._
 
