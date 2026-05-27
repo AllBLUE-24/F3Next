@@ -55,6 +55,12 @@ from typing import Any
 
 from containers.os.validation_agent.kb_rules import rules_kb
 from containers.os.payload_generator.kb_fields import field_kb
+from shared.os_field_semantics import (
+    cvs_registry_key_for_link,
+    field_spec_for_fieldname,
+    link_target_doctype,
+    should_validate_link_in_cvs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -414,6 +420,7 @@ def _validate_data_quality(
 
 def _validate_runtime_links(
     step_num: int,
+    action:   str,
     doctype:  str,
     payload:  dict,
     context:  dict,
@@ -421,60 +428,73 @@ def _validate_runtime_links(
     warnings: list,
 ) -> None:
     """
-    Existence checks for linked records (customer, supplier, items, warehouses).
+    Existence checks for Link fields that reference master data in CVS.
 
-    If CVS entity registry is available in the context bundle, we can deterministically
-    validate existence without a live ERP call. If registry is missing/empty, we fall
-    back to informational warnings.
+    Only validates fields defined in KB-04 for this doctype. Skips name/data
+    fields when creating the master record itself (action=create).
     """
     profile = context.get("company_profile", {}) if isinstance(context, dict) else {}
     registry = profile.get("entity_registry", {}) if isinstance(profile, dict) else {}
 
-    known_customers = registry.get("known_customers") or []
-    known_suppliers = registry.get("known_suppliers") or []
-    known_items = registry.get("known_items") or []
-    known_warehouses = registry.get("known_warehouses") or []
+    for fieldname, value in payload.items():
+        if value in (None, "", [], {}):
+            continue
+        if fieldname == "items" and isinstance(value, list):
+            _validate_items_in_cvs(step_num, doctype, value, registry, errors, warnings)
+            continue
 
-    cust_set = {str(x).casefold() for x in known_customers if x} if isinstance(known_customers, list) else set()
-    supp_set = {str(x).casefold() for x in known_suppliers if x} if isinstance(known_suppliers, list) else set()
-    item_set = {str(x).casefold() for x in known_items if x} if isinstance(known_items, list) else set()
-    wh_set = {str(x).casefold() for x in known_warehouses if x} if isinstance(known_warehouses, list) else set()
+        spec = field_spec_for_fieldname(doctype, str(fieldname))
+        if not spec:
+            continue
 
-    customer = payload.get("customer")
-    if customer:
-        if cust_set and str(customer).casefold() not in cust_set:
-            errors.append(_err(
-                "unknown_customer",
-                "customer",
-                f"Customer '{customer}' was not found in CVS master_data. Please choose an existing customer.",
-                step_num,
-            ))
-        elif not cust_set:
+        if not should_validate_link_in_cvs(action, doctype, spec):
+            continue
+
+        link_target = link_target_doctype(spec)
+        reg_key = cvs_registry_key_for_link(link_target) if link_target else None
+        if not reg_key:
             warnings.append(_warn(
                 "runtime_link_check",
-                "customer",
-                f"Customer '{customer}' will be verified against Customer master at execution time",
+                fieldname,
+                f"'{value}' will be verified against {link_target or 'master'} at execution time",
                 step_num,
             ))
+            continue
 
-    supplier = payload.get("supplier")
-    if supplier:
-        if supp_set and str(supplier).casefold() not in supp_set:
+        known = registry.get(reg_key) or []
+        known_set = {str(x).casefold() for x in known if x} if isinstance(known, list) else set()
+        if known_set and str(value).casefold() not in known_set:
+            rule_id = {
+                "known_customers": "unknown_customer",
+                "known_suppliers": "unknown_supplier",
+                "known_items": "unknown_item",
+                "known_warehouses": "unknown_warehouse",
+            }.get(reg_key, "unknown_link")
+            label = link_target or fieldname
             errors.append(_err(
-                "unknown_supplier",
-                "supplier",
-                f"Supplier '{supplier}' was not found in CVS master_data. Please choose an existing supplier.",
+                rule_id,
+                fieldname,
+                f"{label} '{value}' was not found in CVS master_data. Please choose an existing {label.lower()}.",
                 step_num,
             ))
-        elif not supp_set:
+        elif not known_set:
             warnings.append(_warn(
                 "runtime_link_check",
-                "supplier",
-                f"Supplier '{supplier}' will be verified against Supplier master at execution time",
+                fieldname,
+                f"'{value}' will be verified against {link_target or 'master'} at execution time",
                 step_num,
             ))
 
-    items = payload.get("items", [])
+
+def _validate_items_in_cvs(
+    step_num: int,
+    doctype: str,
+    items: list,
+    registry: dict,
+    errors: list,
+    warnings: list,
+) -> None:
+    item_set = {str(x).casefold() for x in (registry.get("known_items") or []) if x}
     for i, item in enumerate(items if isinstance(items, list) else []):
         code = item.get("item_code") if isinstance(item, dict) else None
         if not code:
@@ -495,23 +515,6 @@ def _validate_runtime_links(
                 step_num,
             ))
             break
-
-    warehouse = payload.get("target_warehouse") or payload.get("from_warehouse") or payload.get("to_warehouse")
-    if warehouse:
-        if wh_set and str(warehouse).casefold() not in wh_set:
-            errors.append(_err(
-                "unknown_warehouse",
-                "warehouse",
-                f"Warehouse '{warehouse}' was not found in CVS master_data. Please choose an existing warehouse.",
-                step_num,
-            ))
-        elif not wh_set:
-            warnings.append(_warn(
-                "runtime_link_check",
-                "warehouse",
-                f"Warehouse '{warehouse}' will be verified at execution time",
-                step_num,
-            ))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -577,7 +580,7 @@ def validate_payload_bundle(
         _validate_data_quality(step_num, doctype, payload, warnings)
 
         # ── Layer 5: Runtime link warnings ────────────────────────────────
-        _validate_runtime_links(step_num, doctype, payload, context, errors, warnings)
+        _validate_runtime_links(step_num, action, doctype, payload, context, errors, warnings)
 
     is_valid = len(errors) == 0
 

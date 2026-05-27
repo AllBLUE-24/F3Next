@@ -33,6 +33,8 @@
       "options": null,
       "default_value": null,
       "user_input_synonyms": [
+        "supplier",
+        "vendor",
         "vendor_name",
         "seller_name",
         "entity name",

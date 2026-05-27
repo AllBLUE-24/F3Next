@@ -1,0 +1,9 @@
+{
+  "description": "OS validation semantics — maps ERPNext Link targets to CVS entity_registry keys",
+  "link_target_to_cvs_registry": {
+    "Customer": "known_customers",
+    "Supplier": "known_suppliers",
+    "Item": "known_items",
+    "Warehouse": "known_warehouses"
+  }
+}

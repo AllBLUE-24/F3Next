@@ -6,8 +6,8 @@
 > **Stream tag:** IS — summarized in master under **Stream: IS**.
 
 > **Living document** — ideas, fixes, features, and UI work for the Implementation System.  
-> **Last reviewed:** 2026-05-25  
-> **Owner:** Green Surface golden runs + corpus quality drive current ordering.
+> **Last reviewed:** 2026-05-26  
+> **Owner:** Green Surface beta + universal IS foundations drive current ordering.
 
 **Related docs**
 
@@ -24,14 +24,44 @@
 3. **P0 before P2** — don’t build chat UX on top of a validate screen that lies.
 4. **Prefer structural fixes** (corpus model, merge policy, validation schema) over one-off filename priors.
 5. Mark items **Done** with date + brief note; don’t delete history.
+6. **Status sync:** tier tables in [`PRIORITIES.md`](./PRIORITIES.md) are authoritative for sprint items; use `[x]` here when shipped.
 
 ---
 
-## North star (current)
+## North star
 
-> **Any Green Surface upload → correct doctype map → honest validate UI → safe phased ERPNext import** — without manual JSON edits or re-classifying files by hand.
+### Near-term (v1.5 — Green Surface beta)
 
-Generalized: **corpus in, trustworthy preview out, import only when row-level quality passes.**
+> **Any Green Surface–class upload → correct doctype map → honest validate UI → safe phased ERPNext import** — without manual JSON edits or re-classifying files by hand.
+
+Corpus in, trustworthy preview out, import only when row-level quality passes.
+
+### Long-term (universal IS)
+
+> **Any tabular upload → correct doctype(s) → complete mapped payload → honest validate → safe phased import** — with supervisor questions only when the user must supply or confirm data, never for pipeline bugs.
+
+Detail: [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md). Bridge items: **P3 — Universal IS foundations** below and [`PRIORITIES.md`](./PRIORITIES.md) Tier 7.
+
+---
+
+## IS fundamental pillars (product-level)
+
+Ten layers that must hold for “any doctype / any data” to work. Track implementation status here; sprint ordering in [`PRIORITIES.md`](./PRIORITIES.md).
+
+| # | Pillar | Goal | Status | Backlog |
+|---|--------|------|--------|---------|
+| 1 | **Universal ingestion & corpus** | Upload wave → unified corpus; re-uploads merge | ~70% | P3 corpus model |
+| 2 | **Parse & normalize structure** | CSV/TSV/XLSX/JSON → rows + columns; R2 manifest | ~70% | Parse roadmap (P3 bridge) |
+| 3 | **Intent & classification** | Chunk → doctype(s) + confidence; local + LLM fallback | ~50% | P2 transparency; P3 tiered resolution |
+| 4 | **Signaling & synonyms** | KB priors + aliases; LLM when no match | ~50% | P3 synonym growth; ~15 doctypes today |
+| 5 | **ERP knowledge (static + live)** | Schema, child tables, links, lifecycle, phases, deps | ~40% | P3 SchemaResolver v1; validation_rules |
+| 6 | **Industry & company context** | F3iche + pgvector RAG + profile | ~60% enricher | Tier 6 F3iche playbooks; v2 Layer 2 |
+| 7 | **Mapping & merge** | Column→field, party split, dedupe, defaults | Strong for GS | P0 done; P3 unified merge |
+| 8 | **Gap analysis & supervisor** | Target vs actual diff; auto_fix; ask_user for data gaps only | ~50% | P1 supervisor contract; post-mapping readiness |
+| 9 | **Validation & trust gate** | pass / partial / fail; block bad import | Validate OK; sidebar lies | P1 **1b** pending |
+| 10 | **Phased import & verify** | Order, link resolution, idempotency, submit policy | ~70% | lifecycle.py; import idempotency shipped |
+
+**Supported doctypes today (KB mapping modules):** Item, Customer, Supplier, BOM, Work Order, Project, Purchase Receipt, Stock Entry, Sales Order, Sales Invoice, Purchase Order, Payment Entry, Journal Entry, Employee, Batch (~15 of 400+ ERPNext doctypes).
 
 ---
 
@@ -62,14 +92,17 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 
 ## P1 — Quality & trust (validate must not lie)
 
-- **Sparse data → error or `partial`** — “critically sparse” warning should affect doctype status, not only sidebar text.
-- **Overall validation status** — session-level `partial` when any doctype has warnings; readiness % should not show 100% in that state.
-- **Validate preview: flatten child tables** — Stock Entry / Purchase Receipt show `item_code`/`qty` in UI (today `--` at top level after `fold_child_tables`).
-- **UI badge semantics** — green “Passed” vs amber “Passed with warnings” vs red “Failed”.
-- **Tier 1 quality gate** — deterministic rules before any LLM: empty identity, wrong source mix, row count vs dedupe expectation.
-- **Structured `ValidationReport` JSON** — single artifact: per-doctype sources, row issues, classification confidence (feeds UI + supervisor).
-- **Extend supervisor on validate** — enable `IS_SUPERVISOR_ENABLED=1`; feed quality report; ask targeted questions (“PR rows from `active_projects` — did you mean Project?”).
-- **Supervisor scope today** — only missing field *keys* + WO enum auto-fix; expand to empty values and cross-file sanity.
+- [x] **UI badge semantics** — green “Passed” vs amber “Passed with warnings” vs red “Failed” on Validate screen. *(2026-05-25 — `DataPreviewTable`, `ValidateView`)*
+- [x] **Validate preview: flatten child tables** — Stock Entry / Purchase Receipt show `item_code`/`qty` via `preview_flatten.py` + launcher. *(2026-05-25 — live golden verify pending)*
+- [x] **Overall validation status (Validate page)** — session-level `partial` when any doctype has warnings; `validation_overall` + capped data quality score. *(2026-05-25)*
+- [x] **Sparse data → `partial` (validation engine)** — warnings flip doctype status from pass to partial. *(2026-05-25 — `test_activities.py`)*
+- [ ] **Post-mapping readiness recheck** — sidebar score from ValidationReport / validate results, not pre-mapping step 8c only; label must not imply 100% when validate has warnings. *(Tier 1b)*
+- [ ] **Confirm-button UX (Analyze + Validate)** — hide F3iche / mapping approve / validate buttons after stage advances; persist Validate `confirmed` step across refresh. *(Tier 1e)*
+- [ ] **Tier 1 quality gate** — deterministic rules before any LLM: empty identity, wrong source mix, row count vs dedupe expectation.
+- [ ] **Structured `ValidationReport` JSON** — single artifact: per-doctype sources, row issues, classification confidence (feeds UI + supervisor).
+- [ ] **Extend supervisor on validate** — enable `IS_SUPERVISOR_ENABLED=1`; feed quality report; ask targeted questions (“PR rows from `active_projects` — did you mean Project?”).
+- [ ] **Supervisor scope expansion** — empty values and cross-file sanity (today: missing field *keys* + WO enum auto-fix only).
+- [ ] **Supervisor contract** — `ask_user` only for user-resolvable data gaps; pipeline/KB bugs → `auto_fix` or internal fail, never a false prompt.
 
 ---
 
@@ -77,7 +110,7 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 
 - **Chat bar at bottom of right panel** — persistent input on Validate (and later Sandbox): ask about gaps, answer supervisor prompts, trigger mapping refinement. *(Discussed in separate Cursor conversation.)*
 - **Chat context wiring** — session id, validation report, mapped payloads summary, supervisor pending actions (avoid hallucinated row counts).
-- **Validate: one panel per doctype** — show `source_files[]` and merged row count (partially done via `corpus_merge` + launcher).
+- **Validate: one panel per doctype** — show `source_files[]` and merged row count. *(partially done — `corpus_merge` + launcher)*
 - **Classification transparency** — per file: chosen doctype, score margin, method (`local` / `llm`); “wrong doctype?” affordance.
 - **Import plan summary on Validate** — phases, merged record counts, blocked steps.
 - **Wire chat → `refine_mapping_with_llm`** — user says “map party_name to supplier_name” → regen payload.
@@ -96,11 +129,31 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 
 ---
 
+## P3 — Universal IS foundations (v1.5 → v2 bridge)
+
+> **North star:** any tabular upload → correct doctype map → honest validate → safe import.  
+> v2 detail: [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md). Sprint ordering: [`PRIORITIES.md`](./PRIORITIES.md) Tier 7.
+
+- [ ] **Corpus-first model** — single canonical merge blob per session wave; all nodes read/write via `corpus_merge.py`
+- [ ] **`validation_rules.json` as primary validate source** — retire `_REQUIRED_FIELDS_FALLBACK` / `_ENUM_FIELDS_FALLBACK` hardcoding in `validation_agent/activities.py`
+- [ ] **SchemaResolver v1** — live Frappe schema for KB-miss doctypes on classify + validate + import preflight (extend `live_schema.py` beyond mapping-only path today)
+- [ ] **Post-mapping readiness recheck** — sidebar score from ValidationReport, not pre-mapping 8c assessment only
+- [ ] **Supervisor contract + tests** — `ask_user` only for user-resolvable data gaps; pipeline bugs → auto_fix or fail
+- [ ] **Classification transparency** — per file: doctype, confidence, method (`local` / `llm` / `live`)
+- [ ] **Synonym KB growth process** — promote column/filename priors from golden + beta runs into KB modules (`filename_priors.json`, `column_priors.json`, mapping `*.json`)
+- [ ] **`module_docs` seeding** — curated doctype docs → pgvector; reduce noise from scraped `erpnext_docs`
+- [ ] **Parse roadmap** — v1.5: CSV/TSV/XLSX solid; v2: PDF / WhatsApp exports / messy TXT
+- [ ] **pgvector as primary classify signal (v2 milestone)** — promote RAG from annotation-only to co-primary with KB priors for unknown terminology
+
+---
+
 ## P4 — Deferred / experiments
 
 - **Multi-agent “nodes report to supervisor”** — deferred; one validation report → one supervisor call is enough for now.
 - **Auto-reclassify file from chat** — “this is Project not PR” → re-run map for one file only.
-- **Full live-schema mapping** — replace static KB for unknown doctypes (v2 vision).
+- **Full live-schema agent** — replace static KB entirely for unknown doctypes (v2 vision; distinct from SchemaResolver v1 bridge in P3).
+- **Business graph in DB** — `erp_setup_graph` + `erp_safe_defaults` tables per ARCH_V2_VISION (v2; JSON graph sufficient for v1.5).
+- **Auto-learn synonyms from user corrections** — chat/refine_mapping feedback → KB promotion pipeline.
 
 ---
 
@@ -120,6 +173,8 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 | 2026-05-25 | Pass 2.6 BOM auto-submit                                   | `lifecycle.py`                                                             |
 | 2026-05-25 | Tier 0 demo unblock | naming_series at map + validate; supervisor obsolete prompts; auto_fix apply_kb_defaults |
 | 2026-05-25 | Data readiness + supervisor gate                           | Pre-validate                                                               |
+| 2026-05-25 | Import idempotency (BOM, WO, dedupe keys)                  | `import_idempotency.py` + tests                                            |
+| 2026-05-25 | Validate partial status + preview flatten                  | `validation_agent` partial on warnings; `preview_flatten.py` + launcher    |
 
 
 ---
@@ -131,10 +186,13 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------- |
 | Purchase Receipt includes `05_gs_active_projects.csv`, 5 rows, sparse warehouse | Still classified as PR or stale session; merge kept bad rows             | P0 cross-file guard, P0 Project confirm |
 | Supplier 8 rows, empty names on rows 3–4                                        | Customer rows in Supplier bucket + `__anon_`* dedupe                     | P0 merge quarantine, P0 customer leak   |
-| Stock Entry `--` for item/qty                                                   | Child table folded; preview shows parent columns only                    | P1 flatten preview                      |
-| All panels PASSED, 100% readiness                                               | Warnings don’t fail status                                               | P1 badge + readiness                    |
+| Stock Entry `--` for item/qty                                                   | Was folded preview; `preview_flatten.py` shipped — **verify live**       | P1 flatten preview (done in repo)       |
+| All panels PASSED, 100% readiness (Validate)                                    | Warnings → partial on Validate page *(fixed)*; **sidebar** still pre-mapping | P1 1d done; **1b pending**          |
 | No Project panel                                                                | `active_projects` mapped to PR                                           | P0 Project classification               |
 | BOM shows 2 rows                                                                | Likely correct (2 FGs); 3 CSV lines = 2 BOMs + components in child table | Verify in harness matrix                |
+| F3iche / mapping approve button still visible after click                       | Stage polling lag; card not hidden when stage advances                   | P1 confirm-button UX                    |
+| Validate “Validate & Confirm” reappears on refresh                              | Local `step` state not persisted                                         | P1 confirm-button UX                    |
+| Sidebar “Pre-mapping assessment” shows 100% while validate has warnings         | Post-mapping recheck not built                                             | P1 post-mapping readiness               |
 
 
 ---
@@ -160,6 +218,7 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 - Diff view: previous upload wave vs current merged corpus.
 - User-editable merge dedupe keys per session.
 - “Trust score” per doctype 0–100 for sales demo.
+- Beta session log template per customer (see [`green-surface-firstmeet.md`](../green-surface-firstmeet.md)).
 
 ---
 
@@ -169,5 +228,7 @@ Generalized: **corpus in, trustworthy preview out, import only when row-level qu
 | Date       | Reviewer              | Changes                                                 |
 | ---------- | --------------------- | ------------------------------------------------------- |
 | 2026-05-25 | IS golden run session | Initial backlog from Green Surface gaps + chat bar idea |
+| 2026-05-26 | Green Surface beta prep | Added 10 IS pillars, universal north star, P3 bridge items, supervisor contract, UI confirm-button gaps |
+| 2026-05-26 | Tier 1 status sync | Marked P1 badge/flatten/partial done; 1b sidebar + 1e buttons still open |
 
 

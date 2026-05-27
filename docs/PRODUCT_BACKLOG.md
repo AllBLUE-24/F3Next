@@ -1,8 +1,10 @@
 # F3Next — Product Backlog & Weekly Priorities
 
 > **Master queue** for the whole product: IS, Platform, Marketing, Design.  
-> **Last reviewed:** 2026-05-25  
+> **Last reviewed:** 2026-05-26  
 > **Review cadence:** ~weekly (update **Focus this week** first)
+
+**Marking done:** update Status in [`PRIORITIES.md`](./PRIORITIES.md) tier table → `[x]` in [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) → row in **Done log** below. Do not mark `done` unless acceptance criteria are met.
 
 **Related docs**
 
@@ -43,17 +45,20 @@
 
 ---
 
-## Focus this week (reviewed: 2026-05-25)
+## Focus this week (reviewed: 2026-05-26)
 
-> **Active sprint detail:** [`PRIORITIES.md`](./PRIORITIES.md) (tiers 0–6, day plan, launch definition).
+> **Active sprint detail:** [`PRIORITIES.md`](./PRIORITIES.md) (tiers 0–7, pre-demo day plan, launch definition).  
+> **Green Surface beta:** [`green-surface-firstmeet.md`](../green-surface-firstmeet.md).
 
 | # | Item | Stream | Status |
 |---|------|--------|--------|
-| 1 | IS validate honesty (badges, child preview, readiness) | IS | pending |
-| 2 | Forgot password + reset flow (Supabase) | Platform | pending |
-| 3 | Onboarding → invite team step | Platform | pending |
-| 4 | Chat bar v1 on Validate (context + refine_mapping) | IS | pending |
-| 5 | Landing hero refresh | Marketing | pending |
+| 1 | IS validate honesty — finish sidebar (1b) + confirm buttons (1e); 1a/1c/1d done | IS | **partial** |
+| 2 | Tier 0 worker deploy + golden smoke test (pre-beta) | IS | **pending** |
+| 3 | Forgot password + reset flow (Supabase) | Platform | pending |
+| 4 | Onboarding → invite team step | Platform | pending |
+| 5 | Chat bar v1 on Validate (context + refine_mapping) | IS | pending — blocked by #1 |
+
+_Landing hero refresh demoted to parallel Tier 4 this week — beta trust takes priority._
 
 ---
 
@@ -61,7 +66,9 @@
 
 > **Companies onboard once, invite their team, upload messy data, and get a trustworthy ERP implementation** — without consultants or training.
 
-**IS north star** (implementation detail): see [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md).
+**IS north star (near-term):** Green Surface–class uploads → honest validate → safe import. See [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md).
+
+**IS north star (long-term):** Any tabular upload → correct doctype(s) → honest validate → safe import; supervisor asks only for real data gaps. Pillars + bridge backlog: [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) (10 pillars, P3 universal foundations). Sprint: [`PRIORITIES.md`](./PRIORITIES.md) Tier 7.
 
 ---
 
@@ -90,29 +97,56 @@
 
 ## Stream: IS (Implementation System)
 
-Summary only — full lists, golden checklist, and known issues live in **[`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md)**.
+Summary only — full lists, golden checklist, pillar status, and known issues live in **[`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md)**.
+
+### IS fundamental pillars (summary)
+
+| # | Pillar | Sprint focus |
+|---|--------|--------------|
+| 1–2 | Ingestion, parse, corpus | Tier 7 (post-beta) |
+| 3–4 | Classification, synonyms, LLM fallback | Tier 7; ~15 doctypes today |
+| 5 | ERP KB + live schema | Tier 7 SchemaResolver v1 |
+| 6 | F3iche + pgvector | Tier 6a; enricher today |
+| 7 | Mapping & merge | P0 largely done |
+| 8 | Gap analysis + supervisor | Tier 1 + Tier 7d contract |
+| 9 | Validation & trust UI | **Tier 1 — demo priority** |
+| 10 | Phased import & verify | Ongoing; idempotency shipped |
 
 ### P0 — Blockers (summary)
 
-- [ ] Row-level required **values** (empty `supplier_name`, etc.)
-- [ ] Merge quarantine (no `__anon_*` junk rows)
-- [ ] Cross-file merge guard (`active_projects` ≠ Purchase Receipt)
+- [x] Row-level required **values** (empty `supplier_name`, etc.) *(2026-05-25)*
+- [x] Merge quarantine (no `__anon_*` junk rows) *(2026-05-25)*
+- [x] Cross-file merge guard (`active_projects` ≠ Purchase Receipt) *(2026-05-25)*
 - [ ] Project classification confirmed on fresh session + worker restart
-- [ ] Green Surface 8-file harness matrix
-- [ ] Customer rows leaking into Supplier payload
+- [x] Green Surface 8-file harness matrix *(2026-05-25)*
+- [x] Customer rows leaking into Supplier payload *(2026-05-25)*
 
 ### P1 — Quality & trust (summary)
 
-- [ ] Sparse data / warnings affect status (`partial`, not 100% readiness)
-- [ ] Validate preview: flatten child tables (Stock Entry, PR)
-- [ ] Amber “Passed with warnings” badge
+- [x] Validate UI badges (Passed / Passed with warnings / Failed) *(2026-05-25)*
+- [x] Validate preview: flatten child tables *(2026-05-25; live verify pending)*
+- [x] Session-level `partial` on Validate page *(2026-05-25)*
+- [ ] Post-mapping readiness recheck (sidebar — Tier 1b)
+- [ ] Confirm-button UX (F3iche, mapping approve, validate step — Tier 1e)
 - [ ] Structured `ValidationReport` + supervisor on validate
+- [ ] Supervisor contract: ask_user only for data gaps
 
 ### P2 — IS UX (summary)
 
 - [ ] Chat bar on Validate right panel (+ supervisor / refine mapping)
 - [ ] Classification transparency per file
 - [ ] Import plan summary on Validate
+
+### P3 — Universal IS foundations (summary, post-beta)
+
+- [ ] `validation_rules.json` wired to validate
+- [ ] SchemaResolver v1 (live schema on classify + validate + import)
+- [ ] Corpus-first canonical merge blob
+- [ ] Synonym KB growth from beta runs
+- [ ] `module_docs` → pgvector
+- [ ] Parse roadmap (v1.5 CSV/XLSX → v2 PDF/exports)
+
+Detail: [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) P3 bridge section; sprint: [`PRIORITIES.md`](./PRIORITIES.md) Tier 7.
 
 ---
 
@@ -202,6 +236,7 @@ Summary only — full lists, golden checklist, and known issues live in **[`IS_V
 - [ ] **Design tokens file** — shared across marketing + app shell.
 - [ ] **Auth + marketing visual unification** — one premium look from landing → login → onboarding.
 - [ ] **Implementation shell visual pass** — Validate, Analyze, Sandbox, StepRail (after IS P1 trust fixes).
+  - Includes: confirm-button state after approve/validate; honest readiness sidebar label.
 - [ ] **OS command center visual pass** — [`frontend/src/components/OS/`](../frontend/src/components/OS/)
 
 ---
@@ -216,6 +251,8 @@ _Promote to a stream + P-tier on weekly review._
 - “Trust score” per doctype 0–100 for sales demo.
 - WhatsApp / Slack notify when import phase completes.
 - Public changelog page fed from Done log.
+- Auto-learn synonyms from user chat corrections → KB promotion pipeline.
+- Business graph in DB (`erp_setup_graph`) per ARCH_V2_VISION.
 
 ---
 
@@ -225,6 +262,8 @@ _Promote to a stream + P-tier on weekly review._
 |------|------|--------|-------|
 | 2026-05-25 | Product backlog doc created | — | Master queue + weekly format |
 | 2026-05-25 | Tier 0 demo unblock (naming_series, supervisor orphans) | IS | Validation defaults + obsolete prompts |
+| 2026-05-25 | Import idempotency (BOM, WO, dedupe keys) | IS | `shared/erp_adapters/import_idempotency.py` |
+| 2026-05-25 | Validate badges + partial status + preview flatten | IS | Tier 1a/1c/1d — Validate screen only |
 
 _For IS-only completions, see also [`IS_V2_BACKLOG.md` Done section](./IS_V2_BACKLOG.md#done-recent)._
 
@@ -236,3 +275,5 @@ _For IS-only completions, see also [`IS_V2_BACKLOG.md` Done section](./IS_V2_BAC
 |------|----------|---------|
 | 2026-05-25 | Product planning | Created master backlog; seeded Platform/Marketing/Design; initial weekly focus |
 | 2026-05-25 | IS golden run | IS appendix created (Green Surface gaps) |
+| 2026-05-26 | Green Surface beta prep | 10 IS pillars, Tier 7 universal backbone, P0 done sync, focus reordered for beta |
+| 2026-05-26 | Tier 1 status audit | 1a/1c/1d marked done; 1b/1e remain; PRIORITIES Status column added |

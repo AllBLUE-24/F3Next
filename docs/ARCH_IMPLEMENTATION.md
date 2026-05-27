@@ -7,7 +7,8 @@
 > The current implementation treats uploads as a **corpus**, not a one-file/one-doctype contract: all files in the active upload wave are parsed, upload notes are carried forward into profile/target/readiness prompts, and if the user re-uploads after a supervisor-critical gap the workflow re-runs on the **union of prior + new files**.
 
 **Product backlog (master queue):** [`PRODUCT_BACKLOG.md`](./PRODUCT_BACKLOG.md)  
-**IS detail appendix:** [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md)  
+**Active sprint plan:** [`PRIORITIES.md`](./PRIORITIES.md) (tiers 0–7, pre-demo day plan)  
+**IS detail appendix:** [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) (10 pillars, universal IS bridge)  
 **Long-term v2 vision:** [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md)
 
 ---

@@ -33,6 +33,8 @@
       "options": null,
       "default_value": null,
       "user_input_synonyms": [
+        "item",
+        "product",
         "item code",
         "item_id",
         "product_code",

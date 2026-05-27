@@ -1,8 +1,26 @@
 # F3Next — Sprint Priorities & Ship Plan
 
 > **Purpose:** Action-oriented priority stack for completing the product for launch.  
-> **Last updated:** 2026-05-25  
+> **Last updated:** 2026-05-26  
 > **Status:** Active sprint plan — overrides weekly focus until next review.
+
+## How to mark items done
+
+**Status values** (use in tier tables below):
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Not started |
+| `partial` | Started; acceptance criteria not fully met |
+| `done (YYYY-MM-DD)` | Shipped in repo and meets tier outcome (live verify may still be tracked separately) |
+| `manual` | Ops/deploy step — not a code merge |
+
+**When something ships:**
+
+1. Update **Status** on the row in this file.
+2. Add **`[x]`** on the matching line in [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) if applicable.
+3. Add one row to **Done log** in [`PRODUCT_BACKLOG.md`](./PRODUCT_BACKLOG.md).
+4. Do **not** mark `done` for live-verify-only gaps — use `done in repo` + keep **IS P0 live verify** row open, or leave `partial`.
 
 **Related docs**
 
@@ -22,7 +40,9 @@ A new company can:
 3. **Ask the assistant** on Validate what’s wrong with mapping (chat bar v1)
 4. **Land on a credible marketing page** in a sales conversation
 
-**Explicitly not required for this milestone:** WhatsApp alerts, proactive Monday bot, full v2 reasoning agent, global theme refresh.
+**Explicitly not required for this milestone:** WhatsApp alerts, proactive Monday bot, full v2 reasoning agent, global theme refresh, universal any-doctype coverage (Tier 7).
+
+**Green Surface beta (first early customer):** success = full loop completed *or* 3–5 well-understood failures logged. Demo guide: [`green-surface-firstmeet.md`](../green-surface-firstmeet.md).
 
 ---
 
@@ -32,15 +52,17 @@ A new company can:
 
 ---
 
-## Decision log (2026-05-25)
+## Decision log
 
 
-| Decision                                          | Rationale                                                                                                                            |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Park Green Surface golden re-run**              | P0 merge/validation code shipped; blocked on worker deploy + supervisor UX, not corpus model. Re-verify on next clean worker deploy. |
-| **Validate honesty before chat bar**              | Chat on a lying UI creates confident wrong answers. IS P1 before IS P2 chat.                                                         |
-| **Platform auth + invite in parallel with IS P1** | Product is multi-user; stepping out of backend-only loop.                                                                            |
-| **WhatsApp / proactive bot → post-launch**        | Tier 6 — after core loop is demo-ready.                                                                                              |
+| Date       | Decision                                          | Rationale                                                                                                                            |
+| ---------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-05-25 | **Park Green Surface golden re-run**              | P0 merge/validation code shipped; blocked on worker deploy + supervisor UX, not corpus model. Re-verify on next clean worker deploy. |
+| 2026-05-25 | **Validate honesty before chat bar**              | Chat on a lying UI creates confident wrong answers. IS P1 before IS P2 chat.                                                         |
+| 2026-05-25 | **Platform auth + invite in parallel with IS P1** | Product is multi-user; stepping out of backend-only loop.                                                                            |
+| 2026-05-25 | **WhatsApp / proactive bot → post-launch**        | Tier 6 — after core loop is demo-ready.                                                                                              |
+| 2026-05-26 | **Green Surface demo postponed — use prep day**   | Tier 0 deploy + Tier 1 validate trust + UI confirm buttons before beta; no SchemaResolver on demo day.                              |
+| 2026-05-26 | **Universal IS = Tier 7, not demo gate**          | ~15 KB doctypes sufficient for beta; SchemaResolver v1 + validation_rules wiring after Green Surface learnings.                       |
 
 
 ---
@@ -91,9 +113,12 @@ Users must trust validate colors, counts, and readiness %.
 | 1b  | Readiness ≠ 100% when warnings exist                  | Honest session score                            |
 | 1c  | Flatten child tables in validate preview              | Stock Entry / PR show item_code, qty (not `--`) |
 | 1d  | Session-level `partial` when any doctype has warnings | Overall status matches reality                  |
+| 1e  | Confirm-button UX (Analyze + Validate)                | Hide cards after stage advance; persist Validate confirmed step |
 
 
-**Defer this sprint:** full `ValidationReport` JSON schema, multi-agent supervisor debate (IS P3).
+**Defer this sprint:** full `ValidationReport` JSON schema, multi-agent supervisor debate (IS P3).  
+**Quick win before beta:** relabel sidebar “Pre-mapping assessment” if full 1b recheck not done in time.  
+**Tier 1 complete when:** **1b** + **1e** done (1a, 1c, 1d shipped 2026-05-25).
 
 ---
 
@@ -168,7 +193,27 @@ Can run alongside Tier 2 if capacity allows.
 | 6a  | Personal templates / F3iche playbooks per company       | After IS + onboarding stable    |
 | 6b  | WhatsApp / Slack alerts (import done, validate blocked) | After notification infra        |
 | 6c  | Proactive context chatbot (“Monday QC check?”)          | Post-launch; see ARCH_V2_VISION |
-| 6d  | Full v2 reasoning agent (live schema, tool calling)     | Not this sprint                 |
+| 6d  | Full v2 reasoning agent (tool calling, agentic path)  | Not this sprint; see ARCH_V2_VISION         |
+
+
+---
+
+### Tier 7 — Universal IS backbone (post Green Surface beta)
+
+Structural foundations for “any doctype / any tabular data.” **Do not start before Tier 1 demo trust ships.** Detail: [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) P3 bridge + pillars table.
+
+
+| ID  | Item | Outcome |
+| --- | ---- | ------- |
+| 7a  | Wire `validation_rules.json` to validate | Single rules source; retire hardcoded fallbacks |
+| 7b  | SchemaResolver v1 (live schema on all nodes) | KB-miss doctypes mappable on classify + validate + import preflight |
+| 7c  | Post-mapping readiness + ValidationReport | Sidebar matches validate; structured artifact for UI + supervisor |
+| 7d  | Supervisor contract + assertion tests | No false `ask_user` for pipeline/KB bugs |
+| 7e  | Synonym KB growth from beta runs | Promote priors from Green Surface + customer feedback |
+| 7f  | `module_docs` → pgvector seeding | Curated doctype docs; less scrape noise |
+| 7g  | Parse roadmap (XLSX hardening → PDF/v2) | Clear v1.5 vs v2 parse scope |
+
+**Distinct from Tier 6d:** Tier 7 is incremental v1.5→v2 bridge; Tier 6d is full agentic replacement of the pipeline.
 
 
 ---
@@ -178,14 +223,29 @@ Can run alongside Tier 2 if capacity allows.
 
 | #   | Item                                                       | Tier | Stream    | Status  |
 | --- | ---------------------------------------------------------- | ---- | --------- | ------- |
-| 1   | IS validate honesty (badges, child preview, readiness)     | 1    | IS        | pending |
-| 2   | Forgot password + reset flow                               | 2    | Platform  | pending |
-| 3   | Onboarding → invite team step                              | 2    | Platform  | pending |
-| 4   | Chat bar v1 on Validate (input + context + refine_mapping) | 3    | IS        | pending |
-| 5   | Landing hero refresh                                       | 4    | Marketing | pending |
+| 1   | IS validate honesty — finish **1b** sidebar + **1e** buttons (1a/1c/1d done) | 1    | IS        | **partial** |
+| 2   | Tier 0 worker deploy + golden smoke test (pre-beta)        | 0    | IS        | **pending** — 0a manual |
+| 3   | Forgot password + reset flow                               | 2    | Platform  | pending |
+| 4   | Onboarding → invite team step                              | 2    | Platform  | pending |
+| 5   | Chat bar v1 on Validate (input + context + refine_mapping) | 3    | IS        | pending — blocked by #1 |
 
 
-**Rule:** Do not start #4 until #1 is done. Tier 0 before any customer upload.
+**Rule:** Do not start #4 until #1 is done. Tier 0 before any customer upload. Do not start Tier 7 until Green Surface beta + Tier 1 complete.
+
+---
+
+## Pre-demo day plan (Green Surface beta)
+
+Use when a live beta session is scheduled. Full checklist: [`green-surface-firstmeet.md`](../green-surface-firstmeet.md).
+
+
+| Block | Focus | Tasks |
+| ----- | ----- | ----- |
+| **A — Ops** (2–3 hr) | Confidence | Push branch; rebuild worker; golden smoke test (8 files); fresh sandbox or clean duplicates |
+| **B — UI** (2–4 hr) | Demo trust | **1e** confirm buttons; **1b** sidebar label or post-mapping score; verify 1a/1c/1d on live golden run |
+| **C — Backend** (pick 1–2) | Safe foundations | Tier 1b/1d partial status; enable supervisor on one missing-field path — **not** SchemaResolver |
+| **D — Beta morning** (1 hr) | Handoff | Register dry-run; Temporal + worker logs open; send 2-min honest pitch to customer |
+
 
 ---
 
@@ -194,11 +254,12 @@ Can run alongside Tier 2 if capacity allows.
 
 | Days    | Focus                                                    |
 | ------- | -------------------------------------------------------- |
+| **Prep** | Tier 0 deploy + Tier 1 validate trust + UI confirm buttons (pre Green Surface beta) |
 | **1–2** | Tier 0 (worker/supervisor) + Tier 1 IS validate UI       |
 | **2–4** | Tier 2 Platform auth + invite (end-to-end invite flow)   |
 | **3–5** | Tier 3 Chat bar v1 on Validate                           |
 | **4–6** | Tier 4 Landing pass (parallel with Tier 3 if two tracks) |
-| **6+**  | Tier 5 polish only if 1–4 are demo-ready                 |
+| **6+**  | Tier 5 polish; Tier 7 universal IS after beta learnings  |
 
 
 ---
@@ -229,8 +290,10 @@ Checklist when re-running: `[GREEN_SURFACE_GOLDEN_MATRIX.md](../containers/imple
 - Multi-agent supervisor debate
 - Global theme refresh (Design P4)
 - WhatsApp / proactive operations bot
-- v2 live-schema agent replacement for KB
+- **SchemaResolver v1 / Tier 7** before Green Surface beta + Tier 1 trust
+- Full v2 live-schema agent replacement for KB (Tier 6d)
 - Export validate PDF, trust score demos
+- Merge Phase 2 / untested SchemaResolver to main on demo day
 
 ---
 
@@ -242,6 +305,13 @@ Checklist when re-running: `[GREEN_SURFACE_GOLDEN_MATRIX.md](../containers/imple
 | Chat bar + NL supervisor on mapping/validate  | 3       | IS P2 in `[IS_V2_BACKLOG.md](./IS_V2_BACKLOG.md)`                            |
 | Onboarding, invite, auth, marketing, profiles | 2, 4, 5 | Platform P1–P2, Marketing P2 in `[PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md)` |
 | Templates, WhatsApp, proactive Monday bot     | 6       | Idea inbox → post-launch                                                     |
+| Universal any-doctype / any data              | 7       | IS pillars + P3 bridge in `[IS_V2_BACKLOG.md](./IS_V2_BACKLOG.md)`            |
+| Parsing + corpus as whole                     | 7       | P3 corpus-first model; parse roadmap                                         |
+| Synonyms + LLM classify fallback              | 7       | P3 tiered resolution + synonym KB growth                                     |
+| Full ERP KB + live Frappe API                 | 7, 6d   | SchemaResolver v1 (7b) → full v2 agent (6d)                                    |
+| F3iche + pgvector primary context             | 6, 7    | Tier 6a playbooks; 7g pgvector-as-primary (v2 milestone)                     |
+| Gap diff + supervisor (data gaps only)        | 1, 7    | P1 supervisor contract; 7d tests                                             |
+| Confirm buttons / validate UI honesty         | 1       | Tier 1a, 1c, 1e                                                              |
 
 
 ---
@@ -259,5 +329,7 @@ Checklist when re-running: `[GREEN_SURFACE_GOLDEN_MATRIX.md](../containers/imple
 | Date       | Changes                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------- |
 | 2026-05-25 | Created sprint plan; parked golden re-run; ordered Tiers 0–6; mapped founder ideas to tiers |
+| 2026-05-26 | Green Surface beta prep; Tier 7 universal IS backbone; pre-demo day plan; Tier 1e confirm-button UX |
+| 2026-05-26 | Tier 1 Status column; marked 1a/1c/1d done; 1b/1e pending; Focus #1 partial |
 
 

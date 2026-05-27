@@ -19,6 +19,12 @@ from datetime import date
 from typing import Any
 
 from containers.os.payload_generator.kb_fields import field_kb
+from shared.os_field_semantics import (
+    apply_field_defaults_to_payload,
+    map_entities_to_payload_fields,
+    normalize_entities_for_doctype,
+    resolve_entity_to_field,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,37 +135,35 @@ def _build_items(items_entities: list, doctype: str, context: dict, kb) -> list[
 def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict:
     """Build full document payload for a 'create' step."""
     doctype = step.get("doctype", "")
-    payload: dict[str, Any] = {}
+    entities = normalize_entities_for_doctype(doctype, entities)
+    payload: dict[str, Any] = map_entities_to_payload_fields(doctype, entities)
 
-    # customer / supplier
-    if entities.get("customer"):
-        fn = kb.fieldname(doctype, "customer")
-        payload[fn] = entities["customer"]
-
-    if entities.get("supplier"):
-        fn = kb.fieldname(doctype, "supplier")
-        payload[fn] = entities["supplier"]
-
-    # Items table
     items_list = entities.get("items", [])
     if items_list:
         payload["items"] = _build_items(items_list, doctype, context, kb)
 
-    # Date fields from user intent
     for date_key in ("transaction_date", "posting_date", "delivery_date",
                      "schedule_date", "due_date"):
         if entities.get(date_key):
-            fn = kb.fieldname(doctype, date_key)
+            resolved = resolve_entity_to_field(doctype, date_key)
+            fn = (
+                str(resolved[1].get("fieldname"))
+                if resolved
+                else kb.fieldname(doctype, date_key)
+            )
             payload[fn] = kb.resolve_date(entities[date_key])
 
-    # Reference numbers
     for ref_key in ("po_no", "so_no", "dn_no", "invoice_no", "reference_no",
                     "payment_reference", "lr_no"):
         if entities.get(ref_key):
-            fn = kb.fieldname(doctype, ref_key)
+            resolved = resolve_entity_to_field(doctype, ref_key)
+            fn = (
+                str(resolved[1].get("fieldname"))
+                if resolved
+                else kb.fieldname(doctype, ref_key)
+            )
             payload[fn] = entities[ref_key]
 
-    # Payment Entry specific
     if doctype == "Payment Entry":
         if entities.get("payment_type"):
             payload["payment_type"] = entities["payment_type"]
@@ -168,12 +172,11 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
             payload["party"] = entities.get("customer") or entities.get("supplier", "")
         if entities.get("amount"):
             amount = kb.resolve_amount(entities["amount"])
-            payload["paid_amount"]     = amount
+            payload["paid_amount"] = amount
             payload["received_amount"] = amount
         if entities.get("mode_of_payment"):
             payload["mode_of_payment"] = entities["mode_of_payment"]
 
-    # Stock Entry specific — only user-provided warehouses
     if doctype == "Stock Entry":
         if entities.get("stock_entry_type"):
             payload["stock_entry_type"] = entities["stock_entry_type"]
@@ -184,32 +187,19 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
         if entities.get("project"):
             payload["project"] = entities["project"]
 
-    # Customer master
-    if doctype == "Customer":
-        payload["customer_name"]  = entities.get("customer_name") or entities.get("customer") or ""
-        payload["customer_type"]  = entities.get("customer_type") or "Company"
-        payload["customer_group"] = entities.get("customer_group") or "All Customer Groups"
-        payload["territory"]      = entities.get("territory") or "All Territories"
-        if entities.get("gstin"):
-            payload["gstin"] = entities["gstin"]
-            payload["gst_category"] = "Registered Regular"
-
-    # Supplier master
-    if doctype == "Supplier":
-        payload["supplier_name"]  = entities.get("supplier_name") or entities.get("supplier") or ""
-        payload["supplier_type"]  = entities.get("supplier_type") or "Company"
-        payload["supplier_group"] = entities.get("supplier_group") or "All Supplier Groups"
-
-    # Item master
     if doctype == "Item":
-        payload["item_code"]  = entities.get("item_code") or ""
-        payload["item_name"]  = entities.get("item_name") or entities.get("item_code") or ""
-        payload["item_group"] = entities.get("item_group") or "All Item Groups"
-        payload["stock_uom"]  = kb.resolve_uom(entities.get("uom") or "Nos")
+        if entities.get("item_name") and "item_name" not in payload:
+            payload["item_name"] = entities["item_name"]
         if entities.get("is_stock_item") is not None:
             payload["is_stock_item"] = int(bool(entities["is_stock_item"]))
+        if entities.get("uom"):
+            payload["stock_uom"] = kb.resolve_uom(entities["uom"])
 
-    # Inject mandatory defaults (company, dates) — NOT warehouse or price_list
+    if doctype == "Customer" and entities.get("gstin"):
+        payload["gstin"] = entities["gstin"]
+        payload["gst_category"] = "Registered Regular"
+
+    payload = apply_field_defaults_to_payload(doctype, payload)
     payload = _inject_defaults(payload, doctype, context, kb)
 
     return payload

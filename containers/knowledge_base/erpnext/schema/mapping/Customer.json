@@ -45,6 +45,7 @@
       "options": null,
       "default_value": null,
       "user_input_synonyms": [
+        "customer",
         "entity name",
         "company name",
         "name",

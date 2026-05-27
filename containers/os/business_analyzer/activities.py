@@ -10,9 +10,14 @@ from typing import Any, Optional
 from temporalio import activity
 
 from llm_router import invoke_smart_llm
-from shared.context_engine.loader import Tier1Loader, retrieve_kb_chunks
+from shared.context_engine.loader import retrieve_kb_chunks
 from shared.embedding_generator import embedding_to_pgvector_str, generate_embedding
 from shared.rag_cache import cache_get_json, cache_set_json
+from shared.os_field_semantics import (
+    filter_missing_for_doctype,
+    is_master_create_doctype,
+    tier1_mandatory_missing,
+)
 from shared.os_metrics import (
     OS_BUSINESS_CLARIFICATION_TRIGGERED,
     OS_LLM_REASONING_JSON_FAILURE_TOTAL,
@@ -38,7 +43,6 @@ def _safe_json_loads(raw: str) -> Optional[dict]:
     try:
         return json.loads(cleaned)
     except Exception:
-        # attempt to extract a JSON object substring
         m = re.search(r"(\{[\s\S]*\})", cleaned)
         if m:
             try:
@@ -46,6 +50,19 @@ def _safe_json_loads(raw: str) -> Optional[dict]:
             except Exception:
                 return None
     return None
+
+
+def _tier1_analysis(doctype: str, entities: dict, *, query_used: str = "") -> dict[str, Any]:
+    missing, applied = tier1_mandatory_missing(doctype, entities)
+    return {
+        "missing_critical_fields": missing,
+        "applied_defaults": applied,
+        "confidence": 1.0 if not missing else 0.5,
+        "ready_for_planning": len(missing) == 0,
+        "rag": {"apqc": 0, "erpnext": 0, "f3iche": 0},
+        "query_used": query_used,
+        "analysis_mode": "tier1_only",
+    }
 
 
 async def _rag_retrieve(query_text: str, *, kb_source_prefix: str, top_k: int) -> list[str]:
@@ -82,36 +99,11 @@ async def _rag_retrieve(query_text: str, *, kb_source_prefix: str, top_k: int) -
     return chunks
 
 
-def _tier1_mandatory_missing(doctype: str, entities: dict) -> list[dict[str, Any]]:
-    tier1, _ = Tier1Loader().load()
-    fm = (tier1.get("field_mappings") or {}).get(doctype) or {}
-    mandatory = fm.get("mandatory_fields") or []
-    missing: list[dict[str, Any]] = []
-    for field in mandatory:
-        if entities.get(field) in (None, "", [], {}):
-            missing.append(
-                {
-                    "field": field,
-                    "tier": 1,
-                    "question": f"Please provide `{field}` for {doctype}.",
-                    "reasoning": "Tier1 schema: mandatory field missing.",
-                    "suggested_default": None,
-                    "apqc_reference": None,
-                    "erpnext_reference": None,
-                }
-            )
-    return missing
-
-
 @activity.defn(name="analyze_business_requirements")
 async def analyze_business_requirements(intent: dict, context: dict) -> dict:
     """
     RAG-powered analysis to identify missing *business-critical* fields.
-
-    Sources:
-    - Layer 1: APQC PCF (kb_source_prefix='apqc_pcf')
-    - Layer 2: ERPNext docs (kb_source_prefix='erpnext_docs')
-    - Layer 3: Company context (CVS + f3iche_id if available)
+    Master-data creates use Tier1 KB only (no item/pricing LLM questions).
     """
     doctype = str((intent or {}).get("target_doctype") or "").strip() or "Unknown"
     action = str((intent or {}).get("action") or "create")
@@ -122,38 +114,27 @@ async def analyze_business_requirements(intent: dict, context: dict) -> dict:
     profile = (context or {}).get("company_profile") or {}
     f3iche_id = profile.get("f3_niche_id") or ""
 
-    # Query focused on business requirements, not raw field names.
     query_text = (
         f"{doctype} {action} business requirements critical fields. "
-        "pricing taxes delivery dates approvals mandatory information. "
-        "common mistakes and defaults."
+        "mandatory information common mistakes and defaults."
     )
 
-    top_k = 8
+    if is_master_create_doctype(doctype) and action == "create":
+        return _tier1_analysis(doctype, entities, query_used=query_text)
 
+    top_k = 8
     apqc_chunks = await _rag_retrieve(query_text, kb_source_prefix="apqc_pcf", top_k=top_k)
     erpnext_chunks = await _rag_retrieve(query_text, kb_source_prefix="erpnext_docs", top_k=top_k)
 
     f3iche_chunks: list[str] = []
     if f3iche_id:
-        # This requires seeding f3iches into kb_embeddings as kb_source like: f3iche_<id>
         f3iche_prefix = f"f3iche_{f3iche_id}"
         f3iche_chunks = await _rag_retrieve(query_text, kb_source_prefix=f3iche_prefix, top_k=min(6, top_k))
 
-    # Guardrail: if RAG empty, fall back to Tier1 mandatory.
     if not apqc_chunks and not erpnext_chunks and not f3iche_chunks:
-        missing = _tier1_mandatory_missing(doctype, entities)
-        return {
-            "missing_critical_fields": missing,
-            "applied_defaults": [],
-            "confidence": 0.0,
-            "ready_for_planning": len(missing) == 0,
-            "rag": {"apqc": 0, "erpnext": 0, "f3iche": 0},
-            "query_used": query_text,
-        }
+        return _tier1_analysis(doctype, entities, query_used=query_text)
 
     today = date.today().isoformat()
-    # Keep prompt bounded (avoid token blowups)
     apqc_block = "\n\n".join(apqc_chunks[:3])
     erp_block = "\n\n".join(erpnext_chunks[:3])
     f3_block = "\n\n".join(f3iche_chunks[:2])
@@ -188,32 +169,24 @@ Task:
 Based on APQC standards and ERPNext documentation, identify which *critical business fields* are missing from this intent.
 
 Rules:
-- Only ask for fields that materially change business correctness (pricing, taxes, delivery, warehouses, payment terms, required parties/items).
-- Do NOT ask for everything the database allows.
+- ONLY ask for fields that apply to DocType "{doctype}".
+- Do NOT ask about items, rates, or taxes unless DocType is a sales/purchase/stock transaction.
+- Do NOT copy example field names unless they apply to this DocType.
+- Only ask for fields that materially change business correctness.
 - Use tiers:
   Tier 1 (MUST ASK): cannot proceed safely without this.
   Tier 2 (SUGGEST DEFAULT): business-critical but can propose a default (ask user to confirm/override).
   Tier 3 (OPTIONAL): can safely omit.
-- If Tier1 schema mandates a field, it is Tier 1.
+- If no critical fields are missing, return an empty missing_critical_fields array and ready_for_planning=true.
 
-Output ONLY valid JSON:
+Output ONLY valid JSON with this shape (field names must be valid for {doctype} only):
 {{
-  "missing_critical_fields": [
-    {{
-      "field": "items.rate",
-      "tier": 2,
-      "question": "You didn't specify a rate. Should I use the default price list (Standard Selling), or do you want to specify a custom rate?",
-      "reasoning": "Explain in 1-2 sentences, cite APQC/ERPNext hints.",
-      "suggested_default": {{"source": "company_default", "value": "Standard Selling"}},
-      "apqc_reference": "optional",
-      "erpnext_reference": "optional"
-    }}
-  ],
+  "missing_critical_fields": [],
   "applied_defaults": [
     {{"field": "transaction_date", "value": "{today}", "reason": "default"}}
   ],
-  "confidence": 0.0,
-  "ready_for_planning": false
+  "confidence": 1.0,
+  "ready_for_planning": true
 }}
 """
 
@@ -235,27 +208,25 @@ Output ONLY valid JSON:
                 pass
             raise ValueError("LLM did not return valid JSON")
 
-        # Guardrail: ensure expected keys exist
         if not isinstance(parsed.get("missing_critical_fields"), list):
             parsed["missing_critical_fields"] = []
         if not isinstance(parsed.get("applied_defaults"), list):
             parsed["applied_defaults"] = []
         parsed.setdefault("confidence", 0.0)
-        parsed["ready_for_planning"] = bool(parsed.get("ready_for_planning")) and len(parsed["missing_critical_fields"]) == 0
+
+        raw_missing = parsed.get("missing_critical_fields") or []
+        filtered = filter_missing_for_doctype(doctype, raw_missing)
+        parsed["missing_critical_fields"] = filtered
+        parsed["ready_for_planning"] = len(filtered) == 0
+        parsed["analysis_mode"] = "llm_rag_filtered"
     except Exception as e:
         logger.warning("analyze_business_requirements: LLM reasoning failed: %s", e)
-        missing = _tier1_mandatory_missing(doctype, entities)
-        parsed = {
-            "missing_critical_fields": missing,
-            "applied_defaults": [],
-            "confidence": 0.0,
-            "ready_for_planning": len(missing) == 0,
-        }
+        parsed = _tier1_analysis(doctype, entities, query_used=query_text)
+        parsed["analysis_mode"] = "tier1_llm_fallback"
 
     parsed["rag"] = {"apqc": len(apqc_chunks), "erpnext": len(erpnext_chunks), "f3iche": len(f3iche_chunks)}
     parsed["query_used"] = query_text
 
-    # Metrics: missing critical fields (proxy for clarification triggers)
     try:
         if OS_BUSINESS_CLARIFICATION_TRIGGERED is not None:
             missing = parsed.get("missing_critical_fields") or []
@@ -268,4 +239,3 @@ Output ONLY valid JSON:
         pass
 
     return parsed
-
