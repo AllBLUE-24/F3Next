@@ -1395,6 +1395,7 @@ class ImplementationWorkflow:
                     f"dry_run={sb.dry_run} | {len(phases)} phases")
 
         import_phases_succeeded = False
+        import_phase_failures: List[str] = []
         for phase_id, phase_label in phases:
             L.info("      ┌── %s ──┐", phase_label)
             try:
@@ -1514,6 +1515,15 @@ class ImplementationWorkflow:
                     raise ApplicationError(
                         f"Import phase {phase_label} blocked at execution gate — enable supervisor or use harness --confirm-execution"
                     )
+                if isinstance(result, dict):
+                    if result.get("status") == "error":
+                        import_phase_failures.append(
+                            f"{phase_label}: {result.get('error', 'unknown error')}"
+                        )
+                    elif result.get("steps_failed", 0) > 0:
+                        import_phase_failures.append(
+                            f"{phase_label}: {result.get('steps_failed')} step(s) failed"
+                        )
                 L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)
@@ -1593,7 +1603,8 @@ class ImplementationWorkflow:
         # ══════════════════════════════════════════════════════════════════════
         _step_start(L, 14, "Complete Session", "Final status update")
 
-        self._stage = "complete"
+        final_stage = "complete_with_errors" if import_phase_failures else "complete"
+        self._stage = final_stage
         try:
             await workflow.execute_activity(
                 persist_session,
@@ -1601,9 +1612,11 @@ class ImplementationWorkflow:
                 **_ACT,
             )
             _kv(L, "table", "is_sessions")
-            _kv(L, "status", "complete")
+            _kv(L, "status", final_stage)
+            if import_phase_failures:
+                _kv(L, "import_failures", "; ".join(import_phase_failures))
             _kv(L, "completed_at", "now()")
-            _step_ok(L, 14, "Complete Session", "DONE")
+            _step_ok(L, 14, "Complete Session", final_stage.upper())
         except Exception as e:
             _step_fail(L, 14, "Complete Session", str(e))
 
@@ -1612,15 +1625,19 @@ class ImplementationWorkflow:
         # ══════════════════════════════════════════════════════════════════════
         L.info("")
         L.info("╔" + "═" * 70 + "╗")
-        L.info("║   IMPLEMENTATION SYSTEM — WORKFLOW COMPLETE ✅                      ║")
+        if import_phase_failures:
+            L.info("║   IMPLEMENTATION SYSTEM — WORKFLOW COMPLETE (WITH ERRORS) ⚠️         ║")
+        else:
+            L.info("║   IMPLEMENTATION SYSTEM — WORKFLOW COMPLETE ✅                      ║")
         L.info("║   project   : %-54s ║", project_id)
         L.info("║   session   : %-54s ║", self._session_id)
-        L.info("║   final     : complete                                               ║")
+        L.info("║   final     : %-54s ║", final_stage)
         L.info("╚" + "═" * 70 + "╝")
         L.info("")
 
         return {
             "project_id": project_id,
             "session_id": self._session_id,
-            "stage": "complete",
+            "stage": final_stage,
+            "import_failures": import_phase_failures,
         }

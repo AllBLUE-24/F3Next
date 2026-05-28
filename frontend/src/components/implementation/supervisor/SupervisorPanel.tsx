@@ -642,8 +642,10 @@ export function SupervisorPanel() {
             {openPrompts.length === 0 && workflowStage === 'import_blocked' && (
               <div className="text-[10px] text-red-400 font-medium">Import blocked — resolve critical gaps</div>
             )}
-            {openPrompts.length === 0 && workflowStage === 'complete' && (
-              <div className="text-[10px] text-emerald-400 font-medium">Import complete</div>
+            {openPrompts.length === 0 && (workflowStage === 'complete' || workflowStage === 'complete_with_errors') && (
+              <div className={`text-[10px] font-medium ${workflowStage === 'complete_with_errors' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {workflowStage === 'complete_with_errors' ? 'Import complete (errors)' : 'Import complete'}
+              </div>
             )}
             {openPrompts.length === 0 && workflowStage === 'importing' && (
               <div className="text-[10px] text-amber-400 font-medium">Live import running…</div>
@@ -651,10 +653,11 @@ export function SupervisorPanel() {
             {openPrompts.length === 0 &&
               workflowStage !== 'import_blocked' &&
               workflowStage !== 'complete' &&
+              workflowStage !== 'complete_with_errors' &&
               workflowStage !== 'importing' && (
               <div className="text-[10px] text-zinc-600">Monitoring your import</div>
             )}
-            {batchCount > 1 && workflowStage !== 'import_blocked' && workflowStage !== 'complete' && (
+            {batchCount > 1 && workflowStage !== 'import_blocked' && workflowStage !== 'complete' && workflowStage !== 'complete_with_errors' && (
               <div className="text-[10px] text-amber-400 font-medium">
                 Re-upload round {batchCount} in progress · {totalFiles} files tracked
               </div>

@@ -25,6 +25,7 @@
 4. **Prefer structural fixes** (corpus model, merge policy, validation schema) over one-off filename priors.
 5. Mark items **Done** with date + brief note; don’t delete history.
 6. **Status sync:** tier tables in [`PRIORITIES.md`](./PRIORITIES.md) are authoritative for sprint items; use `[x]` here when shipped.
+7. **Agent checklist:** classify every fix as A/B/C/D, assign layer L0–L5 and pillar 1–10 before coding. See [`FOUNDATIONS.md`](./FOUNDATIONS.md).
 
 ---
 
@@ -176,6 +177,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-25 | Import idempotency (BOM, WO, dedupe keys)                  | `import_idempotency.py` + tests                                            |
 | 2026-05-25 | Validate partial status + preview flatten                  | `validation_agent` partial on warnings; `preview_flatten.py` + launcher    |
 | 2026-05-26 | Tier 1b validation sidebar + Tier 1e confirm UX            | `SupervisorPanel`, `AnalyzeView`, `ValidateView`                           |
+| 2026-05-26 | Foundations closure sprint                                 | `FOUNDATIONS.md`, baseline seed order, `complete_with_errors`, import-results UI, re-finalize API |
 
 
 ---

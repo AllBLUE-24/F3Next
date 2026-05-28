@@ -1,0 +1,30 @@
+---
+description: F3Next foundations-first — classify, align to pillars, prefer structural fixes over patches
+alwaysApply: true
+---
+
+# Architecture-first (F3Next)
+
+Before implementing any fix, read [`docs/FOUNDATIONS.md`](docs/FOUNDATIONS.md).
+
+## Required triage (every issue)
+
+1. Restate symptom in user terms.
+2. Assign **layer** L0–L5 and **IS pillar** 1–10 from [`docs/IS_V2_BACKLOG.md`](docs/IS_V2_BACKLOG.md).
+3. Classify: **A** code bug · **B** KB gap · **C** pillar not built · **D** ops/env.
+4. Check cross-cutting impact (shared LLM, OS worker, IS worker).
+5. Prefer **structural** fixes (policy, contract, single source of truth) over symptom patches.
+6. Define verification (test, harness, golden matrix row).
+7. Update backlog line before merge.
+
+## Hard rules
+
+- No filename-only priors without KB promotion path.
+- No UI `complete` when import returned `steps_failed > 0`.
+- After any L0 LLM change, run `python -m shared.smoke_llm`.
+- Max 5 active sprint items per [`docs/PRIORITIES.md`](docs/PRIORITIES.md).
+- Architecture change beats broken patch fixes when both are viable.
+
+## When stuck
+
+Ask: "Which foundation layer is broken?" not "What line threw the error?"

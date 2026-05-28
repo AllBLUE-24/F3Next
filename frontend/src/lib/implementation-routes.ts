@@ -11,6 +11,7 @@ const IMPORT_STAGES = new Set([
   'importing',
   'import_blocked',
   'complete',
+  'complete_with_errors',
 ]);
 
 const ANALYZE_STAGES = new Set([

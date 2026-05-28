@@ -18,6 +18,18 @@ interface PlanGap {
   criticality?: string;
 }
 
+interface ImportResultRow {
+  phase: string;
+  step_number: number;
+  doctype: string;
+  action: string;
+  status: string;
+  records_attempted: number;
+  records_succeeded: number;
+  records_failed: number;
+  error_message: string | null;
+}
+
 interface Props {
   jobId: string;
   companySlug: string;
@@ -48,6 +60,7 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
   const [stage, setStage] = useState<string | null>(null);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [gaps, setGaps] = useState<PlanGap[]>([]);
+  const [importResults, setImportResults] = useState<ImportResultRow[]>([]);
   const [approveError, setApproveError] = useState<string | null>(null);
 
   const poll = useCallback(async () => {
@@ -58,9 +71,11 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         fetch(`${base}/api/implementation/import-plan/${jobId}`, { cache: 'no-store' }),
       ]);
 
+      let currentStage: string | null = null;
       if (stageRes.ok) {
         const data = await stageRes.json();
-        setStage(data.stage || null);
+        currentStage = data.stage || null;
+        setStage(currentStage);
       }
 
       if (planRes.ok) {
@@ -68,6 +83,21 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         const plan = data.import_plan as Record<string, unknown> | null;
         setPlanStatus((plan?.status as string) || null);
         setGaps(extractCriticalGaps(plan));
+      }
+
+      if (
+        currentStage === 'complete' ||
+        currentStage === 'complete_with_errors' ||
+        currentStage === 'importing'
+      ) {
+        const resultsRes = await fetch(
+          `${base}/api/implementation/import-results/${jobId}`,
+          { cache: 'no-store' },
+        );
+        if (resultsRes.ok) {
+          const data = await resultsRes.json();
+          setImportResults((data.import_results as ImportResultRow[]) || []);
+        }
       }
     } catch {
       // retry on next interval
@@ -82,7 +112,8 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
 
   const isBlocked = stage === 'import_blocked' || planStatus === 'blocked';
   const isImporting = stage === 'importing';
-  const isComplete = stage === 'complete';
+  const isCompleteWithErrors = stage === 'complete_with_errors';
+  const isComplete = stage === 'complete' || isCompleteWithErrors;
   const awaitingApproval =
     stage === 'awaiting_sandbox_approval' && planStatus !== 'blocked' && !isBlocked;
   const preparingPlan =
@@ -111,21 +142,25 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
     });
   };
 
-  const headerTitle = isComplete
-    ? "You're live."
-    : isBlocked
-      ? 'Import blocked.'
-      : isImporting
-        ? 'Import in progress.'
-        : 'Your ERP is ready.';
+  const headerTitle = isCompleteWithErrors
+    ? 'Import finished with errors.'
+    : isComplete
+      ? "You're live."
+      : isBlocked
+        ? 'Import blocked.'
+        : isImporting
+          ? 'Import in progress.'
+          : 'Your ERP is ready.';
 
-  const headerSubtitle = isComplete
-    ? 'Your data has been imported into your live ERPNext instance.'
-    : isBlocked
-      ? 'Critical setup gaps must be resolved before live import can run.'
-      : isImporting
-        ? 'We are writing your validated data into ERPNext. This may take a few minutes.'
-        : 'Review your live instance below. When ready, approve to run the live import.';
+  const headerSubtitle = isCompleteWithErrors
+    ? 'Some records failed to import. Review the results below before using the live instance.'
+    : isComplete
+      ? 'Your data has been imported into your live ERPNext instance.'
+      : isBlocked
+        ? 'Critical setup gaps must be resolved before live import can run.'
+        : isImporting
+          ? 'We are writing your validated data into ERPNext. This may take a few minutes.'
+          : 'Review your live instance below. When ready, approve to run the live import.';
 
   return (
     <div className="space-y-8">
@@ -139,16 +174,20 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
 
       <div
         className={`rounded-2xl border overflow-hidden transition-all duration-500 ${
-          isComplete
-            ? 'border-green-500/30 bg-green-500/5'
-            : isBlocked
-              ? 'border-red-500/20 bg-red-500/5'
-              : 'border-amber-500/20 bg-amber-500/5'
+          isCompleteWithErrors
+            ? 'border-amber-500/30 bg-amber-500/5'
+            : isComplete
+              ? 'border-green-500/30 bg-green-500/5'
+              : isBlocked
+                ? 'border-red-500/20 bg-red-500/5'
+                : 'border-amber-500/20 bg-amber-500/5'
         }`}
       >
         <div className="p-6 space-y-5">
           <div className="flex items-center gap-3">
-            {isComplete ? (
+            {isCompleteWithErrors ? (
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            ) : isComplete ? (
               <CheckCircle className="w-5 h-5 text-green-400" />
             ) : isBlocked ? (
               <AlertTriangle className="w-5 h-5 text-red-400" />
@@ -159,16 +198,24 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
             )}
             <span
               className={`text-sm font-bold ${
-                isComplete ? 'text-green-400' : isBlocked ? 'text-red-400' : 'text-amber-400'
+                isCompleteWithErrors
+                  ? 'text-amber-400'
+                  : isComplete
+                    ? 'text-green-400'
+                    : isBlocked
+                      ? 'text-red-400'
+                      : 'text-amber-400'
               }`}
             >
-              {isComplete
-                ? 'Live Instance'
-                : isBlocked
-                  ? 'Import Blocked'
-                  : isImporting
-                    ? 'Import Running'
-                    : 'Live Instance'}
+              {isCompleteWithErrors
+                ? 'Import Complete (Errors)'
+                : isComplete
+                  ? 'Live Instance'
+                  : isBlocked
+                    ? 'Import Blocked'
+                    : isImporting
+                      ? 'Import Running'
+                      : 'Live Instance'}
             </span>
           </div>
 
@@ -326,13 +373,62 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         </>
       )}
 
-      {isComplete && (
+      {(isComplete || isImporting) && importResults.length > 0 && (
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
+            Import results ({importResults.length} steps)
+          </p>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {importResults.map((row) => {
+              const hasFailures = row.records_failed > 0 || row.status === 'error';
+              return (
+                <div
+                  key={`${row.phase}-${row.step_number}-${row.doctype}`}
+                  className={`flex flex-col gap-1 text-sm px-3 py-2 rounded-lg border ${
+                    hasFailures
+                      ? 'bg-amber-500/5 border-amber-500/20'
+                      : 'bg-black/20 border-white/[0.05]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-white">{row.doctype}</span>
+                    <span
+                      className={`text-[10px] uppercase ${
+                        hasFailures ? 'text-amber-400' : 'text-green-400'
+                      }`}
+                    >
+                      {row.records_succeeded}/{row.records_attempted} ok
+                    </span>
+                  </div>
+                  {row.error_message && (
+                    <p className="text-xs text-gray-500 leading-relaxed">{row.error_message}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isComplete && !isCompleteWithErrors && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
           <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
           <div>
             <p className="text-sm font-bold text-green-400">Import complete.</p>
             <p className="text-xs text-gray-600 mt-0.5">
               Your team can log in to the live ERPNext instance.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isCompleteWithErrors && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-amber-400">Import completed with errors.</p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              Review failed doctypes above. Masters that succeeded are available in ERPNext.
             </p>
           </div>
         </div>

@@ -539,6 +539,41 @@ class ImplementationLauncher:
                 "error_message": log.error_message,
             } for log in logs]
 
+    async def re_finalize_import_plan(self, project_id: str | UUID) -> Dict[str, Any]:
+        """
+        Re-run finalize_import_plan for the latest session — refreshes stale DB plans
+        after worker/KB fixes without restarting the Temporal workflow.
+        """
+        from containers.implementation.import_agent.activities import (
+            FinalizeImportPlanInput,
+            finalize_import_plan,
+        )
+
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            raise ValueError("No implementation session found")
+
+        company_slug = "unknown"
+        async with AsyncSessionLocal() as session:
+            from shared.models.core import Project
+            proj = (
+                await session.execute(
+                    select(Project).where(Project.id == is_session.project_id)
+                )
+            ).scalar_one_or_none()
+            if proj and proj.company_slug:
+                company_slug = proj.company_slug
+
+        status = await finalize_import_plan(
+            FinalizeImportPlanInput(
+                session_id=str(is_session.id),
+                project_id=str(is_session.project_id),
+                company_slug=company_slug,
+            )
+        )
+        plan = await self.get_import_plan(project_id)
+        return {"finalize_status": status, "import_plan": plan}
+
     async def get_validate_preview(self, project_id: str | UUID) -> Dict[str, Any]:
         """
         Fetch ALL mapped data payloads from R2 along with profile and validation results.

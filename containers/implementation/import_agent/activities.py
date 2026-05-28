@@ -368,6 +368,108 @@ async def _dynamic_seed_doctype(
     return {"seeded": seeded, "already": already, "failed": failed}
 
 
+async def _run_baseline_preflight_seed(
+    adapter,
+    phases: Dict[str, Any],
+    logger,
+    *,
+    dry_run: bool,
+    base_url: Optional[str],
+) -> set:
+    """
+    Seed all seed_from_baseline doctypes (Pass 1 + Pass 1B) before site prerequisites.
+
+    Must run before Company/Warehouse creation — fresh ERPNext sites need UOM,
+    Warehouse Type (Transit), Item Group, etc. present first.
+    """
+    seen_seed_doctypes: set = set()
+    _baseline_data = _load_baseline_data()
+
+    all_seed_steps: List[Dict] = []
+    for _phase_key in ("phase_a_config", "phase_b_master", "phase_c_transactional"):
+        for _s in phases.get(_phase_key, {}).get("steps", []):
+            if _s.get("action") == "seed_from_baseline" and _s.get("doctype") not in seen_seed_doctypes:
+                _dt_check = _s.get("doctype")
+                if _dt_check and _baseline_data.get(_dt_check):
+                    all_seed_steps.append(_s)
+                    seen_seed_doctypes.add(_dt_check)
+
+    if all_seed_steps and dry_run:
+        logger.info(
+            "  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)",
+            len(all_seed_steps),
+        )
+        return seen_seed_doctypes
+
+    if not all_seed_steps or not base_url:
+        return seen_seed_doctypes
+
+    logger.info("")
+    logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
+
+    for seed_step in all_seed_steps:
+        dt_seed = seed_step["doctype"]
+        baseline_values: List[str] = _baseline_data.get(dt_seed, [])
+
+        if not baseline_values:
+            logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
+            continue
+
+        seeded = 0
+        already = 0
+        failed = 0
+
+        for bval in baseline_values:
+            record = _build_baseline_record(dt_seed, bval)
+            try:
+                await adapter.create_record(dt_seed, record)
+                seeded += 1
+            except ValueError as _se:
+                err_text = str(_se)
+                if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
+                    already += 1
+                else:
+                    failed += 1
+                    logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, err_text)
+            except Exception as _se:
+                failed += 1
+                logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
+
+        logger.info(
+            "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
+            dt_seed, seeded, already, failed,
+        )
+
+    for _supp_dt, _supp_vals in _baseline_data.items():
+        if _supp_dt in ("Cost Center", "Warehouse", "Account", "Company"):
+            continue
+        if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
+            seeded, already, failed = 0, 0, 0
+            for _sv in _supp_vals:
+                _record = _build_baseline_record(_supp_dt, _sv)
+                try:
+                    await adapter.create_record(_supp_dt, _record)
+                    seeded += 1
+                except ValueError as _se:
+                    _et = str(_se)
+                    if "already exist" in _et.lower() or "duplicate" in _et.lower():
+                        already += 1
+                    else:
+                        failed += 1
+                        logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _et)
+                except Exception as _se:
+                    failed += 1
+                    logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _se)
+            seen_seed_doctypes.add(_supp_dt)
+            logger.info(
+                "  🌱  [SUPP] %-22s  seeded=%d  already_existed=%d  failed=%d",
+                _supp_dt, seeded, already, failed,
+            )
+
+    logger.info("")
+    return seen_seed_doctypes
+
+
 async def _bulk_pre_resolve_phase_rows(
     steps: List[Dict],
     s3,
@@ -1247,6 +1349,17 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
 
     company_ctx: Dict[str, str] = {}
 
+    # ── PRE-FLIGHT BASELINE SEED (before Company / Warehouse creation) ───
+    seen_seed_doctypes: set = set()
+    if not inp.dry_run and base_url:
+        seen_seed_doctypes = await _run_baseline_preflight_seed(
+            adapter,
+            phases,
+            activity.logger,
+            dry_run=inp.dry_run,
+            base_url=base_url,
+        )
+
     # ── SITE PREREQUISITES (Company + Warehouses) ───────────────────────────
     if not inp.dry_run and base_url:
         from containers.implementation.import_agent.site_prerequisites import (
@@ -1323,109 +1436,10 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     steps_completed = 0
     steps_failed = 0
 
-    # ── PRE-FLIGHT SEEDER ─────────────────────────────────────────────────
-    # Runs BEFORE the main import loop.
-    # Seeds ALL `seed_from_baseline` doctypes across EVERY phase in the plan,
-    # not just the current phase. This ensures prerequisites (UOM, Item Group,
-    # Territory, Customer Group, etc.) are always present regardless of which
-    # phase is being executed — even when a phase is run in isolation.
-    # ── PRE-FLIGHT SEEDER — PASS 1 setup ─────────────────────────────────
-    # Load baseline once here so we can check which doctypes have values
-    # before deciding whether to mark them as 'handled' in seen_seed_doctypes.
-    _baseline_data: Dict[str, List] = {}
-    if _BASELINE_PATH.exists():
-        with open(_BASELINE_PATH, "r", encoding="utf-8") as _bf:
-            _baseline_data = json.load(_bf)
-
-    all_seed_steps: List[Dict] = []
-    seen_seed_doctypes: set = set()   # only doctypes ACTUALLY covered by Pass 1
-    for _phase_key in ("phase_a_config", "phase_b_master", "phase_c_transactional"):
-        for _s in phases.get(_phase_key, {}).get("steps", []):
-            if _s.get("action") == "seed_from_baseline" and _s.get("doctype") not in seen_seed_doctypes:
-                _dt_check = _s.get("doctype")
-                if _dt_check and _baseline_data.get(_dt_check):   # only mark handled if values exist
-                    all_seed_steps.append(_s)
-                    seen_seed_doctypes.add(_dt_check)
-
-    if all_seed_steps and not inp.dry_run and base_url:
-        activity.logger.info("")
-        activity.logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
-
-        baseline: Dict[str, List] = _baseline_data  # already loaded above
-
-        for seed_step in all_seed_steps:
-            dt_seed = seed_step["doctype"]
-            baseline_values: List[str] = baseline.get(dt_seed, [])
-
-            if not baseline_values:
-                activity.logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
-                continue
-
-            seeded = 0
-            already = 0
-            failed  = 0
-
-            for bval in baseline_values:
-                record = _build_baseline_record(dt_seed, bval)
-                try:
-                    await adapter.create_record(dt_seed, record)
-                    seeded += 1
-                except ValueError as _se:
-                    # Adapter raises ValueError for 4xx errors (including 409/417 duplicates)
-                    err_text = str(_se)
-                    if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
-                        already += 1
-                    else:
-                        failed += 1
-                        activity.logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, err_text)
-                except Exception as _se:
-                    failed += 1
-                    activity.logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
-
-            activity.logger.info(
-                "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
-                dt_seed, seeded, already, failed
-            )
-
-    elif all_seed_steps and inp.dry_run:
-        activity.logger.info("  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)", len(all_seed_steps))
-
-    # ── PASS 1B: Baseline Supplement ──────────────────────────────────────
-    # Seeds any doctype that is in _DYNAMIC_SEED_BLACKLIST AND has entries
-    # in the baseline JSON, even if the stored import plan has no explicit
-    # seed_from_baseline step for it. This handles complex doctypes like
-    # Payment Terms Template that require structured child-table records.
-    if not inp.dry_run and base_url:
-        for _supp_dt, _supp_vals in _baseline_data.items():
-            if _supp_dt in ("Cost Center", "Warehouse", "Account", "Company"):
-                continue  # Structural/auto-provisioned doctypes must never be manually seeded
-            if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
-                seeded, already, failed = 0, 0, 0
-                for _sv in _supp_vals:
-                    _record = _build_baseline_record(_supp_dt, _sv)
-                    try:
-                        await adapter.create_record(_supp_dt, _record)
-                        seeded += 1
-                    except ValueError as _se:
-                        _et = str(_se)
-                        if "already exist" in _et.lower() or "duplicate" in _et.lower():
-                            already += 1
-                        else:
-                            failed += 1
-                            activity.logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _et)
-                    except Exception as _se:
-                        failed += 1
-                        activity.logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _se)
-                seen_seed_doctypes.add(_supp_dt)
-                activity.logger.info(
-                    "  🌱  [SUPP] %-22s  seeded=%d  already_existed=%d  failed=%d",
-                    _supp_dt, seeded, already, failed
-                )
-    # ── END PASS 1B ───────────────────────────────────────────────────────
+    # Pass 1 baseline seed already ran before site prerequisites (see above).
+    _baseline_data: Dict[str, List] = _load_baseline_data()
 
     activity.logger.info("")
-    # ── END PRE-FLIGHT SEEDER ─────────────────────────────────────────────
-
     # ── PASS 2: Dynamic link field discovery ──────────────────────────────
     # Scans all import rows in this phase for link field values that point
     # to doctypes NOT covered by the static baseline seeder (Pass 1).

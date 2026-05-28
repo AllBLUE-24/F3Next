@@ -311,6 +311,17 @@ async def get_import_results(
     return {"import_results": await launcher.get_import_results(project_id)}
 
 
+@router.post("/re-finalize-plan/{project_id}", summary="Re-run finalize_import_plan for stale plans")
+async def re_finalize_import_plan(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        return await launcher.re_finalize_import_plan(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/validate-preview/{project_id}", summary="Full data preview for validation — all mapped payloads")
 async def get_validate_preview(
     project_id: UUID,

@@ -25,6 +25,7 @@
 **Related docs**
 
 - `[PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md)` — master queue (streams, idea inbox, done log)
+- `[FOUNDATIONS.md](./FOUNDATIONS.md)` — **foundations-first operating model** (layers, taxonomy, agent checklist)
 - `[IS_V2_BACKLOG.md](./IS_V2_BACKLOG.md)` — IS detail (P0–P4, golden matrix, anti-patching rules)
 - `[ARCH_IMPLEMENTATION.md](./ARCH_IMPLEMENTATION.md)` — current IS pipeline
 - `[ARCH_V2_VISION.md](./ARCH_V2_VISION.md)` — long-term agentic direction (not this sprint)
@@ -219,19 +220,21 @@ Structural foundations for “any doctype / any tabular data.” **Do not start 
 
 ---
 
-## Focus this sprint (max 5)
+## Focus this sprint (max 5) — closure sprint
+
+> Operating model: [`FOUNDATIONS.md`](./FOUNDATIONS.md). Exit: golden re-run OR classified beta report.
 
 
-| #   | Item                                                       | Tier | Stream    | Status  |
-| --- | ---------------------------------------------------------- | ---- | --------- | ------- |
-| 1   | IS validate honesty (Tier 1 complete)                      | 1    | IS        | **done (2026-05-26)** |
-| 2   | Tier 0 worker deploy + golden smoke test (pre-beta)        | 0    | IS        | **pending** — 0a manual |
-| 3   | Forgot password + reset flow                               | 2    | Platform  | **partial** — in repo; 2b live verify pending |
-| 4   | Onboarding → invite team step                              | 2    | Platform  | **done (2026-05-26)** |
-| 5   | Chat bar v1 on Validate (input + context + refine_mapping) | 3    | IS        | pending — blocked by #1 |
+| #   | Item                                                       | Layer | Stream | Status  |
+| --- | ---------------------------------------------------------- | ----- | ------ | ------- |
+| 1   | Baseline seed before site prerequisites (import order)     | L4    | IS     | **done (2026-05-26)** |
+| 2   | Import workflow honesty (`complete_with_errors`)           | L1    | IS     | **done (2026-05-26)** |
+| 3   | ImportView wired to import-results API                     | L5    | IS     | **done (2026-05-26)** |
+| 4   | Shared LLM deps + smoke (`python -m shared.smoke_llm`)     | L0    | Shared | **done (2026-05-26)** |
+| 5   | Re-finalize API + Green Surface beta report                | L2    | IS     | **partial** — API done; live golden pending deploy |
 
 
-**Rule:** Do not start #4 until #1 is done. Tier 0 before any customer upload. Do not start Tier 7 until Green Surface beta + Tier 1 complete.
+**Rule:** Do not start Tier 3 chat bar until closure exit criteria met. Tier 0 worker deploy before customer upload.
 
 ---
 
