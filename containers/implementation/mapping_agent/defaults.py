@@ -415,6 +415,13 @@ def apply_defaults_and_normalize(
             if r.get(fname) not in (None, ""):
                 continue
 
+            # Session company default for any mandatory company link field
+            if fname == "company":
+                company = (context or {}).get("company_name")
+                if company:
+                    r[fname] = company
+                    continue
+
             dval = cfg.get("default_value")
             resolved = _resolve_default_value(doctype, fname, dval, context=context)
             if resolved is not None:

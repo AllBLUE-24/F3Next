@@ -1344,7 +1344,10 @@ class ImplementationWorkflow:
 
             if plan_status == "blocked":
                 L.info("")
-                L.info("      ⚠️  Plan is BLOCKED — gaps or validation failures must be resolved first")
+                L.info("      ⚠️  Plan is BLOCKED — critical gaps or validation failures must be resolved first")
+            elif plan_status == "ready_with_gaps":
+                L.info("")
+                L.info("      ℹ️  Plan is READY WITH GAPS — import will proceed for mapped data; optional doctypes deferred")
 
             _step_ok(L, 12, "Finalize Import Plan", f"status={plan_status}")
         except Exception as e:
@@ -1365,6 +1368,16 @@ class ImplementationWorkflow:
         sb = self._sig_sandbox
         _signal_banner(L, "sandbox_approved",
                        f"dry_run={sb.dry_run} | erpnext={sb.erpnext_base_url}")
+
+        if plan_status == "blocked" and not sb.dry_run:
+            L.info("")
+            L.info("      ⛔  Import plan is BLOCKED — live import refused.")
+            L.info("      Resolve data gaps / validation failures, then re-run finalize.")
+            self._stage = "import_blocked"
+            raise ApplicationError(
+                "Import plan is blocked — resolve data gaps and validation failures "
+                "before live import. Use dry_run=true to preview phases without writing."
+            )
 
         self._stage = "importing"
 

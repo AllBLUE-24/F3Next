@@ -2,17 +2,85 @@
 import { getBaseApiUrl } from "@/lib/config";
 const API_BASE_URL = getBaseApiUrl();
 
-// 1. Define the Input Interface (What frontend sends)
+// --- Discovery Chat (sync, ChatGPT-style) ---
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  ts?: string;
+}
+
+export interface DiscoverySessionResponse {
+  messages: ChatMessage[];
+  status: string;
+  is_complete: boolean;
+  user_turns: number;
+  ready_for_recommendation: boolean;
+  discovery_metadata?: Record<string, unknown> | null;
+  coverage?: Record<string, unknown> | null;
+}
+
+export interface DiscoveryChatResponse {
+  reply: string;
+  messages: ChatMessage[];
+  status: string;
+  is_complete: boolean;
+  user_turns?: number;
+  ready_for_recommendation?: boolean;
+}
+
 interface ChatPayload {
   project_id: string;
   message: string;
-  step?: number; // Optional for now, but good to have
+  step?: number;
 }
 
-interface DiscoveryResponse {
-  step: number;
-  message: string;
-}
+export const getDiscoverySession = async (
+  projectId: string
+): Promise<DiscoverySessionResponse> => {
+  const res = await fetch(`${API_BASE_URL}/api/discovery/session/${projectId}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to load session (${res.status})`);
+  }
+  return res.json();
+};
+
+export const sendMessageToDiscoveryAgent = async (
+  payload: ChatPayload
+): Promise<DiscoveryChatResponse> => {
+  const res = await fetch(`${API_BASE_URL}/api/discovery/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    const errorDetail =
+      typeof errorData.detail === "object"
+        ? JSON.stringify(errorData.detail)
+        : errorData.detail;
+    throw new Error(errorDetail || `API Error: ${res.status}`);
+  }
+  return res.json();
+};
+
+export const completeDiscovery = async (
+  projectId: string
+): Promise<{ status: string; data: Record<string, unknown> }> => {
+  const res = await fetch(`${API_BASE_URL}/api/discovery/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Complete failed (${res.status})`);
+  }
+  return res.json();
+};
 
 // --- NEW CONFIG AGENT TYPES ---
 export interface ConfigStatusResponse {
@@ -24,58 +92,24 @@ export interface ConfigStatusResponse {
 
 export interface AnswerPayload {
   container_id: string;
-  project_id: string; // <--- The new requirement
+  project_id: string;
   answers: Record<string, any>;
 }
 
-/**
- * Sends a user message to the Discovery Agent backend.
- * @param message - The user's input string
- * @param projectId - MUST be a valid UUID string from your database
- */
-export const sendMessageToDiscoveryAgent = async (
-  payload: ChatPayload
-): Promise<DiscoveryResponse> => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/discovery/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      // 2. Body is now clean because payload matches backend expectations
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      const errorDetail = typeof errorData.detail === 'object' 
-        ? JSON.stringify(errorData.detail) 
-        : errorData.detail;
-        
-      console.error("Backend Validation Error:", errorDetail);
-      throw new Error(errorDetail || `API Error: ${res.status}`);
-    }
-
-    return await res.json();
-
-  } catch (error) {
-    console.error("Discovery Agent API Error:", error);
-    // Return a fallback so the UI doesn't crash
-    return { step: 0, message: "Connection error. Please try again." };
-  }
-};
-
-// --- NEW CONFIG API HOOKS ---
-
-export const resolveProjectSlug = async (slug: string): Promise<{ project_id: string, container_id?: string }> => {
+export const resolveProjectSlug = async (
+  slug: string
+): Promise<{ project_id: string; container_id?: string }> => {
   const res = await fetch(`${API_BASE_URL}/api/resolve/slug/${slug}`);
   if (!res.ok) throw new Error("Project not found");
-  return await res.json();
+  return res.json();
 };
 
-export const getConfigStatus = async (containerId: string): Promise<ConfigStatusResponse> => {
+export const getConfigStatus = async (
+  containerId: string
+): Promise<ConfigStatusResponse> => {
   const res = await fetch(`${API_BASE_URL}/api/config/${containerId}/status`);
   if (!res.ok) throw new Error("Workflow not running");
-  return await res.json();
+  return res.json();
 };
 
 export const submitConfigAnswers = async (payload: AnswerPayload): Promise<void> => {

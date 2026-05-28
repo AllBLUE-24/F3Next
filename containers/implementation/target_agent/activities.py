@@ -181,18 +181,25 @@ def _classify_against_baseline(
     all_required: List[str],
     baseline: Dict[str, List],
     graph_dts: Dict[str, Any],
+    seed_doctypes: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
+    seed_set = set(seed_doctypes or [])
     classifications = []
     for dt in all_required:
         bv = baseline.get(dt, [])
         has_baseline = len(bv) > 0
         dt_info = graph_dts.get(dt, {})
         layer = dt_info.get("layer", -1)
+        sme = str(dt_info.get("sme_relevance") or "").lower()
+        is_conditional = sme.startswith("conditional")
 
         if layer in (0, 1) and not has_baseline:
             action = "auto_created_by_erpnext"
         elif has_baseline:
             action = "use_default"
+        elif is_conditional and dt not in seed_set:
+            # Graph dependency but not in user's upload scope — defer, don't block
+            action = "optional_if_absent"
         else:
             action = "must_create"
 
@@ -203,6 +210,7 @@ def _classify_against_baseline(
             "baseline_count":  len(bv),
             "baseline_sample": bv[:3],
             "required_fields": dt_info.get("required_fields", []),
+            "sme_relevance":   dt_info.get("sme_relevance"),
         })
 
     classifications.sort(key=lambda x: (x["layer"] if x["layer"] >= 0 else 99, x["doctype"]))
@@ -210,6 +218,7 @@ def _classify_against_baseline(
         "must_create":    [c for c in classifications if c["action"] == "must_create"],
         "use_default":    [c for c in classifications if c["action"] == "use_default"],
         "auto_by_erpnext":[c for c in classifications if c["action"] == "auto_created_by_erpnext"],
+        "optional_if_absent": [c for c in classifications if c["action"] == "optional_if_absent"],
         "all":            classifications,
     }
 
@@ -336,6 +345,7 @@ def _log_prerequisite_plan(
     L.info("  %-38s : %d", "Seed doctypes (f3iche / profile)", len(seed_doctypes))
     L.info("  %-38s : %d", "Total required (incl. prereqs)", len(all_required))
     L.info("  %-38s : %d", "🔴 Must be explicitly created", len(classified["must_create"]))
+    L.info("  %-38s : %d", "🟡 Optional if absent (conditional)", len(classified.get("optional_if_absent", [])))
     L.info("  %-38s : %d", "🟢 Already exist as ERPNext defaults", len(classified["use_default"]))
     L.info("  %-38s : %d", "🔵 Auto-created by ERPNext on setup", len(classified["auto_by_erpnext"]))
     L.info("")
@@ -551,7 +561,9 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
         graph_driven      = True
         graph_dts         = graph.get("doctypes", {})
         resolution        = _resolve_prerequisites(seed_doctypes, graph)
-        classified        = _classify_against_baseline(resolution["all_required"], baseline, graph_dts)
+        classified        = _classify_against_baseline(
+            resolution["all_required"], baseline, graph_dts, seed_doctypes,
+        )
         classified_lookup = {c["doctype"]: c for c in classified["all"]}
 
         # ── 3. LOG THE FULL PREREQUISITE PLAN ────────────────────────────────

@@ -1,324 +1,270 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
-import { sendMessageToDiscoveryAgent } from "@/lib/api/hooks_api";
-import { getBaseApiUrl } from "@/lib/config";
-
-const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS  = 90_000;
-
-// ------------------------------------------------------------------
-// Coverage types (mirror backend shape)
-// ------------------------------------------------------------------
-interface CoverageDim {
-  status: "confirmed" | "partial" | null;
-  value:  string | null;
-}
-
-interface Coverage {
-  industry:      CoverageDim;
-  strategy:      CoverageDim;
-  scale:         CoverageDim;
-  legacy_system: CoverageDim;
-  pain_point:    CoverageDim;
-}
-
-const EMPTY_COVERAGE: Coverage = {
-  industry:      { status: null, value: null },
-  strategy:      { status: null, value: null },
-  scale:         { status: null, value: null },
-  legacy_system: { status: null, value: null },
-  pain_point:    { status: null, value: null },
-};
-
-const DIM_LABELS: Record<keyof Coverage, string> = {
-  industry:      "Industry",
-  strategy:      "Fulfillment",
-  scale:         "Scale",
-  legacy_system: "Current System",
-  pain_point:    "Core Challenge",
-};
+import {
+  completeDiscovery,
+  getDiscoverySession,
+  sendMessageToDiscoveryAgent,
+} from "@/lib/api/hooks_api";
 
 // ------------------------------------------------------------------
-// CoveragePanel — sidebar showing what Adi has understood so far
+// Sidebar — simple session panel + recommendation CTA
 // ------------------------------------------------------------------
-function CoveragePanel({ coverage, turnCount }: { coverage: Coverage; turnCount: number }) {
-  const dims = Object.keys(DIM_LABELS) as (keyof Coverage)[];
-  const confirmedCount = dims.filter(d => coverage[d].status !== null).length;
-
+function SessionPanel({
+  userTurns,
+  readyForRecommendation,
+  isCompleting,
+  onComplete,
+}: {
+  userTurns: number;
+  readyForRecommendation: boolean;
+  isCompleting: boolean;
+  onComplete: () => void;
+}) {
   return (
-    <div style={{
-      width: "240px",
-      flexShrink: 0,
-      borderLeft: "1px solid #161b22",
-      background: "#070a10",
-      display: "flex",
-      flexDirection: "column",
-      padding: "20px 16px",
-      gap: "4px",
-    }}>
-      {/* Header */}
-      <div style={{ marginBottom: "16px" }}>
-        <div style={{
-          fontSize: "9px",
-          letterSpacing: "1.5px",
-          color: "#30363d",
+    <div
+      style={{
+        width: "240px",
+        flexShrink: 0,
+        borderLeft: "1px solid #161b22",
+        background: "#070a10",
+        display: "flex",
+        flexDirection: "column",
+        padding: "20px 16px",
+        gap: "12px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "9px",
+            letterSpacing: "1.5px",
+            color: "#30363d",
+            fontWeight: 700,
+            marginBottom: "8px",
+          }}
+        >
+          DISCOVERY WITH ADI
+        </div>
+        <p
+          style={{
+            fontSize: "11px",
+            color: "#6e7681",
+            lineHeight: 1.5,
+            margin: 0,
+          }}
+        >
+          Chat naturally — no script. Adi learns about your business through
+          conversation.
+        </p>
+      </div>
+
+      <div
+        style={{
+          padding: "10px 12px",
+          borderRadius: "8px",
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid #161b22",
+        }}
+      >
+        <div style={{ fontSize: "9px", color: "#30363d", marginBottom: "4px" }}>
+          EXCHANGES
+        </div>
+        <div style={{ fontSize: "18px", fontWeight: 700, color: "#e6edf3" }}>
+          {userTurns}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onComplete}
+        disabled={!readyForRecommendation || isCompleting}
+        style={{
+          marginTop: "auto",
+          padding: "10px 14px",
+          borderRadius: "8px",
+          border: "none",
+          fontSize: "11px",
           fontWeight: 700,
-          marginBottom: "6px",
-        }}>
-          UNDERSTANDING YOUR BUSINESS
-        </div>
-        {/* Progress bar */}
-        <div style={{
-          height: "2px",
-          background: "#161b22",
-          borderRadius: "2px",
-          overflow: "hidden",
-        }}>
-          <div style={{
-            height: "100%",
-            width: `${(confirmedCount / 5) * 100}%`,
-            background: confirmedCount === 5
-              ? "linear-gradient(90deg, #22c55e, #16a34a)"
-              : "linear-gradient(90deg, #f59e0b, #d97706)",
-            borderRadius: "2px",
-            transition: "width 0.6s ease",
-          }} />
-        </div>
-        <div style={{ fontSize: "9px", color: "#30363d", marginTop: "4px" }}>
-          {confirmedCount}/5 dimensions mapped
-          {turnCount > 0 && <span style={{ marginLeft: "6px" }}>· turn {turnCount}</span>}
-        </div>
-      </div>
+          cursor:
+            readyForRecommendation && !isCompleting ? "pointer" : "not-allowed",
+          background:
+            readyForRecommendation && !isCompleting
+              ? "linear-gradient(135deg, #f59e0b, #d97706)"
+              : "#21262d",
+          color:
+            readyForRecommendation && !isCompleting ? "#000" : "#484f58",
+          opacity: isCompleting ? 0.7 : 1,
+          transition: "opacity 0.2s ease",
+        }}
+      >
+        {isCompleting ? "Building recommendation…" : "Get my ERP recommendation"}
+      </button>
 
-      {/* Dimension rows */}
-      {dims.map((dim) => {
-        const { status, value } = coverage[dim];
-        const isConfirmed = status === "confirmed";
-        const isPartial   = status === "partial";
-        const isUnknown   = status === null;
-
-        const icon  = isConfirmed ? "✓" : isPartial ? "◐" : "·";
-        const color = isConfirmed ? "#22c55e" : isPartial ? "#f59e0b" : "#30363d";
-
-        return (
-          <div key={dim} style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "8px",
-            padding: "7px 8px",
-            borderRadius: "6px",
-            background: isConfirmed
-              ? "rgba(34,197,94,0.04)"
-              : isPartial
-              ? "rgba(245,158,11,0.04)"
-              : "transparent",
-            transition: "background 0.3s ease",
-          }}>
-            <span style={{
-              fontSize: "11px",
-              color,
-              flexShrink: 0,
-              marginTop: "1px",
-              transition: "color 0.3s ease",
-            }}>
-              {icon}
-            </span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontSize: "9px",
-                color: isUnknown ? "#30363d" : "#6e7681",
-                letterSpacing: "0.5px",
-                fontWeight: 600,
-                lineHeight: "1",
-                marginBottom: "3px",
-              }}>
-                {DIM_LABELS[dim].toUpperCase()}
-              </div>
-              <div style={{
-                fontSize: "10.5px",
-                color: isConfirmed ? "#e6edf3" : isPartial ? "#8b949e" : "#30363d",
-                lineHeight: "1.3",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                maxWidth: "160px",
-                transition: "color 0.3s ease",
-              }}>
-                {value || (isUnknown ? "—" : "Partially known")}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Footer note */}
-      <div style={{
-        marginTop: "auto",
-        paddingTop: "16px",
-        fontSize: "9px",
-        color: "#21262d",
-        lineHeight: "1.5",
-      }}>
-        Adi extracts signals from your answers automatically. You don't need to follow a script.
-      </div>
+      {!readyForRecommendation && (
+        <p style={{ fontSize: "9px", color: "#30363d", margin: 0, lineHeight: 1.4 }}>
+          Chat a bit first — then generate your fit score.
+        </p>
+      )}
     </div>
   );
+}
+
+function toUiMessages(
+  raw: { role: string; content: string; ts?: string }[]
+): Message[] {
+  return raw.map((m, i) => ({
+    id: `msg-${i}-${m.ts || i}`,
+    role: m.role as "user" | "assistant",
+    content: m.content,
+    timestamp: m.ts ? new Date(m.ts) : new Date(),
+  }));
 }
 
 // ------------------------------------------------------------------
 // DiscoveryClient
 // ------------------------------------------------------------------
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id:        "intro-1",
-    role:      "assistant",
-    content:   "Connecting to Adi...",
-    timestamp: new Date(),
-  },
-];
-
 interface DiscoveryClientProps {
-  projectId:   string;
+  projectId: string;
   initialStep: number;
   companySlug: string;
-  userSlug:    string;
+  userSlug: string;
 }
 
 export default function DiscoveryClient({
   projectId,
-  initialStep,
   companySlug,
   userSlug,
 }: DiscoveryClientProps) {
   const router = useRouter();
 
-  const [currentStep, setCurrentStep] = useState<number>(initialStep);
-  const [messages,    setMessages]    = useState<Message[]>(INITIAL_MESSAGES);
-  const [coverage,    setCoverage]    = useState<Coverage>(EMPTY_COVERAGE);
-  const [turnCount,   setTurnCount]   = useState<number>(0);
-
-  const isPollingRef = useRef(false);
-  const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef   = useRef<ReturnType<typeof setTimeout>  | null>(null);
-
-  const stopPolling = () => {
-    if (intervalRef.current)  { clearInterval(intervalRef.current); intervalRef.current = null; }
-    if (timeoutRef.current)   { clearTimeout(timeoutRef.current);   timeoutRef.current  = null; }
-    isPollingRef.current = false;
-  };
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [userTurns, setUserTurns] = useState(0);
+  const [readyForRecommendation, setReadyForRecommendation] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Kick off initial poll to fetch Adi's opening message
-    pollForResponse((botText) => {
-      setMessages([{
-        id:        "adi-opening",
-        role:      "assistant",
-        content:   botText,
-        timestamp: new Date(),
-      }]);
-    }, "Connecting to Adi...");
+    let cancelled = false;
 
-    return () => stopPolling();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const pollForResponse = (
-    onBotResponse: (text: string) => void,
-    lastAssistantContent: string,
-  ) => {
-    if (isPollingRef.current) return;
-    isPollingRef.current = true;
-
-    timeoutRef.current = setTimeout(() => {
-      stopPolling();
-      onBotResponse("Adi is taking longer than usual. Make sure the Discovery worker is running.");
-    }, POLL_TIMEOUT_MS);
-
-    intervalRef.current = setInterval(async () => {
+    (async () => {
       try {
-        const res = await fetch(`${getBaseApiUrl()}/api/discovery/status/${projectId}`);
+        const session = await getDiscoverySession(projectId);
+        if (cancelled) return;
 
-        if (!res.ok) {
-          if (res.status === 404) {
-            stopPolling();
-            onBotResponse("Discovery session not found. Please refresh and try again.");
-          }
+        if (session.is_complete) {
+          router.push(
+            `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+          );
           return;
         }
 
-        const data = await res.json();
-
-        // Update live coverage panel
-        if (data.coverage) setCoverage(data.coverage as Coverage);
-        if (data.turn_count !== undefined) setTurnCount(data.turn_count);
-
-        // Redirect to recommendation when complete
-        if (data.is_complete || data.status === "COMPLETE") {
-          stopPolling();
-          router.push(`/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`);
-          return;
-        }
-
-        const botText = (data.bot_response || data.message || "").trim();
-        const isNewResponse =
-          botText &&
-          botText !== "Thinking..." &&
-          botText !== "Connecting to Adi..." &&
-          (botText !== lastAssistantContent || lastAssistantContent === "Thinking...");
-
-        if (isNewResponse) {
-          stopPolling();
-          setCurrentStep(data.step ?? currentStep);
-          onBotResponse(botText);
-        }
+        setMessages(toUiMessages(session.messages));
+        setUserTurns(session.user_turns);
+        setReadyForRecommendation(session.ready_for_recommendation);
       } catch (err) {
-        console.error("Polling Error:", err);
+        if (!cancelled) {
+          setSessionError(
+            err instanceof Error ? err.message : "Failed to load discovery session"
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingSession(false);
       }
-    }, POLL_INTERVAL_MS);
-  };
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, companySlug, userSlug, router]);
 
   const handleDiscoveryMessage = async (userMessage: string): Promise<string> => {
+    const result = await sendMessageToDiscoveryAgent({
+      project_id: projectId,
+      message: userMessage,
+    });
+
+    if (result.user_turns !== undefined) setUserTurns(result.user_turns);
+    if (result.ready_for_recommendation !== undefined) {
+      setReadyForRecommendation(result.ready_for_recommendation);
+    }
+
+    if (result.is_complete) {
+      router.push(
+        `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+      );
+    }
+
+    return result.reply;
+  };
+
+  const handleComplete = async () => {
+    setIsCompleting(true);
     try {
-      await sendMessageToDiscoveryAgent({
-        project_id: projectId,
-        step:       currentStep,
-        message:    userMessage,
-      });
-
-      const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
-      const lastContent   = lastAssistant?.content ?? "";
-
-      pollForResponse((botText) => {
-        setMessages((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last?.role === "assistant") {
-            next[next.length - 1] = { ...last, content: botText };
-          } else {
-            next.push({
-              id:        `adi-${Date.now()}`,
-              role:      "assistant",
-              content:   botText,
-              timestamp: new Date(),
-            });
-          }
-          return next;
-        });
-      }, lastContent);
-
-      return "Thinking...";
-    } catch (error) {
-      console.error("Chat Error:", error);
-      return "Error connecting to Adi.";
+      await completeDiscovery(projectId);
+      router.push(
+        `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+      );
+    } catch (err) {
+      console.error("Complete discovery error:", err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Could not generate recommendation. Try again."
+      );
+    } finally {
+      setIsCompleting(false);
     }
   };
 
+  if (isLoadingSession) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          color: "#6e7681",
+          fontSize: "13px",
+        }}
+      >
+        Loading conversation…
+      </div>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          color: "#f85149",
+          fontSize: "13px",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        {sessionError}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: "flex", height: "100%", width: "100%", background: "var(--bg-void)" }}>
-      {/* Main chat */}
+    <div
+      style={{
+        display: "flex",
+        height: "100%",
+        width: "100%",
+        background: "var(--bg-void)",
+      }}
+    >
       <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
         <ChatInterface
           messages={messages}
@@ -327,8 +273,12 @@ export default function DiscoveryClient({
         />
       </div>
 
-      {/* Live coverage panel */}
-      <CoveragePanel coverage={coverage} turnCount={turnCount} />
+      <SessionPanel
+        userTurns={userTurns}
+        readyForRecommendation={readyForRecommendation}
+        isCompleting={isCompleting}
+        onComplete={handleComplete}
+      />
     </div>
   );
 }

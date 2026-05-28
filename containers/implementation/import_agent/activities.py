@@ -68,7 +68,20 @@ _DT_NAME_FIELD: Dict[str, str] = {
     "Payment Terms Template":   "template_name",
     "Mode of Payment":          "mode_of_payment",
     "Warehouse Type":           "warehouse_type_name",
+    "Stock Entry Type":         "purpose",
 }
+
+# Doctypes that require company when missing from mapped rows.
+_COMPANY_REQUIRED_DOCTYPES = frozenset({
+    "BOM",
+    "Work Order",
+    "Project",
+    "Purchase Receipt",
+    "Stock Entry",
+    "Sales Order",
+    "Purchase Order",
+    "Delivery Note",
+})
 
 
 def _build_baseline_record(doctype: str, value: str) -> Dict[str, Any]:
@@ -314,7 +327,10 @@ async def _dynamic_seed_doctype(
 
     # Step 4 — create each missing value
     for val in to_create:
-        record = {name_field: val}
+        if doctype == "Stock Entry Type":
+            record = {"purpose": val, "name": val}
+        else:
+            record = {name_field: val}
         try:
             await adapter.create_record(doctype, record)
             seeded += 1
@@ -545,10 +561,10 @@ class _ImportEngine:
             }
 
         _PHASE_A_AUTO_SETUP = {
-            "Company":             "auto_company_setup",
+            "Company":             "discover_from_site",
             "Chart of Accounts":   "auto_from_company",
             "Cost Center":         "auto_from_company",
-            "Fiscal Year":         "seed_from_config",
+            "Fiscal Year":         "discover_from_site",
             "Currency":            "seed_from_baseline",
             "Warehouse":           "seed_from_config",
         }
@@ -613,6 +629,11 @@ class _ImportEngine:
                 # ERPNext creates these automatically on Company setup — skip
                 exec_action  = "skip"
                 data_source  = "auto"
+                record_count = 0
+            elif planner_action == "optional_if_absent":
+                # Conditional graph node — skip unless user uploaded a file
+                exec_action  = "optional_skip"
+                data_source  = "none"
                 record_count = 0
             else:
                 # must_create but no file uploaded — flag as data gap
@@ -875,8 +896,13 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
     activity.logger.info("▶ finalize_import_plan started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISImportPlan, ISMappedData, ISValidationResult
+    from shared.models.is_models import ISImportPlan, ISMappedData, ISValidationResult, ISDataReadinessAssessment
     from sqlalchemy import select, update
+    from containers.implementation.import_agent.gap_criticality import (
+        build_doctype_criticality_map,
+        gap_criticality,
+        is_blocking_gap,
+    )
     import uuid
     import json
 
@@ -916,33 +942,70 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         val_rows = result_val.scalars().all()
         has_validation_failures = any(v.overall_status == "fail" for v in val_rows)
 
+        stmt_readiness = (
+            select(ISDataReadinessAssessment)
+            .where(ISDataReadinessAssessment.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISDataReadinessAssessment.created_at.desc())
+            .limit(1)
+        )
+        readiness_result = await session.execute(stmt_readiness)
+        readiness_row = readiness_result.scalar_one_or_none()
+        criticality_map = build_doctype_criticality_map(readiness_row)
+
         # 4. Update the steps in the plan (+ inject mapped doctypes missing from blueprint)
         phases = plan_row.phases or {}
         phases = inject_missing_mapped_steps(phases, mapped_dict)
         plan_status = "ready"
+        has_critical_gap = False
+        has_noncritical_gap = False
         if has_validation_failures:
             plan_status = "blocked"
 
         updated_phases = {}
+        optional_gaps: List[str] = []
         for phase_id, phase_data in phases.items():
             steps = phase_data.get("steps", [])
             updated_steps = []
             for step in steps:
                 dt = step.get("doctype")
                 action = step.get("action")
-                
-                if action == "create" or step.get("data_source") == "pending_mapping":
-                    if dt in mapped_dict:
-                        step["data_source"] = mapped_dict[dt]["r2_path"]
-                        step["records"] = mapped_dict[dt]["total_rows"]
-                        if mapped_dict[dt]["validation_status"] == "failed":
-                            plan_status = "blocked"
+                unmapped = dt not in mapped_dict
+                needs_file = action in (
+                    "create",
+                    "data_gap",
+                    "optional_skip",
+                ) or step.get("data_source") == "pending_mapping"
+
+                if needs_file and unmapped:
+                    if action == "optional_skip":
+                        crit = step.get("criticality") or gap_criticality(
+                            dt or "", phase_id, criticality_map,
+                        )
+                        has_noncritical_gap = True
+                        optional_gaps.append(dt or "")
+                        updated_steps.append(step)
+                        continue
+
+                    crit = gap_criticality(dt or "", phase_id, criticality_map)
+                    if not is_blocking_gap(crit):
+                        step["action"] = "optional_skip"
+                        step["data_source"] = "none"
+                        step["records"] = 0
+                        step["criticality"] = crit
+                        has_noncritical_gap = True
+                        optional_gaps.append(dt or "")
                     else:
-                        # File was scheduled for create, but not mapped
                         step["action"] = "data_gap"
                         step["data_source"] = "none"
                         step["records"] = 0
-                        plan_status = "blocked" # Gaps must block readiness
+                        step["criticality"] = crit
+                        has_critical_gap = True
+                elif needs_file and dt in mapped_dict:
+                    step["data_source"] = mapped_dict[dt]["r2_path"]
+                    step["records"] = mapped_dict[dt]["total_rows"]
+                    if mapped_dict[dt]["validation_status"] == "failed":
+                        plan_status = "blocked"
+                        has_critical_gap = True
                 
                 updated_steps.append(step)
             
@@ -950,6 +1013,13 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
                 "name": phase_data.get("name"),
                 "steps": updated_steps
             }
+
+        if has_validation_failures or has_critical_gap:
+            plan_status = "blocked"
+        elif has_noncritical_gap:
+            plan_status = "ready_with_gaps"
+        else:
+            plan_status = "ready"
 
         # 5. Upload finalized json plan to R2
         slug = inp.company_slug or "unknown"
@@ -961,7 +1031,8 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
             "total_phases": plan_row.total_phases,
             "total_steps": plan_row.total_steps,
             "estimated_duration_minutes": plan_row.estimated_duration_minutes,
-            "phases": updated_phases
+            "phases": updated_phases,
+            "optional_gaps": optional_gaps,
         }
 
         try:
@@ -1132,6 +1203,37 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
 
     s3 = _get_s3_client()
     base_url, adapter = await _resolve_erp_adapter(inp, activity.logger)
+
+    company_ctx: Dict[str, str] = {}
+
+    # ── SITE PREREQUISITES (Company + Warehouses) ───────────────────────────
+    if not inp.dry_run and base_url:
+        from containers.implementation.import_agent.site_prerequisites import (
+            ensure_site_prerequisites,
+        )
+
+        prereq = await ensure_site_prerequisites(
+            adapter,
+            session_id=inp.session_id,
+            company_slug=inp.company_slug or "",
+            phases=phases,
+            s3=s3,
+            link_fields=_KNOWN_LINK_FIELDS,
+            logger=activity.logger,
+        )
+        if prereq.get("company_name"):
+            company_ctx["company_name"] = str(prereq["company_name"])
+        if prereq.get("company_abbr"):
+            company_ctx["company_abbr"] = str(prereq["company_abbr"])
+        activity.logger.info(
+            "  🏗️  Site prerequisites | company=%s abbr=%s source=%s wh_requested=%s wh_ok=%s wh_failed=%s",
+            prereq.get("company_name"),
+            prereq.get("company_abbr"),
+            prereq.get("company_source"),
+            prereq.get("warehouses_requested"),
+            prereq.get("warehouses_created"),
+            prereq.get("warehouses_failed"),
+        )
 
     # ── EXECUTION GATE (Phase B/C live writes) ─────────────────────────────
     if (
@@ -1377,11 +1479,58 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
         step_start = datetime.utcnow()
 
         # Skip actions that are not row-level imports
-        if action in ("default_or_skip", "skip", "seed_from_baseline", "data_gap"):
+        if action in ("default_or_skip", "skip", "seed_from_baseline", "data_gap", "optional_skip"):
             if action == "data_gap":
                 activity.logger.warning(
                     "  ⚠️  DATA GAP: %s has no mapped data file and no baseline — skipping", dt
                 )
+            elif action == "optional_skip":
+                activity.logger.info(
+                    "  ⏭️  OPTIONAL SKIP: %s deferred (important but not critical for this import)", dt
+                )
+            continue
+
+        if action == "auto_from_company":
+            activity.logger.info(
+                "  ⏭️  %s auto-created by ERPNext on Company setup — skipping", dt
+            )
+            steps_completed += 1
+            continue
+
+        if action in ("discover_from_site", "auto_company_setup"):
+            if not inp.dry_run and base_url:
+                from containers.implementation.import_agent.site_prerequisites import (
+                    discover_fiscal_year_exists,
+                    resolve_company_for_import,
+                    collect_warehouse_names,
+                )
+                if dt == "Company":
+                    wh_names = collect_warehouse_names(phases, s3, _KNOWN_LINK_FIELDS)
+                    resolved = await resolve_company_for_import(
+                        adapter,
+                        session_id=inp.session_id,
+                        company_slug=inp.company_slug or "",
+                        warehouse_names=wh_names,
+                        logger=activity.logger,
+                    )
+                    if resolved:
+                        company_ctx["company_name"] = resolved["name"]
+                        if resolved.get("abbr"):
+                            company_ctx["company_abbr"] = resolved["abbr"]
+                elif dt == "Fiscal Year":
+                    if await discover_fiscal_year_exists(adapter, activity.logger):
+                        activity.logger.info(
+                            "  📅  Fiscal Year exists on live site (from onboarding) — skipping"
+                        )
+                    else:
+                        try:
+                            await adapter.seed_from_config(dt, {})
+                        except Exception as e:
+                            activity.logger.warning(
+                                "  ⚠️  Fiscal Year seed skipped/failed: %s", e
+                            )
+            activity.logger.info("  🏢  discover_from_site for %s — handled", dt)
+            steps_completed += 1
             continue
 
         if action == "seed_from_config":
@@ -1394,9 +1543,24 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                         res = await db.execute(stmt)
                         project = res.scalar_one_or_none()
                         if project and project.deployment_details:
-                            project_details = project.deployment_details
+                            project_details = dict(project.deployment_details)
                 except Exception as e:
                     activity.logger.warning("  ⚠️ Failed to read project details: %s", e)
+
+            if not company_ctx:
+                from containers.implementation.import_agent.site_prerequisites import (
+                    collect_warehouse_names,
+                    load_company_context,
+                )
+                company_ctx = await load_company_context(
+                    inp.session_id, inp.company_slug or "",
+                )
+            if company_ctx.get("company_name"):
+                project_details["company_name"] = company_ctx["company_name"]
+            if dt == "Warehouse":
+                project_details["warehouse_names"] = sorted(
+                    collect_warehouse_names(phases, s3, _KNOWN_LINK_FIELDS)
+                )
 
             if not inp.dry_run and base_url:
                 try:
@@ -1452,6 +1616,10 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                     _ctype = row.get("customer_type", "")
                     if _ctype not in ("Company", "Individual", "Partnership"):
                         row["customer_type"] = "Company"
+                if dt in _COMPANY_REQUIRED_DOCTYPES and not row.get("company"):
+                    _cname = company_ctx.get("company_name")
+                    if _cname:
+                        row["company"] = _cname
                 # ────────────────────────────────────────────────────────────
                 try:
                     existing_doc = await find_existing_record(adapter, dt, row)

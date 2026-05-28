@@ -35,10 +35,8 @@ class DiscoveryChatWorkflow:
         # Opening message — Adi introduces herself naturally
         # -------------------------------------------------------
         bot_message = (
-            "Hi, I'm Adi — I'll be walking you through a quick discovery to understand "
-            "your business and find the right ERP fit for you. "
-            "To start, could you tell me what your company does? "
-            "A sentence or two about what you make, trade, or offer is perfect."
+            "Hey — I'm Adi. I help businesses figure out the right ERP setup. "
+            "What does your company do?"
         )
 
         while not self._is_complete:

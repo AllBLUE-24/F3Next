@@ -950,42 +950,81 @@ class ERPNextAdapter(ERPAdapter):
                 logger.info("Fiscal Year %s already exists — skipping", fiscal_year_val)
 
         elif doctype == "Warehouse":
-            existing_whs = await self.list_records("Warehouse", ["name", "company", "is_group"])
-            if not existing_whs:
-                logger.warning("No warehouses found to seed children from")
+            abbr_from_co = None
+            company_name = project_details.get("company_name") or project_details.get("company")
+            if not company_name:
+                companies = await self.list_records("Company", ["name", "abbr"], limit=1)
+                if companies:
+                    company_name = companies[0].get("name")
+                    abbr_from_co = companies[0].get("abbr")
+            else:
+                try:
+                    co_rows = await self.list_records(
+                        "Company",
+                        ["name", "abbr"],
+                        filters=[["name", "=", company_name]],
+                        limit=1,
+                    )
+                    if co_rows:
+                        abbr_from_co = co_rows[0].get("abbr")
+                except Exception:
+                    pass
+            if not company_name:
+                logger.warning("No company found — cannot seed warehouses from config")
                 return
 
-            company = existing_whs[0].get("company")
-            parent_wh = None
+            existing_whs = await self.list_records(
+                "Warehouse", ["name", "company", "is_group"],
+                filters=[["company", "=", company_name]],
+                limit=50,
+            )
             abbr = ""
-            for wh in existing_whs:
-                if wh.get("is_group") == 1 or "all warehouses" in wh.get("name", "").lower():
-                    parent_wh = wh["name"]
-                    if " - " in parent_wh:
-                        abbr = parent_wh.split(" - ")[-1].strip()
+            parent_wh = None
+            for wh in existing_whs or []:
+                name = wh.get("name") or ""
+                if wh.get("is_group") == 1 or "all warehouses" in name.lower():
+                    parent_wh = name
+                    if " - " in name:
+                        abbr = name.split(" - ")[-1].strip()
                     break
-            
-            if not parent_wh:
-                parent_wh = existing_whs[0]["name"]
-                if " - " in parent_wh:
+
+            if not parent_wh and existing_whs:
+                parent_wh = existing_whs[0].get("name")
+                if parent_wh and " - " in parent_wh:
                     abbr = parent_wh.split(" - ")[-1].strip()
 
-            if not abbr and company:
-                abbr = "".join([w[0] for w in company.split() if w]).upper()
+            if not abbr:
+                abbr = abbr_from_co or ""
+            if not abbr:
+                abbr = "".join([w[0] for w in str(company_name).split() if w]).upper()[:10]
 
-            # Seed standard manufacturing child warehouses (Stores and WIP) under the parent group
-            for wh_base in ("Stores", "WIP"):
-                wh_name = f"{wh_base} - {abbr}" if abbr else wh_base
-                exists = await self.list_records("Warehouse", ["name"], filters=[["name", "=", wh_name]], limit=1)
-                if not exists:
-                    wh_record = {
-                        "warehouse_name": wh_base,
-                        "company": company,
-                        "parent_warehouse": parent_wh,
-                        "is_group": 0
-                    }
-                    try:
-                        await self.create_record("Warehouse", wh_record)
-                        logger.info("Auto-seeded manufacturing child warehouse '%s' successfully under parent '%s'", wh_name, parent_wh)
-                    except Exception as e:
-                        logger.error("Failed to seed child warehouse %s: %s", wh_name, e)
+            requested = project_details.get("warehouse_names") or []
+            wh_bases = list(requested) if requested else ["Stores", "Work In Progress", "Finished Goods"]
+
+            for wh_base in wh_bases:
+                if " - " in wh_base:
+                    wh_name = wh_base
+                    wh_base = wh_base.rsplit(" - ", 1)[0].strip()
+                else:
+                    wh_name = f"{wh_base} - {abbr}" if abbr else wh_base
+
+                exists = await self.list_records(
+                    "Warehouse", ["name"], filters=[["name", "=", wh_name]], limit=1,
+                )
+                if exists:
+                    continue
+                wh_record = {
+                    "warehouse_name": wh_base,
+                    "company": company_name,
+                    "is_group": 0,
+                }
+                if parent_wh:
+                    wh_record["parent_warehouse"] = parent_wh
+                try:
+                    await self.create_record("Warehouse", wh_record)
+                    logger.info(
+                        "Auto-seeded warehouse '%s' under parent '%s'",
+                        wh_name, parent_wh,
+                    )
+                except Exception as e:
+                    logger.error("Failed to seed warehouse %s: %s", wh_name, e)

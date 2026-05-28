@@ -3,6 +3,9 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+# DEPRECATED: Discovery chat v4 uses sync POST /api/discovery/chat (no Temporal).
+# This worker is kept for migration only — backend-only deploy is sufficient for chat.
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 from containers.discovery.workflows import DiscoveryChatWorkflow

@@ -1,94 +1,115 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from app.services.discovery_launcher import start_or_signal_discovery
-from sqlalchemy.ext.asyncio import AsyncSession
-from shared.database.db import get_shared_db
-from shared.models.core import Project
-from sqlalchemy import select
-from shared.models.hooks import Hook
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.discovery_chat import finalize_discovery, load_session, send_chat_message
+from shared.database.db import get_shared_db
+from shared.models.core import Project
+from shared.models.hooks import Hook
+
 router = APIRouter(prefix="/discovery", tags=["Discovery"])
+
 
 class DiscoveryRequest(BaseModel):
     project_id: UUID
     message: str
-    step: int = 1
+    step: int = 1  # legacy — ignored
+
+
+class CompleteRequest(BaseModel):
+    project_id: UUID
+
+
+@router.get("/session/{project_id}")
+async def get_discovery_session(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
+    """Load chat history and session state (ChatGPT-style — no polling needed)."""
+    res = await db.execute(select(Project).where(Project.id == project_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        return await load_session(db, project_id)
+    except Exception as e:
+        print(f"❌ Discovery session error: {e!r}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/chat")
 async def chat_discovery(request: DiscoveryRequest, db: AsyncSession = Depends(get_shared_db)):
     """
-    Receives user message and signals the Temporal Discovery Workflow.
+    Synchronous discovery chat — send a message, get Adi's reply immediately.
+    Stores full history in hooks.chat_history (JSONB).
     """
-    # 1. Validate Project
     res = await db.execute(select(Project).where(Project.id == request.project_id))
-    project = res.scalar_one_or_none()
-    
-    if not project:
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not request.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    try:
+        result = await send_chat_message(db, request.project_id, request.message)
+        return result
+    except Exception as e:
+        print(f"❌ Discovery chat error: {e!r}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/complete")
+async def complete_discovery(request: CompleteRequest, db: AsyncSession = Depends(get_shared_db)):
+    """
+    End discovery — extract signals from full transcript + generate ERP recommendation.
+    Writes discovery_metadata for IS handoff.
+    """
+    res = await db.execute(select(Project).where(Project.id == request.project_id))
+    if not res.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
 
     try:
-        # 2. Trigger Temporal Signal
-        workflow_id = await start_or_signal_discovery(
-            project_id=str(project.id),
-            user_message=request.message
-        )
-
-        return {
-            "status": "sent",
-            "workflow_id": workflow_id,
-            "message": "Message received by Discovery Agent."
-        }
+        return await finalize_discovery(db, request.project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"❌ Discovery Launch Error: {str(e)}")
+        print(f"❌ Discovery complete error: {e!r}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/status/{project_id}")
 async def get_discovery_status(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
-    """
-    Polls the latest state of the Discovery Chat for the Frontend.
-    """
+    """Backward-compatible status endpoint — delegates to session loader."""
     try:
-        # Fetch the latest bot response and extracted data
-        query = select(Hook).where(Hook.project_id == project_id)
-        result = await db.execute(query)
-        hook = result.scalar_one_or_none()
-
-        if not hook:
-            raise HTTPException(status_code=404, detail="Discovery session not found")
-
-        discovery_metadata = hook.discovery_metadata or {}
+        session = await load_session(db, project_id)
         return {
-            "bot_response":      hook.last_bot_response,
-            "extracted_tags":    hook.extracted_tags,
-            "step":              hook.discovery_step,
-            "turn_count":        hook.discovery_turn_count or 0,
-            "status":            hook.discovery_status,
-            "is_complete":       hook.discovery_status == "COMPLETE",
-            # --- Coverage panel data ---
-            "coverage":          hook.discovery_coverage or {
-                "industry":      {"status": None, "value": None},
-                "strategy":      {"status": None, "value": None},
-                "scale":         {"status": None, "value": None},
+            "bot_response": (
+                session["messages"][-1]["content"]
+                if session.get("messages")
+                else ""
+            ),
+            "messages": session.get("messages", []),
+            "extracted_tags": [],
+            "step": 1,
+            "turn_count": session.get("user_turns", 0),
+            "status": session.get("status"),
+            "is_complete": session.get("is_complete", False),
+            "coverage": session.get("coverage") or {
+                "industry": {"status": None, "value": None},
+                "strategy": {"status": None, "value": None},
+                "scale": {"status": None, "value": None},
                 "legacy_system": {"status": None, "value": None},
-                "pain_point":    {"status": None, "value": None},
+                "pain_point": {"status": None, "value": None},
             },
-            # --- Final recommendation ---
-            "f3iche":            discovery_metadata.get("f3iche"),
-            "industry":          discovery_metadata.get("industry"),
-            "price_plan":        discovery_metadata.get("price_plan"),
-            "recommended_erp":   discovery_metadata.get("recommended_erp"),
-            "fit_score":         discovery_metadata.get("fit_score"),
+            "ready_for_recommendation": session.get("ready_for_recommendation", False),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/{project_id}/recommendation")
 async def get_recommendation_status(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
-    """
-    Dedicated endpoint for the Recommendation Page to poll final ERP results.
-    """
+    """Poll final ERP recommendation (ready immediately after POST /complete)."""
     try:
         query = select(Hook).where(Hook.project_id == project_id)
         result = await db.execute(query)
@@ -97,14 +118,14 @@ async def get_recommendation_status(project_id: UUID, db: AsyncSession = Depends
         if not hook:
             raise HTTPException(status_code=404, detail="Project context not found")
 
-        # If the metadata is null or empty, Temporal is still processing
         if not hook.discovery_metadata:
             return {"status": "processing"}
 
-        # Once Temporal writes the JSON to this column, we return it!
         return {
             "status": "ready",
-            "data": hook.discovery_metadata
+            "data": hook.discovery_metadata,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
