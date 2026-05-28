@@ -11,7 +11,7 @@ export function UniversalHeader() {
 
   const getTitle = () => {
     if (pathname.includes('/command')) return 'ERP-OS';
-    if (pathname.includes('/upload') || pathname.includes('/analyze') || pathname.includes('/validate') || pathname.includes('/sandbox')) return 'IMPLEMENTATION';
+    if (pathname.includes('/upload') || pathname.includes('/analyze') || pathname.includes('/validate') || pathname.includes('/import') || pathname.includes('/sandbox')) return 'IMPLEMENTATION';
     if (pathname.includes('/discovery')) return 'DISCOVERY';
     if (pathname.includes('/home')) return 'HOME';
     if (pathname.includes('/profile')) return 'PROFILE';

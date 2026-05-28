@@ -10,7 +10,7 @@ import type {
   DeploymentState,
   CompanyProfile,
   ValidationItem,
-  SandboxInstance,
+  LiveInstance,
 } from '@/types/implementation';
 
 const ImplementationContext = createContext<ImplementationContextValue | null>(null);
@@ -31,7 +31,7 @@ export function ImplementationProvider({ session, initialDeployment, children }:
   const [deployment, setDeployment] = useState<DeploymentState>(initialDeployment);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [validationItems, setValidationItems] = useState<ValidationItem[]>([]);
-  const [sandbox, setSandbox] = useState<SandboxInstance | null>(null);
+  const [liveInstance, setLiveInstance] = useState<LiveInstance | null>(null);
 
   const refreshDeployment = useCallback(async () => {
     try {
@@ -55,7 +55,7 @@ export function ImplementationProvider({ session, initialDeployment, children }:
 
   return (
     <ImplementationContext.Provider
-      value={{ session, deployment, profile, validationItems, sandbox, refreshDeployment }}
+      value={{ session, deployment, profile, validationItems, liveInstance, refreshDeployment }}
     >
       {children}
     </ImplementationContext.Provider>

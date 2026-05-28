@@ -170,8 +170,8 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
         {/* --- DEPLOY INSTANCE BUTTON --- */}
         <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5 flex items-center justify-between mb-4">
           <div>
-             <h3 className="text-white font-bold text-sm mb-1">Provision Sandbox Instance</h3>
-             <p className="text-xs text-gray-500">Deploy the cloud container now so it's ready when analysis finishes.</p>
+             <h3 className="text-white font-bold text-sm mb-1">Provision Live ERP</h3>
+             <p className="text-xs text-gray-500">Deploy your ERPNext instance now so it&apos;s ready when analysis finishes.</p>
           </div>
           <button
              type="button"

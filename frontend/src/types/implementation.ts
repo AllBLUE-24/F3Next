@@ -1,6 +1,6 @@
 // src/types/implementation.ts
 
-export type ImplementationStep = 'upload' | 'analyze' | 'validate' | 'sandbox';
+export type ImplementationStep = 'upload' | 'analyze' | 'validate' | 'import';
 
 export type DeploymentStatus = 'pending' | 'deploying' | 'ready' | 'failed';
 
@@ -76,11 +76,13 @@ export interface UploadedFile {
   error: string | null;
 }
 
-export interface SandboxInstance {
+/** @deprecated use LiveInstance */
+export type SandboxInstance = LiveInstance;
+
+export interface LiveInstance {
   url: string;
   username: string;
   password: string;
-  expiresAt: string;
   isApproved: boolean;
 }
 
@@ -89,6 +91,6 @@ export interface ImplementationContextValue {
   deployment: DeploymentState;
   profile: CompanyProfile | null;
   validationItems: ValidationItem[];
-  sandbox: SandboxInstance | null;
+  liveInstance: LiveInstance | null;
   refreshDeployment: () => void;
 }

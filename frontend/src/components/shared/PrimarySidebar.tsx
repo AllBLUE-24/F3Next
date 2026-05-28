@@ -1,15 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, LogOut, Bot, UploadCloud, Terminal, Search, PanelLeftClose, PanelLeftOpen, User, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { LayoutGrid, LogOut, Bot, UploadCloud, Terminal, Search, User, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { getBaseApiUrl } from "@/lib/config";
+import { stageToHref } from "@/lib/implementation-routes";
 
 export default function PrimarySidebar({ companySlug, userSlug }: { companySlug: string; userSlug: string }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [implementationHref, setImplementationHref] = useState(`/${companySlug}/${userSlug}/upload`);
   const pathname = usePathname();
   const router = useRouter();
+
+  const base = `/${companySlug}/${userSlug}`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const api = getBaseApiUrl();
+        const resolveRes = await fetch(`${api}/api/resolve/slug/${companySlug}`, { cache: "no-store" });
+        if (!resolveRes.ok) return;
+        const { project_id } = await resolveRes.json();
+        if (!project_id || cancelled) return;
+
+        const stageRes = await fetch(`${api}/api/implementation/stage/${project_id}`, { cache: "no-store" });
+        if (!stageRes.ok) {
+          if (!cancelled) setImplementationHref(`${base}/upload`);
+          return;
+        }
+        const { stage } = await stageRes.json();
+        if (!cancelled) {
+          setImplementationHref(stageToHref(base, stage, project_id));
+        }
+      } catch {
+        if (!cancelled) setImplementationHref(`${base}/upload`);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companySlug, base]);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -17,27 +52,32 @@ export default function PrimarySidebar({ companySlug, userSlug }: { companySlug:
     router.push("/login");
   };
 
-  const base = `/${companySlug}/${userSlug}`;
-
   const navItems = [
-    { name: "Home",           href: `${base}/home`,      icon: LayoutGrid },
-    { name: "Discovery",      href: `${base}/discovery`,  icon: Search },
-    { name: "Implementation", href: `${base}/upload`,     icon: UploadCloud },
-    { name: "OS",             href: `${base}/command`,    icon: Terminal },
+    { name: "Home", href: `${base}/home`, icon: LayoutGrid },
+    { name: "Discovery", href: `${base}/discovery`, icon: Search },
+    { name: "Implementation", href: implementationHref, icon: UploadCloud },
+    { name: "OS", href: `${base}/command`, icon: Terminal },
   ];
 
-  const isActiveRoute = (href: string) => {
-    if (href.endsWith('/home')) return pathname === href;
-    if (href.endsWith('/discovery')) return pathname.includes('/discovery');
-    if (href.endsWith('/upload')) return pathname.includes('/upload') || pathname.includes('/analyze') || pathname.includes('/validate') || pathname.includes('/sandbox');
-    if (href.endsWith('/command')) return pathname.includes('/command');
+  const isActiveRoute = (href: string, name: string) => {
+    if (name === "Home") return pathname === `${base}/home`;
+    if (name === "Discovery") return pathname.includes("/discovery");
+    if (name === "Implementation") {
+      return (
+        pathname.includes("/upload") ||
+        pathname.includes("/analyze") ||
+        pathname.includes("/validate") ||
+        pathname.includes("/import") ||
+        pathname.includes("/sandbox")
+      );
+    }
+    if (name === "OS") return pathname.includes("/command");
     return pathname === href;
   };
 
   return (
     <aside className={`flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-shell)] transition-all duration-300 ${collapsed ? "w-20" : "w-64"} shrink-0 relative h-full z-40`}>
 
-      {/* Logo & Collapse */}
       <div className="h-[56px] flex items-center justify-between px-4 border-b border-[var(--border-subtle)] shrink-0 overflow-hidden relative">
         <Link href={`${base}/home`} className={`flex items-center gap-3 group whitespace-nowrap ${collapsed ? "justify-center w-full" : ""}`}>
           <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center shrink-0 group-hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20">
@@ -49,8 +89,7 @@ export default function PrimarySidebar({ companySlug, userSlug }: { companySlug:
             </span>
           )}
         </Link>
-        
-        {/* Collapse Toggle inside header */}
+
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={`text-zinc-500 hover:text-white hover:bg-white/[0.05] p-1.5 rounded-lg transition-colors z-50 ${collapsed ? "absolute inset-0 opacity-0" : ""}`}
@@ -59,7 +98,6 @@ export default function PrimarySidebar({ companySlug, userSlug }: { companySlug:
         </button>
       </div>
 
-      {/* Workspace Context */}
       {!collapsed && (
         <div className="px-5 py-5 border-b border-[var(--border-subtle)] shrink-0">
           <div className="flex items-center gap-3.5">
@@ -67,17 +105,16 @@ export default function PrimarySidebar({ companySlug, userSlug }: { companySlug:
               <span className="text-sm font-bold text-amber-400 uppercase">{userSlug.charAt(0)}</span>
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-bold text-white truncate capitalize">{companySlug.replace(/-/g, ' ')}</p>
-              <p className="text-[11px] text-zinc-500 truncate capitalize mt-0.5">{userSlug.replace(/-/g, ' ')}</p>
+              <p className="text-sm font-bold text-white truncate capitalize">{companySlug.replace(/-/g, " ")}</p>
+              <p className="text-[11px] text-zinc-500 truncate capitalize mt-0.5">{userSlug.replace(/-/g, " ")}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Nav Links */}
       <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-1.5">
         {navItems.map((item) => {
-          const active = isActiveRoute(item.href);
+          const active = isActiveRoute(item.href, item.name);
           return (
             <Link
               key={item.name}
@@ -94,12 +131,11 @@ export default function PrimarySidebar({ companySlug, userSlug }: { companySlug:
         })}
       </nav>
 
-      {/* Footer Actions */}
       <div className="p-3 border-t border-[var(--border-subtle)] shrink-0 space-y-1">
         <Link
           href={`${base}/profile`}
           className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-zinc-400 hover:bg-white/[0.04] hover:text-white transition-all group ${
-            pathname.includes('/profile') ? "bg-white/[0.04] text-white" : ""
+            pathname.includes("/profile") ? "bg-white/[0.04] text-white" : ""
           } ${collapsed ? "justify-center" : ""}`}
           title={collapsed ? "Profile" : undefined}
         >

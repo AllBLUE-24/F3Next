@@ -1,78 +1,14 @@
-// PATH: src/app/[companySlug]/[userSlug]/(implementation)/sandbox/page.tsx
-
 import { redirect } from 'next/navigation';
-import { SandboxView } from '@/components/implementation/sandbox/SandboxView';
-import type { SandboxInstance } from '@/types/implementation';
-import { getBaseApiUrl } from '@/lib/config';
-
-export const metadata = { title: 'Sandbox — F3Next' };
-
-// ── Dev mock ──────────────────────────────────────────────────────────────────
-const DEV_SANDBOX: SandboxInstance = {
-  url: 'https://sandbox-dev.erpnext.f3next.in',
-  username: 'Administrator',
-  password: 'f3next@dev123',
-  expiresAt: new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString(), // 20 hours from now
-  isApproved: false,
-};
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchSandbox(companySlug: string): Promise<SandboxInstance | null> {
-  try {
-    const base = getBaseApiUrl();
-    const res = await fetch(
-      `${base}/api/implementation/sandbox/${companySlug}`,
-      { cache: 'no-store', headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! } }
-    );
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
-}
-
-async function approveForProduction(formData: FormData) {
-  'use server';
-  const base = getBaseApiUrl();
-  const res = await fetch(`${base}/api/implementation/signal/sandbox-approved`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-secret': process.env.INTERNAL_SECRET!,
-    },
-    body: JSON.stringify({ 
-      project_id: formData.get('jobId'), 
-      company_slug: formData.get('companySlug'),
-      erpnext_base_url: "",
-      erpnext_api_key: "",
-      dry_run: false
-    }),
-  });
-  if (!res.ok) throw new Error('Approval failed');
-}
 
 interface Props {
   params: Promise<{ companySlug: string; userSlug: string }>;
   searchParams: Promise<{ jobId?: string }>;
 }
 
-export default async function SandboxPage({ params, searchParams }: Props) {
+/** Legacy route — redirects to /import */
+export default async function SandboxRedirectPage({ params, searchParams }: Props) {
   const { companySlug, userSlug } = await params;
   const { jobId } = await searchParams;
-  const isDev = process.env.NODE_ENV === 'development';
-
-  const sandbox = !isDev
-    ? await fetchSandbox(companySlug)
-    : (await fetchSandbox(companySlug)) ?? DEV_SANDBOX;
-
-  if (!sandbox || !jobId) redirect(`/${companySlug}/${userSlug}/validate`);
-
-  return (
-    <SandboxView
-      jobId={jobId}
-      sandbox={sandbox}
-      companySlug={companySlug}
-      approveAction={approveForProduction}
-    />
-  );
+  const q = jobId ? `?jobId=${encodeURIComponent(jobId)}` : '';
+  redirect(`/${companySlug}/${userSlug}/import${q}`);
 }

@@ -10,7 +10,7 @@ import { ArrowRight, Shield, Zap, Clock } from 'lucide-react';
 
 export const metadata = {
   title: "F3Next — Headless Operational Systems for Manufacturers",
-  description: "Stop running your ₹5Cr factory on messy Excel spreadsheets and chaotic WhatsApp chats. Deploys custom sandboxed databases in minutes with zero employee training.",
+  description: "Stop running your ₹5Cr factory on messy Excel spreadsheets and chaotic WhatsApp chats. Deploys your live ERPNext instance in minutes with zero employee training.",
 };
 
 export default function LandingPage() {

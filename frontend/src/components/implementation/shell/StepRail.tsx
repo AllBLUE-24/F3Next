@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Upload, ScanSearch, CheckSquare, FlaskConical, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Upload, ScanSearch, CheckSquare, Rocket, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import type { ImplementationStep } from '@/types/implementation';
 import { DeploymentPill } from './DeploymentPill';
 
@@ -12,13 +12,13 @@ const STEPS: { id: ImplementationStep; label: string; sublabel: string; icon: Re
   { id: 'upload',   label: 'Upload',   sublabel: 'Your data files',      icon: Upload },
   { id: 'analyze',  label: 'Analyze',  sublabel: 'System is thinking',   icon: ScanSearch },
   { id: 'validate', label: 'Validate', sublabel: 'Review & confirm',      icon: CheckSquare },
-  { id: 'sandbox',  label: 'Sandbox',  sublabel: 'Test & approve',        icon: FlaskConical },
+  { id: 'import',   label: 'Import',   sublabel: 'Live ERP',              icon: Rocket },
 ];
 
 function getActiveStep(pathname: string): ImplementationStep {
   if (pathname.includes('/analyze'))  return 'analyze';
   if (pathname.includes('/validate')) return 'validate';
-  if (pathname.includes('/sandbox'))  return 'sandbox';
+  if (pathname.includes('/import') || pathname.includes('/sandbox')) return 'import';
   return 'upload';
 }
 

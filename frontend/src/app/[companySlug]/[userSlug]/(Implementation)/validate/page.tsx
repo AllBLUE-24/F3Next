@@ -4,16 +4,16 @@ import { redirect } from 'next/navigation';
 import { ValidateView } from '@/components/implementation/validate/ValidateView';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 import { getBaseApiUrl } from '@/lib/config';
+import { getProjectContext } from '@/lib/context/project-context';
 
 export const metadata = { title: 'Review & Validate — F3Next' };
-
 
 async function fetchPreviewData(projectId: string): Promise<ValidatePreviewData | null> {
   try {
     const base = getBaseApiUrl();
     const res = await fetch(
       `${base}/api/implementation/validate-preview/${projectId}`,
-      { cache: 'no-store' }
+      { cache: 'no-store' },
     );
     if (!res.ok) return null;
     return res.json();
@@ -29,36 +29,17 @@ async function submitValidation(formData: FormData) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      project_id:   formData.get('jobId'),
-      responses:    JSON.parse(formData.get('responses') as string || '{}'),
-      profile_edits: JSON.parse(formData.get('profileEdits') as string || '{}'),
-      note:         formData.get('note') || '',
-    }),
-  });
-  
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => null); 
-    const backendMessage = errorData?.detail || errorData?.message || res.statusText;
-    throw new Error(`Validation failed: ${backendMessage}`);
-  }
-}
-
-async function submitImport(formData: FormData) {
-  'use server';
-  const base = getBaseApiUrl();
-  const res = await fetch(`${base}/api/implementation/signal/sandbox-approved`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
       project_id: formData.get('jobId'),
-      dry_run: false,
+      responses: JSON.parse((formData.get('responses') as string) || '{}'),
+      profile_edits: JSON.parse((formData.get('profileEdits') as string) || '{}'),
+      note: formData.get('note') || '',
     }),
   });
-  
+
   if (!res.ok) {
     const errorData = await res.json().catch(() => null);
     const backendMessage = errorData?.detail || errorData?.message || res.statusText;
-    throw new Error(`Import approval failed: ${backendMessage}`);
+    throw new Error(`Validation failed: ${backendMessage}`);
   }
 }
 
@@ -69,16 +50,16 @@ interface Props {
 
 export default async function ValidatePage({ params, searchParams }: Props) {
   const { companySlug, userSlug } = await params;
-  const { jobId } = await searchParams;
+  let { jobId } = await searchParams;
 
   if (!jobId) {
-    redirect(`/${companySlug}/${userSlug}/analyze`);
+    const context = await getProjectContext(companySlug);
+    jobId = context.project_id;
   }
 
   const preview = await fetchPreviewData(jobId);
 
   if (!preview || preview.doctypes.length === 0) {
-    // No data yet — redirect back to analyze
     redirect(`/${companySlug}/${userSlug}/analyze?jobId=${jobId}`);
   }
 
@@ -87,8 +68,7 @@ export default async function ValidatePage({ params, searchParams }: Props) {
       jobId={jobId}
       preview={preview}
       submitValidation={submitValidation}
-      submitImport={submitImport}
-      sandboxHref={`/${companySlug}/${userSlug}/sandbox?jobId=${jobId}`}
+      importHref={`/${companySlug}/${userSlug}/import?jobId=${jobId}`}
       companySlug={companySlug}
     />
   );

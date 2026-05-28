@@ -20,6 +20,7 @@ export default function WorkspaceLayout({
                       pathname.includes('/upload') || 
                       pathname.includes('/analyze') || 
                       pathname.includes('/validate') || 
+                      pathname.includes('/import') ||
                       pathname.includes('/sandbox') ||
                       pathname.includes('/discovery');
 

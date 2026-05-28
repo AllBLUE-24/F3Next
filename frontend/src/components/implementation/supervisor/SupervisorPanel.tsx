@@ -501,7 +501,7 @@ export function SupervisorPanel() {
   const projectId = session.id;
   const pathname = usePathname();
   const isPostMappingRoute =
-    pathname.includes("/validate") || pathname.includes("/sandbox");
+    pathname.includes("/validate") || pathname.includes("/import") || pathname.includes("/sandbox");
 
   const [prompts, setPrompts] = useState<SupervisorPrompt[]>([]);
   const [readiness, setReadiness] = useState<DataReadinessReport | null>(null);

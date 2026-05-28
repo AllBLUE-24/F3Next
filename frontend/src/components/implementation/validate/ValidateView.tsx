@@ -1,7 +1,7 @@
 'use client';
 
 // src/components/implementation/validate/ValidateView.tsx
-// Full data review + double-confirm before import
+// Full data review + confirm before import
 
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,15 +18,13 @@ import {
 import { DataPreviewTable } from './DataPreviewTable';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 import { getBaseApiUrl } from '@/lib/config';
-
-const VALIDATE_CONFIRMED_KEY = (jobId: string) => `validate-confirmed-${jobId}`;
+import { stageToStep } from '@/lib/implementation-routes';
 
 interface Props {
   jobId: string;
   preview: ValidatePreviewData;
   submitValidation: (formData: FormData) => Promise<void>;
-  submitImport: (formData: FormData) => Promise<void>;
-  sandboxHref: string;
+  importHref: string;
   companySlug: string;
 }
 
@@ -36,35 +34,29 @@ const PHASE_LABELS: Record<string, { label: string; icon: typeof Package }> = {
   phase_c_transactional: { label: 'Phase C — Transactions',  icon: Package },
 };
 
-export function ValidateView({ jobId, preview, submitValidation, submitImport, sandboxHref, companySlug }: Props) {
-  const [step, setStep] = useState<'review' | 'confirmed' | 'importing'>('review');
+export function ValidateView({ jobId, preview, submitValidation, importHref, companySlug }: Props) {
+  const [alreadyConfirmed, setAlreadyConfirmed] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  // Restore confirmed step after refresh or when workflow has moved past validation gate
+  // Sync with workflow stage — only show "already confirmed" when past validation gate
   useEffect(() => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem(VALIDATE_CONFIRMED_KEY(jobId)) === '1') {
-      setStep('confirmed');
-    }
-
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${getBaseApiUrl()}/api/implementation/stage/${jobId}`, { cache: 'no-store' });
+        const res = await fetch(`${getBaseApiUrl()}/api/implementation/stage/${jobId}`, {
+          cache: 'no-store',
+        });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        const stage: string = data.stage || '';
-        if (stage && stage !== 'awaiting_validation_submission') {
-          setStep('confirmed');
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(VALIDATE_CONFIRMED_KEY(jobId), '1');
-          }
+        const step = stageToStep(data.stage);
+        if (step === 'import') {
+          setAlreadyConfirmed(true);
         }
       } catch {
-        // keep sessionStorage / default step
+        // keep default
       }
     })();
-
     return () => {
       cancelled = true;
     };
@@ -84,28 +76,18 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
     return `${pct}%`;
   })();
 
-  const handleValidate = () => {
+  const handleConfirmImport = () => {
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append('jobId', jobId);
-      formData.append('companySlug', companySlug);
-      formData.append('responses', JSON.stringify({}));
-      formData.append('profileEdits', JSON.stringify({}));
-      formData.append('note', '');
-      await submitValidation(formData);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(VALIDATE_CONFIRMED_KEY(jobId), '1');
+      if (!alreadyConfirmed) {
+        const formData = new FormData();
+        formData.append('jobId', jobId);
+        formData.append('companySlug', companySlug);
+        formData.append('responses', JSON.stringify({}));
+        formData.append('profileEdits', JSON.stringify({}));
+        formData.append('note', '');
+        await submitValidation(formData);
       }
-      setStep('confirmed');
-    });
-  };
-
-  const handleImport = () => {
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.append('jobId', jobId);
-      await submitImport(formData);
-      router.push(sandboxHref);
+      router.push(importHref);
     });
   };
 
@@ -175,7 +157,6 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
           ))}
         </div>
 
-        {/* Modules */}
         {Array.isArray(profile.modules) && profile.modules.length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-widest text-gray-700 mb-2">Detected Modules</p>
@@ -189,7 +170,6 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
           </div>
         )}
 
-        {/* Doctypes */}
         {Array.isArray(profile.required_doctypes) && (profile.required_doctypes as string[]).length > 0 && (
           <div>
             <p className="text-[10px] uppercase tracking-widest text-gray-700 mb-2">Target Doctypes</p>
@@ -242,73 +222,51 @@ export function ValidateView({ jobId, preview, submitValidation, submitImport, s
         </div>
       )}
 
-      {/* ── Action Buttons ─────────────────────────────────────────────────── */}
-      {step === 'review' && (
-        <div className="space-y-3">
-          {hasWarnings && !hasErrors && (
-            <p className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Some doctypes passed with warnings. Review amber sections before import.
-            </p>
-          )}
-          {hasErrors && (
-            <p className="text-xs text-yellow-500 font-medium flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Some doctypes have validation errors. You can still proceed — errors will be logged.
-            </p>
-          )}
-          <button
-            onClick={handleValidate}
-            disabled={isPending}
-            className="w-full py-4 rounded-xl bg-white/[0.08] border border-white/[0.12] text-white font-bold text-base hover:bg-white/[0.12] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Validating…
-              </>
-            ) : (
-              <>
-                <Shield className="w-4 h-4 text-amber-400" />
-                Validate & Confirm Data
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
-      {step === 'confirmed' && (
-        <div className="space-y-4">
+      {/* ── Action ─────────────────────────────────────────────────────────── */}
+      <div className="space-y-3">
+        {alreadyConfirmed && (
           <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-5 py-4">
             <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
             <div>
-              <p className="text-sm font-bold text-emerald-400">Data Validated</p>
+              <p className="text-sm font-bold text-emerald-400">Data confirmed</p>
               <p className="text-xs text-emerald-300/70 mt-0.5">
-                Your data has been confirmed. Click below to start the live import into ERPNext.
+                Validation was submitted. Continue to the import step.
               </p>
             </div>
           </div>
+        )}
 
-          <button
-            onClick={handleImport}
-            disabled={isPending}
-            className="w-full py-4 rounded-xl bg-amber-500 text-black font-black text-base hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 group shadow-xl shadow-amber-500/10"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Starting Import…
-              </>
-            ) : (
-              <>
-                Confirm & Start Import
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </>
-            )}
-          </button>
-        </div>
-      )}
+        {!alreadyConfirmed && hasWarnings && !hasErrors && (
+          <p className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Some doctypes passed with warnings. Review amber sections before import.
+          </p>
+        )}
+        {!alreadyConfirmed && hasErrors && (
+          <p className="text-xs text-yellow-500 font-medium flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Some doctypes have validation errors. You can still proceed — errors will be logged.
+          </p>
+        )}
+
+        <button
+          onClick={handleConfirmImport}
+          disabled={isPending}
+          className="w-full py-4 rounded-xl bg-amber-500 text-black font-black text-base hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 group shadow-xl shadow-amber-500/10"
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {alreadyConfirmed ? 'Continuing…' : 'Confirming…'}
+            </>
+          ) : (
+            <>
+              {alreadyConfirmed ? 'Continue to Import' : 'Confirm & Start Import'}
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

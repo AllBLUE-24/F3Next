@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { AnalyzeView } from '@/components/implementation/analyze/AnalyzeView';
 import type { AnalysisTask } from '@/types/implementation';
+import { getProjectContext } from '@/lib/context/project-context';
 
 export const metadata = { title: 'Analyzing Your Data — F3Next' };
 
@@ -27,11 +28,15 @@ interface Props {
 
 export default async function AnalyzePage({ params, searchParams }: Props) {
   const { companySlug, userSlug } = await params;
-  const { jobId } = await searchParams;
+  let { jobId } = await searchParams;
 
   const isDev = process.env.NODE_ENV === 'development';
 
-  // In production: require real jobId. In dev: use mock if none provided.
+  if (!jobId && !isDev) {
+    const context = await getProjectContext(companySlug);
+    jobId = context.project_id;
+  }
+
   if (!jobId && !isDev) redirect(`/${companySlug}/${userSlug}/upload`);
 
   const resolvedJobId = jobId ?? DEV_JOB_ID;
