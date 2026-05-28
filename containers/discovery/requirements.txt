@@ -4,6 +4,11 @@ python-dotenv==0.21.0
 temporalio==1.21.1
 sqlalchemy==2.0.25
 langchain
+langchain-core
 langchain-google-genai
+langchain-openai==0.0.5
+google-genai
+openai==1.11.0
+redis==5.0.1
 aiohttp
 asyncpg

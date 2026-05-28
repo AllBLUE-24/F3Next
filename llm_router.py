@@ -130,6 +130,17 @@ def _is_quota_error(exc: Exception) -> bool:
     ))
 
 
+def _is_provider_unavailable(exc: Exception) -> bool:
+    """Missing optional provider SDK — try the next model in the queue."""
+    if isinstance(exc, ModuleNotFoundError):
+        return True
+    msg = str(exc).lower()
+    return "no module named" in msg and any(
+        tok in msg
+        for tok in ("langchain_openai", "langchain_google", "openai", "google.genai", "google_genai")
+    )
+
+
 def _build_model_queue(requested_model: str) -> List[str]:
     tiers = OPENAI_MODEL_TIERS if _is_openai(requested_model) else GEMINI_MODEL_TIERS
     queue = [requested_model]
@@ -201,6 +212,13 @@ def _try_model_sync(
             if _is_quota_error(exc):
                 _sideline_key(model, key)
                 continue
+            if _is_provider_unavailable(exc):
+                logger.warning(
+                    "[llm_router] Provider SDK unavailable for '%s' (%s) — trying next model",
+                    model,
+                    exc,
+                )
+                raise RuntimeError(f"Provider unavailable for model '{model}'") from exc
             raise
 
     raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
@@ -254,6 +272,13 @@ async def _try_model_async(
             if _is_quota_error(exc):
                 _sideline_key(model, key)
                 continue
+            if _is_provider_unavailable(exc):
+                logger.warning(
+                    "[llm_router] Provider SDK unavailable for '%s' (%s) — trying next model",
+                    model,
+                    exc,
+                )
+                raise RuntimeError(f"Provider unavailable for model '{model}'") from exc
             raise
 
     raise RuntimeError(f"All keys exhausted/sidelined for model '{model}'")
