@@ -178,6 +178,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-25 | Validate partial status + preview flatten                  | `validation_agent` partial on warnings; `preview_flatten.py` + launcher    |
 | 2026-05-26 | Tier 1b validation sidebar + Tier 1e confirm UX            | `SupervisorPanel`, `AnalyzeView`, `ValidateView`                           |
 | 2026-05-26 | Foundations closure sprint                                 | `FOUNDATIONS.md`, baseline seed order, `complete_with_errors`, import-results UI, re-finalize API |
+| 2026-05-26 | Greenfield setup wizard in Phase A                         | `ERPNextAdapter.run_setup_wizard`, `site_prerequisites.run_greenfield_setup_wizard` |
 
 
 ---

@@ -429,6 +429,49 @@ class ERPNextAdapter(ERPAdapter):
 
         return await self._txn_cb.call(_run)
 
+    # ── Setup wizard (greenfield sites) ───────────────────────────────────────
+
+    async def run_setup_wizard(self, args: dict[str, Any]) -> Any:
+        """
+        Complete ERPNext setup wizard via whitelisted RPC.
+
+        POST frappe.desk.page.setup_wizard.setup_wizard.setup_complete
+        with ``args`` as a JSON string — same contract as the desk UI wizard.
+        """
+        url = (
+            f"{self._base_url()}/api/method/"
+            "frappe.desk.page.setup_wizard.setup_wizard.setup_complete"
+        )
+        async with httpx.AsyncClient(
+            verify=self._ssl_verify(),
+            timeout=180.0,
+        ) as client:
+            resp = await client.post(
+                url,
+                headers={
+                    **self._headers(),
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={"args": json.dumps(args)},
+            )
+
+            try:
+                body = resp.json()
+            except Exception:
+                body = {"message": resp.text}
+
+            if resp.status_code in (200, 201):
+                if isinstance(body, dict):
+                    return body.get("message", body)
+                return body
+
+            if 400 <= resp.status_code < 500:
+                error_msg = self._parse_error(resp.status_code, body if isinstance(body, dict) else {})
+                raise ValueError(f"ERPNext setup wizard error {resp.status_code}: {error_msg}")
+
+            error_msg = self._parse_error(resp.status_code, body if isinstance(body, dict) else {})
+            raise RuntimeError(f"ERPNext setup wizard server error {resp.status_code}: {error_msg}")
+
     # ── CRUD Operations ───────────────────────────────────────────────────────
     
     async def create_record(

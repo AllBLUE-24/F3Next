@@ -2,13 +2,26 @@
 Ensure ERPNext site prerequisites before IS import (Company discovery, Warehouses).
 
 Post-onboarding sites: read live Company + abbr from Frappe; never re-onboard.
-Greenfield sites (zero companies): create Company only when the site is empty.
+Greenfield sites (zero companies): run ERPNext setup_complete wizard (fixtures,
+Company, COA, Transit warehouse type, fiscal year) — not a bare Company POST.
 """
 from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, Dict, List, Optional, Set
+from datetime import date
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+_COUNTRY_SETUP_DEFAULTS: Dict[str, Dict[str, str]] = {
+    "India": {
+        "language": "English",
+        "timezone": "Asia/Kolkata",
+        "currency": "INR",
+        "chart_of_accounts": "India - Chart of Accounts",
+    },
+}
+
+_DEFAULT_COUNTRY = "India"
 
 _WAREHOUSE_LINK_FIELDS = frozenset({
     "warehouse",
@@ -35,21 +48,24 @@ async def load_company_context(
     from sqlalchemy import select
 
     ctx: Dict[str, str] = {
-        "country": "India",
+        "country": _DEFAULT_COUNTRY,
         "default_currency": "INR",
     }
     try:
         async with AsyncSessionLocal() as session:
             stmt = (
-                select(ISCompanyProfile.company_name)
+                select(ISCompanyProfile.company_name, ISCompanyProfile.f3iche)
                 .where(ISCompanyProfile.session_id == uuid.UUID(session_id))
                 .order_by(ISCompanyProfile.version.desc())
                 .limit(1)
             )
             res = await session.execute(stmt)
-            name = res.scalar_one_or_none()
-            if name:
-                ctx["company_name"] = str(name).strip()
+            row = res.first()
+            if row:
+                if row.company_name:
+                    ctx["company_name"] = str(row.company_name).strip()
+                if row.f3iche:
+                    ctx["f3iche"] = str(row.f3iche).strip()
     except Exception:
         pass
 
@@ -132,6 +148,148 @@ def _company_abbr_fallback(
     return "".join(p[0] for p in parts).upper()[:10]
 
 
+def _default_fiscal_year_dates(country: str) -> Tuple[str, str]:
+    """Return (fy_start_date, fy_end_date) ISO strings for setup wizard."""
+    today = date.today()
+    if country == "India":
+        if today.month >= 4:
+            start_year = today.year
+        else:
+            start_year = today.year - 1
+        return (
+            f"{start_year}-04-01",
+            f"{start_year + 1}-03-31",
+        )
+    return (f"{today.year}-01-01", f"{today.year}-12-31")
+
+
+def _f3iche_to_domain(f3iche: str) -> Optional[str]:
+    f = (f3iche or "").lower()
+    if "manufactur" in f:
+        return "Manufacturing"
+    if "retail" in f or "trading" in f:
+        return "Retail"
+    if "service" in f:
+        return "Services"
+    return None
+
+
+def build_setup_wizard_args(
+    *,
+    company_name: str,
+    company_abbr: str,
+    country: str = _DEFAULT_COUNTRY,
+    default_currency: str = "INR",
+    f3iche: str = "",
+    fy_start_date: Optional[str] = None,
+    fy_end_date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build args dict for ERPNext setup_complete (validated on regww 2026-05)."""
+    country = country or _DEFAULT_COUNTRY
+    defaults = _COUNTRY_SETUP_DEFAULTS.get(country, _COUNTRY_SETUP_DEFAULTS[_DEFAULT_COUNTRY])
+    if not fy_start_date or not fy_end_date:
+        fy_start_date, fy_end_date = _default_fiscal_year_dates(country)
+
+    args: Dict[str, Any] = {
+        "language": defaults["language"],
+        "country": country,
+        "timezone": defaults["timezone"],
+        "currency": default_currency or defaults["currency"],
+        "company_name": company_name,
+        "company_abbr": company_abbr,
+        "chart_of_accounts": defaults["chart_of_accounts"],
+        "fy_start_date": fy_start_date,
+        "fy_end_date": fy_end_date,
+        "setup_demo": 0,
+    }
+    domain = _f3iche_to_domain(f3iche)
+    if domain:
+        args["domain"] = domain
+    return args
+
+
+async def _fiscal_year_dates_from_site(adapter) -> Optional[Tuple[str, str]]:
+    try:
+        rows = await adapter.list_records(
+            "Fiscal Year",
+            ["year_start_date", "year_end_date"],
+            limit=1,
+        )
+        if rows:
+            start = rows[0].get("year_start_date")
+            end = rows[0].get("year_end_date")
+            if start and end:
+                return str(start), str(end)
+    except Exception:
+        pass
+    return None
+
+
+async def run_greenfield_setup_wizard(
+    adapter,
+    *,
+    company_name: str,
+    company_abbr: str,
+    country: str = _DEFAULT_COUNTRY,
+    default_currency: str = "INR",
+    f3iche: str = "",
+    logger=None,
+) -> bool:
+    """
+    Run ERPNext setup_complete when the site has zero companies.
+
+    Creates fixtures (Transit warehouse type, UOM, etc.), Company, COA, FY.
+    """
+    if not hasattr(adapter, "run_setup_wizard"):
+        if logger:
+            logger.error("  ❌  Adapter does not support run_setup_wizard")
+        return False
+
+    fy_dates = await _fiscal_year_dates_from_site(adapter)
+    args = build_setup_wizard_args(
+        company_name=company_name,
+        company_abbr=company_abbr,
+        country=country,
+        default_currency=default_currency,
+        f3iche=f3iche,
+        fy_start_date=fy_dates[0] if fy_dates else None,
+        fy_end_date=fy_dates[1] if fy_dates else None,
+    )
+
+    if logger:
+        logger.info(
+            "  🧙  Greenfield setup wizard | company=%s abbr=%s country=%s",
+            company_name,
+            company_abbr,
+            country,
+        )
+
+    try:
+        result = await adapter.run_setup_wizard(args)
+    except Exception as exc:
+        if logger:
+            logger.error("  ❌  Setup wizard failed: %s", exc)
+        return False
+
+    if isinstance(result, dict) and str(result.get("status", "")).lower() == "ok":
+        if logger:
+            logger.info("  🧙  Setup wizard completed (status=ok)")
+        return True
+
+    live = await discover_live_company(adapter, company_name, logger)
+    if live and live.get("name"):
+        if logger:
+            logger.info(
+                "  🧙  Setup wizard finished — Company '%s' on site",
+                live["name"],
+            )
+        return True
+
+    if logger:
+        logger.error("  ❌  Setup wizard did not create Company (result=%s)", result)
+    return False
+
+
 def _normalize_name(s: str) -> str:
     return " ".join(str(s or "").strip().lower().split())
 
@@ -198,7 +356,7 @@ async def resolve_company_for_import(
     """
     Live-API-first company resolution.
 
-    Returns dict: name, abbr, source (live|live_fallback|created), created (bool).
+    Returns dict: name, abbr, source (live|live_fallback|setup_wizard), created (bool).
     """
     ctx = await load_company_context(session_id, company_slug)
     preferred = ctx.get("company_name", "")
@@ -249,51 +407,45 @@ async def resolve_company_for_import(
                 "created": False,
             }
 
-    # True greenfield — zero companies on site
+    # True greenfield — zero companies: ERPNext setup wizard (not bare Company POST)
     if not preferred:
         if logger:
             logger.error("  ❌  Site has no Company and no profile company name")
         return None
 
     abbr = _company_abbr_fallback(preferred, company_slug, warehouse_names)
-    record = {
-        "company_name": preferred,
-        "abbr": abbr,
-        "default_currency": default_currency,
-        "country": country,
-    }
-    try:
-        await adapter.create_record("Company", record)
+    wizard_ok = await run_greenfield_setup_wizard(
+        adapter,
+        company_name=preferred,
+        company_abbr=abbr,
+        country=country,
+        default_currency=default_currency,
+        f3iche=ctx.get("f3iche", ""),
+        logger=logger,
+    )
+    if not wizard_ok:
+        if logger:
+            logger.error("  ❌  Greenfield setup wizard failed for '%s'", preferred)
+        return None
+
+    rediscovered = await discover_live_company(adapter, preferred, logger)
+    if rediscovered and rediscovered.get("name"):
         if logger:
             logger.info(
-                "  🏢  Greenfield: created Company '%s' (abbr=%s)",
-                preferred,
-                abbr,
+                "  🏢  Greenfield: setup wizard created Company '%s' (abbr=%s)",
+                rediscovered["name"],
+                rediscovered.get("abbr") or abbr,
             )
         return {
-            "name": preferred,
-            "abbr": abbr,
-            "source": "created",
+            "name": rediscovered["name"],
+            "abbr": rediscovered.get("abbr") or abbr,
+            "source": "setup_wizard",
             "created": True,
         }
-    except ValueError as exc:
-        err = str(exc).lower()
-        if "already exist" in err or "duplicate" in err:
-            rediscovered = await discover_live_company(adapter, preferred, logger)
-            if rediscovered:
-                return {
-                    "name": rediscovered["name"],
-                    "abbr": rediscovered.get("abbr") or "",
-                    "source": "live",
-                    "created": False,
-                }
-        if logger:
-            logger.error("  ❌  Greenfield Company create failed: %s", exc)
-        return None
-    except Exception as exc:
-        if logger:
-            logger.error("  ❌  Greenfield Company create failed: %s", exc)
-        return None
+
+    if logger:
+        logger.error("  ❌  Setup wizard ran but Company '%s' not found on site", preferred)
+    return None
 
 
 async def discover_fiscal_year_exists(adapter, logger) -> bool:
