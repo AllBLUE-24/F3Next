@@ -507,6 +507,7 @@ export function SupervisorPanel() {
   const [readiness, setReadiness] = useState<DataReadinessReport | null>(null);
   const [validatePreview, setValidatePreview] = useState<ValidatePreviewData | null>(null);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary>(null);
+  const [workflowStage, setWorkflowStage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
@@ -553,6 +554,7 @@ export function SupervisorPanel() {
       if (stateRes.ok) {
         const stateData = await stateRes.json();
         setSessionSummary(stateData?.session ?? null);
+        setWorkflowStage(stateData?.stage ?? null);
       }
 
       if (isPostMappingRoute && validateRes) {
@@ -637,10 +639,22 @@ export function SupervisorPanel() {
                 {openPrompts.length} item{openPrompts.length > 1 ? "s" : ""} need your input
               </div>
             )}
-            {openPrompts.length === 0 && (
+            {openPrompts.length === 0 && workflowStage === 'import_blocked' && (
+              <div className="text-[10px] text-red-400 font-medium">Import blocked — resolve critical gaps</div>
+            )}
+            {openPrompts.length === 0 && workflowStage === 'complete' && (
+              <div className="text-[10px] text-emerald-400 font-medium">Import complete</div>
+            )}
+            {openPrompts.length === 0 && workflowStage === 'importing' && (
+              <div className="text-[10px] text-amber-400 font-medium">Live import running…</div>
+            )}
+            {openPrompts.length === 0 &&
+              workflowStage !== 'import_blocked' &&
+              workflowStage !== 'complete' &&
+              workflowStage !== 'importing' && (
               <div className="text-[10px] text-zinc-600">Monitoring your import</div>
             )}
-            {batchCount > 1 && (
+            {batchCount > 1 && workflowStage !== 'import_blocked' && workflowStage !== 'complete' && (
               <div className="text-[10px] text-amber-400 font-medium">
                 Re-upload round {batchCount} in progress · {totalFiles} files tracked
               </div>

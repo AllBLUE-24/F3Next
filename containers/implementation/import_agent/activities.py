@@ -42,6 +42,25 @@ def _get_s3_client():
 _KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "erpnext"
 _BASELINE_PATH = _KB_DIR / "erpnext_deafaults_baseline.json"
 
+# ERPNext site/company setup — no user CSV required; must not block live import.
+_ERPNEXT_AUTO_CONFIG = frozenset({
+    "Company",
+    "Chart of Accounts",
+    "Account",
+    "Cost Center",
+    "Fiscal Year",
+    "Currency",
+    "Warehouse",
+    "Tax Template",
+})
+
+
+def _load_baseline_data() -> Dict[str, List]:
+    if not _BASELINE_PATH.exists():
+        return {}
+    with open(_BASELINE_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 
 # ── Baseline seeder helpers ───────────────────────────────────────────────────
 
@@ -563,10 +582,12 @@ class _ImportEngine:
         _PHASE_A_AUTO_SETUP = {
             "Company":             "discover_from_site",
             "Chart of Accounts":   "auto_from_company",
+            "Account":             "auto_from_company",
             "Cost Center":         "auto_from_company",
             "Fiscal Year":         "discover_from_site",
             "Currency":            "seed_from_baseline",
             "Warehouse":           "seed_from_config",
+            "Tax Template":        "skip",
         }
 
         # ── PROTOCOL-COMPLIANT: Phases are derived from setup_steps data. ────────────
@@ -951,6 +972,7 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         readiness_result = await session.execute(stmt_readiness)
         readiness_row = readiness_result.scalar_one_or_none()
         criticality_map = build_doctype_criticality_map(readiness_row)
+        baseline_data = _load_baseline_data()
 
         # 4. Update the steps in the plan (+ inject mapped doctypes missing from blueprint)
         phases = plan_row.phases or {}
@@ -977,6 +999,25 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
                 ) or step.get("data_source") == "pending_mapping"
 
                 if needs_file and unmapped:
+                    from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+                    dt_resolved = resolve_doctype(dt or "")
+                    baseline_vals = baseline_data.get(dt_resolved) or baseline_data.get(dt or "")
+
+                    if baseline_vals:
+                        step["action"] = "seed_from_baseline"
+                        step["data_source"] = "baseline"
+                        step["records"] = len(baseline_vals)
+                        updated_steps.append(step)
+                        continue
+
+                    if dt_resolved in _ERPNEXT_AUTO_CONFIG or (dt or "") in _ERPNEXT_AUTO_CONFIG:
+                        step["action"] = "skip"
+                        step["data_source"] = "auto"
+                        step["records"] = 0
+                        updated_steps.append(step)
+                        continue
+
                     if action == "optional_skip":
                         crit = step.get("criticality") or gap_criticality(
                             dt or "", phase_id, criticality_map,

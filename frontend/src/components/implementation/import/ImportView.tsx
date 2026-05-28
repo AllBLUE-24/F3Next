@@ -12,6 +12,12 @@ import {
 import { getBaseApiUrl } from '@/lib/config';
 import type { LiveInstance } from '@/types/implementation';
 
+interface PlanGap {
+  doctype: string;
+  action: string;
+  criticality?: string;
+}
+
 interface Props {
   jobId: string;
   companySlug: string;
@@ -19,22 +25,49 @@ interface Props {
   approveAction: (formData: FormData) => Promise<void>;
 }
 
+function extractCriticalGaps(plan: Record<string, unknown> | null): PlanGap[] {
+  if (!plan) return [];
+  const phases = (plan.phases as Record<string, { steps?: PlanGap[] }>) || {};
+  const gaps: PlanGap[] = [];
+  for (const phase of Object.values(phases)) {
+    for (const step of phase.steps || []) {
+      if (
+        step.action === 'data_gap' ||
+        (step.criticality === 'critical' && step.action !== 'seed_from_baseline' && step.action !== 'skip')
+      ) {
+        gaps.push(step);
+      }
+    }
+  }
+  return gaps;
+}
+
 export function ImportView({ jobId, companySlug, instance, approveAction }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [approved, setApproved] = useState(instance.isApproved);
   const [stage, setStage] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
+  const [gaps, setGaps] = useState<PlanGap[]>([]);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
-  const pollStage = useCallback(async () => {
+  const poll = useCallback(async () => {
     try {
-      const res = await fetch(`${getBaseApiUrl()}/api/implementation/stage/${jobId}`, {
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setStage(data.stage || null);
-      if (data.stage === 'complete' || data.stage === 'importing') {
-        setApproved(true);
+      const base = getBaseApiUrl();
+      const [stageRes, planRes] = await Promise.all([
+        fetch(`${base}/api/implementation/stage/${jobId}`, { cache: 'no-store' }),
+        fetch(`${base}/api/implementation/import-plan/${jobId}`, { cache: 'no-store' }),
+      ]);
+
+      if (stageRes.ok) {
+        const data = await stageRes.json();
+        setStage(data.stage || null);
+      }
+
+      if (planRes.ok) {
+        const data = await planRes.json();
+        const plan = data.import_plan as Record<string, unknown> | null;
+        setPlanStatus((plan?.status as string) || null);
+        setGaps(extractCriticalGaps(plan));
       }
     } catch {
       // retry on next interval
@@ -42,32 +75,57 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
   }, [jobId]);
 
   useEffect(() => {
-    pollStage();
-    const id = setInterval(pollStage, 4000);
+    poll();
+    const id = setInterval(poll, 4000);
     return () => clearInterval(id);
-  }, [pollStage]);
+  }, [poll]);
 
+  const isBlocked = stage === 'import_blocked' || planStatus === 'blocked';
   const isImporting = stage === 'importing';
-  const isComplete = stage === 'complete' || approved;
-  const awaitingApproval = stage === 'awaiting_sandbox_approval' && !approved;
+  const isComplete = stage === 'complete';
+  const awaitingApproval =
+    stage === 'awaiting_sandbox_approval' && planStatus !== 'blocked' && !isBlocked;
   const preparingPlan =
     stage !== null &&
     !awaitingApproval &&
     !isImporting &&
     !isComplete &&
-    stage !== 'import_blocked';
+    !isBlocked &&
+    planStatus !== 'blocked';
 
   const handleApprove = () => {
+    setApproveError(null);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append('companySlug', companySlug);
-      formData.append('jobId', jobId);
-      await approveAction(formData);
-      setApproved(true);
-      setShowConfirm(false);
-      pollStage();
+      try {
+        const formData = new FormData();
+        formData.append('companySlug', companySlug);
+        formData.append('jobId', jobId);
+        await approveAction(formData);
+        setShowConfirm(false);
+        await poll();
+      } catch (err) {
+        setApproveError(err instanceof Error ? err.message : 'Import approval failed');
+        setShowConfirm(false);
+        await poll();
+      }
     });
   };
+
+  const headerTitle = isComplete
+    ? "You're live."
+    : isBlocked
+      ? 'Import blocked.'
+      : isImporting
+        ? 'Import in progress.'
+        : 'Your ERP is ready.';
+
+  const headerSubtitle = isComplete
+    ? 'Your data has been imported into your live ERPNext instance.'
+    : isBlocked
+      ? 'Critical setup gaps must be resolved before live import can run.'
+      : isImporting
+        ? 'We are writing your validated data into ERPNext. This may take a few minutes.'
+        : 'Review your live instance below. When ready, approve to run the live import.';
 
   return (
     <div className="space-y-8">
@@ -75,27 +133,25 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-2">
           Step 04 of 04
         </p>
-        <h1 className="text-3xl font-black text-white mb-3">
-          {isComplete ? "You're live." : isImporting ? 'Import in progress.' : 'Your ERP is ready.'}
-        </h1>
-        <p className="text-gray-500 text-base leading-relaxed">
-          {isComplete
-            ? 'Your data has been imported into your live ERPNext instance.'
-            : isImporting
-              ? 'We are writing your validated data into ERPNext. This may take a few minutes.'
-              : 'Review your live instance below. When ready, approve to run the live import.'}
-        </p>
+        <h1 className="text-3xl font-black text-white mb-3">{headerTitle}</h1>
+        <p className="text-gray-500 text-base leading-relaxed">{headerSubtitle}</p>
       </div>
 
       <div
         className={`rounded-2xl border overflow-hidden transition-all duration-500 ${
-          isComplete ? 'border-green-500/30 bg-green-500/5' : 'border-amber-500/20 bg-amber-500/5'
+          isComplete
+            ? 'border-green-500/30 bg-green-500/5'
+            : isBlocked
+              ? 'border-red-500/20 bg-red-500/5'
+              : 'border-amber-500/20 bg-amber-500/5'
         }`}
       >
         <div className="p-6 space-y-5">
           <div className="flex items-center gap-3">
             {isComplete ? (
               <CheckCircle className="w-5 h-5 text-green-400" />
+            ) : isBlocked ? (
+              <AlertTriangle className="w-5 h-5 text-red-400" />
             ) : isImporting ? (
               <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
             ) : (
@@ -103,10 +159,16 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
             )}
             <span
               className={`text-sm font-bold ${
-                isComplete ? 'text-green-400' : 'text-amber-400'
+                isComplete ? 'text-green-400' : isBlocked ? 'text-red-400' : 'text-amber-400'
               }`}
             >
-              {isComplete ? 'Live Instance' : isImporting ? 'Import Running' : 'Live Instance'}
+              {isComplete
+                ? 'Live Instance'
+                : isBlocked
+                  ? 'Import Blocked'
+                  : isImporting
+                    ? 'Import Running'
+                    : 'Live Instance'}
             </span>
           </div>
 
@@ -155,6 +217,48 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
               Finalizing your data mapping. The approve button will appear shortly.
             </p>
           </div>
+        </div>
+      )}
+
+      {isBlocked && (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-400">Live import was not run</p>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                The import plan is blocked. ERPNext config masters (UOM, groups, territory) are
+                normally seeded automatically — if you still see gaps below, re-run the pipeline
+                after deploying the latest worker, or upload files for the listed doctypes.
+              </p>
+            </div>
+          </div>
+
+          {gaps.length > 0 && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-red-400">
+                Critical gaps ({gaps.length})
+              </p>
+              <ul className="space-y-1.5">
+                {gaps.map((g) => (
+                  <li
+                    key={g.doctype}
+                    className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-black/20 border border-white/[0.05]"
+                  >
+                    <span className="font-mono text-white">{g.doctype}</span>
+                    <span className="text-[10px] uppercase text-red-400">{g.action}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {approveError && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-300">{approveError}</p>
         </div>
       )}
 
@@ -220,18 +324,6 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
             </div>
           )}
         </>
-      )}
-
-      {stage === 'import_blocked' && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-bold text-red-400">Import blocked</p>
-            <p className="text-xs text-gray-600 mt-0.5">
-              Critical data gaps must be resolved before live import can proceed.
-            </p>
-          </div>
-        </div>
       )}
 
       {isComplete && (
