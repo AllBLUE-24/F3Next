@@ -21,11 +21,15 @@ from typing import Any, Optional
 from containers.os.payload_generator.kb_fields import field_kb
 from shared.os_field_semantics import (
     apply_field_defaults_to_payload,
+    apply_profile_autofill_to_payload,
     is_delivery_date_skipped,
+    is_pseudo_erp_value,
     is_schedule_date_skipped,
     map_entities_to_payload_fields,
     normalize_entities_for_doctype,
+    normalize_items_list,
     resolve_entity_to_field,
+    sanitize_entities_for_transaction,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,7 +72,7 @@ def _inject_defaults(
     today = date.today().isoformat()
 
     # Company — always required, always from real profile
-    if "company" not in payload:
+    if "company" not in payload or is_pseudo_erp_value(payload.get("company")):
         payload["company"] = _get_company(context)
 
     # Date fields
@@ -110,7 +114,7 @@ def _build_items(items_entities: list, doctype: str, context: dict, kb) -> list[
     """
     result: list[dict] = []
 
-    for item in items_entities:
+    for item in normalize_items_list(items_entities):
         row: dict[str, Any] = {}
 
         if item.get("item_code"):
@@ -137,7 +141,8 @@ def _build_items(items_entities: list, doctype: str, context: dict, kb) -> list[
         if item.get("description"):
             row["description"] = item["description"]
 
-        result.append(row)
+        if row.get("item_code"):
+            result.append(row)
 
     return result
 
@@ -147,6 +152,8 @@ def _build_items(items_entities: list, doctype: str, context: dict, kb) -> list[
 def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict:
     """Build full document payload for a 'create' step."""
     doctype = step.get("doctype", "")
+    profile = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
+    entities = sanitize_entities_for_transaction(doctype, entities, profile)
     entities = normalize_entities_for_doctype(doctype, entities)
     payload: dict[str, Any] = map_entities_to_payload_fields(doctype, entities)
 
@@ -213,6 +220,7 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
 
     payload = apply_field_defaults_to_payload(doctype, payload)
     payload = _inject_defaults(payload, doctype, context, kb, entities=entities)
+    payload = apply_profile_autofill_to_payload(doctype, payload, context)
 
     return payload
 

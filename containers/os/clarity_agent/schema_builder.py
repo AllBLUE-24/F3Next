@@ -179,9 +179,22 @@ def fill_intent_gaps_from_partial(resolved: dict, partial: dict) -> dict:
             continue
         merged[k] = copy.deepcopy(v)
 
-    r_items = r_ent.get("items") if isinstance(r_ent.get("items"), list) else []
-    p_items = p_ent.get("items") if isinstance(p_ent.get("items"), list) else []
-    merged["items"] = copy.deepcopy(r_items) if len(r_items) > 0 else copy.deepcopy(p_items)
+    from shared.os_field_semantics import normalize_items_list
+
+    p_items = normalize_items_list(p_ent.get("items"))
+    r_items = normalize_items_list(r_ent.get("items"))
+    p_has_code = any(isinstance(r, dict) and r.get("item_code") for r in p_items)
+    r_has_code = any(isinstance(r, dict) and r.get("item_code") for r in r_items)
+    if p_has_code and not r_has_code:
+        merged["items"] = copy.deepcopy(p_items)
+    elif r_has_code:
+        merged["items"] = copy.deepcopy(r_items)
+    elif p_items:
+        merged["items"] = copy.deepcopy(p_items)
+    elif r_items:
+        merged["items"] = copy.deepcopy(r_items)
+    else:
+        merged["items"] = []
 
     for party in ("customer", "supplier"):
         if _empty_scalar(merged.get(party)) and not _empty_scalar(p_ent.get(party)):

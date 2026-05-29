@@ -117,6 +117,14 @@ class FieldKnowledgeBase:
 
         v = str(value).strip().lower()
 
+        try:
+            from shared.os_field_semantics import parse_natural_date
+            parsed = parse_natural_date(value)
+            if parsed:
+                return parsed
+        except Exception:
+            pass
+
         nl_map = self._date_rules.get("natural_language", {})
 
         # Direct natural language

@@ -8,7 +8,10 @@ No hardcoded doctype lists in callers.
 
 from __future__ import annotations
 
+import copy
 import json
+import re
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
@@ -33,6 +36,34 @@ _PSEUDO_DEFAULT_VALUES = frozenset({
     "transaction_date + 10 days",
     "{customer_name}",
 })
+
+_MONTHS = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+    "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+    "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+}
+
+
+def is_pseudo_erp_value(value: Any) -> bool:
+    """True for KB placeholders that must not be sent to ERP or shown to users."""
+    if value is None:
+        return False
+    if not isinstance(value, str):
+        return False
+    s = value.strip()
+    if not s:
+        return False
+    sl = s.casefold()
+    if sl in _PSEUDO_DEFAULT_VALUES:
+        return True
+    if sl.startswith("user_default_") or sl.startswith("fetch_from_"):
+        return True
+    if "transaction_date" in sl and "+" in sl:
+        return True
+    if "{" in s and "}" in s:
+        return True
+    return False
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -199,13 +230,293 @@ def apply_kb_defaults_to_entities(doctype: str, entities: dict[str, Any]) -> dic
     dt_cfg = get_doctype_config(doctype)
     fm = dt_cfg.get("field_mappings") or {}
     for field in dt_cfg.get("mandatory_fields") or []:
-        if out.get(field) not in (None, "", [], {}):
+        if _entity_value_present(out.get(field)):
             continue
         spec = fm.get(field) if isinstance(fm.get(field), dict) else {}
         default = spec.get("default_value")
-        if default not in (None, ""):
+        if default not in (None, "") and not is_pseudo_erp_value(str(default)):
             out[field] = default
     return out
+
+
+def parse_natural_date(value: Any, *, default_year: Optional[int] = None) -> Optional[str]:
+    """
+    Parse user/clarification dates like '5th june' → ISO using current year by default.
+    Returns None if not parseable.
+    """
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    v = raw.casefold()
+    year = default_year if default_year is not None else date.today().year
+
+    if v in ("today",):
+        return date.today().isoformat()
+    if v == "tomorrow":
+        from datetime import timedelta
+        return (date.today() + timedelta(days=1)).isoformat()
+
+    if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
+        try:
+            d = date.fromisoformat(raw)
+            if d.year < 2000:
+                d = d.replace(year=year)
+            return d.isoformat()
+        except ValueError:
+            pass
+
+    m = re.search(
+        r"(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)(?:\s+(\d{4}))?",
+        v,
+    )
+    if m:
+        day = int(m.group(1))
+        mon = _MONTHS.get(m.group(2))
+        yr = int(m.group(3)) if m.group(3) else year
+        if mon:
+            try:
+                return date(yr, mon, day).isoformat()
+            except ValueError:
+                pass
+
+    m2 = re.search(r"([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s+(\d{4}))?", v)
+    if m2:
+        mon = _MONTHS.get(m2.group(1))
+        day = int(m2.group(2))
+        yr = int(m2.group(3)) if m2.group(3) else year
+        if mon:
+            try:
+                return date(yr, mon, day).isoformat()
+            except ValueError:
+                pass
+
+    for sep in ("-", "/"):
+        parts = v.split(sep)
+        if len(parts) == 3 and len(parts[2]) == 4:
+            try:
+                d = date(int(parts[2]), int(parts[1]), int(parts[0]))
+                return d.isoformat()
+            except ValueError:
+                pass
+
+    return None
+
+
+def normalize_item_row(row: Any) -> dict[str, Any]:
+    """Map LLM/clarification item keys → payload keys (item_code, qty, uom)."""
+    if not isinstance(row, dict):
+        return {}
+    out: dict[str, Any] = dict(row)
+    if not out.get("item_code") and out.get("item_name"):
+        out["item_code"] = out["item_name"]
+    if out.get("qty") is None and out.get("quantity") is not None:
+        out["qty"] = out["quantity"]
+    uom = out.get("uom") or out.get("unit")
+    if uom and not out.get("uom"):
+        out["uom"] = uom
+    return out
+
+
+def normalize_items_list(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    norm: list[dict[str, Any]] = []
+    for row in items:
+        r = normalize_item_row(row)
+        if r.get("item_code") or r.get("qty") is not None:
+            norm.append(r)
+    return norm
+
+
+def _items_have_line_codes(items: list[dict[str, Any]]) -> bool:
+    return any(isinstance(r, dict) and r.get("item_code") for r in items)
+
+
+def preserve_transaction_entities(
+    merged: dict[str, Any],
+    partial: dict[str, Any],
+    doctype: str,
+) -> dict[str, Any]:
+    """
+    After any clarification merge, keep good Clarity extraction (customer, item lines).
+    """
+    out = copy.deepcopy(merged) if isinstance(merged, dict) else {}
+    if not isinstance(partial, dict):
+        return out
+
+    p_ent = partial.get("entities") if isinstance(partial.get("entities"), dict) else {}
+    m_ent = out.get("entities") if isinstance(out.get("entities"), dict) else {}
+    if not isinstance(m_ent, dict):
+        m_ent = {}
+    entities = dict(m_ent)
+
+    cfg = _os_validation_config()
+    sales_dts = frozenset(cfg.get("sales_doctypes_require_customer") or [])
+
+    pc = p_ent.get("customer")
+    mc = entities.get("customer")
+    if pc and (
+        not mc
+        or (isinstance(pc, str) and isinstance(mc, str) and len(pc) > len(mc) and pc.lower().startswith(mc.lower()))
+    ):
+        entities["customer"] = copy.deepcopy(pc)
+
+    if doctype in sales_dts and entities.get("supplier") and not p_ent.get("supplier"):
+        entities.pop("supplier", None)
+
+    p_items = normalize_items_list(p_ent.get("items"))
+    m_items = normalize_items_list(entities.get("items"))
+    p_codes = {str(r.get("item_code")) for r in p_items if r.get("item_code")}
+    m_codes = {str(r.get("item_code")) for r in m_items if r.get("item_code")}
+    if p_codes and (not m_codes or p_codes != m_codes):
+        entities["items"] = copy.deepcopy(p_items)
+    elif m_items:
+        entities["items"] = m_items
+    elif p_items:
+        entities["items"] = copy.deepcopy(p_items)
+
+    for key in list(entities.keys()):
+        if key in _NON_FIELD_ENTITY_KEYS:
+            continue
+        if is_pseudo_erp_value(entities.get(key)):
+            entities.pop(key, None)
+
+    out["entities"] = entities
+    if _empty_scalar(out.get("intent_id")) and partial.get("intent_id"):
+        out["intent_id"] = partial["intent_id"]
+    if _empty_scalar(out.get("target_doctype")) and partial.get("target_doctype"):
+        out["target_doctype"] = partial["target_doctype"]
+    return out
+
+
+def _empty_scalar(v: Any) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, str) and not v.strip():
+        return True
+    return False
+
+
+def sanitize_entities_for_transaction(
+    doctype: str,
+    entities: dict[str, Any],
+    profile: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Normalize items, strip pseudo defaults, apply profile autofill on entity dict."""
+    ent = dict(entities) if isinstance(entities, dict) else {}
+    ent["items"] = normalize_items_list(ent.get("items"))
+    for key in list(ent.keys()):
+        if key in ("items", "extra"):
+            continue
+        if is_pseudo_erp_value(ent.get(key)):
+            ent.pop(key, None)
+    ent, _applied = apply_erp_autofill_from_profile(doctype, ent, profile or {})
+    return ent
+
+
+def clarification_is_simple(clarification_qa: list[Any]) -> bool:
+    """Date/skip answers should not trigger a full LLM intent rewrite."""
+    if not clarification_qa:
+        return False
+    last = clarification_qa[-1]
+    if not isinstance(last, dict):
+        return False
+    q = str(last.get("question") or "").casefold()
+    if "validation" in q and ("json" in q or "field→value" in q or "numbered" in q):
+        return False
+    if "naming_series" in q or "conversion_rate" in q or "selling_price_list" in q:
+        return False
+    return any(tok in q for tok in (
+        "deliver", "delivery", "schedule", "business info", "business_requirements",
+    )) or len(clarification_qa) == 1
+
+
+def merge_clarification_into_intent(
+    partial_intent: dict[str, Any],
+    clarification_qa: list[Any],
+    *,
+    profile: Optional[dict[str, Any]] = None,
+) -> Optional[dict[str, Any]]:
+    """
+    Deterministic clarification merge (no LLM). Returns None if LLM path is required.
+    """
+    if not clarification_is_simple(clarification_qa):
+        return None
+
+    doctype = str(partial_intent.get("target_doctype") or "")
+    out = copy.deepcopy(partial_intent)
+    out = apply_business_clarification_answers(out, clarification_qa)
+
+    entities = out.get("entities") if isinstance(out.get("entities"), dict) else {}
+    for qa in clarification_qa or []:
+        if not isinstance(qa, dict):
+            continue
+        q = str(qa.get("question") or "").casefold()
+        ans = str(qa.get("answer") or "").strip()
+        if not ans or is_skip_answer(ans):
+            continue
+        if "deliver" in q or "delivery" in q:
+            parsed = parse_natural_date(ans)
+            if parsed:
+                entities["delivery_date"] = parsed
+                extra = entities.get("extra") if isinstance(entities.get("extra"), dict) else {}
+                extra = dict(extra)
+                extra.pop("delivery_date_skipped", None)
+                entities["extra"] = extra
+        if "schedule" in q:
+            parsed = parse_natural_date(ans)
+            if parsed:
+                entities["schedule_date"] = parsed
+
+    out["entities"] = sanitize_entities_for_transaction(doctype, entities, profile)
+    out = preserve_transaction_entities(out, partial_intent, doctype)
+    out["ambiguities"] = []
+    out["has_ambiguities"] = False
+    return out
+
+
+def apply_profile_autofill_to_payload(
+    doctype: str,
+    payload: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """Inject ERP-internal mandatory fields from company profile (not user input)."""
+    profile = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
+    company = (
+        profile.get("company")
+        or profile.get("default_company")
+        or profile.get("company_name")
+    )
+    currency = profile.get("default_currency") or "INR"
+    price_list = profile.get("default_price_list") or "Standard Selling"
+    purchase_pl = profile.get("purchase_price_list") or "Standard Buying"
+
+    if company and (not payload.get("company") or is_pseudo_erp_value(payload.get("company"))):
+        payload["company"] = company
+    if currency and (not payload.get("currency") or is_pseudo_erp_value(payload.get("currency"))):
+        payload["currency"] = currency
+    payload.setdefault("conversion_rate", 1.0)
+    payload.setdefault("price_list_currency", currency)
+    payload.setdefault("plc_conversion_rate", 1.0)
+
+    if doctype in ("Sales Order", "Sales Invoice", "Delivery Note", "Quotation"):
+        if not payload.get("selling_price_list") or is_pseudo_erp_value(payload.get("selling_price_list")):
+            payload["selling_price_list"] = price_list
+        payload.setdefault("order_type", "Sales")
+    if doctype in ("Purchase Order", "Purchase Invoice", "Purchase Receipt"):
+        if not payload.get("buying_price_list") or is_pseudo_erp_value(payload.get("buying_price_list")):
+            payload["buying_price_list"] = purchase_pl
+
+    fm = get_field_mappings(doctype)
+    spec = fm.get("naming_series") if isinstance(fm.get("naming_series"), dict) else {}
+    options = spec.get("options") or []
+    if options and not payload.get("naming_series"):
+        payload["naming_series"] = options[0] if isinstance(options[0], str) else str(options[0])
+
+    payload.setdefault("status", "Draft")
+    return payload
 
 
 def normalize_entities_for_doctype(doctype: str, entities: dict[str, Any]) -> dict[str, Any]:
@@ -485,12 +796,22 @@ def apply_business_clarification_answers(
                 if "schedule" in question:
                     entities["schedule_date"] = None
                     extra["schedule_date_skipped"] = True
-            elif ("delivery" in question or "deliver" in question) and not entities.get("delivery_date"):
-                entities["delivery_date"] = answer
-                extra.pop("delivery_date_skipped", None)
-            elif "schedule" in question and not entities.get("schedule_date"):
-                entities["schedule_date"] = answer
-                extra.pop("schedule_date_skipped", None)
+            elif "delivery" in question or "deliver" in question:
+                parsed = parse_natural_date(answer)
+                if parsed:
+                    entities["delivery_date"] = parsed
+                    extra.pop("delivery_date_skipped", None)
+                elif not is_skip_answer(answer):
+                    entities["delivery_date"] = answer
+                    extra.pop("delivery_date_skipped", None)
+            elif "schedule" in question:
+                parsed = parse_natural_date(answer)
+                if parsed:
+                    entities["schedule_date"] = parsed
+                    extra.pop("schedule_date_skipped", None)
+                elif not is_skip_answer(answer):
+                    entities["schedule_date"] = answer
+                    extra.pop("schedule_date_skipped", None)
 
     entities["extra"] = extra
     out["entities"] = entities
@@ -556,15 +877,16 @@ def map_entities_to_payload_fields(
 
 
 def apply_field_defaults_to_payload(doctype: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Fill payload fields from KB default_value when not already set."""
+    """Fill payload fields from KB default_value when not already set (skip pseudo placeholders)."""
     for _key, spec in get_field_mappings(doctype).items():
         if not isinstance(spec, dict):
             continue
         fn = str(spec.get("fieldname") or _key)
         if fn in payload and payload[fn] not in (None, "", [], {}):
-            continue
+            if not is_pseudo_erp_value(payload[fn]):
+                continue
         default = spec.get("default_value")
-        if default not in (None, ""):
+        if default not in (None, "") and not is_pseudo_erp_value(str(default)):
             payload[fn] = default
     return payload
 

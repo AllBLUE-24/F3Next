@@ -19,6 +19,7 @@ Key improvements:
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -745,17 +746,37 @@ Preserve intent_id, target_doctype, and existing entities (customer, supplier, i
 unless the user explicitly changed them in the clarification answers.
 Return ONLY valid JSON:"""
 
+    from containers.os.clarity_agent.schema_builder import (
+        fill_intent_gaps_from_partial,
+        normalise_intent_dict,
+    )
+    from shared.os_field_semantics import (
+        apply_business_clarification_answers,
+        merge_clarification_into_intent,
+        preserve_transaction_entities,
+    )
+
+    deterministic = merge_clarification_into_intent(partial_intent, clarification_qa)
+    if deterministic is not None:
+        result = normalise_intent_dict(
+            deterministic,
+            prompt=original_prompt,
+            erp_type=erp_type,
+            session_context=[],
+        )
+        activity.logger.info(
+            "resolve_ambiguity: deterministic merge intent=%s  confidence=%.2f",
+            result.get("intent_id"), result.get("confidence", 0),
+        )
+        return result
+
     try:
         raw = await _call_llm(prompt)
         if not isinstance(raw, dict):
             raw = {}
-        from containers.os.clarity_agent.schema_builder import (
-            fill_intent_gaps_from_partial,
-            normalise_intent_dict,
-        )
-        from shared.os_field_semantics import apply_business_clarification_answers
-
         merged = fill_intent_gaps_from_partial(raw, partial_intent)
+        doctype = str(merged.get("target_doctype") or partial_intent.get("target_doctype") or "")
+        merged = preserve_transaction_entities(merged, partial_intent, doctype)
         result = normalise_intent_dict(
             merged,
             prompt=original_prompt,
@@ -763,23 +784,31 @@ Return ONLY valid JSON:"""
             session_context=[],
         )
         result = fill_intent_gaps_from_partial(result, partial_intent)
+        result = preserve_transaction_entities(result, partial_intent, doctype)
         result = apply_business_clarification_answers(result, clarification_qa)
+        result = preserve_transaction_entities(result, partial_intent, doctype)
         result = normalise_intent_dict(
             result,
             prompt=original_prompt,
             erp_type=erp_type,
             session_context=[],
         )
+        result["ambiguities"] = []
+        result["has_ambiguities"] = False
 
         activity.logger.info(
-            "resolve_ambiguity: intent=%s  confidence=%.2f",
+            "resolve_ambiguity: LLM merge intent=%s  confidence=%.2f",
             result.get("intent_id"), result.get("confidence", 0),
         )
         return result
 
     except Exception as e:
-        activity.logger.warning("resolve_ambiguity failed (%s) — using partial intent", e)
-        # Clear ambiguities so pipeline doesn't loop forever
-        partial_intent["ambiguities"]    = []
-        partial_intent["has_ambiguities"] = False
-        return partial_intent
+        activity.logger.warning("resolve_ambiguity failed (%s) — preserving partial intent", e)
+        fallback = apply_business_clarification_answers(
+            copy.deepcopy(partial_intent), clarification_qa,
+        )
+        doctype = str(fallback.get("target_doctype") or "")
+        fallback = preserve_transaction_entities(fallback, partial_intent, doctype)
+        fallback["ambiguities"] = []
+        fallback["has_ambiguities"] = False
+        return fallback

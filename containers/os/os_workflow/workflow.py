@@ -197,14 +197,20 @@ def _build_validation_clarification_question(validation: dict) -> str:
     rule_ids = {e.get("rule_id") for e in errs if isinstance(e, dict)}
     fields = {e.get("field") for e in errs if isinstance(e, dict)}
 
-    # Most common blockers
+    if "unknown_customer" in rule_ids:
+        bad = next((e.get("message") for e in errs if isinstance(e, dict) and e.get("rule_id") == "unknown_customer"), "")
+        return f"{bad} Please provide an existing customer name (as it appears in your customer list)."
+
+    if "delivery_date_validation" in rule_ids or "past_delivery_date" in rule_ids:
+        bad = next(
+            (e.get("message") for e in errs if isinstance(e, dict) and "delivery" in str(e.get("field") or "")),
+            "",
+        )
+        return bad or "Please provide a valid delivery date (e.g. 5 June 2026), or say 'skip' if not needed."
+
     if "mandatory_fields" in rule_ids or "child_table_validation" in rule_ids:
         if any("items" in str(f or "") for f in fields):
             return "Please provide the item(s) to include and the quantity for each."
-
-    if "unknown_customer" in rule_ids:
-        bad = next((e.get("message") for e in errs if isinstance(e, dict) and e.get("rule_id") == "unknown_customer"), "")
-        return f"{bad} Please provide an existing customer name."
 
     if "unknown_supplier" in rule_ids:
         bad = next((e.get("message") for e in errs if isinstance(e, dict) and e.get("rule_id") == "unknown_supplier"), "")
