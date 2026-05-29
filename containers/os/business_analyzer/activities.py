@@ -142,11 +142,22 @@ async def analyze_business_requirements(intent: dict, context: dict) -> dict:
     )
 
     if is_master_create_doctype(doctype) and action == "create":
+        logger.info(
+            "analyze_business_requirements: master create %s → tier1_only",
+            doctype,
+        )
         return _tier1_analysis(doctype, entities, query_used=query_text)
 
     # Sales/purchase transactions: never ask for ERP-internal fields (naming_series, rates, etc.)
     if action == "create":
-        return _business_analysis(doctype, entities, profile, query_used=query_text)
+        result = _business_analysis(doctype, entities, profile, query_used=query_text)
+        logger.info(
+            "analyze_business_requirements: %s → %s missing=%d",
+            doctype,
+            result.get("analysis_mode"),
+            len(result.get("missing_critical_fields") or []),
+        )
+        return result
 
     top_k = 8
     apqc_chunks = await _rag_retrieve(query_text, kb_source_prefix="apqc_pcf", top_k=top_k)

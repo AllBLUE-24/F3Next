@@ -69,19 +69,45 @@ def get_name_field(doctype: str) -> Optional[str]:
     return str(name).strip() if name else None
 
 
+# KB-07 layers 0–3: Company, Item, Customer, Supplier, etc. (not SO/PO/invoices)
+_MASTER_SETUP_LAYER_KEYS = frozenset({
+    "layer_0_system",
+    "layer_1_config",
+    "layer_2_masters",
+    "layer_3_parties",
+})
+
+
 def get_setup_layer_doctypes() -> frozenset[str]:
-    """All doctypes listed in setup_layers (masters + config)."""
+    """All doctypes listed in setup_layers (includes transactions)."""
     layers = _doctype_graph().get("setup_layers") or {}
     names: set[str] = set()
-    for layer_dts in layers.values():
+    for layer_key, layer_dts in layers.items():
+        if layer_key == "description":
+            continue
+        if isinstance(layer_dts, list):
+            names.update(str(x) for x in layer_dts if x)
+    return frozenset(names)
+
+
+def get_master_setup_doctypes() -> frozenset[str]:
+    """Doctypes that are master/config records (layers 0–3 only)."""
+    layers = _doctype_graph().get("setup_layers") or {}
+    names: set[str] = set()
+    for layer_key, layer_dts in layers.items():
+        if layer_key not in _MASTER_SETUP_LAYER_KEYS:
+            continue
         if isinstance(layer_dts, list):
             names.update(str(x) for x in layer_dts if x)
     return frozenset(names)
 
 
 def is_master_create_doctype(doctype: str) -> bool:
-    """True when doctype appears in KB-07 setup_layers (master/config records)."""
-    return doctype in get_setup_layer_doctypes()
+    """
+    True for master/config creates (Customer, Item, Supplier, …).
+    False for transactions (Sales Order, Purchase Order, invoices, …).
+    """
+    return doctype in get_master_setup_doctypes()
 
 
 def resolve_entity_to_field(doctype: str, entity_key: str) -> Optional[tuple[str, dict[str, Any]]]:
