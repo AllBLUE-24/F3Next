@@ -15,7 +15,7 @@
 | Import plan finalize | `ready_with_gaps` after worker fix (harness verified) |
 | Live import (partial) | ~8/40 records succeeded |
 | Workflow stage honesty | **Fixed** — was `complete` on errors; now `complete_with_errors` |
-| Prerequisite order | **Fixed** — baseline seed before Company create |
+| Prerequisite order | **Fixed** — setup wizard on greenfield; skip baseline catalog when Company exists |
 
 ---
 

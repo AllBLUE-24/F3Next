@@ -633,7 +633,13 @@ async def ensure_warehouse(
         return False
 
 
-async def _ensure_warehouse_removed_duplicate(
+async def site_has_company(adapter, logger=None) -> bool:
+    """True when ERPNext already has at least one Company (setup wizard or onboarding done)."""
+    live = await discover_live_company(adapter, None, logger)
+    return bool(live and live.get("name"))
+
+
+async def ensure_site_prerequisites(
     adapter,
     *,
     session_id: str,
@@ -645,6 +651,7 @@ async def _ensure_warehouse_removed_duplicate(
 ) -> Dict[str, Any]:
     """
     Discover live Company; gap-fill missing Warehouses only.
+    Greenfield (no Company): run ERPNext setup_complete wizard.
     Returns summary with authoritative company_name + abbr from Frappe.
     """
     ctx = await load_company_context(session_id, company_slug)

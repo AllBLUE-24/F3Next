@@ -368,46 +368,6 @@ async def _dynamic_seed_doctype(
     return {"seeded": seeded, "already": already, "failed": failed}
 
 
-# Always seed these from baseline before import — independent of import plan steps.
-_ALWAYS_PREFLIGHT_SEED: frozenset[str] = frozenset({
-    "Warehouse Type",
-    "UOM",
-    "Item Group",
-    "Customer Group",
-    "Supplier Group",
-    "Territory",
-})
-
-
-async def _seed_baseline_values_for_doctype(
-    adapter,
-    dt_seed: str,
-    baseline_values: List[str],
-    logger,
-) -> tuple[int, int, int, set]:
-    """Seed one doctype; return counts and set of values that exist on site."""
-    seeded = already = failed = 0
-    confirmed: set = set()
-    for bval in baseline_values:
-        record = _build_baseline_record(dt_seed, bval)
-        try:
-            await adapter.create_record(dt_seed, record)
-            seeded += 1
-            confirmed.add(bval)
-        except ValueError as _se:
-            err_text = str(_se).lower()
-            if "already exist" in err_text or "duplicate" in err_text or "1062" in err_text:
-                already += 1
-                confirmed.add(bval)
-            else:
-                failed += 1
-                logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
-        except Exception as _se:
-            failed += 1
-            logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
-    return seeded, already, failed, confirmed
-
-
 async def _run_baseline_preflight_seed(
     adapter,
     phases: Dict[str, Any],
@@ -417,80 +377,43 @@ async def _run_baseline_preflight_seed(
     base_url: Optional[str],
 ) -> tuple[set, Dict[str, set]]:
     """
-    Seed all seed_from_baseline doctypes (Pass 1 + Pass 1B) before site prerequisites.
+    Legacy Pass-1 baseline catalog seed — skipped when ERP setup is already done.
 
-    Must run before Company/Warehouse creation — fresh ERPNext sites need UOM,
-    Warehouse Type (Transit), Item Group, etc. present first.
+    Post-onboarding / live sites: Company exists → ERPNext fixtures are present;
+    missing masters surface as per-row import errors (Pass 2 / create_record).
+
+    Greenfield: setup wizard in ensure_site_prerequisites provisions fixtures;
+    no per-currency/UOM catalog loop.
 
     Returns (seen_doctypes, seen_values_by_doctype) for Pass 2 idempotency.
     """
     seen_seed_doctypes: set = set()
     seen_seed_values: Dict[str, set] = {}
-    _baseline_data = _load_baseline_data()
-
-    all_seed_steps: List[Dict] = []
-    seed_doctypes_ordered: List[str] = []
-    for _phase_key in ("phase_a_config", "phase_b_master", "phase_c_transactional"):
-        for _s in phases.get(_phase_key, {}).get("steps", []):
-            if _s.get("action") == "seed_from_baseline":
-                _dt_check = _s.get("doctype")
-                if _dt_check and _dt_check not in seed_doctypes_ordered:
-                    seed_doctypes_ordered.append(_dt_check)
-                    all_seed_steps.append(_s)
-
-    for _mandatory_dt in _ALWAYS_PREFLIGHT_SEED:
-        if _mandatory_dt not in seed_doctypes_ordered and _baseline_data.get(_mandatory_dt):
-            seed_doctypes_ordered.append(_mandatory_dt)
-            all_seed_steps.append({"doctype": _mandatory_dt, "action": "seed_from_baseline"})
 
     if dry_run:
-        logger.info(
-            "  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)",
-            len(all_seed_steps),
-        )
+        logger.info("  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping baseline catalog")
         return seen_seed_doctypes, seen_seed_values
 
     if not base_url:
         return seen_seed_doctypes, seen_seed_values
 
-    if all_seed_steps:
-        logger.info("")
-        logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
+    from containers.implementation.import_agent.site_prerequisites import (
+        discover_live_company,
+        site_has_company,
+    )
 
-    for seed_step in all_seed_steps:
-        dt_seed = seed_step["doctype"]
-        baseline_values: List[str] = _baseline_data.get(dt_seed, [])
-
-        if not baseline_values:
-            logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
-            continue
-
-        seeded, already, failed, confirmed = await _seed_baseline_values_for_doctype(
-            adapter, dt_seed, baseline_values, logger,
-        )
-        seen_seed_doctypes.add(dt_seed)
-        seen_seed_values.setdefault(dt_seed, set()).update(confirmed)
-
+    if await site_has_company(adapter, logger):
+        live = await discover_live_company(adapter, None, logger)
+        name = (live or {}).get("name", "?")
         logger.info(
-            "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
-            dt_seed, seeded, already, failed,
+            "  🌱  PRE-FLIGHT SEEDER — skipped (Company '%s' on site; trust ERPNext setup)",
+            name,
         )
+        return seen_seed_doctypes, seen_seed_values
 
-    for _supp_dt, _supp_vals in _baseline_data.items():
-        if _supp_dt in ("Cost Center", "Warehouse", "Account", "Company"):
-            continue
-        if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
-            seeded, already, failed, confirmed = await _seed_baseline_values_for_doctype(
-                adapter, _supp_dt, _supp_vals, logger,
-            )
-            seen_seed_doctypes.add(_supp_dt)
-            seen_seed_values.setdefault(_supp_dt, set()).update(confirmed)
-            logger.info(
-                "  🌱  [SUPP] %-22s  seeded=%d  already_existed=%d  failed=%d",
-                _supp_dt, seeded, already, failed,
-            )
-
-    logger.info("")
+    logger.info(
+        "  🌱  PRE-FLIGHT SEEDER — skipped (greenfield; setup wizard provisions fixtures next)",
+    )
     return seen_seed_doctypes, seen_seed_values
 
 
@@ -1415,6 +1338,20 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             prereq.get("warehouses_created"),
             prereq.get("warehouses_failed"),
         )
+        if not company_ctx.get("company_name"):
+            activity.logger.error(
+                "  ❌  Site prerequisites failed — no Company on ERPNext (setup wizard did not succeed)",
+            )
+            return {
+                "phase": inp.phase_id,
+                "status": "error",
+                "error": (
+                    "Site prerequisites failed: could not resolve or create Company on ERPNext. "
+                    "Check worker logs for setup wizard errors."
+                ),
+                "steps_completed": 0,
+                "steps_failed": 1,
+            }
 
     # ── EXECUTION GATE (Phase B/C live writes) ─────────────────────────────
     if (
@@ -1463,13 +1400,9 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     steps_completed = 0
     steps_failed = 0
 
-    # Pass 1 baseline seed already ran before site prerequisites (see above).
-    _baseline_data: Dict[str, List] = _load_baseline_data()
-
     activity.logger.info("")
     # ── PASS 2: Dynamic link field discovery ──────────────────────────────
-    # Scans all import rows in this phase for link field values that point
-    # to doctypes NOT covered by the static baseline seeder (Pass 1).
+    # Scans import rows for link targets referenced in mapped data only.
     # Automatically creates any missing records in ERPNext before the main
     # import loop runs — preventing LinkValidationError at row-creation time.
     if not inp.dry_run and base_url:

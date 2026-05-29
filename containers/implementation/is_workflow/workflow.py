@@ -1396,7 +1396,10 @@ class ImplementationWorkflow:
 
         import_phases_succeeded = False
         import_phase_failures: List[str] = []
+        import_phases_aborted = False
         for phase_id, phase_label in phases:
+            if import_phases_aborted:
+                break
             L.info("      ┌── %s ──┐", phase_label)
             try:
                 execution_confirmed = False
@@ -1527,13 +1530,20 @@ class ImplementationWorkflow:
                 L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)
-                raise ApplicationError(f"Import phase {phase_label} failed: {e}")
+                import_phase_failures.append(f"{phase_label}: {e}")
+                import_phases_aborted = True
 
         _kv(L, "reads from", "is_import_plans, R2 extracted rows")
         _kv(L, "tables written", "is_import_logs (per step), is_import_plans (status)")
         _kv(L, "audit", "is_audit_trail → import_executed")
-        _step_ok(L, 13, "Execute Import Phases", f"3 phases executed (dry_run={sb.dry_run})")
-        import_phases_succeeded = True
+        if import_phases_aborted or import_phase_failures:
+            _step_fail(
+                L, 13, "Execute Import Phases",
+                "; ".join(import_phase_failures) or "phase aborted",
+            )
+        else:
+            _step_ok(L, 13, "Execute Import Phases", f"3 phases executed (dry_run={sb.dry_run})")
+        import_phases_succeeded = not import_phases_aborted and not import_phase_failures
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 13.5 / 14  —  CVS Bootstrap (Baseline Sync + Webhook Registration)
