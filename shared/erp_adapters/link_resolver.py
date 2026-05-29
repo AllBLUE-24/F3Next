@@ -71,14 +71,19 @@ class ResolutionMap:
         return original_val if original_val not in self.unresolvable.get(target_doctype, []) else None
 
 
-def resolve_single(val: str, known_names: list[str]) -> ResolutionResult:
+def resolve_single(
+    val: str,
+    known_names: list[str],
+    preferred_abbr: Optional[str] = None,
+) -> ResolutionResult:
     """
     Deterministic resolution of one candidate against known ERP names.
 
     Strategy order:
       1. Exact match
       2. Company-suffix match (ERPNext pattern: "WIP - GS")
-      3. Normalized case/space-insensitive match
+      3. Prefer warehouse suffix matching live company abbr (GS CSV → REG site)
+      4. Normalized case/space-insensitive match
     """
     val = val.strip()
     if not val:
@@ -97,6 +102,12 @@ def resolve_single(val: str, known_names: list[str]) -> ResolutionResult:
 
     if len(candidates) == 1:
         return ResolutionResult(original=val, resolved=candidates[0])
+
+    if len(candidates) > 1 and preferred_abbr:
+        preferred = [c for c in candidates if c.endswith(f" - {preferred_abbr}")]
+        if len(preferred) == 1:
+            return ResolutionResult(original=val, resolved=preferred[0])
+
     if len(candidates) > 1:
         return ResolutionResult(
             original=val,
@@ -128,6 +139,7 @@ class BulkLinkResolver:
         adapter: ERPAdapter,
         link_targets: dict[str, set[str]],
         log=None,
+        preferred_abbr: Optional[str] = None,
     ) -> ResolutionMap:
         log = log or logger
         result = ResolutionMap()
@@ -169,7 +181,7 @@ class BulkLinkResolver:
                 if not val:
                     continue
 
-                res = resolve_single(val, known_names)
+                res = resolve_single(val, known_names, preferred_abbr=preferred_abbr)
                 if res.resolved and res.resolved != val:
                     result.resolved.setdefault(target_doctype, {})[val] = res.resolved
                     log.info(

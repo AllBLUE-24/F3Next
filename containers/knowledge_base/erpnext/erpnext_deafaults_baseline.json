@@ -5,6 +5,7 @@
     "All Territories"
   ],
   "Item Group": [
+    "Finished Goods",
     "Consumable",
     "Sub Assemblies",
     "Services",
@@ -638,6 +639,7 @@
     "India"
   ],
   "UOM": [
+    "Gallon",
     "Unit",
     "Box",
     "Nos",

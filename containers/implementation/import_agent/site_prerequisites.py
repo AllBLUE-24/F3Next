@@ -528,6 +528,54 @@ def _parse_warehouse_label(full_name: str, default_abbr: str) -> tuple[str, str]
     return full_name.strip(), default_abbr
 
 
+def _is_duplicate_warehouse_error(exc: Exception) -> bool:
+    err = str(exc).lower()
+    return (
+        "already exist" in err
+        or "duplicate" in err
+        or "duplicateentry" in err
+        or "1062" in err
+    )
+
+
+async def _find_warehouse_by_base(
+    adapter,
+    wh_base: str,
+    company_name: str,
+    company_abbr: str,
+) -> Optional[str]:
+    """Find canonical warehouse name when CSV suffix differs from live company abbr."""
+    try:
+        rows = await adapter.list_records(
+            "Warehouse",
+            ["name", "warehouse_name"],
+            filters=[["company", "=", company_name]],
+            limit=100,
+        )
+    except Exception:
+        return None
+
+    preferred = f"{wh_base} - {company_abbr}" if company_abbr else ""
+    for row in rows or []:
+        name = (row.get("name") or "").strip()
+        if name == preferred or name == wh_base:
+            return name
+        wn = (row.get("warehouse_name") or "").strip()
+        if wn == wh_base and name:
+            return name
+        if name.startswith(f"{wh_base} - "):
+            if not preferred or name == preferred:
+                return name
+            if not company_abbr:
+                return name
+
+    if preferred:
+        for row in rows or []:
+            if (row.get("name") or "").strip() == preferred:
+                return preferred
+    return None
+
+
 async def ensure_warehouse(
     adapter,
     full_name: str,
@@ -537,6 +585,8 @@ async def ensure_warehouse(
     logger,
 ) -> bool:
     """Create a single warehouse if it does not exist."""
+    wh_base, _csv_abbr = _parse_warehouse_label(full_name, default_abbr)
+
     try:
         exists = await adapter.list_records(
             "Warehouse",
@@ -549,33 +599,41 @@ async def ensure_warehouse(
     except Exception:
         pass
 
-    wh_base, _abbr = _parse_warehouse_label(full_name, default_abbr)
+    canonical = await _find_warehouse_by_base(adapter, wh_base, company_name, default_abbr)
+    if canonical:
+        if canonical != full_name and logger:
+            logger.info(
+                "  📦  Warehouse '%s' already exists as '%s'",
+                full_name,
+                canonical,
+            )
+        return True
+
     record: Dict[str, Any] = {
         "warehouse_name": wh_base,
         "company": company_name,
         "is_group": 0,
     }
-    if wh_base == full_name.strip():
-        record["name"] = full_name.strip()
     if parent_wh:
         record["parent_warehouse"] = parent_wh
 
     try:
         await adapter.create_record("Warehouse", record)
-        logger.info("  📦  Created warehouse '%s' (target name '%s')", wh_base, full_name)
+        logger.info("  📦  Created warehouse '%s' (from '%s')", wh_base, full_name)
         return True
     except ValueError as exc:
-        err = str(exc).lower()
-        if "already exist" in err or "duplicate" in err:
+        if _is_duplicate_warehouse_error(exc):
             return True
         logger.warning("  ⚠️  Warehouse '%s' create failed: %s", full_name, exc)
         return False
     except Exception as exc:
+        if _is_duplicate_warehouse_error(exc):
+            return True
         logger.warning("  ⚠️  Warehouse '%s' create failed: %s", full_name, exc)
         return False
 
 
-async def ensure_site_prerequisites(
+async def _ensure_warehouse_removed_duplicate(
     adapter,
     *,
     session_id: str,

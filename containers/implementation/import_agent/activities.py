@@ -368,6 +368,46 @@ async def _dynamic_seed_doctype(
     return {"seeded": seeded, "already": already, "failed": failed}
 
 
+# Always seed these from baseline before import — independent of import plan steps.
+_ALWAYS_PREFLIGHT_SEED: frozenset[str] = frozenset({
+    "Warehouse Type",
+    "UOM",
+    "Item Group",
+    "Customer Group",
+    "Supplier Group",
+    "Territory",
+})
+
+
+async def _seed_baseline_values_for_doctype(
+    adapter,
+    dt_seed: str,
+    baseline_values: List[str],
+    logger,
+) -> tuple[int, int, int, set]:
+    """Seed one doctype; return counts and set of values that exist on site."""
+    seeded = already = failed = 0
+    confirmed: set = set()
+    for bval in baseline_values:
+        record = _build_baseline_record(dt_seed, bval)
+        try:
+            await adapter.create_record(dt_seed, record)
+            seeded += 1
+            confirmed.add(bval)
+        except ValueError as _se:
+            err_text = str(_se).lower()
+            if "already exist" in err_text or "duplicate" in err_text or "1062" in err_text:
+                already += 1
+                confirmed.add(bval)
+            else:
+                failed += 1
+                logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
+        except Exception as _se:
+            failed += 1
+            logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
+    return seeded, already, failed, confirmed
+
+
 async def _run_baseline_preflight_seed(
     adapter,
     phases: Dict[str, Any],
@@ -375,37 +415,47 @@ async def _run_baseline_preflight_seed(
     *,
     dry_run: bool,
     base_url: Optional[str],
-) -> set:
+) -> tuple[set, Dict[str, set]]:
     """
     Seed all seed_from_baseline doctypes (Pass 1 + Pass 1B) before site prerequisites.
 
     Must run before Company/Warehouse creation — fresh ERPNext sites need UOM,
     Warehouse Type (Transit), Item Group, etc. present first.
+
+    Returns (seen_doctypes, seen_values_by_doctype) for Pass 2 idempotency.
     """
     seen_seed_doctypes: set = set()
+    seen_seed_values: Dict[str, set] = {}
     _baseline_data = _load_baseline_data()
 
     all_seed_steps: List[Dict] = []
+    seed_doctypes_ordered: List[str] = []
     for _phase_key in ("phase_a_config", "phase_b_master", "phase_c_transactional"):
         for _s in phases.get(_phase_key, {}).get("steps", []):
-            if _s.get("action") == "seed_from_baseline" and _s.get("doctype") not in seen_seed_doctypes:
+            if _s.get("action") == "seed_from_baseline":
                 _dt_check = _s.get("doctype")
-                if _dt_check and _baseline_data.get(_dt_check):
+                if _dt_check and _dt_check not in seed_doctypes_ordered:
+                    seed_doctypes_ordered.append(_dt_check)
                     all_seed_steps.append(_s)
-                    seen_seed_doctypes.add(_dt_check)
 
-    if all_seed_steps and dry_run:
+    for _mandatory_dt in _ALWAYS_PREFLIGHT_SEED:
+        if _mandatory_dt not in seed_doctypes_ordered and _baseline_data.get(_mandatory_dt):
+            seed_doctypes_ordered.append(_mandatory_dt)
+            all_seed_steps.append({"doctype": _mandatory_dt, "action": "seed_from_baseline"})
+
+    if dry_run:
         logger.info(
             "  🌱  PRE-FLIGHT SEEDER — dry_run mode, skipping %d seed step(s)",
             len(all_seed_steps),
         )
-        return seen_seed_doctypes
+        return seen_seed_doctypes, seen_seed_values
 
-    if not all_seed_steps or not base_url:
-        return seen_seed_doctypes
+    if not base_url:
+        return seen_seed_doctypes, seen_seed_values
 
-    logger.info("")
-    logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
+    if all_seed_steps:
+        logger.info("")
+        logger.info("  🌱  PRE-FLIGHT SEEDER — seeding %d baseline doctype(s)", len(all_seed_steps))
 
     for seed_step in all_seed_steps:
         dt_seed = seed_step["doctype"]
@@ -415,25 +465,11 @@ async def _run_baseline_preflight_seed(
             logger.warning("  ⚠️  No baseline values for %s — skipping seed", dt_seed)
             continue
 
-        seeded = 0
-        already = 0
-        failed = 0
-
-        for bval in baseline_values:
-            record = _build_baseline_record(dt_seed, bval)
-            try:
-                await adapter.create_record(dt_seed, record)
-                seeded += 1
-            except ValueError as _se:
-                err_text = str(_se)
-                if "already exist" in err_text.lower() or "duplicate" in err_text.lower():
-                    already += 1
-                else:
-                    failed += 1
-                    logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, err_text)
-            except Exception as _se:
-                failed += 1
-                logger.warning("  ⚠️  Seed %s '%s' failed: %s", dt_seed, bval, _se)
+        seeded, already, failed, confirmed = await _seed_baseline_values_for_doctype(
+            adapter, dt_seed, baseline_values, logger,
+        )
+        seen_seed_doctypes.add(dt_seed)
+        seen_seed_values.setdefault(dt_seed, set()).update(confirmed)
 
         logger.info(
             "  🌱  %-22s  seeded=%d  already_existed=%d  failed=%d",
@@ -444,30 +480,18 @@ async def _run_baseline_preflight_seed(
         if _supp_dt in ("Cost Center", "Warehouse", "Account", "Company"):
             continue
         if _is_seed_blacklisted(_supp_dt) and _supp_dt not in seen_seed_doctypes and _supp_vals:
-            seeded, already, failed = 0, 0, 0
-            for _sv in _supp_vals:
-                _record = _build_baseline_record(_supp_dt, _sv)
-                try:
-                    await adapter.create_record(_supp_dt, _record)
-                    seeded += 1
-                except ValueError as _se:
-                    _et = str(_se)
-                    if "already exist" in _et.lower() or "duplicate" in _et.lower():
-                        already += 1
-                    else:
-                        failed += 1
-                        logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _et)
-                except Exception as _se:
-                    failed += 1
-                    logger.warning("  🌱  Supplement %s '%s' failed: %s", _supp_dt, _sv, _se)
+            seeded, already, failed, confirmed = await _seed_baseline_values_for_doctype(
+                adapter, _supp_dt, _supp_vals, logger,
+            )
             seen_seed_doctypes.add(_supp_dt)
+            seen_seed_values.setdefault(_supp_dt, set()).update(confirmed)
             logger.info(
                 "  🌱  [SUPP] %-22s  seeded=%d  already_existed=%d  failed=%d",
                 _supp_dt, seeded, already, failed,
             )
 
     logger.info("")
-    return seen_seed_doctypes
+    return seen_seed_doctypes, seen_seed_values
 
 
 async def _bulk_pre_resolve_phase_rows(
@@ -476,6 +500,7 @@ async def _bulk_pre_resolve_phase_rows(
     adapter,
     known_link_fields: Dict[str, str],
     logger,
+    company_abbr: str = "",
 ) -> tuple[Dict[str, List[Dict]], Dict[str, Dict[str, Any]]]:
     """
     Pass 2.5: bulk pre-resolve link fields for all create-action steps in a phase.
@@ -526,6 +551,7 @@ async def _bulk_pre_resolve_phase_rows(
         adapter,
         all_link_targets,
         logger,
+        preferred_abbr=company_abbr or None,
     )
 
     for r2_key, step_dt, rows, effective_link_fields in step_payloads:
@@ -1351,8 +1377,9 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
 
     # ── PRE-FLIGHT BASELINE SEED (before Company / Warehouse creation) ───
     seen_seed_doctypes: set = set()
+    seen_seed_values: Dict[str, set] = {}
     if not inp.dry_run and base_url:
-        seen_seed_doctypes = await _run_baseline_preflight_seed(
+        seen_seed_doctypes, seen_seed_values = await _run_baseline_preflight_seed(
             adapter,
             phases,
             activity.logger,
@@ -1484,9 +1511,10 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                     if not _target_dt:
                         continue
                     # Skip if already handled in Pass 1 or blacklisted
-                    if _target_dt in seen_seed_doctypes:
-                        continue
                     if _is_seed_blacklisted(_target_dt):
+                        continue
+                    _val_stripped = _field_value.strip()
+                    if _val_stripped in seen_seed_values.get(_target_dt, set()):
                         continue
                     _dynamic_link_targets.setdefault(_target_dt, set()).add(_field_value.strip())
 
@@ -1524,6 +1552,7 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
             adapter,
             _KNOWN_LINK_FIELDS,
             activity.logger,
+            company_abbr=company_ctx.get("company_abbr", ""),
         )
         activity.logger.info("")
     # ── END PASS 2.5 ─────────────────────────────────────────────────────
