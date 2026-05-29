@@ -351,6 +351,16 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
         if m_comma:
             party_name = m_comma.group(1).strip()
 
+    # "customer - X" / "supplier — X" → master data name (common NL pattern)
+    if not party_name and intent_id in ('create_customer', 'create_supplier'):
+        m_sep = re.search(
+            r'(?:customer|supplier)\s*[-–—]\s*(.+?)\s*$',
+            prompt,
+            re.IGNORECASE,
+        )
+        if m_sep:
+            party_name = m_sep.group(1).strip()
+
     # "for X" or "from X" → party in transactional docs
     # Skip role words like "customer"/"supplier"/"the" before the actual name
     if not party_name:
@@ -415,6 +425,10 @@ def _fallback_intent(prompt: str, erp_type: str, reason: str) -> dict:
             _req("supplier", f"Which supplier is this {doctype} for?")
         if not items:
             _req("items", f"What item(s) should be included in this {doctype}, and what quantity for each?")
+    if intent_id == "create_customer" and not customer:
+        _req("customer", "What is the new customer's name?")
+    if intent_id == "create_supplier" and not supplier:
+        _req("supplier", "What is the new supplier's name?")
 
     return {
         "intent_id":              intent_id,

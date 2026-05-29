@@ -47,6 +47,16 @@ def main() -> int:
         pass  # missing/invalid key is fine for import smoke
 
     try:
+        from openai import AsyncOpenAI
+        # OS Clarity agentic loop uses AsyncOpenAI directly (same httpx stack)
+        AsyncOpenAI(api_key="sk-test")
+    except TypeError as exc:
+        if "proxies" in str(exc):
+            errors.append(f"AsyncOpenAI proxies kwarg mismatch: {exc}")
+    except Exception:
+        pass
+
+    try:
         from shared_llm import generate_json  # noqa: F401
     except ImportError as exc:
         errors.append(f"shared_llm: {exc}")

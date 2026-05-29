@@ -71,6 +71,7 @@ def _gate_intent_for_minimum_requirements(intent_dict: dict) -> dict:
     This is deterministic and runs inside the workflow (no I/O).
     """
     doctype = str(intent_dict.get("target_doctype") or "")
+    intent_id = str(intent_dict.get("intent_id") or "")
     entities = intent_dict.get("entities") or {}
     confidence = float(intent_dict.get("confidence") or 0.0)
     is_fallback = bool(intent_dict.get("_fallback"))
@@ -99,8 +100,18 @@ def _gate_intent_for_minimum_requirements(intent_dict: dict) -> dict:
     if doctype in _PURCHASE_DOCTYPES_REQUIRE_SUPPLIER and not entities.get("supplier"):
         _add_required("supplier", f"Which supplier is this {doctype} for?")
 
+    if intent_id == "create_customer" and not entities.get("customer"):
+        _add_required("customer", "What is the new customer's name?")
+    if intent_id == "create_supplier" and not entities.get("supplier"):
+        _add_required("supplier", "What is the new supplier's name?")
+
+    master_create_complete = (
+        (intent_id == "create_customer" and bool(entities.get("customer")))
+        or (intent_id == "create_supplier" and bool(entities.get("supplier")))
+    )
+
     # Fallback/low-confidence intents must clarify unless already clarified
-    if (is_fallback or confidence < 0.70) and not ambiguities:
+    if (is_fallback or confidence < 0.70) and not ambiguities and not master_create_complete:
         _add_required(
             "clarify",
             "I couldn't reliably parse your command. Please confirm the customer/supplier and the item(s) with quantity.",

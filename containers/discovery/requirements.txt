@@ -8,7 +8,7 @@ langchain-core
 langchain-google-genai
 langchain-openai==0.0.5
 google-genai
-openai==1.11.0
+openai>=1.55.3,<2.0
 redis==5.0.1
 aiohttp
 asyncpg

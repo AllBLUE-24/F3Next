@@ -29,7 +29,7 @@
 | 4 | `05_gs_active_projects.csv` classified as Purchase Receipt | B + D | L2/L0 | 3 | LLM degraded (`proxies` / missing openai in worker) | **Partial** — OS deps pinned; live worker rebuild pending |
 | 5 | BOM 0/2, Stock Entry 0/8, WO 0/2, PR 0/12, Project 0/2 | B + C | L3/L4 | 5, 10 | Link resolution + lifecycle deps; transactional phase needs masters + submitted BOMs | Tier 7 / golden re-run after deploy |
 | 6 | Stale blocked import plan after worker rebuild | A | L2 | 8 | DB plan not auto-refreshed on code deploy | **Fixed** — `POST /api/implementation/re-finalize-plan/{project_id}` |
-| 7 | OS "create customer" broken | D | L0 | — | Shared LLM import failure in OS worker | **Partial** — deps aligned; smoke script added |
+| 7 | OS "create customer" broken | D | L0 | — | httpx≥0.28 + openai 1.11 `proxies` kwarg; fallback missed `customer - X` | **Fixed in repo** — pin `httpx==0.27.2`, dash fallback, gate; rebuild `os_worker` |
 
 ---
 
