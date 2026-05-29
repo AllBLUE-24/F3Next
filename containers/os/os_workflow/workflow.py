@@ -182,10 +182,16 @@ def _readiness_blocker(intent_dict: dict, context: dict) -> Optional[str]:
 
 
 def _is_fixable_validation(validation: dict) -> bool:
+    from shared.os_field_semantics import get_erp_autofill_fields
+
+    autofill = get_erp_autofill_fields()
     errs = validation.get("errors", []) if isinstance(validation, dict) else []
     for e in errs if isinstance(errs, list) else []:
-        if isinstance(e, dict) and e.get("rule_id") in _FIXABLE_VALIDATION_RULE_IDS:
-            return True
+        if not isinstance(e, dict) or e.get("rule_id") not in _FIXABLE_VALIDATION_RULE_IDS:
+            continue
+        if e.get("rule_id") == "mandatory_fields" and str(e.get("field") or "") in autofill:
+            continue
+        return True
     return False
 
 

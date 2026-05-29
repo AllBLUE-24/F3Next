@@ -525,6 +525,7 @@ def validate_payload_bundle(
     payload_bundle: dict,
     context:        dict,
 ) -> dict:
+    from shared.os_field_semantics import apply_computed_defaults_to_payload
     """
     Run all 5 validation layers over every step in the payload bundle.
 
@@ -557,6 +558,12 @@ def validate_payload_bundle(
         action   = step.get("action", "create")
         doctype  = step.get("doctype", "")
         payload  = step.get("payload", {})
+
+        if isinstance(payload, dict) and isinstance(doctype, str) and doctype.strip():
+            intent = context.get("intent") if isinstance(context.get("intent"), dict) else {}
+            ent = intent.get("entities") if isinstance(intent.get("entities"), dict) else {}
+            step["payload"] = apply_computed_defaults_to_payload(doctype, payload, ent, context)
+            payload = step["payload"]
 
         if not (isinstance(doctype, str) and doctype.strip()):
             errors.append(_err(

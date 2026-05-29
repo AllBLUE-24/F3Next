@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from containers.os.payload_generator.kb_fields import field_kb
 from shared.models.plan import ExecutionPlan, PlanStep
+from shared.os_field_semantics import is_pseudo_erp_value, resolve_link_value_from_options
 
 logger = logging.getLogger(__name__)
 
@@ -122,13 +123,21 @@ async def _resolve_link_field(
     options = await _list_master_names(adapter, link_doctype, limit=100)
 
     if options:
-        normalized = {name.casefold(): name for name in options}
-        for candidate in [desired_value, str(default or "").strip()]:
-            if not candidate:
-                continue
-            match = normalized.get(candidate.casefold())
-            if match:
-                return match, None, "matched_existing"
+        allow_fallback = is_pseudo_erp_value(desired_value) or is_pseudo_erp_value(default)
+        resolved = resolve_link_value_from_options(
+            desired_value or default,
+            options,
+            allow_first_fallback=allow_fallback,
+        )
+        if resolved:
+            if resolved.casefold() != str(desired_value or "").casefold():
+                logger.info(
+                    "Planner prereq resolution: %s.%s -> %s (matched_existing)",
+                    doctype,
+                    field_key,
+                    resolved,
+                )
+            return resolved, None, "matched_existing"
 
         logger.warning(
             "Planner prereq resolution: %s.%s='%s' not found in ERP options (%d). Leaving unresolved.",
@@ -142,8 +151,6 @@ async def _resolve_link_field(
                 OS_PLANNER_UNRESOLVED_LINK_TOTAL.labels(doctype=str(doctype), field=str(field_key)).inc()
         except Exception:
             pass
-        # Do NOT silently substitute a different master record for mandatory link fields.
-        # Leaving unresolved allows downstream validation + user clarification to correct it.
         return (desired_value or None), None, "unresolved"
 
     bootstrap_payload = _BOOTSTRAP_MASTER_PAYLOADS.get(link_doctype)

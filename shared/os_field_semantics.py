@@ -37,6 +37,11 @@ _PSEUDO_DEFAULT_VALUES = frozenset({
     "{customer_name}",
 })
 
+_FIELD_IN_QUESTION_RE = re.compile(
+    r"field\s+['\"]?([a-zA-Z_][a-zA-Z0-9_]*)['\"]?",
+    re.IGNORECASE,
+)
+
 _MONTHS = {
     "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
     "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
@@ -354,6 +359,7 @@ def preserve_transaction_entities(
 
     cfg = _os_validation_config()
     sales_dts = frozenset(cfg.get("sales_doctypes_require_customer") or [])
+    purchase_dts = frozenset(cfg.get("purchase_doctypes_require_supplier") or [])
 
     pc = p_ent.get("customer")
     mc = entities.get("customer")
@@ -363,8 +369,18 @@ def preserve_transaction_entities(
     ):
         entities["customer"] = copy.deepcopy(pc)
 
+    ps = p_ent.get("supplier")
+    ms = entities.get("supplier")
+    if ps and (
+        not ms
+        or (isinstance(ps, str) and isinstance(ms, str) and len(ps) > len(ms) and ps.lower().startswith(ms.lower()))
+    ):
+        entities["supplier"] = copy.deepcopy(ps)
+
     if doctype in sales_dts and entities.get("supplier") and not p_ent.get("supplier"):
         entities.pop("supplier", None)
+    if doctype in purchase_dts and entities.get("customer") and not p_ent.get("customer"):
+        entities.pop("customer", None)
 
     p_items = normalize_items_list(p_ent.get("items"))
     m_items = normalize_items_list(entities.get("items"))
@@ -416,8 +432,8 @@ def sanitize_entities_for_transaction(
     return ent
 
 
-def clarification_is_simple(clarification_qa: list[Any]) -> bool:
-    """Date/skip answers should not trigger a full LLM intent rewrite."""
+def clarification_is_simple(clarification_qa: list[Any], *, doctype: str = "") -> bool:
+    """Date/skip/ERP-autofill answers should not trigger a full LLM intent rewrite."""
     if not clarification_qa:
         return False
     last = clarification_qa[-1]
@@ -428,6 +444,15 @@ def clarification_is_simple(clarification_qa: list[Any]) -> bool:
         return False
     if "naming_series" in q or "conversion_rate" in q or "selling_price_list" in q:
         return False
+
+    autofill = get_erp_autofill_fields()
+    mentioned: list[str] = []
+    for qa in clarification_qa:
+        if isinstance(qa, dict):
+            mentioned.extend(extract_fields_from_clarification_question(str(qa.get("question") or "")))
+    if mentioned and all(f in autofill for f in mentioned):
+        return True
+
     return any(tok in q for tok in (
         "deliver", "delivery", "schedule", "business info", "business_requirements",
     )) or len(clarification_qa) == 1
@@ -442,10 +467,10 @@ def merge_clarification_into_intent(
     """
     Deterministic clarification merge (no LLM). Returns None if LLM path is required.
     """
-    if not clarification_is_simple(clarification_qa):
+    doctype = str(partial_intent.get("target_doctype") or "")
+    if not clarification_is_simple(clarification_qa, doctype=doctype):
         return None
 
-    doctype = str(partial_intent.get("target_doctype") or "")
     out = copy.deepcopy(partial_intent)
     out = apply_business_clarification_answers(out, clarification_qa)
 
@@ -453,10 +478,15 @@ def merge_clarification_into_intent(
     for qa in clarification_qa or []:
         if not isinstance(qa, dict):
             continue
-        q = str(qa.get("question") or "").casefold()
+        q_raw = str(qa.get("question") or "")
+        q = q_raw.casefold()
         ans = str(qa.get("answer") or "").strip()
         if not ans or is_skip_answer(ans):
             continue
+        for field in extract_fields_from_clarification_question(q_raw):
+            resolved = resolve_entity_to_field(doctype, field)
+            kb_key = resolved[0] if resolved else field
+            entities[kb_key] = ans
         if "deliver" in q or "delivery" in q:
             parsed = parse_natural_date(ans)
             if parsed:
@@ -485,7 +515,8 @@ def apply_profile_autofill_to_payload(
     """Inject ERP-internal mandatory fields from company profile (not user input)."""
     profile = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
     company = (
-        profile.get("company")
+        profile.get("erp_resolved_company")
+        or profile.get("company")
         or profile.get("default_company")
         or profile.get("company_name")
     )
@@ -516,6 +547,27 @@ def apply_profile_autofill_to_payload(
         payload["naming_series"] = options[0] if isinstance(options[0], str) else str(options[0])
 
     payload.setdefault("status", "Draft")
+    if "title" in (get_doctype_config(doctype).get("mandatory_fields") or []):
+        if not _entity_value_present(payload.get("title")):
+            ent_from_pay = {
+                k: payload[k]
+                for k in ("supplier", "customer", "items", "supplier_name", "customer_name")
+                if k in payload
+            }
+            title = build_transaction_title(doctype, ent_from_pay, payload)
+            if title:
+                payload["title"] = title
+            else:
+                bindings = build_entity_bindings(doctype, ent_from_pay, profile, payload)
+                for _key, spec in get_field_mappings(doctype).items():
+                    if not isinstance(spec, dict) or str(spec.get("fieldname") or _key) != "title":
+                        continue
+                    default = spec.get("default_value")
+                    if isinstance(default, str) and "{" in default:
+                        val = resolve_template_string(default, bindings)
+                        if val:
+                            payload["title"] = val
+                    break
     return payload
 
 
@@ -569,6 +621,277 @@ def get_erp_autofill_fields() -> frozenset[str]:
     cfg = _os_validation_config()
     raw = cfg.get("erp_autofill_fields") or []
     return frozenset(str(x) for x in raw if x)
+
+
+def get_transaction_party_field(doctype: str) -> Optional[str]:
+    """KB-driven party field for sales/purchase transactions (customer or supplier)."""
+    cfg = _os_validation_config()
+    if doctype in frozenset(cfg.get("sales_doctypes_require_customer") or []):
+        return "customer"
+    if doctype in frozenset(cfg.get("purchase_doctypes_require_supplier") or []):
+        return "supplier"
+    fm = get_field_mappings(doctype)
+    for key, spec in fm.items():
+        if not isinstance(spec, dict):
+            continue
+        if spec.get("options") == "Customer":
+            return str(spec.get("fieldname") or key)
+        if spec.get("options") == "Supplier":
+            return str(spec.get("fieldname") or key)
+    return None
+
+
+def _slug_part(text: Any, *, max_len: int = 48) -> str:
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    cleaned = re.sub(r"[^\w\s-]", "", raw, flags=re.UNICODE)
+    cleaned = re.sub(r"[\s_]+", "-", cleaned).strip("-").casefold()
+    return cleaned[:max_len] if cleaned else ""
+
+
+def _first_item_label(items: Any) -> str:
+    rows = normalize_items_list(items)
+    if not rows:
+        return ""
+    row = rows[0]
+    return str(row.get("item_code") or row.get("item_name") or row.get("name") or "").strip()
+
+
+def build_entity_bindings(
+    doctype: str,
+    entities: dict[str, Any],
+    profile: Optional[dict[str, Any]] = None,
+    payload: Optional[dict[str, Any]] = None,
+) -> dict[str, str]:
+    """Bindings for KB template placeholders ({supplier_name}, {item_code}, …)."""
+    ent = entities if isinstance(entities, dict) else {}
+    pay = payload if isinstance(payload, dict) else {}
+    prof = profile if isinstance(profile, dict) else {}
+    bindings: dict[str, str] = {}
+
+    party_field = get_transaction_party_field(doctype)
+    party_val = ""
+    if party_field:
+        party_val = str(ent.get(party_field) or pay.get(party_field) or "").strip()
+    bindings["party"] = party_val
+    bindings["supplier_name"] = str(
+        ent.get("supplier_name") or ent.get("supplier") or pay.get("supplier") or pay.get("supplier_name") or ""
+    ).strip()
+    bindings["customer_name"] = str(
+        ent.get("customer_name") or ent.get("customer") or pay.get("customer") or pay.get("customer_name") or ""
+    ).strip()
+    item_label = _first_item_label(ent.get("items") or pay.get("items"))
+    bindings["item_code"] = item_label
+    bindings["item_name"] = item_label
+    bindings["company"] = str(
+        pay.get("company")
+        or ent.get("company")
+        or prof.get("erp_resolved_company")
+        or prof.get("default_company")
+        or prof.get("company_name")
+        or ""
+    ).strip()
+    return bindings
+
+
+def resolve_template_string(template: str, bindings: dict[str, str]) -> Optional[str]:
+    """Expand {supplier_name}-style KB templates; return None if placeholders remain."""
+    if not template or "{" not in template:
+        return None
+    out = template
+    for key, val in bindings.items():
+        if val:
+            out = out.replace("{" + key + "}", val)
+    if "{" in out and "}" in out:
+        return None
+    out = out.strip()
+    return out or None
+
+
+def resolve_link_value_from_options(
+    desired: Any,
+    options: list[str],
+    *,
+    allow_first_fallback: bool = False,
+) -> Optional[str]:
+    """
+    Match a link field value against live ERP options.
+    Pseudo tokens (user_default_company_or_first_company) use first live option when allowed.
+    """
+    opts = [str(o).strip() for o in options if o and str(o).strip()]
+    if not opts:
+        if desired in (None, "") or is_pseudo_erp_value(desired):
+            return None
+        return str(desired).strip() or None
+
+    normalized = {name.casefold(): name for name in opts}
+    candidates: list[str] = []
+    if desired not in (None, ""):
+        candidates.append(str(desired).strip())
+    for cand in candidates:
+        if not cand or is_pseudo_erp_value(cand):
+            continue
+        hit = normalized.get(cand.casefold())
+        if hit:
+            return hit
+
+    if allow_first_fallback or not candidates or all(is_pseudo_erp_value(c) for c in candidates):
+        return opts[0]
+    return None
+
+
+def resolve_company_for_payload(
+    preferred: Any,
+    context: dict[str, Any],
+) -> Optional[str]:
+    """Resolve Company link from profile + live link_cache (any client/site)."""
+    profile = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
+    link_cache = context.get("link_cache") if isinstance(context.get("link_cache"), dict) else {}
+    options = link_cache.get("Company") or link_cache.get("company") or []
+    if not isinstance(options, list):
+        options = []
+
+    for cand in (
+        profile.get("erp_resolved_company"),
+        preferred,
+        profile.get("default_company"),
+        profile.get("company_name"),
+        context.get("defaults", {}).get("company") if isinstance(context.get("defaults"), dict) else None,
+    ):
+        resolved = resolve_link_value_from_options(
+            cand,
+            options,
+            allow_first_fallback=is_pseudo_erp_value(cand) if cand else bool(options),
+        )
+        if resolved:
+            return resolved
+    if options:
+        return resolve_link_value_from_options(None, options, allow_first_fallback=True)
+    return None
+
+
+def build_transaction_title(
+    doctype: str,
+    entities: dict[str, Any],
+    payload: Optional[dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    KB policy: transaction_title_pattern → {party_slug}-{item_slug}.
+    Works for any doctype with party + line items (PO, SO, etc.).
+    """
+    cfg = _os_validation_config()
+    pattern = str(cfg.get("transaction_title_pattern") or "{party_slug}-{item_slug}")
+    bindings = build_entity_bindings(doctype, entities, payload=payload)
+    party = bindings.get("party") or bindings.get("supplier_name") or bindings.get("customer_name")
+    item = bindings.get("item_code") or bindings.get("item_name")
+    if not party or not item:
+        resolved = resolve_template_string("{supplier_name}", bindings) or resolve_template_string(
+            "{customer_name}", bindings
+        )
+        if resolved:
+            party = party or resolved
+    party_slug = _slug_part(party)
+    item_slug = _slug_part(item)
+    if not party_slug and not item_slug:
+        return None
+    title_bindings = {
+        "party_slug": party_slug or "doc",
+        "item_slug": item_slug or "item",
+        "party": party or "",
+        "item_code": item or "",
+    }
+    built = pattern
+    for key, val in title_bindings.items():
+        built = built.replace("{" + key + "}", val)
+    built = built.strip("- ")
+    return built[:140] if built else None
+
+
+def extract_fields_from_clarification_question(question: str) -> list[str]:
+    """Parse 'Field title is mandatory' style validation prompts."""
+    return list(dict.fromkeys(_FIELD_IN_QUESTION_RE.findall(question or "")))
+
+
+def apply_computed_defaults_to_payload(
+    doctype: str,
+    payload: dict[str, Any],
+    entities: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Resolve KB templates, transaction titles, and Company links before validation/execute.
+    Single policy path for all doctypes/clients.
+    """
+    out = dict(payload)
+    ent = entities if isinstance(entities, dict) else {}
+    profile = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
+    bindings = build_entity_bindings(doctype, ent, profile, out)
+
+    resolved_company = resolve_company_for_payload(out.get("company"), context)
+    if resolved_company:
+        out["company"] = resolved_company
+        bindings["company"] = resolved_company
+
+    mandatory = get_doctype_config(doctype).get("mandatory_fields") or []
+    fm = get_field_mappings(doctype)
+    autofill = get_erp_autofill_fields()
+
+    for field in mandatory:
+        if field not in autofill and field != "title":
+            continue
+        if _entity_value_present(out.get(field)):
+            continue
+        if field == "title":
+            title = build_transaction_title(doctype, ent, out)
+            if title:
+                out["title"] = title
+                bindings["title"] = title
+                continue
+        spec = fm.get(field) if isinstance(fm.get(field), dict) else {}
+        default = spec.get("default_value")
+        if default not in (None, "") and isinstance(default, str) and "{" in default:
+            val = resolve_template_string(default, bindings)
+            if val:
+                out[field] = val
+                bindings[field] = val
+
+    for _key, spec in fm.items():
+        if not isinstance(spec, dict):
+            continue
+        fn = str(spec.get("fieldname") or _key)
+        if _entity_value_present(out.get(fn)) and not is_pseudo_erp_value(out.get(fn)):
+            continue
+        default = spec.get("default_value")
+        if default in (None, "") or not isinstance(default, str):
+            continue
+        if "{" not in default:
+            continue
+        val = resolve_template_string(default, bindings)
+        if val:
+            out[fn] = val
+
+    link_cache = context.get("link_cache") if isinstance(context.get("link_cache"), dict) else {}
+    for _key, spec in fm.items():
+        if not isinstance(spec, dict):
+            continue
+        fn = str(spec.get("fieldname") or _key)
+        link_dt = spec.get("options")
+        if not link_dt or not isinstance(link_dt, str):
+            continue
+        opts = link_cache.get(link_dt)
+        if not isinstance(opts, list) or not opts:
+            continue
+        if out.get(fn) in (None, "") or is_pseudo_erp_value(out.get(fn)):
+            resolved = resolve_link_value_from_options(
+                out.get(fn) or spec.get("default_value"),
+                opts,
+                allow_first_fallback=True,
+            )
+            if resolved:
+                out[fn] = resolved
+
+    return out
 
 
 def get_optional_business_fields(doctype: str) -> list[str]:
@@ -644,7 +967,8 @@ def apply_erp_autofill_from_profile(
             applied.append({"field": field, "value": value, "reason": reason})
 
     company = (
-        profile.get("company")
+        profile.get("erp_resolved_company")
+        or profile.get("company")
         or profile.get("default_company")
         or profile.get("company_name")
     )
@@ -653,6 +977,10 @@ def apply_erp_autofill_from_profile(
     purchase_pl = profile.get("purchase_price_list") or "Standard Buying"
 
     _apply("company", company, "company_profile")
+    if "title" in (get_doctype_config(doctype).get("mandatory_fields") or []):
+        title = build_transaction_title(doctype, out, None)
+        if title:
+            _apply("title", title, "transaction_title_pattern")
     _apply("currency", currency, "company_profile")
     _apply("conversion_rate", 1.0, "company_profile")
     _apply("price_list_currency", currency, "company_profile")
@@ -876,17 +1204,36 @@ def map_entities_to_payload_fields(
     return payload
 
 
-def apply_field_defaults_to_payload(doctype: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Fill payload fields from KB default_value when not already set (skip pseudo placeholders)."""
+def apply_field_defaults_to_payload(
+    doctype: str,
+    payload: dict[str, Any],
+    *,
+    entities: Optional[dict[str, Any]] = None,
+    context: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Fill payload from KB default_value; resolve {template} tokens when bindings allow."""
+    ent = entities if isinstance(entities, dict) else {}
+    prof = {}
+    if isinstance(context, dict):
+        prof = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
+    bindings = build_entity_bindings(doctype, ent, prof, payload)
+
     for _key, spec in get_field_mappings(doctype).items():
         if not isinstance(spec, dict):
             continue
         fn = str(spec.get("fieldname") or _key)
-        if fn in payload and payload[fn] not in (None, "", [], {}):
-            if not is_pseudo_erp_value(payload[fn]):
-                continue
+        if fn in payload and payload[fn] not in (None, "", [], {}) and not is_pseudo_erp_value(payload[fn]):
+            continue
         default = spec.get("default_value")
-        if default not in (None, "") and not is_pseudo_erp_value(str(default)):
+        if default in (None, ""):
+            continue
+        default_s = str(default)
+        if "{" in default_s:
+            val = resolve_template_string(default_s, bindings)
+            if val:
+                payload[fn] = val
+            continue
+        if not is_pseudo_erp_value(default_s):
             payload[fn] = default
     return payload
 

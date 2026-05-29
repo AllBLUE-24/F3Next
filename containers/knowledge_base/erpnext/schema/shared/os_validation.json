@@ -18,8 +18,12 @@
     "order_type",
     "transaction_date",
     "posting_date",
-    "status"
+    "status",
+    "title"
   ],
+  "transaction_title_pattern": "{party_slug}-{item_slug}",
+  "company_link_doctype": "Company",
+  "company_fallback_policy": "first_live_when_pseudo_or_unmatched",
   "optional_business_fields": {
     "Sales Order": ["delivery_date"],
     "Delivery Note": ["delivery_date"],

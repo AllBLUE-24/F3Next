@@ -147,6 +147,27 @@ async def retrieve_context(data: dict) -> dict:
         "country":          company_profile.get("country", "India"),
     }
 
+    link_cache: dict[str, list[str]] = {}
+    if erp_credentials.get("erp_url") and erp_credentials.get("api_key") and not company_profile.get("is_dummy"):
+        try:
+            from shared.erp_adapters.registry import get_adapter
+            from shared.os_field_semantics import resolve_company_for_payload
+
+            adapter = get_adapter(company_profile)
+            rows = await adapter.list_records("Company", fields=["name"], limit=20)
+            names = [str(r.get("name", "")).strip() for r in rows if r.get("name")]
+            if names:
+                link_cache["Company"] = names
+                resolved = resolve_company_for_payload(
+                    company_profile.get("default_company") or company_profile.get("company_name"),
+                    {"company_profile": company_profile, "link_cache": link_cache, "defaults": defaults},
+                )
+                if resolved:
+                    company_profile["erp_resolved_company"] = resolved
+                    defaults["company"] = resolved
+        except Exception as e:
+            logger.warning("link_cache Company fetch failed for project %s: %s", company_id, e)
+
     logger.info(
         "retrieve_context: intent=%s doctype=%s company=%s profile_source=%s",
         intent_id,
@@ -191,6 +212,7 @@ async def retrieve_context(data: dict) -> dict:
         "company_profile":  company_profile,   # Full profile — has credentials
         "erp_credentials":  erp_credentials,   # Extracted separately for easy access
         "defaults":         defaults,           # ERPNext defaults for payload generation
+        "link_cache":       link_cache,         # Live ERP link options (Company, …)
 
         # Schema / KB
         "doctype_schema":   doctype_schema,

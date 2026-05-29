@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 from containers.os.payload_generator.kb_fields import field_kb
 from shared.os_field_semantics import (
+    apply_computed_defaults_to_payload,
     apply_field_defaults_to_payload,
     apply_profile_autofill_to_payload,
     is_delivery_date_skipped,
@@ -28,6 +29,7 @@ from shared.os_field_semantics import (
     map_entities_to_payload_fields,
     normalize_entities_for_doctype,
     normalize_items_list,
+    resolve_company_for_payload,
     resolve_entity_to_field,
     sanitize_entities_for_transaction,
 )
@@ -37,22 +39,16 @@ logger = logging.getLogger(__name__)
 # ── Company name resolution ───────────────────────────────────────────────────
 
 def _get_company(context: dict) -> str:
-    """
-    Get the real company name from the context bundle.
-    Priority:
-      1. context.company_profile.company         — real name from deployment_details
-      2. context.company_profile.default_company — set during profile construction
-      3. context.company_profile.company_name    — from projects table
-      4. context.defaults.company                — last resort (may be dummy)
-    """
+    """Resolved ERP Company name (live link_cache first, then profile)."""
     profile = context.get("company_profile", {})
-    company = (
-        profile.get("company")           or
-        profile.get("default_company")   or
-        profile.get("company_name")      or
-        context.get("defaults", {}).get("company", "")
+    preferred = (
+        profile.get("erp_resolved_company")
+        or profile.get("company")
+        or profile.get("default_company")
+        or profile.get("company_name")
+        or context.get("defaults", {}).get("company", "")
     )
-    return company
+    return resolve_company_for_payload(preferred, context) or preferred or ""
 
 
 # ── Default value injection ───────────────────────────────────────────────────
@@ -218,9 +214,12 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
         payload["gstin"] = entities["gstin"]
         payload["gst_category"] = "Registered Regular"
 
-    payload = apply_field_defaults_to_payload(doctype, payload)
+    payload = apply_field_defaults_to_payload(
+        doctype, payload, entities=entities, context=context,
+    )
     payload = _inject_defaults(payload, doctype, context, kb, entities=entities)
     payload = apply_profile_autofill_to_payload(doctype, payload, context)
+    payload = apply_computed_defaults_to_payload(doctype, payload, entities, context)
 
     return payload
 
