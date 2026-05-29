@@ -14,6 +14,7 @@ from shared.context_engine.loader import retrieve_kb_chunks
 from shared.embedding_generator import embedding_to_pgvector_str, generate_embedding
 from shared.rag_cache import cache_get_json, cache_set_json
 from shared.os_field_semantics import (
+    business_fields_missing,
     filter_missing_for_doctype,
     is_master_create_doctype,
     tier1_mandatory_missing,
@@ -62,6 +63,27 @@ def _tier1_analysis(doctype: str, entities: dict, *, query_used: str = "") -> di
         "rag": {"apqc": 0, "erpnext": 0, "f3iche": 0},
         "query_used": query_used,
         "analysis_mode": "tier1_only",
+    }
+
+
+def _business_analysis(
+    doctype: str,
+    entities: dict,
+    profile: dict,
+    *,
+    query_used: str = "",
+) -> dict[str, Any]:
+    """Transactional docs: only ask user-facing fields (party, items, optional dates)."""
+    missing, applied = business_fields_missing(doctype, entities, profile)
+    tier1 = [m for m in missing if int(m.get("tier", 1)) == 1]
+    return {
+        "missing_critical_fields": missing,
+        "applied_defaults": applied,
+        "confidence": 1.0 if not tier1 else 0.85,
+        "ready_for_planning": len(tier1) == 0,
+        "rag": {"apqc": 0, "erpnext": 0, "f3iche": 0},
+        "query_used": query_used,
+        "analysis_mode": "business_fields",
     }
 
 
@@ -122,6 +144,10 @@ async def analyze_business_requirements(intent: dict, context: dict) -> dict:
     if is_master_create_doctype(doctype) and action == "create":
         return _tier1_analysis(doctype, entities, query_used=query_text)
 
+    # Sales/purchase transactions: never ask for ERP-internal fields (naming_series, rates, etc.)
+    if action == "create":
+        return _business_analysis(doctype, entities, profile, query_used=query_text)
+
     top_k = 8
     apqc_chunks = await _rag_retrieve(query_text, kb_source_prefix="apqc_pcf", top_k=top_k)
     erpnext_chunks = await _rag_retrieve(query_text, kb_source_prefix="erpnext_docs", top_k=top_k)
@@ -132,7 +158,7 @@ async def analyze_business_requirements(intent: dict, context: dict) -> dict:
         f3iche_chunks = await _rag_retrieve(query_text, kb_source_prefix=f3iche_prefix, top_k=min(6, top_k))
 
     if not apqc_chunks and not erpnext_chunks and not f3iche_chunks:
-        return _tier1_analysis(doctype, entities, query_used=query_text)
+        return _business_analysis(doctype, entities, profile, query_used=query_text)
 
     today = date.today().isoformat()
     apqc_block = "\n\n".join(apqc_chunks[:3])
@@ -170,7 +196,11 @@ Based on APQC standards and ERPNext documentation, identify which *critical busi
 
 Rules:
 - ONLY ask for fields that apply to DocType "{doctype}".
-- Do NOT ask about items, rates, or taxes unless DocType is a sales/purchase/stock transaction.
+- NEVER ask for ERP-internal fields: naming_series, conversion_rate, selling_price_list,
+  price_list_currency, plc_conversion_rate, currency, company, order_type, status.
+  Those are filled from company profile automatically.
+- Only ask the user for: customer/supplier (if missing), items/qty (if missing),
+  or optional delivery/schedule date (tier 2, user may say skip).
 - Do NOT copy example field names unless they apply to this DocType.
 - Only ask for fields that materially change business correctness.
 - Use tiers:
@@ -221,8 +251,8 @@ Output ONLY valid JSON with this shape (field names must be valid for {doctype} 
         parsed["analysis_mode"] = "llm_rag_filtered"
     except Exception as e:
         logger.warning("analyze_business_requirements: LLM reasoning failed: %s", e)
-        parsed = _tier1_analysis(doctype, entities, query_used=query_text)
-        parsed["analysis_mode"] = "tier1_llm_fallback"
+        parsed = _business_analysis(doctype, entities, profile, query_used=query_text)
+        parsed["analysis_mode"] = "business_fields_llm_fallback"
 
     parsed["rag"] = {"apqc": len(apqc_chunks), "erpnext": len(erpnext_chunks), "f3iche": len(f3iche_chunks)}
     parsed["query_used"] = query_text

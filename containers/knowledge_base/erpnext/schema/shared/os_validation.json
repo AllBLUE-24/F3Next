@@ -5,5 +5,49 @@
     "Supplier": "known_suppliers",
     "Item": "known_items",
     "Warehouse": "known_warehouses"
-  }
+  },
+  "erp_autofill_fields": [
+    "naming_series",
+    "company",
+    "currency",
+    "conversion_rate",
+    "selling_price_list",
+    "buying_price_list",
+    "price_list_currency",
+    "plc_conversion_rate",
+    "order_type",
+    "transaction_date",
+    "posting_date",
+    "status"
+  ],
+  "optional_business_fields": {
+    "Sales Order": ["delivery_date"],
+    "Delivery Note": ["delivery_date"],
+    "Purchase Order": ["schedule_date"]
+  },
+  "sales_doctypes_require_customer": [
+    "Sales Order",
+    "Sales Invoice",
+    "Delivery Note",
+    "Quotation"
+  ],
+  "purchase_doctypes_require_supplier": [
+    "Purchase Order",
+    "Purchase Invoice",
+    "Purchase Receipt"
+  ],
+  "delivery_date_skip_phrases": [
+    "skip",
+    "not needed",
+    "not required",
+    "no delivery",
+    "no delivery date",
+    "none",
+    "n/a",
+    "na",
+    "nah",
+    "naah",
+    "no thanks",
+    "omit"
+  ]
 }

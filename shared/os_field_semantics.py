@@ -26,6 +26,14 @@ _NON_FIELD_ENTITY_KEYS = frozenset({
     "from_date", "to_date", "document_name", "is_stock_item", "extra",
 })
 
+# KB placeholder defaults — not real user-provided values
+_PSEUDO_DEFAULT_VALUES = frozenset({
+    "today",
+    "fetch_from_customer_or_company_default",
+    "transaction_date + 10 days",
+    "{customer_name}",
+})
+
 
 def _read_json(path: Path) -> dict[str, Any]:
     try:
@@ -220,16 +228,262 @@ def tier1_mandatory_missing(
     return missing, applied
 
 
+def get_erp_autofill_fields() -> frozenset[str]:
+    cfg = _os_validation_config()
+    raw = cfg.get("erp_autofill_fields") or []
+    return frozenset(str(x) for x in raw if x)
+
+
+def get_optional_business_fields(doctype: str) -> list[str]:
+    cfg = _os_validation_config()
+    per_dt = cfg.get("optional_business_fields") or {}
+    if isinstance(per_dt, dict):
+        fields = per_dt.get(doctype) or []
+        if isinstance(fields, list):
+            return [str(f) for f in fields if f]
+    return []
+
+
+def get_delivery_date_skip_phrases() -> frozenset[str]:
+    cfg = _os_validation_config()
+    raw = cfg.get("delivery_date_skip_phrases") or []
+    return frozenset(str(x).casefold() for x in raw if x)
+
+
+def _entity_value_present(value: Any) -> bool:
+    if value in (None, "", [], {}):
+        return False
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return False
+        if stripped.casefold() in _PSEUDO_DEFAULT_VALUES:
+            return False
+    return True
+
+
+def is_delivery_date_skipped(entities: dict[str, Any]) -> bool:
+    extra = entities.get("extra")
+    if isinstance(extra, dict) and extra.get("delivery_date_skipped"):
+        return True
+    return False
+
+
+def is_schedule_date_skipped(entities: dict[str, Any]) -> bool:
+    extra = entities.get("extra")
+    if isinstance(extra, dict) and extra.get("schedule_date_skipped"):
+        return True
+    return False
+
+
+def is_skip_answer(answer: str) -> bool:
+    """True when the user declines an optional field (e.g. delivery date)."""
+    text = (answer or "").strip().casefold()
+    if not text:
+        return False
+    phrases = get_delivery_date_skip_phrases()
+    if text in phrases:
+        return True
+    return any(text.startswith(p) for p in phrases)
+
+
+def apply_erp_autofill_from_profile(
+    doctype: str,
+    entities: dict[str, Any],
+    profile: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """
+    Fill ERP-internal fields from company profile / KB — never ask the user.
+    """
+    out = dict(entities)
+    applied: list[dict[str, Any]] = []
+    profile = profile if isinstance(profile, dict) else {}
+
+    def _apply(field: str, value: Any, reason: str) -> None:
+        if value in (None, ""):
+            return
+        if not _entity_value_present(out.get(field)):
+            out[field] = value
+            applied.append({"field": field, "value": value, "reason": reason})
+
+    company = (
+        profile.get("company")
+        or profile.get("default_company")
+        or profile.get("company_name")
+    )
+    currency = profile.get("default_currency") or "INR"
+    price_list = profile.get("default_price_list") or "Standard Selling"
+    purchase_pl = profile.get("purchase_price_list") or "Standard Buying"
+
+    _apply("company", company, "company_profile")
+    _apply("currency", currency, "company_profile")
+    _apply("conversion_rate", 1.0, "company_profile")
+    _apply("price_list_currency", currency, "company_profile")
+    _apply("plc_conversion_rate", 1.0, "company_profile")
+
+    if doctype in ("Sales Order", "Sales Invoice", "Delivery Note", "Quotation"):
+        _apply("selling_price_list", price_list, "company_profile")
+        _apply("order_type", "Sales", "kb_default")
+    if doctype in ("Purchase Order", "Purchase Invoice", "Purchase Receipt"):
+        _apply("buying_price_list", purchase_pl, "company_profile")
+
+    fm = get_field_mappings(doctype)
+    spec = fm.get("naming_series") if isinstance(fm.get("naming_series"), dict) else {}
+    options = spec.get("options") or []
+    if options and not _entity_value_present(out.get("naming_series")):
+        series = options[0] if isinstance(options[0], str) else str(options[0])
+        _apply("naming_series", series, "kb_options")
+
+    from datetime import date as _date
+
+    today = _date.today().isoformat()
+    if doctype in ("Sales Order", "Purchase Order", "Quotation"):
+        _apply("transaction_date", today, "default_today")
+    if doctype in ("Sales Invoice", "Payment Entry", "Stock Entry", "Delivery Note",
+                   "Purchase Invoice", "Purchase Receipt"):
+        _apply("posting_date", today, "default_today")
+
+    _apply("status", "Draft", "erp_default")
+    return out, applied
+
+
+def business_fields_missing(
+    doctype: str,
+    entities: dict[str, Any],
+    profile: Optional[dict[str, Any]] = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Return fields the *user* must supply — not ERP schema internals.
+    Optional fields (delivery date) use tier 2 with skip semantics.
+    """
+    profile = profile if isinstance(profile, dict) else {}
+    entities = normalize_entities_for_doctype(doctype, dict(entities))
+    entities, applied = apply_erp_autofill_from_profile(doctype, entities, profile)
+
+    cfg = _os_validation_config()
+    sales_dts = frozenset(cfg.get("sales_doctypes_require_customer") or [])
+    purchase_dts = frozenset(cfg.get("purchase_doctypes_require_supplier") or [])
+
+    missing: list[dict[str, Any]] = []
+
+    if doctype in sales_dts and not _entity_value_present(entities.get("customer")):
+        missing.append({
+            "field": "customer",
+            "tier": 1,
+            "question": f"Which customer is this {doctype} for?",
+            "reasoning": "Party required for sales transaction.",
+            "suggested_default": None,
+        })
+
+    if doctype in purchase_dts and not _entity_value_present(entities.get("supplier")):
+        missing.append({
+            "field": "supplier",
+            "tier": 1,
+            "question": f"Which supplier is this {doctype} for?",
+            "reasoning": "Party required for purchase transaction.",
+            "suggested_default": None,
+        })
+
+    items = entities.get("items")
+    if doctype in _ITEMS_DOCTYPES() and (not isinstance(items, list) or len(items) == 0):
+        missing.append({
+            "field": "items",
+            "tier": 1,
+            "question": (
+                f"What item(s) should be included in this {doctype}, "
+                "and what quantity for each?"
+            ),
+            "reasoning": "Line items required.",
+            "suggested_default": None,
+        })
+
+    for field in get_optional_business_fields(doctype):
+        if field == "delivery_date" and is_delivery_date_skipped(entities):
+            continue
+        if _entity_value_present(entities.get(field)):
+            continue
+        if field == "delivery_date":
+            question = (
+                "When should this order be delivered? "
+                "(Optional — reply with a date, or say 'skip' / 'not needed' if no delivery date.)"
+            )
+        elif field == "schedule_date":
+            question = (
+                "When should this purchase be scheduled? "
+                "(Optional — reply with a date, or say 'skip' / 'not needed'.)"
+            )
+        else:
+            question = f"Please provide {field} (optional — say 'skip' if not needed)."
+        missing.append({
+            "field": field,
+            "tier": 2,
+            "question": question,
+            "reasoning": "Optional business field.",
+            "suggested_default": None,
+        })
+
+    return missing, applied
+
+
+def apply_business_clarification_answers(
+    intent: dict[str, Any],
+    clarification_qa: list[Any],
+) -> dict[str, Any]:
+    """Merge skip/decline answers for optional business fields into intent entities."""
+    if not isinstance(intent, dict):
+        return intent
+    out = dict(intent)
+    entities = out.get("entities")
+    if not isinstance(entities, dict):
+        entities = {}
+    else:
+        entities = dict(entities)
+    extra = entities.get("extra")
+    if not isinstance(extra, dict):
+        extra = {}
+    else:
+        extra = dict(extra)
+
+    for qa in clarification_qa or []:
+        if not isinstance(qa, dict):
+            continue
+        question = str(qa.get("question") or "").casefold()
+        answer = str(qa.get("answer") or "").strip()
+        if not answer:
+            continue
+        if "delivery" in question or "deliver" in question or "schedule" in question:
+            if is_skip_answer(answer):
+                if "delivery" in question or "deliver" in question:
+                    entities["delivery_date"] = None
+                    extra["delivery_date_skipped"] = True
+                if "schedule" in question:
+                    entities["schedule_date"] = None
+                    extra["schedule_date_skipped"] = True
+            elif ("delivery" in question or "deliver" in question) and not entities.get("delivery_date"):
+                entities["delivery_date"] = answer
+                extra.pop("delivery_date_skipped", None)
+            elif "schedule" in question and not entities.get("schedule_date"):
+                entities["schedule_date"] = answer
+                extra.pop("schedule_date_skipped", None)
+
+    entities["extra"] = extra
+    out["entities"] = entities
+    return out
+
+
 def filter_missing_for_doctype(doctype: str, missing: list[Any]) -> list[dict[str, Any]]:
     """Drop LLM-suggested fields that do not apply to this doctype's KB schema."""
     fm = get_field_mappings(doctype)
     mandatory = set(get_doctype_config(doctype).get("mandatory_fields") or [])
+    autofill = get_erp_autofill_fields()
     kept: list[dict[str, Any]] = []
     for entry in missing:
         if not isinstance(entry, dict):
             continue
         field = str(entry.get("field") or "")
         top = field.split(".", 1)[0]
+        if top in autofill:
+            continue
         if top == "items" and top not in fm:
             if doctype not in _ITEMS_DOCTYPES():
                 continue

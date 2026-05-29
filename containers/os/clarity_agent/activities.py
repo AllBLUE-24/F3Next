@@ -753,6 +753,8 @@ Return ONLY valid JSON:"""
             fill_intent_gaps_from_partial,
             normalise_intent_dict,
         )
+        from shared.os_field_semantics import apply_business_clarification_answers
+
         merged = fill_intent_gaps_from_partial(raw, partial_intent)
         result = normalise_intent_dict(
             merged,
@@ -761,6 +763,7 @@ Return ONLY valid JSON:"""
             session_context=[],
         )
         result = fill_intent_gaps_from_partial(result, partial_intent)
+        result = apply_business_clarification_answers(result, clarification_qa)
         result = normalise_intent_dict(
             result,
             prompt=original_prompt,

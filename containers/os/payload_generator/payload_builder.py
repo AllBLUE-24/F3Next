@@ -16,11 +16,13 @@ from __future__ import annotations
 import copy
 import logging
 from datetime import date
-from typing import Any
+from typing import Any, Optional
 
 from containers.os.payload_generator.kb_fields import field_kb
 from shared.os_field_semantics import (
     apply_field_defaults_to_payload,
+    is_delivery_date_skipped,
+    is_schedule_date_skipped,
     map_entities_to_payload_fields,
     normalize_entities_for_doctype,
     resolve_entity_to_field,
@@ -51,7 +53,13 @@ def _get_company(context: dict) -> str:
 
 # ── Default value injection ───────────────────────────────────────────────────
 
-def _inject_defaults(payload: dict, doctype: str, context: dict, kb) -> dict:
+def _inject_defaults(
+    payload: dict,
+    doctype: str,
+    context: dict,
+    kb,
+    entities: Optional[dict] = None,
+) -> dict:
     """
     Fill mandatory fields that weren't in the user's intent.
     Uses REAL company name from context.company_profile.
@@ -68,9 +76,13 @@ def _inject_defaults(payload: dict, doctype: str, context: dict, kb) -> dict:
         if "transaction_date" not in payload:
             payload["transaction_date"] = today
         if "delivery_date" not in payload and doctype == "Sales Order":
-            payload["delivery_date"] = kb.today_plus_days(10)
+            ent = entities if isinstance(entities, dict) else {}
+            if not is_delivery_date_skipped(ent):
+                payload["delivery_date"] = kb.today_plus_days(10)
         if "schedule_date" not in payload and doctype == "Purchase Order":
-            payload["schedule_date"] = kb.today_plus_days(7)
+            ent = entities if isinstance(entities, dict) else {}
+            if not is_schedule_date_skipped(ent):
+                payload["schedule_date"] = kb.today_plus_days(7)
 
     if doctype in ("Sales Invoice", "Payment Entry", "Stock Entry",
                    "Delivery Note", "Purchase Invoice", "Purchase Receipt"):
@@ -200,7 +212,7 @@ def _build_create_payload(step: dict, entities: dict, context: dict, kb) -> dict
         payload["gst_category"] = "Registered Regular"
 
     payload = apply_field_defaults_to_payload(doctype, payload)
-    payload = _inject_defaults(payload, doctype, context, kb)
+    payload = _inject_defaults(payload, doctype, context, kb, entities=entities)
 
     return payload
 
