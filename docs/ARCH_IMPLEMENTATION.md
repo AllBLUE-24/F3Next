@@ -11,6 +11,19 @@
 **IS detail appendix:** [`IS_V2_BACKLOG.md`](./IS_V2_BACKLOG.md) (10 pillars, universal IS bridge)  
 **Long-term v2 vision:** [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md)
 
+### Company Brain gates (foundation/is-brain)
+
+IS aligns with the shared four-gate model (`shared/gate_contracts`, `shared/entity_resolution`):
+
+| Gate | IS touchpoints |
+|------|----------------|
+| **RESOLVE** | Import Pass 2.5 + `validate_mapped_data` step 2.5 (`ler_apply`, `IS_USE_LER_VALIDATE`) |
+| **COMPLETE** | `assess_data_readiness` + `live_erp.py` → `gap_report.complete_gaps` |
+| **CLARIFY** | Supervisor consumes readiness gaps (no second live-ERP scan) |
+| **COMMIT** | Validation + phased import (honesty rules unchanged this branch) |
+
+**Authority:** CVS may suggest; **LER** (`list_records` via deployment adapter) decides link existence and live master emptiness.
+
 ---
 
 ## 🏗️ Component Map
@@ -52,8 +65,9 @@ containers/implementation/
 │   └── prompts.py                 ← REFINE_MAPPING_PROMPT template
 ├── data_readiness_agent/          ← ⭐ Gap analysis before validation
 │   ├── activities.py              ← assess_data_readiness
-│   │                                 Deterministic scan → LLM enrichment → gap_report
+│   │                                 Deterministic scan → live ERP overlay → LLM → gap_report
 │   │                                 Writes: is_data_readiness_assessments
+│   ├── live_erp.py                ← LER emptiness → complete_gaps (GateItem)
 │   ├── gap_analyzer.py            ← Pre-analysis: maps files to required doctypes
 │   ├── models.py                  ← DataReadinessAssessment, DoctypeGap, DoctypeReady
 │   └── prompts.py                 ← DATA_READINESS_PROMPT
@@ -63,9 +77,11 @@ containers/implementation/
 │   │                                 → LLM generates messages → emits SupervisorActions
 │   │                                 Writes: is_supervisor_prompts
 │   └── prompts.py                 ← SUPERVISOR_PROMPT
+├── ler_apply.py                   ← LER rewrite for validate path (R2 persist)
 ├── validation_agent/
 │   └── activities.py              ← validate_mapped_data
 │                                     ⚠️ Multi-file payload merge (not overwrite)
+│                                     ⚠️ LER step 2.5 before validation engine
 │                                     ⚠️ Required-field check spans 10 rows (not 1)
 ├── import_agent/
 │   └── activities.py              ← build_import_plan, execute_import_phase,

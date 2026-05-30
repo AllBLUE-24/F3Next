@@ -136,7 +136,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 > v2 detail: [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md). Sprint ordering: [`PRIORITIES.md`](./PRIORITIES.md) Tier 7.
 
 - [ ] **Corpus-first model** — single canonical merge blob per session wave; all nodes read/write via `corpus_merge.py`
-- [ ] **`validation_rules.json` as primary validate source** — retire `_REQUIRED_FIELDS_FALLBACK` / `_ENUM_FIELDS_FALLBACK` hardcoding in `validation_agent/activities.py`
+- [x] **`validation_rules.json` as primary validate source** — KB `is_import_rules` primary in `validation_agent/activities.py` (branch 04)  
 - [ ] **SchemaResolver v1** — live Frappe schema for KB-miss doctypes on classify + validate + import preflight (extend `live_schema.py` beyond mapping-only path today)
 - [ ] **Post-mapping readiness recheck** — sidebar score from ValidationReport, not pre-mapping 8c assessment only
 - [ ] **Supervisor contract + tests** — `ask_user` only for user-resolvable data gaps; pipeline bugs → auto_fix or fail

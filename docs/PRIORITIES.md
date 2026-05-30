@@ -233,10 +233,10 @@ Structural foundations for “any doctype / any tabular data.” **Do not start 
 | 2   | Import workflow honesty (`complete_with_errors`)       | L1    | IS     | **done (2026-05-26)**                              |
 | 3   | ImportView wired to import-results API                 | L5    | IS     | **done (2026-05-26)**                              |
 | 4   | Shared LLM deps + smoke (`python -m shared.smoke_llm`) | L0    | Shared | **done (2026-05-26)**                              |
-| 5   | Re-finalize API + Green Surface beta report            | L2    | IS     | **partial** — API done; live golden pending deploy |
+| 5   | Re-finalize API + foundation verify script            | L2    | IS     | **done (2026-05-30)** — `scripts/verify_foundation.py` |
 
 
-**Rule:** Do not start Tier 3 chat bar until closure exit criteria met. Tier 0 worker deploy before customer upload.
+**Rule:** Do not start Tier 3 chat bar until `FOUNDATION_VERIFICATION.md` manual golden rows are checked or classified in beta report. Tier 0 worker deploy before customer upload.
 
 ---
 

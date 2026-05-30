@@ -96,16 +96,37 @@ If two fix types compete, choose the one that **reduces future patch surface**.
 
 ## Closure sprint (current focus)
 
-Complete before Tier 3 chat bar or new features:
+Foundation v1.0.0 **code complete** — automated verify:
 
-| # | Item | Layer |
-|---|------|-------|
-| 1 | Baseline seed before `ensure_site_prerequisites` | L4 |
-| 2 | Workflow `complete_with_errors` when `steps_failed > 0` | L1 |
-| 3 | ImportView wired to import-results API | L5 |
-| 4 | Shared LLM deps pinned across IS + OS workers | L0 |
-| 5 | Re-finalize: `POST /api/implementation/re-finalize-plan/{project_id}` | L2 |
-| 6 | Green Surface golden re-run + classified beta report | Gate |
+```bash
+python scripts/verify_foundation.py
+```
+
+Manual golden + worker deploy before `v1.0.0-rc`: [`docs/v1.0.0/FOUNDATION_VERIFICATION.md`](v1.0.0/FOUNDATION_VERIFICATION.md)
+
+| # | Item | Layer | Status |
+|---|------|-------|--------|
+| 1 | Baseline seed before `ensure_site_prerequisites` | L4 | **done** |
+| 2 | Workflow `complete_with_errors` when `steps_failed > 0` | L1 | **done** |
+| 3 | ImportView wired to import-results API | L5 | **done** |
+| 4 | Shared LLM deps pinned across IS + OS workers | L0 | **done** |
+| 5 | Re-finalize API + foundation unit suite | L2 | **done in repo** |
+| 6 | Green Surface golden re-run + beta report | Gate | **manual** — see FOUNDATION_VERIFICATION.md |
+
+**Next after rc tag:** Tier 3 IS chat bar ([`PRIORITIES.md`](PRIORITIES.md)); Tier 7 universal IS is post-beta.
+
+---
+
+## KB promotion (branch 04 policy spine)
+
+When a production or golden incident reveals a rule:
+
+1. Add `rule_id` + message to `containers/knowledge_base/erpnext/schema/` (`validation_rules.json`, `execution_preflight_rules.json`, or `os_validation.json`).
+2. Wire loader in `shared/kb/` if new file type.
+3. Add unit test in `shared/tests/test_kb_policy.py` or golden anchor in `test_golden_matrix_contracts.py`.
+4. Run `python scripts/sync_autofill_from_kb.py` if `erp_autofill_fields` changed.
+
+No filename-only priors without this path.
 
 **Exit criteria:** Green Surface loop completes OR beta report with classified failures; OS/LLM smoke green; no lying `complete` stage.
 

@@ -2,6 +2,10 @@
 
 > The Context Engine is the **shared intelligence layer** that assembles complete company context for every OS command. It merges static ERP schema knowledge, industry-specific templates, and live CVS snapshots into a single `ProjectContext` object — with a tiered Redis + in-process cache to keep latency sub-50ms.
 
+### Live Entity Registry (LER) overlay — v1.0.0 foundation
+
+**CVS may suggest; LER decides.** Context snapshots and OS commands also carry a **live ERP overlay** built by `shared/entity_resolution/` (`build_link_cache`, `resolve_entities_batch`). This wraps `BulkLinkResolver` — the same path IS import preflight uses — so validators and planners check **live Frappe link names**, not stale CVS alone. Keys: `link_cache`, `resolved_entities`, `resolution_gaps`, `live_fetched_at`, `brain_version`. Wired into workflows on `foundation/os-brain`; see [`docs/v1.0.0/branch-02-foundation-os-brain.md`](v1.0.0/branch-02-foundation-os-brain.md).
+
 ---
 
 ## 🏗️ Component Map
