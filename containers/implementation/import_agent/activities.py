@@ -432,7 +432,11 @@ async def _bulk_pre_resolve_phase_rows(
         pre_resolved_cache: {r2_key: [rewritten rows]}
         step_summaries: {r2_key: resolution_summary}
     """
-    from shared.erp_adapters.link_resolver import BulkLinkResolver
+    from shared.entity_resolution.rows import (
+        apply_resolution_map_to_rows,
+        collect_link_targets_from_rows,
+    )
+    from shared.entity_resolution.ler import build_resolution_map
 
     pre_resolved_cache: Dict[str, List[Dict]] = {}
     step_summaries: Dict[str, Dict[str, Any]] = {}
@@ -455,7 +459,7 @@ async def _bulk_pre_resolve_phase_rows(
 
         payload_link_fields: Dict[str, str] = payload.get("link_fields", {})
         effective_link_fields: Dict[str, str] = {**known_link_fields, **payload_link_fields}
-        targets = BulkLinkResolver.collect_link_targets_from_rows(rows, effective_link_fields)
+        targets = collect_link_targets_from_rows(rows, effective_link_fields)
         for target_dt, vals in targets.items():
             all_link_targets.setdefault(target_dt, set()).update(vals)
         step_payloads.append((r2_key, step.get("doctype", ""), rows, effective_link_fields))
@@ -470,15 +474,15 @@ async def _bulk_pre_resolve_phase_rows(
         ", ".join(sorted(all_link_targets.keys())),
     )
 
-    resolution_map = await BulkLinkResolver.build_resolution_map(
+    resolution_map = await build_resolution_map(
         adapter,
         all_link_targets,
-        logger,
+        log=logger,
         preferred_abbr=company_abbr or None,
     )
 
     for r2_key, step_dt, rows, effective_link_fields in step_payloads:
-        rewritten, summary = BulkLinkResolver.apply_resolution_map_to_rows(
+        rewritten, summary = apply_resolution_map_to_rows(
             rows,
             effective_link_fields,
             resolution_map,
@@ -511,11 +515,15 @@ async def _submit_after_create_if_needed(
     adapter,
     doctype: str,
     create_result: dict,
-    auto_submit_override: Optional[bool],
+    *,
+    auto_submit_override: Optional[bool] = None,
+    commit_confidence: float = 1.0,
+    phase_child_doctypes: Optional[set] = None,
+    execution_confirmed: bool = False,
     logger,
 ) -> Optional[dict]:
-    """Pass 2.6: submit document after create when lifecycle policy allows."""
-    from shared.erp_policies.lifecycle import get_lifecycle_config, should_auto_submit_on_import
+    """Pass 2.6: submit document after create when unified submit gate allows."""
+    from shared.erp_policies.submit_gate import should_submit_after_create
 
     if not isinstance(create_result, dict):
         return None
@@ -523,24 +531,25 @@ async def _submit_after_create_if_needed(
     if not doc_name:
         return None
 
-    cfg = get_lifecycle_config(doctype)
-    if not cfg.get("is_submittable"):
-        return None
-
     docstatus = create_result.get("docstatus", 0)
     if docstatus == 1:
         return {"doctype": doctype, "name": doc_name, "action": "already_submitted"}
 
-    policy = cfg.get("auto_submit_on_import", "skip")
-    if auto_submit_override is False:
-        return None
-    if not should_auto_submit_on_import(doctype, override=auto_submit_override):
-        if policy == "ask_user":
-            logger.info(
-                "  Pass 2.6: %s '%s' left as draft (auto_submit=ask_user)",
-                doctype,
-                doc_name,
-            )
+    if not should_submit_after_create(
+        doctype,
+        context="import",
+        commit_confidence=commit_confidence,
+        phase_child_doctypes=phase_child_doctypes,
+        execution_confirmed=execution_confirmed,
+        override=auto_submit_override,
+    ):
+        logger.info(
+            "  Pass 2.6: %s '%s' left as draft (submit gate: confidence=%.2f confirmed=%s)",
+            doctype,
+            doc_name,
+            commit_confidence,
+            execution_confirmed,
+        )
         return None
 
     try:
@@ -560,6 +569,28 @@ async def _submit_after_create_if_needed(
             "action": "submit_failed",
             "error": str(exc),
         }
+
+
+async def _load_commit_confidence(session_id: str) -> float:
+    """IS COMMIT confidence from latest data readiness assessment."""
+    try:
+        from shared.database.db import AsyncSessionLocal
+        from shared.models.is_models import ISDataReadinessAssessment
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISDataReadinessAssessment)
+                .where(ISDataReadinessAssessment.session_id == uuid.UUID(session_id))
+                .order_by(ISDataReadinessAssessment.created_at.desc())
+                .limit(1)
+            )
+            row = (await session.execute(stmt)).scalar_one_or_none()
+            if row and row.import_readiness_score is not None:
+                return float(row.import_readiness_score)
+    except Exception:
+        pass
+    return 1.0
 
 
 async def _resolve_erp_adapter(inp, logger):
@@ -1293,6 +1324,25 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
 
     steps = phase_def.get("steps", [])
 
+    from shared.erp_policies.submit_gate import (
+        all_plan_create_doctypes,
+        phase_child_doctypes as _phase_child_doctypes,
+    )
+
+    phase_children = _phase_child_doctypes(steps)
+    planned_children = all_plan_create_doctypes(phases)
+    commit_confidence = await _load_commit_confidence(inp.session_id)
+    execution_confirmed = bool(
+        inp.execution_confirmed or inp.skip_execution_gate or inp.auto_submit is True
+    )
+    activity.logger.info(
+        "  Submit gate | phase_children=%s planned_children=%s confidence=%.2f execution_confirmed=%s",
+        sorted(phase_children),
+        sorted(planned_children),
+        commit_confidence,
+        execution_confirmed,
+    )
+
     s3 = _get_s3_client()
     base_url, adapter = await _resolve_erp_adapter(inp, activity.logger)
 
@@ -1658,8 +1708,11 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                         adapter,
                         dt,
                         data if isinstance(data, dict) else {},
-                        inp.auto_submit,
-                        activity.logger,
+                        auto_submit_override=inp.auto_submit,
+                        commit_confidence=commit_confidence,
+                        phase_child_doctypes=planned_children,
+                        execution_confirmed=execution_confirmed,
+                        logger=activity.logger,
                     )
                     if submit_entry:
                         submit_summary.append(submit_entry)
@@ -1674,7 +1727,14 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
                         }
                         erpnext_responses.append(existing)
                         submit_entry = await _submit_after_create_if_needed(
-                            adapter, dt, existing, inp.auto_submit, activity.logger,
+                            adapter,
+                            dt,
+                            existing,
+                            auto_submit_override=inp.auto_submit,
+                            commit_confidence=commit_confidence,
+                            phase_child_doctypes=planned_children,
+                            execution_confirmed=execution_confirmed,
+                            logger=activity.logger,
                         )
                         if submit_entry:
                             submit_summary.append(submit_entry)

@@ -35,7 +35,7 @@ DOCTYPES_WITHOUT_DISABLED_FILTER: frozenset[str] = frozenset({
 _BUILTIN_LIFECYCLE: dict[str, dict[str, Any]] = {
     "BOM": {
         "is_submittable": True,
-        "auto_submit_on_import": "auto",
+        "auto_submit_on_import": "ask_user",
         "children_requiring_submitted": ["Work Order"],
         "import_risk_tier": "medium",
     },
@@ -117,12 +117,22 @@ def get_lifecycle_config(doctype: str) -> dict[str, Any]:
 def should_auto_submit_on_import(
     doctype: str,
     override: bool | None = None,
+    *,
+    commit_confidence: float = 1.0,
+    phase_child_doctypes: set[str] | None = None,
+    execution_confirmed: bool = False,
 ) -> bool:
     """True when import should submit immediately after create."""
-    if override is not None:
-        return override
-    policy = get_lifecycle_config(doctype).get("auto_submit_on_import", "skip")
-    return policy == "auto"
+    from shared.erp_policies.submit_gate import should_submit_after_create
+
+    return should_submit_after_create(
+        doctype,
+        context="import",
+        commit_confidence=commit_confidence,
+        phase_child_doctypes=phase_child_doctypes,
+        execution_confirmed=execution_confirmed,
+        override=override,
+    )
 
 
 def is_submittable(doctype: str) -> bool:

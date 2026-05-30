@@ -644,26 +644,30 @@ class ERPNextAdapter(ERPAdapter):
 
     async def submit_document(self, doctype: str, name: str) -> dict[str, Any]:
         """Submit a document via frappe.client.submit (falls back to docstatus PUT)."""
+        async def _submit_via_put() -> dict[str, Any]:
+            return await self.update_record(doctype, name, {"docstatus": 1})
+
         async def _run():
             method_url = f"{self._base_url()}/api/method/frappe.client.submit"
+            doc_ref = {"doctype": doctype, "name": name}
             logger.debug("ERPNextAdapter.submit_document: %s/%s", doctype, name)
             try:
                 result = await self._http_call(
                     "POST",
                     method_url,
-                    json_data={"doctype": doctype, "name": name},
+                    json_data={"doc": doc_ref},
                 )
                 if isinstance(result, dict) and result.get("name"):
                     return result
                 return {"name": name, "doctype": doctype, **(result or {})}
-            except ValueError as exc:
+            except (ValueError, RuntimeError) as exc:
                 logger.warning(
                     "ERPNextAdapter.submit_document: frappe.client.submit failed for %s/%s (%s) — trying docstatus PUT",
                     doctype,
                     name,
                     exc,
                 )
-                return await self.update_record(doctype, name, {"docstatus": 1})
+                return await _submit_via_put()
 
         return await self._crud_cb.call(_run)
 
