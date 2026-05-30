@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional
 
 from temporalio import activity
 
+from pydantic import BaseModel, Field
+
 from shared.models.is_status import (
     ApplyActionsResult,
     ApplySupervisorActionsInput,
@@ -42,6 +44,15 @@ class SuperviseStepInput:
     phase: Optional[str] = None
     doctypes_in_focus: List[str] = field(default_factory=list)
     status: Optional[NodeStatusEnvelope] = None
+
+
+class SupervisorGapMessages(BaseModel):
+    """Structured LLM output for supervisor gap copy."""
+
+    critical_message: str = ""
+    important_message: str = ""
+    critical_doctypes: List[str] = Field(default_factory=list)
+    important_doctypes: List[str] = Field(default_factory=list)
 
 
 # ── LLM prompt for natural-language supervisor messages ────────────────────────
@@ -119,7 +130,7 @@ async def _call_supervisor_llm(
 
         result = await generate_typed(
             prompt=prompt,
-            schema=None,
+            schema=SupervisorGapMessages,
             model_name=os.getenv("SUPERVISOR_MODEL", os.getenv("MAPPING_EXTRACTION_MODEL", "gpt-4o-mini")),
             temperature=0.2,
             max_output_tokens=800,
@@ -330,8 +341,16 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         missing_doctypes = assessment.get("missing_doctypes", []) or []
         partial_doctypes = assessment.get("partial_doctypes", []) or []
         unmappable_chunks = assessment.get("unmappable_chunks", []) or []
+        gap_report = assessment.get("gap_report") or {}
+        complete_gaps = gap_report.get("complete_gaps") or []
 
-        # Two-tier classification
+        # Live ERP / LER blocking gaps (single source from readiness agent)
+        ler_blocking = [
+            g for g in complete_gaps
+            if str(g.get("severity", "")).lower() == "blocking"
+        ]
+
+        # Two-tier classification (file corpus gaps)
         critical_gaps = [
             g for g in (*missing_doctypes, *partial_doctypes)
             if str(g.get("criticality", "")).lower() == "critical"
@@ -344,10 +363,10 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         ]
         # "optional" gaps are silently skipped — no action required
 
-        has_critical = bool(critical_gaps)
+        has_critical = bool(critical_gaps) or bool(ler_blocking)
         has_important = bool(important_gaps)
 
-        if has_critical or has_important:
+        if has_critical or has_important or ler_blocking:
             gap_summary_for_llm = {
                 "critical_gaps": [
                     {
@@ -380,6 +399,21 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
             important_msg = llm_result.get("important_message", "")
 
             # Fallback messages if LLM fails
+            if not critical_msg and ler_blocking:
+                ler_names = ", ".join(
+                    g.get("doctype") or g.get("field", "")
+                    for g in ler_blocking
+                    if g.get("doctype") or g.get("field")
+                )
+                ler_questions = [g.get("question", "") for g in ler_blocking if g.get("question")]
+                critical_msg = (
+                    ler_questions[0]
+                    if len(ler_questions) == 1
+                    else (
+                        f"Your live ERP site is missing required masters: {ler_names}. "
+                        "Upload data or create records in ERPNext before import."
+                    )
+                )
             if not critical_msg and critical_gaps:
                 critical_doctype_names = ", ".join(
                     g.get("doctype", "") for g in critical_gaps if g.get("doctype")
@@ -416,6 +450,7 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                                 {"doctype": g.get("doctype", ""), "reason": g.get("reason", "")}
                                 for g in critical_gaps
                             ],
+                            "complete_gaps": complete_gaps,
                             "unmappable_chunks": unmappable_chunks,
                         },
                     )

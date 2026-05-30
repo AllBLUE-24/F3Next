@@ -388,6 +388,35 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
         summary.get("raw_readiness_score", 0) * 100,
     )
 
+    # 4b. Live ERP master check (LER — not CVS-only)
+    live_erp_overlay: dict = {}
+    try:
+        from containers.implementation.data_readiness_agent.live_erp import assess_live_erp_masters
+
+        live_erp_overlay = await assess_live_erp_masters(
+            inp.project_id,
+            required_doctypes,
+            ready_doctypes=pre_analysis.get("ready_doctypes", []),
+            partial_doctypes=pre_analysis.get("partial_doctypes", []),
+            log=activity.logger,
+        )
+        if not live_erp_overlay.get("skipped") and live_erp_overlay.get("live_empty"):
+            for dt in live_erp_overlay.get("live_empty_blocking", []):
+                pre_analysis.setdefault("missing_doctypes", []).append({
+                    "doctype": dt,
+                    "phase": "live_erp",
+                    "reason": f"No {dt} records on live ERP site and no upload covers it",
+                    "missing_fields": [],
+                    "source": "live_erp",
+                })
+            summary["n_live_erp_empty"] = len(live_erp_overlay.get("live_empty", []))
+            summary["n_live_erp_blocking"] = len(live_erp_overlay.get("live_empty_blocking", []))
+            summary["n_live_erp_covered_by_import"] = len(
+                live_erp_overlay.get("live_empty_covered_by_import", [])
+            )
+    except Exception as e:
+        activity.logger.warning("  Live ERP readiness check skipped: %s", e)
+
     # 5. LLM ranking + question generation
     assessment: Optional[DataReadinessAssessment] = None
     try:
@@ -442,6 +471,10 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             "partial_doctypes": pre_analysis.get("partial_doctypes", []),
             "missing_doctypes": pre_analysis.get("missing_doctypes", []),
             "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+            "complete_gaps": live_erp_overlay.get("complete_gaps", []),
+            "link_cache_meta": {
+                k: len(v) for k, v in (live_erp_overlay.get("link_cache") or {}).items()
+            },
         }
         assessment = DataReadinessAssessment(
             ready_doctypes=ready_list,
@@ -451,7 +484,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 UnmappableChunk(**u) for u in (llm_raw.get("unmappable_chunks") or pre_analysis.get("unmappable_chunks") or [])
             ],
             gap_report={
-                "summary": summary,
+                **deterministic_gap_report,
                 "ready_doctypes": [r.model_dump() for r in ready_list],
                 "partial_doctypes": [
                     {
@@ -488,11 +521,13 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             minimum_viable_import_possible=not (
                 _has_critical_gaps(pre_analysis.get("missing_doctypes", []))
                 or _has_critical_gaps(pre_analysis.get("partial_doctypes", []))
+                or bool(live_erp_overlay.get("live_empty_blocking"))
             ),
             user_action_required=bool(
                 pre_analysis.get("partial_doctypes")
                 or pre_analysis.get("missing_doctypes")
                 or pre_analysis.get("unmappable_chunks")
+                or live_erp_overlay.get("live_empty_blocking")
             ),
             questions_for_user=[UserQuestion(**q) for q in (llm_raw.get("questions_for_user") or [])],
             executive_summary=llm_raw.get("executive_summary", ""),
@@ -556,8 +591,16 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 "partial_doctypes": pre_analysis.get("partial_doctypes", []),
                 "missing_doctypes": pre_analysis.get("missing_doctypes", []),
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+                "complete_gaps": live_erp_overlay.get("complete_gaps", []),
+                "link_cache_meta": {
+                    k: len(v) for k, v in (live_erp_overlay.get("link_cache") or {}).items()
+                },
             },
-            minimum_viable_import_possible=len(critical_missing) == 0 and len(critical_partial) == 0,
+            minimum_viable_import_possible=(
+                len(critical_missing) == 0
+                and len(critical_partial) == 0
+                and not live_erp_overlay.get("live_empty_blocking")
+            ),
             user_action_required=len(partial_list) + len(missing_list) > 0 or len(unmappable_list) > 0,
             questions_for_user=[],
             executive_summary=(

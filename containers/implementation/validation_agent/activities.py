@@ -25,6 +25,7 @@ _GRAPH_PATH = _KB_DIR / "erpnext_doctype_graph.json"
 
 from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
 from containers.implementation.mapping_agent.corpus_merge import dedupe_key_for
+from shared.kb.policy_loaders import get_is_import_rules, get_link_resolution_policy
 
 
 def _load_graph() -> Dict:
@@ -94,15 +95,28 @@ class _ValidationEngine:
     def __init__(self, graph: Optional[Dict] = None, field_mappings: Optional[Dict] = None):
         self._graph = graph or {}
         self._field_mappings = field_mappings or {}
+        self._kb_rules = get_is_import_rules()
+        self._kb_messages = self._kb_rules.get("messages") or {}
+        self._link_policy = get_link_resolution_policy()
+
+    def _format_kb_message(self, key: str, **ctx: Any) -> str:
+        template = self._kb_messages.get(key) or ""
+        if not template:
+            return ""
+        out = template
+        for k, v in ctx.items():
+            out = out.replace("{" + k + "}", str(v))
+        return out
 
     def _get_required_fields(self, doctype: str) -> List[str]:
-        """Read required_fields from graph; fall back to hardcoded list."""
+        """Read required_fields from graph, then KB is_import_rules, then hardcoded fallback."""
         graph_fields = (
             self._graph.get("doctypes", {})
                        .get(doctype, {})
                        .get("required_fields", [])
         )
-        fields = graph_fields if graph_fields else self._REQUIRED_FIELDS_FALLBACK.get(doctype, [])
+        kb_fields = (self._kb_rules.get("required_fields_by_doctype") or {}).get(doctype, [])
+        fields = graph_fields if graph_fields else (kb_fields if kb_fields else self._REQUIRED_FIELDS_FALLBACK.get(doctype, []))
         return self._normalise_required_fields(fields or [])
 
     @staticmethod
@@ -164,6 +178,9 @@ class _ValidationEngine:
                     enum_rules[cfg.get("fieldname", _fn)] = opts
         if enum_rules:
             return enum_rules
+        kb_enums = (self._kb_rules.get("enum_fields_by_doctype") or {}).get(doctype, {})
+        if kb_enums:
+            return kb_enums
         return self._ENUM_FIELDS_FALLBACK.get(doctype, {})
 
     def validate(self, mapped_data: Dict[str, Any], target_structure: Dict[str, Any]) -> Dict[str, Any]:
@@ -209,6 +226,41 @@ class _ValidationEngine:
 
         return report
 
+    def merge_ler_unresolvable(self, report: Dict[str, Any], ler_report: Dict[str, Any]) -> Dict[str, Any]:
+        """Append KB link-missing messages for LER misses (post-rewrite)."""
+        unres = ler_report.get("unresolvable_values") or []
+        if not unres:
+            return report
+
+        link_rules = self._kb_rules.get("link_rules") or []
+        rule = link_rules[0] if link_rules else {}
+        template = rule.get("user_message") or self._link_policy.get("is_link_missing_message") or (
+            "{link_target} '{value}' was not found on your live ERP site."
+        )
+        rule_id = rule.get("rule_id") or self._link_policy.get("is_link_missing_rule_id") or "is_link_missing_post_ler"
+
+        by_doctype: Dict[str, Dict[str, Any]] = {c["doctype"]: c for c in report.get("checks", []) if c.get("doctype")}
+
+        for entry in unres:
+            if not isinstance(entry, dict):
+                continue
+            dt = entry.get("doctype") or "Unknown"
+            field = entry.get("field") or entry.get("fieldname") or "link"
+            value = entry.get("value") or entry.get("raw_value") or ""
+            target = entry.get("link_target") or entry.get("options") or field
+            msg = template.replace("{link_target}", str(target)).replace("{value}", str(value))
+            check = by_doctype.get(dt)
+            if not check:
+                check = {"doctype": dt, "status": "fail", "errors": [], "warnings": [], "row_count": 0}
+                report.setdefault("checks", []).append(check)
+                by_doctype[dt] = check
+            check["errors"].append(msg)
+            check["status"] = "fail"
+            report.setdefault("errors", []).append(msg)
+            report["overall"] = "fail"
+
+        return report
+
     def _check_doctype(self, doctype: str, data: Dict, rules: Dict) -> Dict:
         check: Dict[str, Any] = {"doctype": doctype, "status": "pass", "errors": [], "warnings": [], "row_count": 0}
         
@@ -239,7 +291,8 @@ class _ValidationEngine:
                     if isinstance(row, dict)
                 )
                 if not field_present_in_any:
-                    check["errors"].append(f"Missing required field: {field}")
+                    msg = self._format_kb_message("missing_required_field", field=field)
+                    check["errors"].append(msg or f"Missing required field: {field}")
                     check["status"] = "fail"
 
         # Row-level required VALUES — identity + mandatory fields must be non-empty.
@@ -257,8 +310,11 @@ class _ValidationEngine:
                         continue
                     val = row.get(field)
                     if val is None or (isinstance(val, str) and not str(val).strip()):
+                        msg = self._format_kb_message(
+                            "empty_row_value", row=i + 1, field=field,
+                        )
                         check["errors"].append(
-                            f"Row {i + 1}: empty required value for '{field}'"
+                            msg or f"Row {i + 1}: empty required value for '{field}'"
                         )
                         check["status"] = "fail"
 
@@ -274,8 +330,11 @@ class _ValidationEngine:
                 if cross_val and str(cross_val).strip() and (
                     id_val is None or not str(id_val).strip()
                 ):
+                    msg = self._format_kb_message("entity_leak", row=i + 1, doctype=doctype)
                     check["errors"].append(
-                        f"Row {i + 1}: {doctype} record has '{leak_field}' but empty '{identity}'"
+                        msg or (
+                            f"Row {i + 1}: {doctype} record has '{leak_field}' but empty '{identity}'"
+                        )
                     )
                     check["status"] = "fail"
 
@@ -451,11 +510,41 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         except Exception as e:
             activity.logger.error("  ❌ Failed to load payload for %s: %s", doctype, e)
 
+    # ── 2.5 LER — resolve link fields against live ERP (same path as import Pass 2.5)
+    r2_keys_by_doctype = {
+        dt: (aggregated.get(dt) or {}).get("r2_path", "")
+        for dt in mapped_data
+        if (aggregated.get(dt) or {}).get("r2_path")
+    }
+    ler_report: Dict[str, Any] = {"skipped": True}
+    try:
+        from containers.implementation.ler_apply import apply_ler_to_session_mapped_data
+
+        ler_report = await apply_ler_to_session_mapped_data(
+            project_id=inp.project_id,
+            company_slug=inp.company_slug or "unknown",
+            mapped_data=mapped_data,
+            s3=s3,
+            r2_keys_by_doctype=r2_keys_by_doctype,
+            log=activity.logger,
+        )
+        if not ler_report.get("skipped"):
+            n_unres = len(ler_report.get("unresolvable_values") or [])
+            activity.logger.info(
+                "  LER validate: corrections=%d unresolvable=%d",
+                len(ler_report.get("corrections") or []),
+                n_unres,
+            )
+    except Exception as e:
+        activity.logger.warning("  LER validate skipped: %s", e)
+
     # ── 3. Run validation engine ─────────────────────────────────────────────
     start_time = datetime.now()
     # Load context files so engine can read required_fields + enum rules from JSON
     engine = _ValidationEngine(graph=_load_graph(), field_mappings=_load_field_mappings())
     report = engine.validate(mapped_data, target_structure)
+    if not ler_report.get("skipped"):
+        report = engine.merge_ler_unresolvable(report, ler_report)
     duration = (datetime.now() - start_time).total_seconds()
     
     v_status = report.get("overall", "pass")

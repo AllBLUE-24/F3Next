@@ -82,7 +82,11 @@ async def run_import_preflight(
     When dry_run_link_resolution is True, runs Pass 2.5 logic without POST.
     """
     log = log or logger
-    from shared.erp_adapters.link_resolver import BulkLinkResolver
+    from shared.entity_resolution.rows import (
+        apply_resolution_map_to_rows,
+        collect_link_targets_from_rows,
+    )
+    from shared.entity_resolution.ler import build_resolution_map
 
     data_gaps = [
         {"doctype": s.get("doctype"), "step": s.get("step")}
@@ -109,13 +113,13 @@ async def run_import_preflight(
                 continue
             payload_link_fields: Dict[str, str] = payload.get("link_fields", {})
             effective = {**known_link_fields, **payload_link_fields}
-            targets = BulkLinkResolver.collect_link_targets_from_rows(rows, effective)
+            targets = collect_link_targets_from_rows(rows, effective)
             for target_dt, vals in targets.items():
                 all_link_targets.setdefault(target_dt, set()).update(vals)
 
         if all_link_targets:
-            resolution_map = await BulkLinkResolver.build_resolution_map(
-                adapter, all_link_targets, log,
+            resolution_map = await build_resolution_map(
+                adapter, all_link_targets, log=log,
             )
             for step in create_steps:
                 r2_key = step.get("data_source")
@@ -126,7 +130,7 @@ async def run_import_preflight(
                     payload = json.loads(resp["Body"].read().decode("utf-8"))
                     rows = payload.get("records", [])
                     effective = {**known_link_fields, **payload.get("link_fields", {})}
-                    _, summary = BulkLinkResolver.apply_resolution_map_to_rows(
+                    _, summary = apply_resolution_map_to_rows(
                         rows, effective, resolution_map,
                     )
                     all_corrections.extend(summary.get("corrections", []))
