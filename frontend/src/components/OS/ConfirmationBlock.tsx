@@ -1,19 +1,16 @@
 "use client";
 
 /**
- * components/OS/ConfirmationBlock.tsx
- *
- * Shown when the OS needs user approval before executing.
- * Renders INLINE above the input — like a "diff preview" before a git push.
- * Not a modal. Never overlays content.
+ * Confirmation gate — advisory warnings (yellow) vs blocking preflight (red).
  */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { ConfirmationRequest } from "@/lib/api/os-api";
 
 interface Props {
   request:  ConfirmationRequest;
-  onDecide: (decision: "confirm" | "cancel") => void;
+  onDecide: (decision: "confirm" | "cancel") => void | Promise<void>;
+  submitting?: boolean;
 }
 
 const RISK_COLORS = {
@@ -22,10 +19,35 @@ const RISK_COLORS = {
   high:   { accent: "#f85149", bg: "rgba(248,81,73,0.05)",  border: "rgba(248,81,73,0.3)"  },
 } as const;
 
-export default function ConfirmationBlock({ request, onDecide }: Props): React.JSX.Element {
+const CONFIRM_TIMEOUT_SEC = 5 * 60;
+
+export default function ConfirmationBlock({
+  request,
+  onDecide,
+  submitting = false,
+}: Props): React.JSX.Element {
   const risk    = (request.risk_level ?? "medium") as keyof typeof RISK_COLORS;
   const colors  = RISK_COLORS[risk] ?? RISK_COLORS.medium;
   const preview = request.preview;
+  const [secondsLeft, setSecondsLeft] = useState(CONFIRM_TIMEOUT_SEC);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const advisoryWarnings = (preview?.warnings || []).filter(
+    (w) => w.severity !== "blocking" && w.severity !== "error",
+  );
+  const blockingWarnings = (preview?.warnings || []).filter(
+    (w) => w.severity === "blocking" || w.severity === "error",
+  );
+  const confirmBlocked = blockingWarnings.length > 0 || submitting;
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = String(secondsLeft % 60).padStart(2, "0");
 
   return (
     <div style={{
@@ -37,36 +59,35 @@ export default function ConfirmationBlock({ request, onDecide }: Props): React.J
       scrollbarWidth: "thin",
       scrollbarColor: "#30363d #0d1117",
     }}>
-      {/* Header */}
       <div style={{
-        display:    "flex",
+        display: "flex",
         alignItems: "center",
-        gap:        "8px",
-        padding:    "12px 20px 8px",
+        gap: "8px",
+        padding: "12px 20px 8px",
         borderBottom: "1px solid #161b22",
       }}>
         <span style={{ color: colors.accent, fontSize: "12px", fontWeight: 600 }}>⚠</span>
         <span style={{ color: colors.accent, fontSize: "11px", fontWeight: 600, letterSpacing: "1.5px" }}>
           CONFIRM REQUIRED
         </span>
+        <span style={{ marginLeft: "auto", color: "#484f58", fontSize: "10px" }}>
+          auto-cancel in {mins}:{secs}
+        </span>
         <span style={{
-          marginLeft:   "auto",
-          fontSize:     "9px",
-          fontWeight:   700,
-          letterSpacing:"2px",
-          padding:      "1px 8px",
-          border:       `1px solid ${colors.border}`,
-          color:        colors.accent,
+          fontSize: "9px",
+          fontWeight: 700,
+          letterSpacing: "2px",
+          padding: "1px 8px",
+          border: `1px solid ${colors.border}`,
+          color: colors.accent,
           borderRadius: "3px",
         }}>
           {risk.toUpperCase()} RISK
         </span>
       </div>
 
-      {/* Preview */}
       {preview && (
         <div style={{ padding: "10px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
-
           {preview.action_summary && (
             <div style={{ display: "flex", gap: "8px" }}>
               <span style={{ color: "#484f58", fontSize: "10px", letterSpacing: "1px", flexShrink: 0, marginTop: "3px" }}>
@@ -91,14 +112,27 @@ export default function ConfirmationBlock({ request, onDecide }: Props): React.J
             </div>
           )}
 
-          {preview.warnings && preview.warnings.length > 0 && (
+          {blockingWarnings.length > 0 && (
             <div style={{
-              padding:    "6px 10px",
+              padding: "6px 10px",
+              borderLeft: "2px solid #f85149",
+              background: "rgba(248,81,73,0.05)",
+              borderRadius: "0 3px 3px 0",
+            }}>
+              {blockingWarnings.map((w, i) => (
+                <p key={i} style={{ color: "#f85149", fontSize: "11.5px" }}>✕ {w.message}</p>
+              ))}
+            </div>
+          )}
+
+          {advisoryWarnings.length > 0 && (
+            <div style={{
+              padding: "6px 10px",
               borderLeft: "2px solid #e3b341",
               background: "rgba(227,179,65,0.05)",
               borderRadius: "0 3px 3px 0",
             }}>
-              {preview.warnings.map((w: { field: string; message: string }, i: number) => (
+              {advisoryWarnings.map((w, i) => (
                 <p key={i} style={{ color: "#e3b341", fontSize: "11.5px" }}>⚠ {w.message}</p>
               ))}
             </div>
@@ -106,12 +140,12 @@ export default function ConfirmationBlock({ request, onDecide }: Props): React.J
 
           {preview.auto_corrections && preview.auto_corrections.length > 0 && (
             <div style={{
-              padding:    "6px 10px",
+              padding: "6px 10px",
               borderLeft: "2px solid #58a6ff",
               background: "rgba(88,166,255,0.05)",
               borderRadius: "0 3px 3px 0",
             }}>
-              {preview.auto_corrections.map((c: { field: string; corrected: string; reason: string }, i: number) => (
+              {preview.auto_corrections.map((c, i) => (
                 <p key={i} style={{ color: "#58a6ff", fontSize: "11px" }}>
                   ~ {c.field}: {c.corrected}
                   {c.reason && <span style={{ color: "#484f58" }}> — {c.reason}</span>}
@@ -122,64 +156,50 @@ export default function ConfirmationBlock({ request, onDecide }: Props): React.J
         </div>
       )}
 
-      {/* Action buttons */}
       <div style={{
-        display:    "flex",
-        gap:        "10px",
-        padding:    "10px 20px 14px",
-        borderTop:  "1px solid #161b22",
+        display: "flex",
+        gap: "10px",
+        padding: "10px 20px 14px",
+        borderTop: "1px solid #161b22",
+        alignItems: "center",
       }}>
         <button
-          onClick={(): void => onDecide("cancel")}
+          onClick={(): void => { void onDecide("cancel"); }}
+          disabled={submitting}
           style={{
-            background:   "transparent",
-            border:       "1px solid #30363d",
-            color:        "#6e7681",
-            fontSize:     "11px",
-            fontFamily:   "inherit",
-            fontWeight:   500,
-            letterSpacing:"1.5px",
-            padding:      "6px 16px",
+            background: "transparent",
+            border: "1px solid #30363d",
+            color: submitting ? "#484f58" : "#6e7681",
+            fontSize: "11px",
+            fontWeight: 500,
+            letterSpacing: "1.5px",
+            padding: "6px 16px",
             borderRadius: "3px",
-            cursor:       "pointer",
-            transition:   "all 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "#f85149";
-            (e.currentTarget as HTMLButtonElement).style.color = "#f85149";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "#30363d";
-            (e.currentTarget as HTMLButtonElement).style.color = "#6e7681";
+            cursor: submitting ? "not-allowed" : "pointer",
           }}
         >
           CANCEL
         </button>
         <button
-          onClick={(): void => onDecide("confirm")}
+          onClick={(): void => { void onDecide("confirm"); }}
+          disabled={confirmBlocked}
           style={{
-            background:   colors.accent,
-            border:       `1px solid ${colors.accent}`,
-            color:        "#0d1117",
-            fontSize:     "11px",
-            fontFamily:   "inherit",
-            fontWeight:   700,
-            letterSpacing:"1.5px",
-            padding:      "6px 20px",
+            background: confirmBlocked ? "#30363d" : colors.accent,
+            border: `1px solid ${confirmBlocked ? "#30363d" : colors.accent}`,
+            color: confirmBlocked ? "#484f58" : "#0d1117",
+            fontSize: "11px",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            padding: "6px 20px",
             borderRadius: "3px",
-            cursor:       "pointer",
-            transition:   "opacity 0.15s",
+            cursor: confirmBlocked ? "not-allowed" : "pointer",
+            opacity: submitting ? 0.7 : 1,
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.85"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
         >
-          CONFIRM ↵
+          {submitting ? "CONFIRMING…" : "CONFIRM ↵"}
         </button>
-
-        {risk === "high" && (
-          <span style={{ color: "#f85149", fontSize: "10px", alignSelf: "center", marginLeft: "4px" }}>
-            ⚠ irreversible
-          </span>
+        {risk === "high" && !confirmBlocked && (
+          <span style={{ color: "#f85149", fontSize: "10px" }}>⚠ irreversible</span>
         )}
       </div>
     </div>

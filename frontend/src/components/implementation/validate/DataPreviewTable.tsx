@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import type { ValidatePreviewDoctype } from '@/lib/api/implementation_api';
+import { friendlyRuleMessage } from '@/lib/copy/gate-copy';
 
 interface Props {
   data: ValidatePreviewDoctype;
@@ -133,8 +134,9 @@ export function DataPreviewTable({ data, defaultOpen = false }: Props) {
               {data.errors.map((e, i) => (
                 <div key={`err-${i}`} className="flex items-start gap-2 text-xs">
                   <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
-                  <span className="text-red-300">
-                    <span className="font-semibold text-red-400">{e.field}:</span> {e.message}
+                  <span className="text-red-300" title={e.rule_id ? `Rule: ${e.rule_id}` : undefined}>
+                    <span className="font-semibold text-red-400">{e.field}:</span>{' '}
+                    {friendlyRuleMessage(e.rule_id, e.message)}
                   </span>
                 </div>
               ))}

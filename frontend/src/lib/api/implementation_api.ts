@@ -35,7 +35,7 @@ export interface MapFileResult {
 }
 
 export interface ValidationReport {
-  overall: 'pass' | 'fail';
+  overall: 'pass' | 'partial' | 'fail';
   timestamp: string;
   checks: Array<{ doctype: string; status: string; errors: string[]; warnings: string[] }>;
   errors: string[];
@@ -222,7 +222,7 @@ export interface ValidatePreviewDoctype {
   total_rows: number;
   total_mapped_fields: number;
   validation_status: string;
-  errors: Array<{ message: string; severity: string; field: string }>;
+  errors: Array<{ message: string; severity: string; field: string; rule_id?: string }>;
   warnings: Array<{ message: string; severity: string; field: string }>;
   columns: string[];
   records: Record<string, unknown>[];

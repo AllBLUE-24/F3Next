@@ -14,6 +14,8 @@ import OutputLog          from "@/components/OS/OutputLog";
 import TerminalInput, { type CommandMode } from "@/components/OS/TerminalInput";
 import ClarificationBlock from "@/components/OS/ClarificationBlock";
 import ConfirmationBlock  from "@/components/OS/ConfirmationBlock";
+import { clarificationFromConfirmationRequest } from "@/lib/api/gate-mappers";
+import { friendlyNetworkError } from "@/lib/copy/gate-copy";
 
 import {
   uid, type LogEntry, type UiPhase, TERMINAL_PHASES,
@@ -47,6 +49,7 @@ export default function OSShell({
   const [agentStep,   setAgentStep]   = useState<AgentStep>("");
   const [confirmReq,  setConfirmReq]  = useState<ConfirmationRequest | null>(null);
   const [inputLocked, setInputLocked] = useState<boolean>(false);
+  const [gateSubmitting, setGateSubmitting] = useState<boolean>(false);
 
   const wfRef   = useRef<string | null>(null);
   const logRef  = useRef<LogEntry[]>([]);
@@ -157,8 +160,8 @@ export default function OSShell({
       setPhase("polling");
       startPolling(res.workflow_id);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to connect to OS backend";
-      addEntry(entry("error", msg));
+      const raw = err instanceof Error ? err.message : "Failed to connect to OS backend";
+      addEntry(entry("error", friendlyNetworkError("command", raw)));
       setPhase("error");
       setInputLocked(false);
       setAgentStep("");
@@ -167,10 +170,10 @@ export default function OSShell({
 
   const handleConfirm = useCallback(async (decision: "confirm" | "cancel"): Promise<void> => {
     const wfId = wfRef.current;
-    if (!wfId) return;
-    setConfirmReq(null);
+    if (!wfId || gateSubmitting) return;
 
     if (decision === "cancel") {
+      setConfirmReq(null);
       try { await confirmCommand(wfId, "cancel"); } catch { /* best-effort */ }
       addEntry(entry("system", "Cancelled — no changes made."));
       setPhase("cancelled");
@@ -179,37 +182,42 @@ export default function OSShell({
       return;
     }
 
+    setGateSubmitting(true);
     try {
       await confirmCommand(wfId, "confirm");
+      setConfirmReq(null);
       setPhase("polling");
       setAgentStep("executing");
       startPolling(wfId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to send confirmation";
-      addEntry(entry("error", msg));
-      setPhase("error");
-      setInputLocked(false);
+      const raw = err instanceof Error ? err.message : "Failed to send confirmation";
+      addEntry(entry("error", friendlyNetworkError("confirm", raw)));
+      setPhase("awaiting_confirmation");
+    } finally {
+      setGateSubmitting(false);
     }
-  }, [addEntry, startPolling]);
+  }, [addEntry, startPolling, gateSubmitting]);
 
   const handleAnswer = useCallback(async (answer: string): Promise<void> => {
     const wfId = wfRef.current;
-    if (!wfId) return;
+    if (!wfId || gateSubmitting) return;
     addEntry(entry("user", answer));
-    setConfirmReq(null);
+    setGateSubmitting(true);
 
     try {
       await answerClarification(wfId, answer);
+      setConfirmReq(null);
       setPhase("polling");
       setAgentStep("clarity");
       startPolling(wfId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to send answer";
-      addEntry(entry("error", msg));
-      setPhase("error");
-      setInputLocked(false);
+      const raw = err instanceof Error ? err.message : "Failed to send answer";
+      addEntry(entry("error", friendlyNetworkError("answer", raw)));
+      setPhase("awaiting_clarification");
+    } finally {
+      setGateSubmitting(false);
     }
-  }, [addEntry, startPolling]);
+  }, [addEntry, startPolling, gateSubmitting]);
 
   const handleDismiss = useCallback((): void => {
     setPhase("idle");
@@ -223,17 +231,31 @@ export default function OSShell({
     || phase === "awaiting_clarification"
     || phase === "awaiting_confirmation";
 
+  const clarificationUi = clarificationFromConfirmationRequest(confirmReq);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <PipelineStatus step={agentStep} visible={isProcessing} />
       <div style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
         <OutputLog entries={log} companyId={companyId} phase={phase} />
       </div>
-      {phase === "awaiting_clarification" && confirmReq && (
-        <ClarificationBlock question={confirmReq.question ?? "Could you clarify?"} round={confirmReq.round ?? 1} onAnswer={handleAnswer} />
+      {phase === "awaiting_clarification" && clarificationUi && (
+        <ClarificationBlock
+          question={clarificationUi.question}
+          round={clarificationUi.round}
+          field={clarificationUi.field}
+          candidates={clarificationUi.candidates}
+          lockedContext={clarificationUi.lockedContext}
+          onAnswer={handleAnswer}
+          submitting={gateSubmitting}
+        />
       )}
       {phase === "awaiting_confirmation" && confirmReq && (
-        <ConfirmationBlock request={confirmReq} onDecide={handleConfirm} />
+        <ConfirmationBlock
+          request={confirmReq}
+          onDecide={handleConfirm}
+          submitting={gateSubmitting}
+        />
       )}
       {phase !== "awaiting_clarification" && phase !== "awaiting_confirmation" && (
         <TerminalInput companyId={companyId} onSubmit={handleSubmit} disabled={inputLocked} phase={phase} onDismissError={phase === "error" ? handleDismiss : undefined} />

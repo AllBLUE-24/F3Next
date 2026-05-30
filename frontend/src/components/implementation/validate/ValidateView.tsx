@@ -19,6 +19,7 @@ import { DataPreviewTable } from './DataPreviewTable';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 import { getBaseApiUrl } from '@/lib/config';
 import { stageToStep } from '@/lib/implementation-routes';
+import { friendlyRuleMessage } from '@/lib/copy/gate-copy';
 
 interface Props {
   jobId: string;
@@ -65,8 +66,13 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
   const profile = preview.profile;
   const totalRecords = preview.doctypes.reduce((s, d) => s + d.total_rows, 0);
   const totalDoctypes = preview.doctypes.length;
-  const hasErrors = preview.validation_overall === 'fail';
-  const hasWarnings = preview.validation_overall === 'partial';
+  const errorCount = preview.doctypes.reduce((s, d) => s + (d.errors?.length || 0), 0);
+  const warningCount = preview.doctypes.reduce((s, d) => s + (d.warnings?.length || 0), 0);
+  const failedDoctypes = preview.doctypes.filter((d) =>
+    ['fail', 'failed'].includes(d.validation_status),
+  ).length;
+  const hasErrors = preview.validation_overall === 'fail' || failedDoctypes > 0;
+  const hasWarnings = preview.validation_overall === 'partial' || warningCount > 0;
 
   const dataQualityLabel = (() => {
     const raw = profile.data_quality_score;
@@ -130,7 +136,11 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
           <span className={`text-xs font-bold ${
             hasErrors ? 'text-red-400' : hasWarnings ? 'text-amber-400' : 'text-emerald-400'
           }`}>
-            {hasErrors ? 'Has Errors' : hasWarnings ? 'Passed with Warnings' : 'All Passed'}
+            {hasErrors
+              ? `Failed (${failedDoctypes} doctype${failedDoctypes !== 1 ? 's' : ''}, ${errorCount} error${errorCount !== 1 ? 's' : ''})`
+              : hasWarnings
+                ? `Passed with warnings (${warningCount})`
+                : 'All Passed'}
           </span>
         </div>
       </div>
@@ -236,22 +246,23 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
           </div>
         )}
 
+        {!alreadyConfirmed && hasErrors && (
+          <p className="text-xs text-red-400 font-medium flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Validation failed for {failedDoctypes} doctype{failedDoctypes !== 1 ? 's' : ''}.
+            Fix errors below before starting import.
+          </p>
+        )}
         {!alreadyConfirmed && hasWarnings && !hasErrors && (
           <p className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5" />
             Some doctypes passed with warnings. Review amber sections before import.
           </p>
         )}
-        {!alreadyConfirmed && hasErrors && (
-          <p className="text-xs text-yellow-500 font-medium flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Some doctypes have validation errors. You can still proceed — errors will be logged.
-          </p>
-        )}
 
         <button
           onClick={handleConfirmImport}
-          disabled={isPending}
+          disabled={isPending || (hasErrors && !alreadyConfirmed)}
           className="w-full py-4 rounded-xl bg-amber-500 text-black font-black text-base hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 group shadow-xl shadow-amber-500/10"
         >
           {isPending ? (

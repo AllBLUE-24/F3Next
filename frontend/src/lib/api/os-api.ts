@@ -47,10 +47,13 @@ export interface ConfirmationRequest {
   question?:   string;
   round?:      number;
   risk_level?: "low" | "medium" | "high";
+  field?:      string;
+  candidates?: string[];
+  severity?:   "blocking" | "choice" | "hint";
   preview?: {
     action_summary:   string;
     entities:         string[];
-    warnings:         Array<{ field: string; message: string }>;
+    warnings:         Array<{ field: string; message: string; severity?: string }>;
     auto_corrections: Array<{ field: string; corrected: string; reason: string }>;
   };
 }
@@ -80,16 +83,21 @@ export interface HistorySession {
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
 
 async function call<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${getBaseApiUrl()}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getBaseApiUrl()}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...opts,
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
   if (!res.ok) {
     const body = await res.text();
     let detail: string;
     try { detail = (JSON.parse(body) as { detail?: string }).detail ?? body; }
     catch { detail = body; }
-    throw new Error(`[${res.status}] ${detail}`);
+    throw new Error(detail || `Request failed (${res.status})`);
   }
   return res.json() as Promise<T>;
 }

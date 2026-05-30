@@ -644,7 +644,9 @@ export function SupervisorPanel() {
             )}
             {openPrompts.length === 0 && (workflowStage === 'complete' || workflowStage === 'complete_with_errors') && (
               <div className={`text-[10px] font-medium ${workflowStage === 'complete_with_errors' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                {workflowStage === 'complete_with_errors' ? 'Import complete (errors)' : 'Import complete'}
+                {workflowStage === 'complete_with_errors'
+                  ? 'Import finished — some steps failed'
+                  : 'Import complete'}
               </div>
             )}
             {openPrompts.length === 0 && workflowStage === 'importing' && (

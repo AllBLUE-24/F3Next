@@ -11,23 +11,17 @@ import {
 } from 'lucide-react';
 import { getBaseApiUrl } from '@/lib/config';
 import type { LiveInstance } from '@/types/implementation';
+import {
+  summarizeImportResults,
+  resolveImportHonestyState,
+  importHonestyHeadline,
+  type ImportResultRow,
+} from '@/lib/honesty/import-results';
 
 interface PlanGap {
   doctype: string;
   action: string;
   criticality?: string;
-}
-
-interface ImportResultRow {
-  phase: string;
-  step_number: number;
-  doctype: string;
-  action: string;
-  status: string;
-  records_attempted: number;
-  records_succeeded: number;
-  records_failed: number;
-  error_message: string | null;
 }
 
 interface Props {
@@ -112,8 +106,15 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
 
   const isBlocked = stage === 'import_blocked' || planStatus === 'blocked';
   const isImporting = stage === 'importing';
-  const isCompleteWithErrors = stage === 'complete_with_errors';
-  const isComplete = stage === 'complete' || isCompleteWithErrors;
+  const summary = summarizeImportResults(importResults);
+  const honestyState = resolveImportHonestyState(stage, summary);
+  const isPartial = honestyState === 'partial';
+  const isFullyComplete = honestyState === 'success';
+  const isComplete = honestyState === 'success' || honestyState === 'partial';
+  const { title: headerTitle, subtitle: headerSubtitle } = importHonestyHeadline(
+    isImporting ? 'in_progress' : honestyState,
+    summary,
+  );
   const awaitingApproval =
     stage === 'awaiting_sandbox_approval' && planStatus !== 'blocked' && !isBlocked;
   const preparingPlan =
@@ -142,25 +143,15 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
     });
   };
 
-  const headerTitle = isCompleteWithErrors
-    ? 'Import finished with errors.'
-    : isComplete
-      ? "You're live."
+  const badgeLabel = isPartial
+    ? 'Partial Import'
+    : isFullyComplete
+      ? 'Live Instance'
       : isBlocked
-        ? 'Import blocked.'
+        ? 'Import Blocked'
         : isImporting
-          ? 'Import in progress.'
-          : 'Your ERP is ready.';
-
-  const headerSubtitle = isCompleteWithErrors
-    ? 'Some records failed to import. Review the results below before using the live instance.'
-    : isComplete
-      ? 'Your data has been imported into your live ERPNext instance.'
-      : isBlocked
-        ? 'Critical setup gaps must be resolved before live import can run.'
-        : isImporting
-          ? 'We are writing your validated data into ERPNext. This may take a few minutes.'
-          : 'Review your live instance below. When ready, approve to run the live import.';
+          ? 'Import Running'
+          : 'Live Instance';
 
   return (
     <div className="space-y-8">
@@ -168,15 +159,21 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-2">
           Step 04 of 04
         </p>
-        <h1 className="text-3xl font-black text-white mb-3">{headerTitle}</h1>
-        <p className="text-gray-500 text-base leading-relaxed">{headerSubtitle}</p>
+        <h1 className="text-3xl font-black text-white mb-3">
+          {isImporting ? 'Import in progress.' : headerTitle}
+        </h1>
+        <p className="text-gray-500 text-base leading-relaxed">
+          {isImporting
+            ? 'We are writing your validated data into ERPNext. This may take a few minutes.'
+            : headerSubtitle}
+        </p>
       </div>
 
       <div
         className={`rounded-2xl border overflow-hidden transition-all duration-500 ${
-          isCompleteWithErrors
+          isPartial
             ? 'border-amber-500/30 bg-amber-500/5'
-            : isComplete
+            : isFullyComplete
               ? 'border-green-500/30 bg-green-500/5'
               : isBlocked
                 ? 'border-red-500/20 bg-red-500/5'
@@ -185,9 +182,9 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
       >
         <div className="p-6 space-y-5">
           <div className="flex items-center gap-3">
-            {isCompleteWithErrors ? (
+            {isPartial ? (
               <AlertTriangle className="w-5 h-5 text-amber-400" />
-            ) : isComplete ? (
+            ) : isFullyComplete ? (
               <CheckCircle className="w-5 h-5 text-green-400" />
             ) : isBlocked ? (
               <AlertTriangle className="w-5 h-5 text-red-400" />
@@ -198,24 +195,16 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
             )}
             <span
               className={`text-sm font-bold ${
-                isCompleteWithErrors
+                isPartial
                   ? 'text-amber-400'
-                  : isComplete
+                  : isFullyComplete
                     ? 'text-green-400'
                     : isBlocked
                       ? 'text-red-400'
                       : 'text-amber-400'
               }`}
             >
-              {isCompleteWithErrors
-                ? 'Import Complete (Errors)'
-                : isComplete
-                  ? 'Live Instance'
-                  : isBlocked
-                    ? 'Import Blocked'
-                    : isImporting
-                      ? 'Import Running'
-                      : 'Live Instance'}
+              {badgeLabel}
             </span>
           </div>
 
@@ -227,7 +216,7 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
                 label: 'Password',
                 value: instance.password,
                 mono: true,
-                blur: !isComplete,
+                blur: !isFullyComplete,
               },
             ].map(({ label, value, mono, blur }) => (
               <div key={label}>
@@ -375,9 +364,17 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
 
       {(isComplete || isImporting) && importResults.length > 0 && (
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
-            Import results ({importResults.length} steps)
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
+              Import results ({importResults.length} steps)
+            </p>
+            {summary.stepsTotal > 0 && (
+              <p className={`text-xs font-medium ${isPartial ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {summary.stepsSucceeded} of {summary.stepsTotal} steps succeeded
+                {summary.stepsFailed > 0 ? ` · ${summary.stepsFailed} failed` : ''}
+              </p>
+            )}
+          </div>
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {importResults.map((row) => {
               const hasFailures = row.records_failed > 0 || row.status === 'error';
@@ -390,15 +387,20 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
                       : 'bg-black/20 border-white/[0.05]'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-white">{row.doctype}</span>
-                    <span
-                      className={`text-[10px] uppercase ${
-                        hasFailures ? 'text-amber-400' : 'text-green-400'
-                      }`}
-                    >
-                      {row.records_succeeded}/{row.records_attempted} ok
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {row.erp_doc_name && !hasFailures && (
+                        <span className="text-[10px] text-gray-500 font-mono">{row.erp_doc_name}</span>
+                      )}
+                      <span
+                        className={`text-[10px] uppercase ${
+                          hasFailures ? 'text-amber-400' : 'text-green-400'
+                        }`}
+                      >
+                        {row.records_succeeded}/{row.records_attempted} ok
+                      </span>
+                    </div>
                   </div>
                   {row.error_message && (
                     <p className="text-xs text-gray-500 leading-relaxed">{row.error_message}</p>
@@ -410,7 +412,7 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         </div>
       )}
 
-      {isComplete && !isCompleteWithErrors && (
+      {isFullyComplete && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
           <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
           <div>
@@ -422,13 +424,15 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         </div>
       )}
 
-      {isCompleteWithErrors && (
+      {isPartial && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
           <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
           <div>
             <p className="text-sm font-bold text-amber-400">Import completed with errors.</p>
             <p className="text-xs text-gray-600 mt-0.5">
-              Review failed doctypes above. Masters that succeeded are available in ERPNext.
+              {summary.stepsTotal > 0
+                ? `Imported ${summary.stepsSucceeded} of ${summary.stepsTotal} steps. Review failed doctypes above.`
+                : 'Review failed doctypes above. Masters that succeeded are available in ERPNext.'}
             </p>
           </div>
         </div>
