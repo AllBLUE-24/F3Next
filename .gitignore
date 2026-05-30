@@ -74,6 +74,7 @@ scripts/*
 !scripts/sync_autofill_from_kb.py
 
 # Regression test suites (foundation v1.0.0)
+/tests/
 !shared/tests/
 !containers/os/tests/
 !containers/implementation/tests/
