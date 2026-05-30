@@ -64,11 +64,19 @@ kubeconfig.yml
 # LOCAL TEST / REFERENCE
 #############################
 attachments/
-scripts/
-tests/
 scratch/
 phase_c_result.json
 *_harness_result.json
+
+# Local scripts — foundation verify/sync are tracked
+scripts/*
+!scripts/verify_foundation.py
+!scripts/sync_autofill_from_kb.py
+
+# Regression test suites (foundation v1.0.0)
+!shared/tests/
+!containers/os/tests/
+!containers/implementation/tests/
 
 #############################
 # SYSTEM / EDITORS
