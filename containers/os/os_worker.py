@@ -34,6 +34,7 @@ logging.getLogger("temporalio.worker").setLevel(logging.ERROR)
 # All your existing activities
 from containers.os.clarity_agent.activities import extract_intent, resolve_ambiguity
 from containers.os.context_retrieval.activities import retrieve_context
+from containers.os.entity_resolution.activities import resolve_entities
 from containers.os.command_planner.activities import plan_command
 from containers.os.payload_generator.activities import generate_payload
 from containers.os.validation_agent.activities import validate_payload
@@ -48,7 +49,7 @@ async def main():
     client = await Client.connect(os.getenv("TEMPORAL_HOST"))
 
     activities_list = [
-        extract_intent, resolve_ambiguity, retrieve_context,
+        extract_intent, resolve_ambiguity, retrieve_context, resolve_entities,
         plan_command, generate_payload, validate_payload, 
         execute_command, format_result, plan_search,
         analyze_business_requirements,

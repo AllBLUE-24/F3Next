@@ -287,10 +287,17 @@ async def query_workflow_status(workflow_id: str) -> WorkflowStatus:
         cr_type = str(cr_raw.get("type", "ambiguity"))
 
         if cr_type in _CLARIFICATION_TYPES:
+            cands_raw = cr_raw.get("candidates")
+            candidates: list[str] | None = None
+            if isinstance(cands_raw, list):
+                candidates = [str(c) for c in cands_raw if c]
             confirmation_request = ConfirmationRequest(
                 type     = "ambiguity",
                 question = cr_raw.get("question", "Could you clarify?"),
                 round    = _coerce_round(cr_raw.get("round"), default=1),
+                field    = cr_raw.get("field"),
+                candidates = candidates,
+                severity = cr_raw.get("severity"),
             )
         elif cr_type == "semantic_validation_confirm":
             warnings_raw = cr_raw.get("warnings") or []

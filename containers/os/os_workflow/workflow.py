@@ -153,46 +153,154 @@ def _readiness_blocker(intent_dict: dict, context: dict) -> Optional[str]:
             "Please finish the Implementation System deployment first."
         )
 
+    link_cache = context.get("link_cache") if isinstance(context.get("link_cache"), dict) else {}
     registry = profile.get("entity_registry", {}) if isinstance(profile.get("entity_registry", {}), dict) else {}
     known_customers = registry.get("known_customers") or []
     known_suppliers = registry.get("known_suppliers") or []
     known_items = registry.get("known_items") or []
 
+    live_customers = link_cache.get("Customer") or []
+    live_suppliers = link_cache.get("Supplier") or []
+    live_items = link_cache.get("Item") or []
+    has_live = bool(link_cache)
+
     doctype = str(intent_dict.get("target_doctype") or "")
 
-    if doctype in _ITEMS_REQUIRED_DOCTYPES and (not isinstance(known_items, list) or len(known_items) == 0):
-        return (
-            "Context sync is not ready: no Items found in CVS for this company. "
-            "Run CVS force-sync after deployment/import, then try again."
-        )
+    if doctype in _ITEMS_REQUIRED_DOCTYPES:
+        if has_live and not live_items:
+            return (
+                "No Items found on your live ERP site yet. "
+                "Add items in ERPNext or import them via Implementation, then try again."
+            )
+        if not has_live and (not isinstance(known_items, list) or len(known_items) == 0):
+            return (
+                "Context sync is not ready: no Items found in CVS for this company. "
+                "Run CVS force-sync after deployment/import, then try again."
+            )
 
-    if doctype in _SALES_DOCTYPES_REQUIRE_CUSTOMER and (not isinstance(known_customers, list) or len(known_customers) == 0):
-        return (
-            "Context sync is not ready: no Customers found in CVS for this company. "
-            "Run CVS force-sync after deployment/import, then try again."
-        )
+    if doctype in _SALES_DOCTYPES_REQUIRE_CUSTOMER:
+        if has_live and not live_customers:
+            return (
+                "No Customers found on your live ERP site yet. "
+                "Add customers in ERPNext or import them via Implementation, then try again."
+            )
+        if not has_live and (not isinstance(known_customers, list) or len(known_customers) == 0):
+            return (
+                "Context sync is not ready: no Customers found in CVS for this company. "
+                "Run CVS force-sync after deployment/import, then try again."
+            )
 
-    if doctype in _PURCHASE_DOCTYPES_REQUIRE_SUPPLIER and (not isinstance(known_suppliers, list) or len(known_suppliers) == 0):
-        return (
-            "Context sync is not ready: no Suppliers found in CVS for this company. "
-            "Run CVS force-sync after deployment/import, then try again."
-        )
+    if doctype in _PURCHASE_DOCTYPES_REQUIRE_SUPPLIER:
+        if has_live and not live_suppliers:
+            return (
+                "No Suppliers found on your live ERP site yet. "
+                "Add suppliers in ERPNext or import them via Implementation, then try again."
+            )
+        if not has_live and (not isinstance(known_suppliers, list) or len(known_suppliers) == 0):
+            return (
+                "Context sync is not ready: no Suppliers found in CVS for this company. "
+                "Run CVS force-sync after deployment/import, then try again."
+            )
 
     return None
 
 
 def _is_fixable_validation(validation: dict) -> bool:
-    from shared.os_field_semantics import get_erp_autofill_fields
+    from containers.os.os_workflow.workflow_gates import is_fixable_validation
 
-    autofill = get_erp_autofill_fields()
-    errs = validation.get("errors", []) if isinstance(validation, dict) else []
-    for e in errs if isinstance(errs, list) else []:
-        if not isinstance(e, dict) or e.get("rule_id") not in _FIXABLE_VALIDATION_RULE_IDS:
+    return is_fixable_validation(validation)
+
+
+class ResolutionGapsError(Exception):
+    """Raised when LER resolution needs human input before planning."""
+
+    def __init__(self, intent_dict: dict):
+        self.intent_dict = intent_dict
+
+
+def _merge_resolution_gaps_into_ambiguities(intent_dict: dict, context: dict) -> dict:
+    """Convert LER resolution_gaps to clarity-style ambiguities."""
+    gaps = context.get("resolution_gaps") if isinstance(context, dict) else []
+    if not isinstance(gaps, list) or not gaps:
+        return intent_dict
+
+    ambiguities = intent_dict.get("ambiguities")
+    if not isinstance(ambiguities, list):
+        ambiguities = []
+    else:
+        ambiguities = [a for a in ambiguities if isinstance(a, dict) and a.get("question")]
+
+    existing_fields = {str(a.get("field") or "") for a in ambiguities}
+
+    for g in gaps:
+        if not isinstance(g, dict):
             continue
-        if e.get("rule_id") == "mandatory_fields" and str(e.get("field") or "") in autofill:
+        field = str(g.get("field") or "resolve")
+        if field in existing_fields:
             continue
-        return True
-    return False
+        question = str(g.get("question") or "").strip()
+        if not question:
+            continue
+        entry: dict[str, Any] = {
+            "field": field,
+            "question": question,
+            "required": g.get("severity") == "blocking",
+        }
+        cands = g.get("candidates")
+        if isinstance(cands, list) and cands:
+            entry["candidates"] = cands[:8]
+        ambiguities.append(entry)
+        existing_fields.add(field)
+
+    if ambiguities:
+        intent_dict["ambiguities"] = ambiguities
+        intent_dict["has_ambiguities"] = True
+    return intent_dict
+
+
+def _ler_honesty_gate(intent_dict: dict, context: dict) -> dict:
+    """
+    Cap overconfident intents when party/item is missing from live LER lists.
+    """
+    link_cache = context.get("link_cache") if isinstance(context.get("link_cache"), dict) else {}
+    entities = intent_dict.get("entities") if isinstance(intent_dict.get("entities"), dict) else {}
+    doctype = str(intent_dict.get("target_doctype") or "")
+    confidence = float(intent_dict.get("confidence") or 0.0)
+
+    def _in_cache(doctype_key: str, value: Any) -> bool:
+        if not isinstance(value, str) or not value.strip():
+            return True
+        names = link_cache.get(doctype_key) or []
+        if not names:
+            return True
+        vcf = value.strip().casefold()
+        return any(str(n).casefold() == vcf for n in names)
+
+    miss_live = False
+    if doctype in _SALES_DOCTYPES_REQUIRE_CUSTOMER:
+        cust = entities.get("customer")
+        if cust and link_cache.get("Customer") and not _in_cache("Customer", cust):
+            miss_live = True
+            intent_dict["_ler_miss_customer"] = True
+    if doctype in _PURCHASE_DOCTYPES_REQUIRE_SUPPLIER:
+        sup = entities.get("supplier")
+        if sup and link_cache.get("Supplier") and not _in_cache("Supplier", sup):
+            miss_live = True
+            intent_dict["_ler_miss_supplier"] = True
+
+    if miss_live and confidence >= 0.85 and not intent_dict.get("ambiguities"):
+        intent_dict["confidence"] = min(confidence, 0.65)
+        intent_dict["has_ambiguities"] = True
+        intent_dict.setdefault("ambiguities", []).append({
+            "field": "party",
+            "question": (
+                "I couldn't match that name in your live ERP records. "
+                "Please confirm the exact customer or supplier name as it appears in ERPNext."
+            ),
+            "required": True,
+        })
+
+    return intent_dict
 
 
 def _build_validation_clarification_question(validation: dict) -> str:
@@ -292,12 +400,21 @@ class ERPOSCommandWorkflow:
                 break
 
             first_q = blocking[0].get("question") or "Could you clarify?"
+            first_amb = blocking[0]
             self._status = "awaiting_clarification"
-            self._confirmation_request = {
+            cr_payload: dict[str, Any] = {
                 "type":     request_type,
                 "question": first_q,
                 "round":    round_num,
+                "field":    first_amb.get("field"),
             }
+            cands = first_amb.get("candidates")
+            if isinstance(cands, list) and cands:
+                cr_payload["candidates"] = cands[:8]
+                cr_payload["severity"] = "choice"
+            else:
+                cr_payload["severity"] = "blocking"
+            self._confirmation_request = cr_payload
             self._user_answer = None
 
             try:
@@ -373,6 +490,44 @@ class ERPOSCommandWorkflow:
             context.get("_safe_snapshot", {}).get("company_name", "?"),
             context.get("_safe_snapshot", {}).get("module", "?"),
             context.get("_safe_snapshot", {}).get("target_doctype", "?"),
+        )
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 3.25 — RESOLVE (Live Entity Registry)
+        # ══════════════════════════════════════════════════════════════════════
+        self._status = "resolving_entities"
+        workflow.logger.info("\n%s\n🔗  [3.25] RESOLVE — live ERP link resolution\n%s", hr, hr)
+
+        ler_result: dict = await workflow.execute_activity(
+            "resolve_entities",
+            args=[{"intent_dict": intent_dict, "context": context}],
+            task_queue=OS_QUEUE,
+            start_to_close_timeout=timedelta(seconds=45),
+            retry_policy=_RETRY_2,
+        )
+
+        intent_dict = ler_result.get("intent_dict") or intent_dict
+        overlay = ler_result.get("context_overlay") if isinstance(ler_result.get("context_overlay"), dict) else {}
+        if overlay:
+            context.update(overlay)
+        patch = ler_result.get("company_profile_patch")
+        if isinstance(patch, dict):
+            context["company_profile"] = patch
+            if patch.get("erp_resolved_company") and isinstance(context.get("defaults"), dict):
+                context["defaults"]["company"] = patch["erp_resolved_company"]
+
+        intent_dict = _ler_honesty_gate(intent_dict, context)
+        intent_dict = _merge_resolution_gaps_into_ambiguities(intent_dict, context)
+        if intent_dict.get("has_ambiguities") and any(
+            isinstance(a, dict) and a.get("field") not in ("business_requirements", "validation")
+            for a in (intent_dict.get("ambiguities") or [])
+        ):
+            raise ResolutionGapsError(intent_dict)
+
+        workflow.logger.info(
+            "\n✅ [3.25] RESOLVE — link_cache=%s gaps=%d\n",
+            list((context.get("link_cache") or {}).keys()),
+            len(context.get("resolution_gaps") or []),
         )
 
         blocker = _readiness_blocker(intent_dict, context)
@@ -594,6 +749,16 @@ class ERPOSCommandWorkflow:
                     clarification_qa=clarification_qa,
                     run_business_clarification=(repair_round == 0),
                 )
+            except ResolutionGapsError as e:
+                intent_dict = e.intent_dict
+                intent_dict, clarification_qa = await self._run_ambiguity_loop(
+                    original_prompt=inp.prompt,
+                    intent_dict=intent_dict,
+                    clarification_qa=clarification_qa,
+                    max_rounds=2,
+                    request_type="resolution",
+                )
+                continue
             except NotReadyError as e:
                 self._status = "done"
                 self._final_response = str(e)

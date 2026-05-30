@@ -653,6 +653,8 @@ async def extract_intent(data: dict) -> dict:
                 OS_CLARITY_AMBIGUITY_TOTAL.labels(source="llm").inc()
         except Exception:
             pass
+        if project_id:
+            result = await _apply_cvs_miss_flags(result, project_id, _search_cvs_master_data)
         return result
 
     except Exception as e:
@@ -714,6 +716,60 @@ async def extract_intent(data: dict) -> dict:
             pass
 
         return fallback
+
+
+_SALES_DOCTYPES = {"Sales Order", "Sales Invoice", "Delivery Note", "Quotation"}
+_PURCHASE_DOCTYPES = {"Purchase Order", "Purchase Invoice", "Purchase Receipt"}
+
+
+async def _apply_cvs_miss_flags(
+    intent: dict,
+    project_id: str,
+    search_fn,
+) -> dict:
+    """Stamp CVS miss flags and cap confidence when party has zero CVS hits."""
+    entities = intent.get("entities") if isinstance(intent.get("entities"), dict) else {}
+    doctype = str(intent.get("target_doctype") or "")
+    confidence = float(intent.get("confidence") or 0.0)
+    miss = False
+
+    customer = entities.get("customer")
+    if customer and isinstance(customer, str) and doctype in _SALES_DOCTYPES:
+        hits = await search_fn(customer, "Customer")
+        if not hits:
+            intent["_cvs_miss_customer"] = True
+            miss = True
+
+    supplier = entities.get("supplier")
+    if supplier and isinstance(supplier, str) and doctype in _PURCHASE_DOCTYPES:
+        hits = await search_fn(supplier, "Supplier")
+        if not hits:
+            intent["_cvs_miss_supplier"] = True
+            miss = True
+
+    items = entities.get("items") or []
+    if isinstance(items, list) and items and doctype in _SALES_DOCTYPES | _PURCHASE_DOCTYPES:
+        first = items[0] if items else {}
+        code = first.get("item_code") if isinstance(first, dict) else None
+        if code and isinstance(code, str):
+            hits = await search_fn(code, "Item")
+            if not hits:
+                intent["_cvs_miss_item"] = True
+                miss = True
+
+    if miss and confidence >= 0.85 and not intent.get("ambiguities"):
+        intent["confidence"] = min(confidence, 0.65)
+        intent["has_ambiguities"] = True
+        intent.setdefault("ambiguities", []).append({
+            "field": "party",
+            "question": (
+                "I couldn't find that name in your company data snapshot yet. "
+                "Please confirm the exact customer, supplier, or item name."
+            ),
+            "required": True,
+        })
+
+    return intent
 
 
 @activity.defn(name="resolve_ambiguity")

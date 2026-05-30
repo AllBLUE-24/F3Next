@@ -151,7 +151,7 @@ async def retrieve_context(data: dict) -> dict:
     if erp_credentials.get("erp_url") and erp_credentials.get("api_key") and not company_profile.get("is_dummy"):
         try:
             from shared.erp_adapters.registry import get_adapter
-            from shared.os_field_semantics import resolve_company_for_payload
+            from shared.erp_semantics import resolve_company_for_payload
 
             adapter = get_adapter(company_profile)
             rows = await adapter.list_records("Company", fields=["name"], limit=20)

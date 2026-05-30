@@ -418,6 +418,65 @@ def _validate_data_quality(
 # Layer 5 — Runtime link warnings (informational)
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _name_in_link_cache(value: str, target_doctype: str, link_cache: dict) -> bool:
+    """True if *value* matches a live ERP name list (LER authority)."""
+    if not value or not isinstance(link_cache, dict):
+        return False
+    names = link_cache.get(target_doctype) or []
+    if not names:
+        return False
+    vcf = str(value).strip().casefold()
+    return any(str(n).casefold() == vcf for n in names)
+
+
+def _validate_company_link_guard(
+    step_num: int,
+    payload: dict,
+    context: dict,
+    errors: list,
+) -> None:
+    """Block project slug / pseudo values sent as Company link (KB link_resolution_policy)."""
+    from shared.kb.policy_loaders import get_link_resolution_policy
+
+    company = payload.get("company")
+    if not company or not isinstance(company, str):
+        return
+
+    policy = get_link_resolution_policy()
+    company_res = policy.get("company_resolution") or {}
+    if not company_res.get("block_pseudo_values", True):
+        return
+
+    profile = context.get("company_profile") if isinstance(context.get("company_profile"), dict) else {}
+    slug = str(
+        context.get("company_slug")
+        or profile.get("company_slug")
+        or context.get("company_id")
+        or ""
+    ).strip()
+    val_cf = company.strip().casefold()
+    if slug and val_cf == slug.casefold():
+        rule_id = policy.get("is_link_missing_rule_id") or "invalid_company_link"
+        errors.append(_err(
+            rule_id,
+            "company",
+            f"Company '{company}' looks like a workspace slug, not an ERPNext Company record. "
+            "Use your live company name from ERPNext.",
+            step_num,
+        ))
+        return
+
+    from shared.os_field_semantics import is_pseudo_erp_value
+
+    if is_pseudo_erp_value(company):
+        errors.append(_err(
+            "invalid_company_link",
+            "company",
+            f"Company value '{company}' is a placeholder and cannot be sent to ERPNext.",
+            step_num,
+        ))
+
+
 def _validate_runtime_links(
     step_num: int,
     action:   str,
@@ -428,19 +487,23 @@ def _validate_runtime_links(
     warnings: list,
 ) -> None:
     """
-    Existence checks for Link fields that reference master data in CVS.
+    Existence checks for Link fields — live ERP (link_cache) when available, else CVS.
 
     Only validates fields defined in KB-04 for this doctype. Skips name/data
     fields when creating the master record itself (action=create).
     """
     profile = context.get("company_profile", {}) if isinstance(context, dict) else {}
     registry = profile.get("entity_registry", {}) if isinstance(profile, dict) else {}
+    link_cache = context.get("link_cache") if isinstance(context.get("link_cache"), dict) else {}
+    use_ler = bool(link_cache)
 
     for fieldname, value in payload.items():
         if value in (None, "", [], {}):
             continue
         if fieldname == "items" and isinstance(value, list):
-            _validate_items_in_cvs(step_num, doctype, value, registry, errors, warnings)
+            _validate_items_in_cvs(
+                step_num, doctype, value, registry, errors, warnings, link_cache=link_cache,
+            )
             continue
 
         spec = field_spec_for_fieldname(doctype, str(fieldname))
@@ -452,6 +515,33 @@ def _validate_runtime_links(
 
         link_target = link_target_doctype(spec)
         reg_key = cvs_registry_key_for_link(link_target) if link_target else None
+        rule_id = {
+            "known_customers": "unknown_customer",
+            "known_suppliers": "unknown_supplier",
+            "known_items": "unknown_item",
+            "known_warehouses": "unknown_warehouse",
+        }.get(reg_key or "", "unknown_link")
+        label = link_target or fieldname
+
+        if use_ler and link_target:
+            live_names = link_cache.get(link_target) or []
+            if live_names and not _name_in_link_cache(str(value), link_target, link_cache):
+                errors.append(_err(
+                    rule_id,
+                    fieldname,
+                    f"{label} '{value}' was not found on your live ERP site. "
+                    f"Please choose an existing {label.lower()} or add it in ERPNext first.",
+                    step_num,
+                ))
+            elif not live_names:
+                warnings.append(_warn(
+                    "runtime_link_check",
+                    fieldname,
+                    f"'{value}' will be verified against {link_target} at execution time",
+                    step_num,
+                ))
+            continue
+
         if not reg_key:
             warnings.append(_warn(
                 "runtime_link_check",
@@ -464,13 +554,6 @@ def _validate_runtime_links(
         known = registry.get(reg_key) or []
         known_set = {str(x).casefold() for x in known if x} if isinstance(known, list) else set()
         if known_set and str(value).casefold() not in known_set:
-            rule_id = {
-                "known_customers": "unknown_customer",
-                "known_suppliers": "unknown_supplier",
-                "known_items": "unknown_item",
-                "known_warehouses": "unknown_warehouse",
-            }.get(reg_key, "unknown_link")
-            label = link_target or fieldname
             errors.append(_err(
                 rule_id,
                 fieldname,
@@ -493,11 +576,28 @@ def _validate_items_in_cvs(
     registry: dict,
     errors: list,
     warnings: list,
+    *,
+    link_cache: dict | None = None,
 ) -> None:
+    link_cache = link_cache if isinstance(link_cache, dict) else {}
+    live_items = link_cache.get("Item") or []
+    use_ler = bool(live_items)
+
     item_set = {str(x).casefold() for x in (registry.get("known_items") or []) if x}
     for i, item in enumerate(items if isinstance(items, list) else []):
         code = item.get("item_code") if isinstance(item, dict) else None
         if not code:
+            continue
+        if use_ler:
+            if not _name_in_link_cache(str(code), "Item", link_cache):
+                errors.append(_err(
+                    "unknown_item",
+                    f"items[{i}].item_code",
+                    f"Item '{code}' was not found on your live ERP site. "
+                    "Please choose an existing item or add it in ERPNext first.",
+                    step_num,
+                ))
+                break
             continue
         if item_set and str(code).casefold() not in item_set:
             errors.append(_err(
@@ -587,6 +687,7 @@ def validate_payload_bundle(
         _validate_data_quality(step_num, doctype, payload, warnings)
 
         # ── Layer 5: Runtime link warnings ────────────────────────────────
+        _validate_company_link_guard(step_num, payload, context, errors)
         _validate_runtime_links(step_num, action, doctype, payload, context, errors, warnings)
 
     is_valid = len(errors) == 0

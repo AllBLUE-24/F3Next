@@ -118,6 +118,27 @@ async def _check_master_exists(
     return None
 
 
+async def _preflight_transaction_step(
+    adapter,
+    step: dict,
+) -> None:
+    """
+    Live ERP preflight before POST — rules from execution_preflight_rules.json.
+    Raises ValueError with plain message on blocking issues.
+    """
+    step_action = step.get("action", "create")
+    if step_action != "create":
+        return
+
+    from shared.kb.preflight import evaluate_execution_preflight
+
+    payload = dict(step.get("payload") or {})
+    doctype = step.get("doctype", "")
+    errors = await evaluate_execution_preflight(adapter, doctype, payload)
+    if errors:
+        raise ValueError(errors[0])
+
+
 # ── Per-step executor using ERPAdapter ────────────────────────────────────────
 
 async def _execute_step(
@@ -345,12 +366,58 @@ async def execute_command(
     last_result   = {}
 
     try:
+        from shared.erp_policies.submit_gate import phase_child_doctypes, should_submit_after_create
+
+        plan_children = phase_child_doctypes(steps)
+        intent = context.get("intent") or plan.get("intent") or {}
+        commit_confidence = float(intent.get("confidence") or plan.get("confidence") or 1.0)
+        os_confirmed = bool(context.get("execution_confirmed", True))
+
         for step in steps:
             step_num = step.get("step_number", 1)
             step_action = step.get("action", "create")
             step_doctype = step.get("doctype", "")
 
+            await _preflight_transaction_step(adapter, step)
             step_result = await _execute_step(adapter, step)
+
+            if (
+                step_action == "create"
+                and step_result.get("success")
+                and isinstance(step_result.get("data"), dict)
+            ):
+                data = step_result["data"]
+                doc_name = data.get("name")
+                docstatus = data.get("docstatus", 0)
+                if (
+                    doc_name
+                    and docstatus != 1
+                    and should_submit_after_create(
+                        step_doctype,
+                        context="os",
+                        commit_confidence=commit_confidence,
+                        phase_child_doctypes=plan_children,
+                        execution_confirmed=os_confirmed,
+                    )
+                ):
+                    try:
+                        submitted = await adapter.submit_document(step_doctype, str(doc_name))
+                        step_result["data"] = submitted
+                        step_result["submitted"] = True
+                        activity.logger.info(
+                            "  ✅ step %d: auto-submitted %s/%s",
+                            step_num,
+                            step_doctype,
+                            doc_name,
+                        )
+                    except Exception as exc:
+                        activity.logger.warning(
+                            "  ⚠️  step %d: auto-submit failed for %s/%s: %s",
+                            step_num,
+                            step_doctype,
+                            doc_name,
+                            exc,
+                        )
 
             steps_results.append({
                 "step":     step_num,
@@ -359,6 +426,7 @@ async def execute_command(
                 "success":  step_result["success"],
                 "doc_name": step_result["data"].get("name", "") if isinstance(step_result.get("data"), dict) else "",
                 "data":     step_result.get("data"),
+                "submitted": step_result.get("submitted", False),
             })
             last_result = step_result.get("data", {})
 

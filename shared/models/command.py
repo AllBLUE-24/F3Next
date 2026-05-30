@@ -46,6 +46,9 @@ class ConfirmationRequest(BaseModel):
     question: Optional[str] = None
     round: Optional[int] = None
     risk_level: Optional[str] = None
+    field: Optional[str] = None
+    candidates: Optional[list[str]] = None
+    severity: Optional[str] = None
     preview: Optional[ConfirmationPreview] = None
 
 class WorkflowStatus(BaseModel):
