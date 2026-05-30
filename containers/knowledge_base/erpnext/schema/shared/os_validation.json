@@ -53,5 +53,35 @@
     "naah",
     "no thanks",
     "omit"
+  ],
+  "master_create_doctypes": [
+    "Item",
+    "Customer",
+    "Supplier",
+    "Employee",
+    "Warehouse",
+    "Company"
+  ],
+  "company_resolution_policy": "user_default_company_or_first_live",
+  "business_fields_by_doctype": {
+    "Sales Order": ["customer", "items"],
+    "Sales Invoice": ["customer", "items"],
+    "Purchase Order": ["supplier", "items"],
+    "Purchase Invoice": ["supplier", "items"],
+    "Delivery Note": ["customer", "items"],
+    "Quotation": ["customer", "items"],
+    "Purchase Receipt": ["supplier", "items"]
+  },
+  "transaction_doctypes": [
+    "Sales Order",
+    "Sales Invoice",
+    "Purchase Order",
+    "Purchase Invoice",
+    "Delivery Note",
+    "Quotation",
+    "Purchase Receipt",
+    "Stock Entry",
+    "Payment Entry",
+    "Work Order"
   ]
 }

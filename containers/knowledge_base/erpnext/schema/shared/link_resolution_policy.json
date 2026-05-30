@@ -1,0 +1,21 @@
+{
+  "description": "Link resolution and company guard policies (LER + OS validate)",
+  "version": "1.0",
+  "company_resolution": {
+    "policy": "user_default_company_or_first_live",
+    "prefer_fields": [
+      "erp_resolved_company",
+      "payload.company",
+      "default_company",
+      "company_name"
+    ],
+    "block_pseudo_values": true
+  },
+  "block_company_values_matching": [
+    "company_slug",
+    "project.slug"
+  ],
+  "link_suffix_wildcards": [],
+  "is_link_missing_message": "{link_target} '{value}' does not exist in ERPNext — fix the source file or create the record before import.",
+  "is_link_missing_rule_id": "is_link_missing_post_ler"
+}

@@ -364,6 +364,52 @@
           "error_message": "Missing fields for e-Invoice: {missing_fields}"
         }
       ]
+    },
+
+  "is_import_rules": {
+    "description": "Primary IS validate rules (branch 04) — replaces hardcoded fallbacks in validation_agent",
+    "required_fields_by_doctype": {
+      "Item": ["item_code", "item_name", "item_group", "stock_uom"],
+      "Customer": ["customer_name", "customer_group", "territory"],
+      "Supplier": ["supplier_name", "supplier_group"],
+      "Employee": ["employee_name", "date_of_joining"],
+      "Sales Order": ["customer", "transaction_date", "items"],
+      "Sales Invoice": ["customer", "posting_date"],
+      "Purchase Invoice": ["supplier", "bill_no", "bill_date"],
+      "Payment Entry": ["payment_type", "party_type", "party", "paid_amount"],
+      "Journal Entry": ["posting_date", "accounts"],
+      "BOM": ["item", "company"],
+      "Work Order": ["production_item", "bom_no", "qty"],
+      "Stock Entry": ["stock_entry_type", "items"],
+      "Project": ["project_name", "company"]
+    },
+    "enum_fields_by_doctype": {
+      "Payment Entry": {
+        "payment_type": ["Receive", "Pay", "Internal Transfer"],
+        "party_type": ["Customer", "Supplier", "Employee"]
+      },
+      "Customer": {
+        "customer_type": ["Company", "Individual", "Partnership"]
+      },
+      "Supplier": {
+        "supplier_type": ["Company", "Individual", "Partnership"]
+      },
+      "Employee": {
+        "status": ["Active", "Inactive", "Suspended", "Left"]
+      }
+    },
+    "link_rules": [
+      {
+        "rule_id": "is_link_missing_post_ler",
+        "severity": "error",
+        "user_message": "{link_target} '{value}' was not found on your live ERP site. Upload or fix source data, or create the record in ERPNext.",
+        "f3iche_tags": ["manufacturing_project_chemical", "green_surface", "universal"]
+      }
+    ],
+    "messages": {
+      "missing_required_field": "Required field '{field}' is missing or empty in your uploaded data.",
+      "empty_row_value": "Row {row}: '{field}' must have a value before import.",
+      "entity_leak": "Row {row}: {doctype} record looks like the wrong party type (check column mapping)."
     }
   }
-  
+}

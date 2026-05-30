@@ -480,7 +480,7 @@
           "common_values": [
             "Nos",
             "Kg",
-            "Liter",
+            "Litre",
             "Meter",
             "Box",
             "Piece"
@@ -1748,8 +1748,8 @@
     "units": {
       "kg": "Kg",
       "kilogram": "Kg",
-      "litre": "Liter",
-      "liter": "Liter",
+      "litre": "Litre",
+      "liter": "Litre",
       "meter": "Meter",
       "metre": "Meter",
       "piece": "Nos",

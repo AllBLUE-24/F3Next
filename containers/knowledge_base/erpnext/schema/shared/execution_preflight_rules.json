@@ -1,0 +1,55 @@
+{
+  "description": "OS COMMIT preflight — evaluated before POST (shared IS/OS policy spine)",
+  "version": "1.0",
+  "rules": [
+    {
+      "id": "po_subcontract_item",
+      "doctype": "Purchase Order",
+      "scope": "items",
+      "when": { "supplier.is_sub_contractor": true },
+      "check": { "item.is_sub_contracted_item": true },
+      "severity": "blocking",
+      "message": "Item {item_code} must be flagged as a sub-contracted item in the Item master for subcontractor supplier '{supplier}'."
+    },
+    {
+      "id": "po_supplier_exists",
+      "doctype": "Purchase Order",
+      "when": { "field": "supplier", "present": true },
+      "check": { "live_doctype": "Supplier", "field": "supplier", "exists": true },
+      "severity": "blocking",
+      "message": "Supplier '{supplier}' was not found on your ERP site. Please create the supplier in ERPNext first."
+    },
+    {
+      "id": "company_link_exists",
+      "doctype": "Sales Order",
+      "when": { "field": "company", "present": true },
+      "check": { "live_doctype": "Company", "field": "company", "exists": true },
+      "severity": "blocking",
+      "message": "Company '{company}' is not a valid Company record on your ERP site."
+    },
+    {
+      "id": "company_link_exists_po",
+      "doctype": "Purchase Order",
+      "when": { "field": "company", "present": true },
+      "check": { "live_doctype": "Company", "field": "company", "exists": true },
+      "severity": "blocking",
+      "message": "Company '{company}' is not a valid Company record on your ERP site."
+    },
+    {
+      "id": "company_link_exists_si",
+      "doctype": "Sales Invoice",
+      "when": { "field": "company", "present": true },
+      "check": { "live_doctype": "Company", "field": "company", "exists": true },
+      "severity": "blocking",
+      "message": "Company '{company}' is not a valid Company record on your ERP site."
+    },
+    {
+      "id": "company_link_exists_pi",
+      "doctype": "Purchase Invoice",
+      "when": { "field": "company", "present": true },
+      "check": { "live_doctype": "Company", "field": "company", "exists": true },
+      "severity": "blocking",
+      "message": "Company '{company}' is not a valid Company record on your ERP site."
+    }
+  ]
+}
