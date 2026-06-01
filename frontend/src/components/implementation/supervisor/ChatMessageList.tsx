@@ -37,12 +37,18 @@ function formatContent(text: string): ReactNode {
 }
 
 function SystemMessage({ message }: { message: ChatMessage }) {
+  const label =
+    message.message_type === "auto_fix_applied"
+      ? "Auto-fix applied"
+      : message.message_type === "supervisor_question"
+        ? "Needs your input"
+        : "System";
   return (
     <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-1">
         <Sparkles className="w-3 h-3 text-amber-400" />
         <span className="text-[10px] uppercase tracking-wider text-amber-400/80 font-medium">
-          {message.message_type === "auto_fix_applied" ? "Auto-fix applied" : "System"}
+          {label}
         </span>
       </div>
       <p className="text-[12px] text-zinc-300 leading-relaxed whitespace-pre-wrap">

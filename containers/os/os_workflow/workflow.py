@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from dataclasses import asdict
 from datetime import timedelta
 from typing import Any, Optional
 
@@ -24,6 +26,9 @@ from temporalio.exceptions import ActivityError
 
 with workflow.unsafe.imports_passed_through():
     from shared.models.command import CommandWorkflowInput, CommandWorkflowOutput
+    from shared.models.quality_gate import QualityGateInput, build_node_report
+    from containers.os.os_workflow.step_contracts import contract_as_dict
+    from shared.quality_gate.activity import quality_gate
 
 logger = logging.getLogger(__name__)
 
@@ -720,6 +725,38 @@ class ERPOSCommandWorkflow:
         # Post-clarity gate: force ambiguity loop for fallback/low-confidence/incomplete intents
         intent_dict = _gate_intent_for_minimum_requirements(intent_dict)
 
+        with workflow.unsafe.sandbox_unrestricted():
+            os_qg_enabled = os.getenv("OS_QUALITY_GATE_ENABLED", "0") == "1"
+        if os_qg_enabled:
+            conf = float(intent_dict.get("confidence") or 0.0)
+            intent_status = "success" if conf >= 0.70 and not intent_dict.get("ambiguities") else "partial"
+            intent_report = build_node_report(
+                "extract_intent",
+                "OS",
+                {"status": intent_status},
+                actual_outputs=intent_dict,
+            )
+            intent_gate = await workflow.execute_activity(
+                quality_gate,
+                QualityGateInput(
+                    pipeline="OS",
+                    step_name="extract_intent",
+                    contract=contract_as_dict("extract_intent"),
+                    node_report=asdict(intent_report),
+                    project_id=str(inp.project_id),
+                ),
+                task_queue=OS_QUEUE,
+                start_to_close_timeout=timedelta(seconds=30),
+                retry_policy=_NO_RETRY,
+            )
+            if isinstance(intent_gate, dict) and intent_gate.get("verdict") == "user_gap":
+                desc = intent_gate.get("user_gap_description") or intent_gate.get("analysis")
+                if desc:
+                    amb = list(intent_dict.get("ambiguities") or [])
+                    amb.append({"field": "quality_gate", "question": desc, "required": True})
+                    intent_dict["ambiguities"] = amb
+                    intent_dict["has_ambiguities"] = True
+
         # ══════════════════════════════════════════════════════════════════════
         # STEP 2 — AMBIGUITY LOOP (max 3 rounds)
         # ══════════════════════════════════════════════════════════════════════
@@ -773,6 +810,41 @@ class ERPOSCommandWorkflow:
             if not validation.get("valid", True):
                 errors_text = "; ".join(e.get("message", "") for e in validation.get("errors", []))
                 workflow.logger.error("\n❌ [6] VALIDATION FAILED: %s\n", errors_text)
+
+                with workflow.unsafe.sandbox_unrestricted():
+                    os_qg_enabled = os.getenv("OS_QUALITY_GATE_ENABLED", "0") == "1"
+                if os_qg_enabled:
+                    val_report = build_node_report(
+                        "validate_payload",
+                        "OS",
+                        {"status": "failed", "errors": validation.get("errors", [])},
+                        actual_outputs=validation,
+                    )
+                    val_gate = await workflow.execute_activity(
+                        quality_gate,
+                        QualityGateInput(
+                            pipeline="OS",
+                            step_name="validate_payload",
+                            contract=contract_as_dict("validate_payload"),
+                            node_report=asdict(val_report),
+                            project_id=str(inp.project_id),
+                        ),
+                        task_queue=OS_QUEUE,
+                        start_to_close_timeout=timedelta(seconds=30),
+                        retry_policy=_NO_RETRY,
+                    )
+                    if isinstance(val_gate, dict) and val_gate.get("verdict") == "retry":
+                        if repair_round < max_repairs:
+                            q = val_gate.get("retry_feedback") or _build_validation_clarification_question(validation)
+                            intent_dict["ambiguities"] = [{"field": "validation", "question": q, "required": True}]
+                            intent_dict["has_ambiguities"] = True
+                            intent_dict, clarification_qa = await self._run_ambiguity_loop(
+                                original_prompt=inp.prompt,
+                                intent_dict=intent_dict,
+                                clarification_qa=clarification_qa,
+                                max_rounds=1,
+                            )
+                            continue
 
                 if repair_round < max_repairs and _is_fixable_validation(validation):
                     q = _build_validation_clarification_question(validation)

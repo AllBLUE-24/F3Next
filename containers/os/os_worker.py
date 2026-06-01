@@ -44,6 +44,7 @@ from containers.os.result_formatter.activities import format_result
 from containers.os.os_workflow.workflow import ERPOSCommandWorkflow
 from containers.os.search_planner.activities import plan_search
 from containers.os.business_analyzer.activities import analyze_business_requirements
+from shared.quality_gate.activity import quality_gate
 
 async def main():
     client = await Client.connect(os.getenv("TEMPORAL_HOST"))
@@ -54,6 +55,7 @@ async def main():
         execute_command, format_result, plan_search,
         analyze_business_requirements,
         validate_business_logic,
+        quality_gate,
     ]
 
     # Worker 1: Main Router Queue (Workflow + Clarity/Context)

@@ -52,6 +52,9 @@ with workflow.unsafe.imports_passed_through():
     from containers.context_versioning.context_store.activities import (
         register_frappe_webhooks,
     )
+    from shared.models.quality_gate import QualityGateInput, build_node_report
+    from containers.implementation.is_workflow.step_contracts import contract_as_dict
+    from shared.quality_gate.activity import quality_gate
 
 TASK_QUEUE = "is-queue"
 
@@ -1162,6 +1165,37 @@ class ImplementationWorkflow:
             _step_fail(L, 11, "Validation", str(e))
             self._stage = "error"
             raise ApplicationError(f"Validation failed: {e}")
+
+        # ── Quality gate (feature-flagged) ───────────────────────────────────
+        with workflow.unsafe.sandbox_unrestricted():
+            qg_enabled = os.getenv("IS_QUALITY_GATE_ENABLED", "0") == "1"
+        if qg_enabled:
+            node_report = build_node_report(
+                "validate_mapped_data",
+                "IS",
+                v_env,
+                actual_outputs=v_primary if isinstance(v_primary, dict) else {},
+            )
+            gate = await workflow.execute_activity(
+                quality_gate,
+                QualityGateInput(
+                    pipeline="IS",
+                    step_name="validate_mapped_data",
+                    contract=contract_as_dict("validate_mapped_data"),
+                    node_report=asdict(node_report),
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            gate_verdict = gate.get("verdict", "ok") if isinstance(gate, dict) else "ok"
+            gate_analysis = gate.get("analysis", "") if isinstance(gate, dict) else ""
+            _kv(L, "quality_gate", f"{gate_verdict}: {gate_analysis}")
+            if gate_verdict == "hard_block":
+                _step_fail(L, 11, "Quality gate", gate_analysis)
+                self._stage = "error"
+                raise ApplicationError(f"Quality gate blocked validation: {gate_analysis}")
 
         # ── Supervisor correction loop (feature-flagged) ─────────────────────
         with workflow.unsafe.sandbox_unrestricted():
