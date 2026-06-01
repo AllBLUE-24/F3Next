@@ -64,6 +64,46 @@ def evaluate_quality_gate(
     missing = node_status.get("missing_information") or []
     combined = " ".join(errors + warnings).lower()
 
+    # Step-specific outputs (IS classify / map / plan / import)
+    if actual.get("plan_status") == "blocked":
+        return QualityGateResult(
+            verdict="hard_block",
+            analysis="Import plan is blocked due to critical gaps.",
+            user_gap_description="Resolve validation failures or upload missing files before import.",
+        )
+    if actual.get("plan_status") in ("ready", "ready_with_gaps"):
+        return QualityGateResult(
+            verdict="ok",
+            analysis=f"Import plan status: {actual.get('plan_status')}.",
+        )
+
+    mapped = actual.get("mapped_count")
+    total = actual.get("total_files")
+    if mapped is not None and total is not None and total > 0 and mapped == 0:
+        return QualityGateResult(
+            verdict="user_gap",
+            analysis="No files were mapped successfully.",
+            user_gap_description="Upload recognizable tabular files or clarify doctype mapping in chat.",
+        )
+
+    phase_result = actual.get("result")
+    if isinstance(phase_result, dict) and phase_result.get("steps_failed", 0) > 0:
+        return QualityGateResult(
+            verdict="user_gap",
+            analysis="Import phase had failed steps.",
+            user_gap_description=(
+                f"Phase {actual.get('phase_label', '?')}: "
+                f"{phase_result.get('steps_failed')} step(s) failed."
+            ),
+        )
+
+    if actual.get("assignment_count") == 0 and contract.step_name == "assign_corpus_doctypes":
+        return QualityGateResult(
+            verdict="user_gap",
+            analysis="No corpus doctype assignments produced.",
+            user_gap_description="Upload files with recognizable columns or describe file types in chat.",
+        )
+
     # OS validate_payload shape
     if "valid" in actual:
         if actual.get("valid") is True:

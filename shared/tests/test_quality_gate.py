@@ -59,6 +59,26 @@ def test_validate_missing_info_user_gap():
     assert result.verdict == "user_gap"
 
 
+def test_finalize_blocked():
+    report = {
+        "node_status": {"status": "failed"},
+        "actual_outputs": {"plan_status": "blocked"},
+    }
+    contract = StepContract(step_name="finalize_import_plan", pipeline="IS")
+    result = evaluate_quality_gate(contract, report)
+    assert result.verdict == "hard_block"
+
+
+def test_map_zero_user_gap():
+    report = {
+        "node_status": {"status": "failed"},
+        "actual_outputs": {"mapped_count": 0, "total_files": 3},
+    }
+    contract = StepContract(step_name="map_file_to_erpnext", pipeline="IS")
+    result = evaluate_quality_gate(contract, report)
+    assert result.verdict == "user_gap"
+
+
 def test_os_validate_invalid_user_gap():
     report = asdict(
         build_node_report(
@@ -74,3 +94,21 @@ def test_os_validate_invalid_user_gap():
     contract = StepContract(step_name="validate_payload", pipeline="OS", max_retries=2)
     result = evaluate_quality_gate(contract, report)
     assert result.verdict == "user_gap"
+
+
+def test_os_validate_invalid_user_gap():
+    report = asdict(
+        build_node_report(
+            "validate_payload",
+            "OS",
+            {},
+            actual_outputs={
+                "valid": False,
+                "errors": [{"message": "Customer is required for Sales Order"}],
+            },
+        )
+    )
+    contract = StepContract(step_name="validate_payload", pipeline="OS", max_retries=2)
+    result = evaluate_quality_gate(contract, report)
+    assert result.verdict == "user_gap"
+

@@ -56,7 +56,7 @@ Classify the user's intent and respond appropriately.
 
 Return JSON only:
 {{
-  "intent": "remap" | "upload_intent" | "general_question",
+  "intent": "remap" | "upload_intent" | "answer_supervisor" | "general_question",
   "reply": "assistant reply text (required for general_question and upload_intent; for remap leave empty)",
   "confidence": 0.0 to 1.0
 }}
@@ -64,6 +64,7 @@ Return JSON only:
 Rules:
 - "remap": user wants to change how a spreadsheet column maps to an ERP field (e.g. "map party_name to supplier_name").
 - "upload_intent": user wants to upload or add files.
+- "answer_supervisor": user is answering an open supervisor question (continue, upload, confirm, or free-text note).
 - "general_question": explain validation errors, assumed defaults, doctypes, or next steps.
 - Be concise, honest, and refer to actual context — do not invent row counts or doctype names not in context.
 """
@@ -188,7 +189,7 @@ async def _classify_intent(
         )
         intent = str(result.get("intent") or "general_question")
         reply = str(result.get("reply") or "")
-        if intent not in ("remap", "upload_intent", "general_question"):
+        if intent not in ("remap", "upload_intent", "answer_supervisor", "general_question"):
             intent = "general_question"
         return intent, reply
     except Exception as e:
@@ -200,6 +201,80 @@ async def _classify_intent(
             "Try asking about a specific mapping change (e.g. 'map vendor_name to supplier_name') "
             "or describe a validation issue you see on screen."
         )
+
+
+def _match_supervisor_option(message: str, options: List[str]) -> Optional[str]:
+    msg = message.strip().lower()
+    for opt in options:
+        if msg == opt.strip().lower() or msg in opt.strip().lower():
+            return opt
+    if any(w in msg for w in ("continue", "proceed", "yes", "ok", "skip")):
+        for opt in options:
+            if "continue" in opt.lower() or "anyway" in opt.lower():
+                return opt
+    if any(w in msg for w in ("upload", "attach", "file")):
+        for opt in options:
+            if "upload" in opt.lower():
+                return opt
+    return options[0] if len(options) == 1 else None
+
+
+async def _handle_supervisor_answer(
+    is_session: ISSession,
+    message: str,
+    step: str,
+    open_prompts: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if not open_prompts:
+        return None
+
+    prompt = open_prompts[0]
+    actions = prompt.get("actions") or []
+    ask_actions = [a for a in actions if isinstance(a, dict) and a.get("type") == "ask_user"]
+    if not ask_actions:
+        return None
+
+    action = ask_actions[0]
+    action_id = str(action.get("id") or "")
+    if not action_id:
+        return None
+
+    options = [str(o) for o in (action.get("options") or []) if o]
+    selected = _match_supervisor_option(message, options) if options else None
+
+    from app.services.is_launcher import ImplementationLauncher
+
+    launcher = ImplementationLauncher()
+    await launcher.answer_supervisor_prompt(
+        is_session.project_id,
+        str(prompt.get("id")),
+        action_id,
+        extra_data={
+            "user_note": message,
+            **({"selected_option": selected} if selected else {}),
+        },
+    )
+
+    content = (
+        f"Got it — I've sent your response to the workflow"
+        + (f' (option: "{selected}")' if selected else "")
+        + ". The pipeline will continue shortly."
+    )
+    msg_id = await save_chat_message(
+        str(is_session.id),
+        step,
+        "assistant",
+        content,
+        message_type="chat",
+        message_metadata={"supervisor_answer": True, "prompt_id": prompt.get("id")},
+    )
+    return {
+        "id": msg_id,
+        "role": "assistant",
+        "content": content,
+        "message_type": "chat",
+        "metadata": {"supervisor_answer": True},
+    }
 
 
 async def _handle_remap(
@@ -285,8 +360,20 @@ async def dispatch_chat_message(
     )
 
     context = await build_session_context(is_session, step)
+    open_prompts = context.get("open_supervisor_prompts") or []
     intent, llm_reply = await _classify_intent(message, context)
     company_slug = await _get_company_slug(str(is_session.project_id))
+
+    if open_prompts and (
+        intent == "answer_supervisor"
+        or (intent == "upload_intent" and _UPLOAD_PATTERNS.search(message))
+        or re.search(r"\b(continue|proceed|yes|skip|confirm)\b", message, re.I)
+    ):
+        supervisor_reply = await _handle_supervisor_answer(
+            is_session, message, step, open_prompts
+        )
+        if supervisor_reply:
+            return supervisor_reply
 
     if intent == "remap":
         return await _handle_remap(is_session, message, step, company_slug)

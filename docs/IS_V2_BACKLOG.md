@@ -109,12 +109,29 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 
 ## P2 — UX (Implementation Assistant & validate screen)
 
-- **Chat bar at bottom of right panel** — persistent input on Validate (and later Sandbox): ask about gaps, answer supervisor prompts, trigger mapping refinement. *(Discussed in separate Cursor conversation.)*
-- **Chat context wiring** — session id, validation report, mapped payloads summary, supervisor pending actions (avoid hallucinated row counts).
+- [x] **Chat bar at bottom of right panel** — persistent input on Validate/Analyze/Import routes; `is_chat_messages` + `/api/implementation/chat`. *(2026-06-01)*
+- [x] **Chat context wiring** — session id, validation report, mapped payloads summary, supervisor pending actions. *(2026-06-01)*
+- [x] **Wire chat → `refine_mapping_with_llm`** — mapping refinement from natural language. *(2026-06-01)*
+- [x] **Chat answers supervisor prompts** — free-text / continue / upload routes to `supervisor-prompts/respond`. *(2026-06-01 Phase 3)*
+- [x] **Supervisor + quality gate messages in chat stream** — system/assistant bubbles for auto-fix, user_gap, supervisor questions. *(2026-06-01 Phase 3)*
 - **Validate: one panel per doctype** — show `source_files[]` and merged row count. *(partially done — `corpus_merge` + launcher)*
 - **Classification transparency** — per file: chosen doctype, score margin, method (`local` / `llm`); “wrong doctype?” affordance.
 - **Import plan summary on Validate** — phases, merged record counts, blocked steps.
-- **Wire chat → `refine_mapping_with_llm`** — user says “map party_name to supplier_name” → regen payload.
+
+---
+
+## P2b — Closed feedback loops (quality gate)
+
+> Branch: `feature/is-chat-bar-phase1` · Phases 1–3 shipped in repo; enable via env flags before beta.
+
+- [x] **Shared `quality_gate` activity** — deterministic rules + optional LLM (`QUALITY_GATE_LLM=1`). *(2026-06-01)*
+- [x] **IS step contracts** — classify, map, validate, finalize, import. *(2026-06-01)*
+- [x] **OS step contracts** — extract_intent, validate_payload (+ hooks for plan/execute). *(2026-06-01)*
+- [x] **IS workflow gates on all major steps** — behind `IS_QUALITY_GATE_ENABLED=1`. *(2026-06-01 Phase 3)*
+- [x] **Gate verdicts → chat + audit** — `quality_gate_verdict` in `is_audit_trail`; user-visible system messages. *(2026-06-01 Phase 3)*
+- [ ] **Retry injection into activity inputs** — gate `retry_feedback` passed into map/validate nodes (structural; defer post-beta)
+- [ ] **OS persistent chat history** — mirror IS `is_chat_messages` pattern for NL commands
+- [ ] **Quality gate unit tests in CI golden matrix** — one row per verdict class
 
 ---
 
@@ -235,5 +252,6 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-26 | Green Surface beta prep | Added 10 IS pillars, universal north star, P3 bridge items, supervisor contract, UI confirm-button gaps |
 | 2026-05-26 | Tier 1 status sync | Marked P1 badge/flatten/partial done; 1b sidebar + 1e buttons still open |
 | 2026-05-26 | Tier 1 complete | 1b + 1e shipped on feature/is-trust-v2 |
+| 2026-06-01 | Chat bar + quality gate Phases 1–3 | IS/OS feedback loops, full IS gate coverage, chat convergence on `feature/is-chat-bar-phase1` |
 
 

@@ -119,7 +119,25 @@ export function ChatMessageList({
   return (
     <div className="space-y-3">
       {messages.map((m) => {
-        if (m.role === "system") {
+        if (m.role === "system" || m.message_type === "supervisor_question") {
+          if (m.role === "user") {
+            return <UserMessage key={m.id} message={m} />;
+          }
+          if (m.role === "assistant" && m.message_type === "supervisor_question") {
+            return (
+              <div key={m.id} className="rounded-lg border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span className="text-[10px] uppercase tracking-wider text-amber-400/80 font-medium">
+                    Assistant question
+                  </span>
+                </div>
+                <p className="text-[12px] text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                  {formatContent(m.content)}
+                </p>
+              </div>
+            );
+          }
           return <SystemMessage key={m.id} message={m} />;
         }
         if (m.role === "user") {

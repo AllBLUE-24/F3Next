@@ -79,8 +79,9 @@ async def _persist_gate_chat(inp: QualityGateInput, result: QualityGateResult) -
         return
     try:
         from containers.implementation.file_io.persist_chat_message import save_chat_message
+        from shared.quality_gate.chat_bridge import step_to_chat_step
 
-        step = "validate" if "validate" in inp.step_name else "analyze"
+        step = step_to_chat_step(inp.step_name, inp.pipeline)
         if result.verdict == "user_gap" and result.user_gap_description:
             content = (
                 "I need your help before we can continue:\n"
@@ -108,14 +109,23 @@ async def _persist_gate_chat(inp: QualityGateInput, result: QualityGateResult) -
                 message_metadata={"quality_gate": True, "verdict": result.verdict},
             )
         elif result.verdict == "hard_block":
-            content = f"Import blocked at {inp.step_name}: {result.analysis}"
+            content = f"Import blocked at **{inp.step_name}**: {result.analysis}"
             await save_chat_message(
                 inp.session_id,
                 step,
                 "system",
                 content,
                 message_type="supervisor_question",
-                message_metadata={"quality_gate": True, "verdict": result.verdict},
+                message_metadata={"quality_gate": True, "verdict": result.verdict, "step": inp.step_name},
+            )
+        elif result.verdict == "ok" and result.analysis and "successfully" not in result.analysis.lower():
+            await save_chat_message(
+                inp.session_id,
+                step,
+                "system",
+                result.analysis,
+                message_type="default_assumed",
+                message_metadata={"quality_gate": True, "verdict": "ok", "step": inp.step_name},
             )
     except Exception as e:
         activity.logger.warning("quality_gate chat message failed: %s", e)

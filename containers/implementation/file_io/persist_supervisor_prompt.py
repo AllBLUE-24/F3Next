@@ -49,6 +49,35 @@ async def persist_supervisor_prompt(inp: PersistSupervisorPromptInput) -> str:
     except Exception as e:
         activity.logger.error("  ❌ persist_supervisor_prompt failed: %s", e)
         return "error"
+
+    if inp.status == "open" and inp.actions:
+        try:
+            from containers.implementation.file_io.persist_chat_message import save_chat_message
+            from shared.quality_gate.chat_bridge import step_to_chat_step
+
+            ask_actions = [a for a in inp.actions if isinstance(a, dict) and a.get("type") == "ask_user"]
+            if ask_actions:
+                questions = [a.get("question") for a in ask_actions if a.get("question")]
+                summary = inp.summary_for_ui or (questions[0] if questions else "")
+                if summary:
+                    chat_step = step_to_chat_step(inp.step, "IS")
+                    if inp.step in ("upload", "analyze", "validate", "import"):
+                        chat_step = inp.step
+                    await save_chat_message(
+                        inp.session_id,
+                        chat_step,
+                        "assistant",
+                        summary,
+                        message_type="supervisor_question",
+                        message_metadata={
+                            "supervisor_prompt_id": str(prompt_id),
+                            "step": inp.step,
+                            "actions": inp.actions,
+                        },
+                    )
+        except Exception as e:
+            activity.logger.warning("  ⚠ Could not mirror supervisor prompt to chat: %s", e)
+
     return str(prompt_id)
 
 

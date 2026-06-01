@@ -143,18 +143,21 @@ Users must trust validate colors, counts, and readiness %.
 
 ---
 
-### Tier 3 — IS chat bar (3–5 days) — **after Tier 1**
-
-Persistent assistant on Validate (stretch: Analyze).
+### Tier 3 — IS chat bar + quality gate convergence — **in progress (2026-06-01)**
 
 
-| ID  | Item                                                   | Outcome                                                                                              |
-| --- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| 3a  | Chat input on Validate right panel                     | User describes mapping/validation issues in natural language                                         |
-| 3b  | Context wiring                                         | Session id, validation errors, doctype summary, open supervisor actions — no hallucinated row counts |
-| 3c  | Wire to `refine_mapping_with_llm` + supervisor respond | e.g. “map party_name to supplier_name”                                                               |
-| 3d  | (Stretch) Same shell on Analyze                        | Pre-validate questions                                                                               |
+| ID  | Item                                                   | Outcome                                                                                              | Status |
+| --- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------ |
+| 3a  | Chat input on Validate right panel                     | User describes mapping/validation issues in natural language                                         | **done in repo** |
+| 3b  | Context wiring                                         | Session id, validation errors, doctype summary, open supervisor actions — no hallucinated row counts | **done in repo** |
+| 3c  | Wire to `refine_mapping_with_llm` + supervisor respond | e.g. “map party_name to supplier_name”                                                               | **done in repo** |
+| 3d  | (Stretch) Same shell on Analyze                        | Pre-validate questions                                                                               | **partial** — panel on all routes; step-aware dispatch |
+| 3e  | Quality gate Phase 2 — shared `quality_gate` activity  | Deterministic + optional LLM; IS validate + OS intent/validate                                     | **done in repo** |
+| 3f  | Quality gate Phase 3 — full IS step coverage           | Gates on classify, map, validate, finalize, import + chat surfacing                                | **done in repo** |
+| 3g  | Supervisor prompts mirrored to chat stream             | `persist_supervisor_prompt` writes assistant bubble; chat can answer via signal                      | **done in repo** |
 
+
+**Enable flags:** `IS_QUALITY_GATE_ENABLED=1`, `OS_QUALITY_GATE_ENABLED=1`, `IS_SUPERVISOR_ENABLED=1`, optional `QUALITY_GATE_LLM=1`.
 
 **Not in chat bar v1:** auto-reclassify file from chat, full NL pipeline control (IS P4).
 

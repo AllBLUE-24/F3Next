@@ -55,6 +55,10 @@ with workflow.unsafe.imports_passed_through():
     from shared.models.quality_gate import QualityGateInput, build_node_report
     from containers.implementation.is_workflow.step_contracts import contract_as_dict
     from shared.quality_gate.activity import quality_gate
+    from containers.implementation.is_workflow.quality_gate_hooks import (
+        coerce_envelope,
+        mapping_summary_envelope,
+    )
 
 TASK_QUEUE = "is-queue"
 
@@ -242,6 +246,51 @@ class ImplementationWorkflow:
                 if detail is not None:
                     t["detail"] = detail
                 return
+
+    async def _run_is_quality_gate(
+        self,
+        step_name: str,
+        env: Any,
+        project_id: str,
+        L: Any,
+        *,
+        actual_outputs: Optional[Dict[str, Any]] = None,
+        hard_block_raises: bool = False,
+    ) -> str:
+        """Run quality_gate activity when IS_QUALITY_GATE_ENABLED=1. Returns verdict."""
+        with workflow.unsafe.sandbox_unrestricted():
+            qg_enabled = os.getenv("IS_QUALITY_GATE_ENABLED", "0") == "1"
+        if not qg_enabled:
+            return "ok"
+
+        env_obj = coerce_envelope(env, fallback_primary=actual_outputs)
+        node_report = build_node_report(
+            step_name,
+            "IS",
+            env_obj,
+            actual_outputs=actual_outputs or {},
+        )
+        gate = await workflow.execute_activity(
+            quality_gate,
+            QualityGateInput(
+                pipeline="IS",
+                step_name=step_name,
+                contract=contract_as_dict(step_name),
+                node_report=asdict(node_report),
+                session_id=self._session_id,
+                project_id=project_id,
+                company_slug=self._company_slug,
+            ),
+            **_ACT,
+        )
+        gate_verdict = gate.get("verdict", "ok") if isinstance(gate, dict) else "ok"
+        gate_analysis = gate.get("analysis", "") if isinstance(gate, dict) else ""
+        _kv(L, "quality_gate", f"{step_name} → {gate_verdict}: {gate_analysis}")
+        if gate_verdict == "hard_block" and hard_block_raises:
+            _step_fail(L, step_name, "Quality gate", gate_analysis)
+            self._stage = "error"
+            raise ApplicationError(f"Quality gate blocked at {step_name}: {gate_analysis}")
+        return gate_verdict
 
     # ── Main run ─────────────────────────────────────────────────────────────
 
@@ -918,6 +967,16 @@ class ImplementationWorkflow:
             }
             _kv(L, "assignments", len(self._corpus_assignments))
             _step_ok(L, "8e", "Corpus Doctype Assignment", f"{len(self._corpus_assignments)} files classified")
+            await self._run_is_quality_gate(
+                "assign_corpus_doctypes",
+                corpus_env,
+                project_id,
+                L,
+                actual_outputs={
+                    "assignment_count": len(self._corpus_assignments),
+                    "assignments": list(self._corpus_assignments.values())[:20],
+                },
+            )
         except Exception as e:
             _step_fail(L, "8e", "Corpus Doctype Assignment", str(e))
 
@@ -950,6 +1009,7 @@ class ImplementationWorkflow:
                     f"{len(self._parsed_files)} files to map")
 
         mapped_count = 0
+        map_failures: List[str] = []
         # ── SORT: structured files first (.csv, .xlsx), then unstructured (.txt, .pdf) ──
         structured_ext = {".csv", ".xlsx", ".xls", ".tsv"}
         sorted_files = sorted(
@@ -1023,12 +1083,25 @@ class ImplementationWorkflow:
                         L.info("             → ⚠️  Supervisor hook for mapping failed: %s", e)
             except Exception as e:
                 L.info("             → ❌ %s FAILED: %s", fname, e)
+                map_failures.append(f"{fname}: {e}")
 
         _kv(L, "files_mapped", f"{mapped_count}/{len(self._parsed_files)}")
         _kv(L, "tables written", "is_field_mappings, is_mapped_data")
         _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/mappings/")
         _kv(L, "audit", "is_audit_trail → mapping_completed (per file)")
         _step_ok(L, 9, "File Mapping", f"{mapped_count}/{len(self._parsed_files)} files mapped")
+
+        await self._run_is_quality_gate(
+            "map_file_to_erpnext",
+            mapping_summary_envelope(mapped_count, len(self._parsed_files), map_failures),
+            project_id,
+            L,
+            actual_outputs={
+                "mapped_count": mapped_count,
+                "total_files": len(self._parsed_files),
+                "failures": map_failures[:10],
+            },
+        )
 
         self._set_task("t6", "done", f"{mapped_count} files mapped")
 
@@ -1167,35 +1240,14 @@ class ImplementationWorkflow:
             raise ApplicationError(f"Validation failed: {e}")
 
         # ── Quality gate (feature-flagged) ───────────────────────────────────
-        with workflow.unsafe.sandbox_unrestricted():
-            qg_enabled = os.getenv("IS_QUALITY_GATE_ENABLED", "0") == "1"
-        if qg_enabled:
-            node_report = build_node_report(
-                "validate_mapped_data",
-                "IS",
-                v_env,
-                actual_outputs=v_primary if isinstance(v_primary, dict) else {},
-            )
-            gate = await workflow.execute_activity(
-                quality_gate,
-                QualityGateInput(
-                    pipeline="IS",
-                    step_name="validate_mapped_data",
-                    contract=contract_as_dict("validate_mapped_data"),
-                    node_report=asdict(node_report),
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    company_slug=self._company_slug,
-                ),
-                **_ACT,
-            )
-            gate_verdict = gate.get("verdict", "ok") if isinstance(gate, dict) else "ok"
-            gate_analysis = gate.get("analysis", "") if isinstance(gate, dict) else ""
-            _kv(L, "quality_gate", f"{gate_verdict}: {gate_analysis}")
-            if gate_verdict == "hard_block":
-                _step_fail(L, 11, "Quality gate", gate_analysis)
-                self._stage = "error"
-                raise ApplicationError(f"Quality gate blocked validation: {gate_analysis}")
+        await self._run_is_quality_gate(
+            "validate_mapped_data",
+            v_env,
+            project_id,
+            L,
+            actual_outputs=v_primary if isinstance(v_primary, dict) else {},
+            hard_block_raises=True,
+        )
 
         # ── Supervisor correction loop (feature-flagged) ─────────────────────
         with workflow.unsafe.sandbox_unrestricted():
@@ -1384,6 +1436,14 @@ class ImplementationWorkflow:
                 L.info("      ℹ️  Plan is READY WITH GAPS — import will proceed for mapped data; optional doctypes deferred")
 
             _step_ok(L, 12, "Finalize Import Plan", f"status={plan_status}")
+            await self._run_is_quality_gate(
+                "finalize_import_plan",
+                plan_status,
+                project_id,
+                L,
+                actual_outputs={"plan_status": plan_status},
+                hard_block_raises=(plan_status == "blocked"),
+            )
         except Exception as e:
             _step_fail(L, 12, "Finalize Import Plan", str(e))
             self._stage = "error"
@@ -1561,6 +1621,17 @@ class ImplementationWorkflow:
                         import_phase_failures.append(
                             f"{phase_label}: {result.get('steps_failed')} step(s) failed"
                         )
+                await self._run_is_quality_gate(
+                    "execute_import_phase",
+                    result if isinstance(result, dict) else {"status": str(result)},
+                    project_id,
+                    L,
+                    actual_outputs={
+                        "phase_id": phase_id,
+                        "phase_label": phase_label,
+                        "result": result if isinstance(result, dict) else {"raw": str(result)},
+                    },
+                )
                 L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)
