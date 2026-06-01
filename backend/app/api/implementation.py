@@ -367,3 +367,45 @@ async def respond_supervisor_prompt(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Chat bar (free-text assistant)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class ChatSendRequest(BaseModel):
+    message: str
+    step: str = "analyze"  # upload | analyze | validate | import
+
+
+@router.get("/chat/{project_id}", summary="Chat history for implementation session")
+async def get_chat_history(
+    project_id: UUID,
+    step: Optional[str] = None,
+    limit: int = 100,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    messages = await launcher.get_chat_messages(project_id, step=step, limit=limit)
+    return {"messages": messages}
+
+
+@router.post("/chat/{project_id}", summary="Send a message to the implementation assistant")
+async def send_chat_message(
+    project_id: UUID,
+    req: ChatSendRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        response = await launcher.send_chat_message(
+            project_id,
+            req.message,
+            step=req.step,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger = __import__("logging").getLogger(__name__)
+        logger.exception("Chat dispatch failed")
+        raise HTTPException(status_code=500, detail="Chat dispatch failed") from exc
+    return {"message": response}

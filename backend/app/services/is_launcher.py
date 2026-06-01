@@ -755,3 +755,31 @@ class ImplementationLauncher:
                 "updated_at": session.updated_at.isoformat() if session and session.updated_at else None,
             } if session else None,
         }
+
+    # ── Chat bar ─────────────────────────────────────────────────────────────
+
+    async def get_chat_messages(
+        self,
+        project_id: str | UUID,
+        step: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        from app.services.is_chat_dispatcher import get_chat_messages as _get_msgs
+
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            return []
+        return await _get_msgs(str(is_session.id), step=step, limit=limit)
+
+    async def send_chat_message(
+        self,
+        project_id: str | UUID,
+        message: str,
+        step: str = "analyze",
+    ) -> Dict[str, Any]:
+        from app.services.is_chat_dispatcher import dispatch_chat_message
+
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            raise ValueError("Implementation session not found")
+        return await dispatch_chat_message(is_session, message, step)

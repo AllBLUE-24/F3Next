@@ -20,6 +20,7 @@ Tables:
   is_import_logs                 — step-by-step import execution log
   is_audit_trail                 — full history of every action
   is_supervisor_prompts          — exception-driven Supervisor prompts (conversation loop)
+  is_chat_messages               — IS assistant chat history (user + assistant + system)
 """
 
 from __future__ import annotations
@@ -662,6 +663,42 @@ class ISSupervisorPrompt(Base):
         Index("idx_is_supervisor_prompts_step", "step"),
         Index("idx_is_supervisor_prompts_status", "status"),
     )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. ISChatMessage — Assistant chat history
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ISChatMessage(Base):
+    __tablename__ = "is_chat_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("is_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # upload | analyze | validate | import
+    step = Column(String, nullable=False, default="analyze")
+
+    # user | assistant | system
+    role = Column(String, nullable=False)
+
+    content = Column(Text, nullable=False)
+
+    # chat | default_assumed | auto_fix_applied | supervisor_question
+    message_type = Column(String, nullable=False, default="chat")
+
+    message_metadata = Column(JSONB, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_is_chat_messages_session", "session_id"),
+        Index("idx_is_chat_messages_step", "step"),
+        Index("idx_is_chat_messages_created", "created_at"),
+    )
+
 
 class ISFieldMappingHistory(Base):
     """

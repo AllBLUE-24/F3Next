@@ -26,6 +26,8 @@ import { useImplementation } from "@/contexts/ImplementationContext";
 import type { ValidatePreviewData } from "@/lib/api/implementation_api";
 
 import { SupervisorInlineUploader } from "./SupervisorInlineUploader";
+import { ChatMessageList, type ChatMessage } from "./ChatMessageList";
+import { ChatBar } from "./ChatBar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -87,6 +89,15 @@ type DataReadinessReport = {
   import_readiness_score?: number;
   executive_summary?: string | null;
 };
+
+// ── Step from route ───────────────────────────────────────────────────────────
+
+function pathnameToChatStep(pathname: string): string {
+  if (pathname.includes("/validate")) return "validate";
+  if (pathname.includes("/import") || pathname.includes("/sandbox")) return "import";
+  if (pathname.includes("/analyze")) return "analyze";
+  return "upload";
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -502,8 +513,10 @@ export function SupervisorPanel() {
   const pathname = usePathname();
   const isPostMappingRoute =
     pathname.includes("/validate") || pathname.includes("/import") || pathname.includes("/sandbox");
+  const chatStep = pathnameToChatStep(pathname);
 
   const [prompts, setPrompts] = useState<SupervisorPrompt[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [readiness, setReadiness] = useState<DataReadinessReport | null>(null);
   const [validatePreview, setValidatePreview] = useState<ValidatePreviewData | null>(null);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary>(null);
@@ -511,6 +524,7 @@ export function SupervisorPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [chatSending, setChatSending] = useState(false);
 
   const openPrompts = useMemo(
     () => prompts.filter((p) => p.status === "open"),
@@ -528,15 +542,17 @@ export function SupervisorPanel() {
         fetch(`${base}/api/implementation/supervisor-prompts/${projectId}`, { cache: "no-store" }),
         fetch(`${base}/api/implementation/data-readiness/${projectId}`, { cache: "no-store" }),
         fetch(`${base}/api/implementation/state/${projectId}`, { cache: "no-store" }),
+        fetch(`${base}/api/implementation/chat/${projectId}`, { cache: "no-store" }),
       ];
-      if (isPostMappingRoute) {
-        fetches.push(
-          fetch(`${base}/api/implementation/validate-preview/${projectId}`, { cache: "no-store" })
-        );
-      }
-
       const results = await Promise.all(fetches);
-      const [promptsRes, readinessRes, stateRes, validateRes] = results;
+      const [promptsRes, readinessRes, stateRes, chatRes, validateRes] = isPostMappingRoute
+        ? [
+            ...results.slice(0, 4),
+            await fetch(`${base}/api/implementation/validate-preview/${projectId}`, {
+              cache: "no-store",
+            }),
+          ]
+        : [...results, undefined];
 
       if (!promptsRes.ok) throw new Error(await promptsRes.text());
       const promptsData = await promptsRes.json();
@@ -557,6 +573,11 @@ export function SupervisorPanel() {
         setWorkflowStage(stateData?.stage ?? null);
       }
 
+      if (chatRes.ok) {
+        const chatData = await chatRes.json();
+        setChatMessages(Array.isArray(chatData?.messages) ? chatData.messages : []);
+      }
+
       if (isPostMappingRoute && validateRes) {
         if (validateRes.ok) {
           setValidatePreview(await validateRes.json());
@@ -571,13 +592,35 @@ export function SupervisorPanel() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, isPostMappingRoute]);
+  }, [projectId, isPostMappingRoute, chatStep]);
 
   useEffect(() => {
     refresh();
     const interval = setInterval(refresh, 4000);
     return () => clearInterval(interval);
   }, [refresh]);
+
+  const sendChat = useCallback(
+    async (message: string) => {
+      setChatSending(true);
+      setError(null);
+      try {
+        const base = getBaseApiUrl();
+        const res = await fetch(`${base}/api/implementation/chat/${projectId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, step: chatStep }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await refresh();
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to send message");
+      } finally {
+        setChatSending(false);
+      }
+    },
+    [projectId, chatStep, refresh]
+  );
 
   const respond = useCallback(
     async (prompt: SupervisorPrompt, action: SupervisorAction, selectedOption?: string, userNote?: string) => {
@@ -684,6 +727,12 @@ export function SupervisorPanel() {
           </div>
         )}
 
+        {/* Conversation history */}
+        <div className="rounded-xl border border-white/[0.06] bg-black/10 px-3 py-3 min-h-[120px]">
+          <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">Conversation</p>
+          <ChatMessageList messages={chatMessages} loading={loading && chatMessages.length === 0} />
+        </div>
+
         {/* Open prompts — shown first, most urgent */}
         {openPrompts.map((p) => (
           <PromptCard
@@ -787,7 +836,7 @@ export function SupervisorPanel() {
         )}
 
         {/* Empty state */}
-        {openPrompts.length === 0 && !readiness && !validatePreview && !loading && (
+        {openPrompts.length === 0 && !readiness && !validatePreview && !loading && chatMessages.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <CheckCircle2 className="w-8 h-8 text-zinc-700" />
             <p className="text-xs text-zinc-600 leading-relaxed max-w-[200px]">
@@ -796,6 +845,8 @@ export function SupervisorPanel() {
           </div>
         )}
       </div>
+
+      <ChatBar onSend={sendChat} sending={chatSending} disabled={loading} />
     </div>
   );
 }

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -671,4 +672,39 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
         len(skipped),
         len(errors),
     )
+
+    if applied:
+        try:
+            from containers.implementation.file_io.persist_chat_message import (
+                format_auto_fix_chat_message,
+                save_chat_message,
+            )
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.is_models import ISSession
+
+            content = format_auto_fix_chat_message(applied)
+            if content:
+                async with AsyncSessionLocal() as session:
+                    from sqlalchemy import select
+
+                    row = (
+                        await session.execute(
+                            select(ISSession).where(
+                                ISSession.project_id == uuid.UUID(inp.project_id)
+                            ).order_by(ISSession.created_at.desc()).limit(1)
+                        )
+                    ).scalar_one_or_none()
+                if row:
+                    step = inp.step if inp.step in ("upload", "analyze", "validate", "import") else "validate"
+                    await save_chat_message(
+                        str(row.id),
+                        step,
+                        "system",
+                        content,
+                        message_type="auto_fix_applied",
+                        message_metadata={"applied": applied, "step": inp.step},
+                    )
+        except Exception as e:
+            activity.logger.warning("  ⚠ Could not persist auto-fix chat message: %s", e)
+
     return ApplyActionsResult(applied=applied, skipped=skipped, errors=errors)
