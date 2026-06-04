@@ -99,11 +99,11 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Sparse data → `partial` (validation engine)** — warnings flip doctype status from pass to partial. *(2026-05-25 — `test_activities.py`)*
 - [x] **Post-mapping readiness (sidebar on Validate)** — validation summary card replaces pre-mapping score on validate/sandbox routes. *(2026-05-26 — `SupervisorPanel.tsx`; full backend recheck → Tier 7c)*
 - [x] **Confirm-button UX (Analyze + Validate)** — optimistic confirm lock + Validate step from stage API / sessionStorage. *(2026-05-26)*
-- [ ] **Tier 1 quality gate** — deterministic rules before any LLM: empty identity, wrong source mix, row count vs dedupe expectation.
-- [ ] **Structured `ValidationReport` JSON** — single artifact: per-doctype sources, row issues, classification confidence (feeds UI + supervisor).
+- [x] **Tier 1 quality gate** — deterministic rules before any LLM: empty identity, wrong source mix, filename/doctype conflicts. *(2026-06-04 — `evaluate.py` + validate primary)*
+- [x] **Structured `ValidationReport` JSON** — R2 + launcher API with `source_files[]` per check. *(2026-06-04 — `shared/models/validation_report.py`)*
 - [ ] **Extend supervisor on validate** — enable `IS_SUPERVISOR_ENABLED=1`; feed quality report; ask targeted questions (“PR rows from `active_projects` — did you mean Project?”).
 - [ ] **Supervisor scope expansion** — empty values and cross-file sanity (today: missing field *keys* + WO enum auto-fix only).
-- [ ] **Supervisor contract** — `ask_user` only for user-resolvable data gaps; pipeline/KB bugs → `auto_fix` or internal fail, never a false prompt.
+- [x] **Supervisor contract** — `ask_user` only for user-resolvable data gaps; cross-file + empty value paths. *(2026-06-04 — `supervisor_agent/contract.py`)*
 
 ---
 
@@ -129,7 +129,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **OS step contracts** — extract_intent, validate_payload (+ hooks for plan/execute). *(2026-06-01)*
 - [x] **IS workflow gates on all major steps** — behind `IS_QUALITY_GATE_ENABLED=1`. *(2026-06-01 Phase 3)*
 - [x] **Gate verdicts → chat + audit** — `quality_gate_verdict` in `is_audit_trail`; user-visible system messages. *(2026-06-01 Phase 3)*
-- [ ] **Retry injection into activity inputs** — gate `retry_feedback` passed into map/validate nodes (structural; defer post-beta)
+- [x] **Retry injection into activity inputs** — gate `retry_feedback` passed into map/validate nodes. *(2026-06-04 — workflow retry loop)*
 - [ ] **OS persistent chat history** — mirror IS `is_chat_messages` pattern for NL commands
 - [ ] **Quality gate unit tests in CI golden matrix** — one row per verdict class
 

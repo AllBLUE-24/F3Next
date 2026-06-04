@@ -505,6 +505,7 @@ class MapFileInput:
     session_id: str
     doctype_hint: Optional[str] = None
     corpus_assignment: Optional[Dict[str, Any]] = None
+    retry_feedback: Optional[str] = None
 
 
 async def _load_session_required_doctypes(session_id: str) -> List[str]:

@@ -281,6 +281,15 @@ async def get_validation_report(
     return {"validation_report": report}
 
 
+@router.get("/corpus-assignments/{project_id}", summary="Per-file doctype classification")
+async def get_corpus_assignments(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    assignments = await launcher.get_corpus_assignments(project_id)
+    return {"corpus_assignments": assignments}
+
+
 @router.get("/data-readiness/{project_id}", summary="Data readiness assessment")
 async def get_data_readiness(
     project_id: UUID,

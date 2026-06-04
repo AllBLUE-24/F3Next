@@ -319,50 +319,116 @@ class ImplementationLauncher:
                 "r2_path": profile.r2_path,
             }
 
+    async def _load_r2_json(self, bucket: str, key: str) -> Optional[Dict]:
+        import json
+        import boto3
+        from botocore.config import Config
+
+        if not key:
+            return None
+        try:
+            s3 = boto3.client(
+                "s3",
+                endpoint_url=os.getenv("R2_ENDPOINT"),
+                aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+                config=Config(signature_version="s3v4"),
+                region_name="auto",
+            )
+            obj = s3.get_object(Bucket=bucket, Key=key)
+            return json.loads(obj["Body"].read().decode("utf-8"))
+        except Exception as e:
+            logger.warning("Failed to load R2 %s/%s: %s", bucket, key, e)
+            return None
+
     async def get_validation_report(self, project_id: str | UUID) -> Optional[Dict]:
-        """Query ISValidationResult + ISValidationError for this project."""
+        """Canonical ValidationReport from R2 artifact + DB fallback."""
+        from shared.models.validation_report import merge_db_checks_with_r2, normalize_validation_report
+
         is_session = await self._get_session(project_id)
         if not is_session:
             return None
-        
+
         async with AsyncSessionLocal() as session:
-            stmt = select(ISValidationResult).where(ISValidationResult.session_id == is_session.id)
+            stmt = select(ISValidationResult).where(
+                ISValidationResult.session_id == is_session.id
+            )
             results = (await session.execute(stmt)).scalars().all()
-            
+
             if not results:
                 return None
-                
-            checks = []
-            all_errors = []
-            all_warnings = []
-            overall = "pass"
-            
+
+            db_checks: List[Dict[str, Any]] = []
+            report_r2_path: Optional[str] = None
+
             for vr in results:
-                # Get errors for this result
-                err_stmt = select(ISValidationError).where(ISValidationError.validation_result_id == vr.id)
+                if vr.report_r2_path and not report_r2_path:
+                    report_r2_path = vr.report_r2_path
+                err_stmt = select(ISValidationError).where(
+                    ISValidationError.validation_result_id == vr.id
+                )
                 errors = (await session.execute(err_stmt)).scalars().all()
-                
                 check_errors = [e.error_message for e in errors if e.severity == "error"]
                 check_warnings = [e.error_message for e in errors if e.severity == "warning"]
-                
-                checks.append({
-                    "doctype": vr.doctype,
-                    "status": vr.overall_status,
-                    "errors": check_errors,
-                    "warnings": check_warnings,
-                    "row_count": vr.row_count or 0,
-                })
-                all_errors.extend(check_errors)
-                all_warnings.extend(check_warnings)
-                if vr.overall_status == "fail":
-                    overall = "fail"
-                    
-            return {
-                "overall": overall,
-                "checks": checks,
-                "errors": all_errors,
-                "warnings": all_warnings,
-            }
+
+                source_files: List[str] = []
+                if vr.mapped_data_id:
+                    md = (
+                        await session.execute(
+                            select(ISMappedData).where(ISMappedData.id == vr.mapped_data_id)
+                        )
+                    ).scalar_one_or_none()
+                    if md and md.source_filename:
+                        source_files = [md.source_filename]
+
+                db_checks.append(
+                    {
+                        "doctype": vr.doctype,
+                        "status": vr.overall_status,
+                        "errors": check_errors,
+                        "warnings": check_warnings,
+                        "row_count": vr.row_count or vr.total_records_checked or 0,
+                        "source_files": source_files,
+                    }
+                )
+
+            r2_report = None
+            if report_r2_path:
+                r2_report = await self._load_r2_json("clean-data", report_r2_path)
+
+            merged = merge_db_checks_with_r2(db_checks, r2_report)
+            return normalize_validation_report(merged)
+
+    async def get_corpus_assignments(self, project_id: str | UUID) -> List[Dict[str, Any]]:
+        """Per-file classification from latest session file_batches."""
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            return []
+
+        batches = list(is_session.file_batches or [])
+        if not batches:
+            return []
+
+        assignments = (batches[-1] or {}).get("corpus_assignments") or []
+        out: List[Dict[str, Any]] = []
+        for a in assignments:
+            if not isinstance(a, dict):
+                continue
+            cls = a.get("classification") or {}
+            out.append(
+                {
+                    "file": a.get("file"),
+                    "doctypes": a.get("doctypes") or [],
+                    "classification": {
+                        "doctype": cls.get("doctype"),
+                        "confidence": cls.get("confidence"),
+                        "method": cls.get("method"),
+                        "candidates": cls.get("candidates"),
+                    },
+                    "split": a.get("split"),
+                }
+            )
+        return out
 
     async def get_data_readiness(self, project_id: str | UUID) -> Optional[Dict[str, Any]]:
         """Query ISDataReadinessAssessment for this project."""
@@ -494,11 +560,41 @@ class ImplementationLauncher:
             if not plan:
                 return None
                 
+            blocked_reasons: List[str] = []
+            optional_gaps: List[str] = []
+            company_slug = "unknown"
+            from shared.models.core import Project
+
+            proj = (
+                await session.execute(
+                    select(Project).where(Project.id == is_session.project_id)
+                )
+            ).scalar_one_or_none()
+            if proj and proj.company_slug:
+                company_slug = proj.company_slug
+
+            plan_key = f"{company_slug}/{is_session.project_id}/_import_plan/plan.json"
+            r2_plan = await self._load_r2_json("clean-data", plan_key)
+            if isinstance(r2_plan, dict):
+                optional_gaps = list(r2_plan.get("optional_gaps") or [])
+                if r2_plan.get("status") == "blocked":
+                    blocked_reasons.append("Import plan blocked due to validation or critical gaps")
+
+            val_stmt = select(ISValidationResult).where(
+                ISValidationResult.session_id == is_session.id
+            )
+            for vr in (await session.execute(val_stmt)).scalars().all():
+                if vr.overall_status == "fail":
+                    blocked_reasons.append(f"Validation failed for {vr.doctype}")
+
             return {
                 "status": plan.status,
+                "plan_status": plan.status,
                 "phases": plan.phases or [],
                 "total_steps": plan.total_steps or 0,
                 "current_phase": plan.current_phase,
+                "blocked_reasons": blocked_reasons,
+                "optional_gaps": optional_gaps,
             }
 
     async def get_import_results(self, project_id: str | UUID) -> List[Dict]:

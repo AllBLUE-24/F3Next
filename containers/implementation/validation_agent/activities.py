@@ -387,6 +387,7 @@ class ValidateInput:
     session_id: str
     project_id: str
     company_slug: str = "unknown"
+    retry_feedback: Optional[str] = None
 
 
 # ── Activity definitions ─────────────────────────────────────────────────────
@@ -545,6 +546,16 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
     report = engine.validate(mapped_data, target_structure)
     if not ler_report.get("skipped"):
         report = engine.merge_ler_unresolvable(report, ler_report)
+
+    from shared.models.validation_report import enrich_checks_with_sources
+
+    report = enrich_checks_with_sources(report, source_files_by_doctype)
+    if inp.retry_feedback:
+        activity.logger.info(
+            "  Quality gate retry feedback (validate): %s",
+            inp.retry_feedback[:200],
+        )
+
     duration = (datetime.now() - start_time).total_seconds()
     
     v_status = report.get("overall", "pass")
@@ -591,7 +602,8 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                     report_r2_path=report_key,
                     total_errors=len(check.get("errors", [])),
                     total_warnings=len(check.get("warnings", [])),
-                    total_records_checked=check.get("row_count", 0)
+                    total_records_checked=check.get("row_count", 0),
+                    row_count=check.get("row_count", 0),
                 ))
 
                 # Flush the parent row into the transaction BEFORE adding children.
@@ -670,6 +682,26 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
     for msg in report.get("warnings", []) or []:
         warnings.append({"code": "VALIDATION_WARNING", "message": str(msg)})
 
+    from containers.implementation.mapping_agent.corpus_merge import (
+        filename_conflicts_with_doctype,
+        filename_implied_doctype,
+    )
+
+    source_file_conflicts: List[Dict[str, Any]] = []
+    for check in report.get("checks", []) or []:
+        if not isinstance(check, dict):
+            continue
+        dt = check.get("doctype") or ""
+        for src in check.get("source_files") or []:
+            if filename_conflicts_with_doctype(str(src), dt):
+                source_file_conflicts.append(
+                    {
+                        "file": src,
+                        "assigned_doctype": dt,
+                        "implied_doctype": filename_implied_doctype(str(src)),
+                    }
+                )
+
     primary = {
         "overall": v_status,
         "error_count": n_errors,
@@ -677,6 +709,7 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         "report_r2_path": report_key,
         "doctypes_checked": len(report.get("checks", []) or []),
         "checks": report.get("checks", []) or [],
+        "source_file_conflicts": source_file_conflicts,
     }
 
     if v_status == "fail" or errors:

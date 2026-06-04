@@ -174,6 +174,8 @@ class ImplementationWorkflow:
         self._all_uploaded_files: List[Dict] = []
         self._latest_upload_note: Optional[str] = None
         self._corpus_assignments: Dict[str, Dict[str, Any]] = {}
+        self._gate_retry_counts: Dict[str, int] = {}
+        self._last_retry_feedback: Optional[str] = None
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -256,19 +258,21 @@ class ImplementationWorkflow:
         *,
         actual_outputs: Optional[Dict[str, Any]] = None,
         hard_block_raises: bool = False,
-    ) -> str:
-        """Run quality_gate activity when IS_QUALITY_GATE_ENABLED=1. Returns verdict."""
+    ) -> Dict[str, Any]:
+        """Run quality_gate activity when IS_QUALITY_GATE_ENABLED=1. Returns gate result dict."""
         with workflow.unsafe.sandbox_unrestricted():
             qg_enabled = os.getenv("IS_QUALITY_GATE_ENABLED", "0") == "1"
         if not qg_enabled:
-            return "ok"
+            return {"verdict": "ok", "analysis": "quality gate disabled"}
 
+        retry_count = self._gate_retry_counts.get(step_name, 0)
         env_obj = coerce_envelope(env, fallback_primary=actual_outputs)
         node_report = build_node_report(
             step_name,
             "IS",
             env_obj,
             actual_outputs=actual_outputs or {},
+            feedback_from_previous_retry=self._last_retry_feedback,
         )
         gate = await workflow.execute_activity(
             quality_gate,
@@ -280,6 +284,7 @@ class ImplementationWorkflow:
                 session_id=self._session_id,
                 project_id=project_id,
                 company_slug=self._company_slug,
+                retry_count=retry_count,
             ),
             **_ACT,
         )
@@ -290,7 +295,19 @@ class ImplementationWorkflow:
             _step_fail(L, step_name, "Quality gate", gate_analysis)
             self._stage = "error"
             raise ApplicationError(f"Quality gate blocked at {step_name}: {gate_analysis}")
-        return gate_verdict
+        if gate.get("retry_feedback"):
+            self._last_retry_feedback = str(gate.get("retry_feedback"))
+        return gate if isinstance(gate, dict) else {"verdict": gate_verdict, "analysis": gate_analysis}
+
+    def _gate_allows_retry(self, step_name: str, gate: Dict[str, Any]) -> bool:
+        from containers.implementation.is_workflow.step_contracts import IS_STEP_CONTRACTS
+
+        if gate.get("verdict") != "retry":
+            return False
+        contract = IS_STEP_CONTRACTS.get(step_name)
+        max_r = contract.max_retries if contract else 2
+        count = self._gate_retry_counts.get(step_name, 0)
+        return count < max_r
 
     # ── Main run ─────────────────────────────────────────────────────────────
 
@@ -1091,7 +1108,7 @@ class ImplementationWorkflow:
         _kv(L, "audit", "is_audit_trail → mapping_completed (per file)")
         _step_ok(L, 9, "File Mapping", f"{mapped_count}/{len(self._parsed_files)} files mapped")
 
-        await self._run_is_quality_gate(
+        map_gate = await self._run_is_quality_gate(
             "map_file_to_erpnext",
             mapping_summary_envelope(mapped_count, len(self._parsed_files), map_failures),
             project_id,
@@ -1102,6 +1119,49 @@ class ImplementationWorkflow:
                 "failures": map_failures[:10],
             },
         )
+        while self._gate_allows_retry("map_file_to_erpnext", map_gate):
+            self._gate_retry_counts["map_file_to_erpnext"] = (
+                self._gate_retry_counts.get("map_file_to_erpnext", 0) + 1
+            )
+            retry_names = [
+                f.split(":")[0].strip()
+                for f in map_failures
+                if ":" in f
+            ] or list(sorted_files)
+            L.info("      ↻ Quality gate retry map (%d files)", len(retry_names))
+            for fname in retry_names:
+                try:
+                    mapped_env = await workflow.execute_activity(
+                        map_file_to_erpnext,
+                        MapFileInput(
+                            r2_manifest_url=r2_manifest_url,
+                            filename=fname,
+                            project_id=project_id,
+                            company_slug=self._company_slug,
+                            session_id=self._session_id,
+                            corpus_assignment=self._corpus_assignments.get(fname),
+                            retry_feedback=self._last_retry_feedback,
+                        ),
+                        **_ACT,
+                    )
+                    if isinstance(mapped_env, dict) and "status" in mapped_env:
+                        mapped_env = NodeStatusEnvelope(**mapped_env)
+                    pr = mapped_env.primary_result if hasattr(mapped_env, "primary_result") else {}
+                    if getattr(mapped_env, "ok", False) and (pr or {}).get("doctypes_mapped"):
+                        mapped_count = max(mapped_count, 1)
+                except Exception as e:
+                    L.info("             → ↻ retry failed %s: %s", fname, e)
+            map_gate = await self._run_is_quality_gate(
+                "map_file_to_erpnext",
+                mapping_summary_envelope(mapped_count, len(self._parsed_files), map_failures),
+                project_id,
+                L,
+                actual_outputs={
+                    "mapped_count": mapped_count,
+                    "total_files": len(self._parsed_files),
+                    "failures": map_failures[:10],
+                },
+            )
 
         self._set_task("t6", "done", f"{mapped_count} files mapped")
 
@@ -1240,7 +1300,7 @@ class ImplementationWorkflow:
             raise ApplicationError(f"Validation failed: {e}")
 
         # ── Quality gate (feature-flagged) ───────────────────────────────────
-        await self._run_is_quality_gate(
+        v_gate = await self._run_is_quality_gate(
             "validate_mapped_data",
             v_env,
             project_id,
@@ -1248,6 +1308,32 @@ class ImplementationWorkflow:
             actual_outputs=v_primary if isinstance(v_primary, dict) else {},
             hard_block_raises=True,
         )
+        while self._gate_allows_retry("validate_mapped_data", v_gate):
+            self._gate_retry_counts["validate_mapped_data"] = (
+                self._gate_retry_counts.get("validate_mapped_data", 0) + 1
+            )
+            L.info("      ↻ Quality gate retry validate")
+            v_env = await workflow.execute_activity(
+                validate_mapped_data,
+                ValidateInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                    retry_feedback=self._last_retry_feedback,
+                ),
+                **_ACT,
+            )
+            if isinstance(v_env, dict):
+                v_env = NodeStatusEnvelope(**v_env) if "status" in v_env else NodeStatusEnvelope.success(primary_result=v_env)
+            v_primary = v_env.primary_result if hasattr(v_env, "primary_result") else {}
+            v_gate = await self._run_is_quality_gate(
+                "validate_mapped_data",
+                v_env,
+                project_id,
+                L,
+                actual_outputs=v_primary if isinstance(v_primary, dict) else {},
+                hard_block_raises=True,
+            )
 
         # ── Supervisor correction loop (feature-flagged) ─────────────────────
         with workflow.unsafe.sandbox_unrestricted():
@@ -1292,10 +1378,17 @@ class ImplementationWorkflow:
                     auto_fix_attempted = True
                     v_env = await workflow.execute_activity(
                         validate_mapped_data,
-                        ValidateInput(session_id=self._session_id, project_id=project_id, company_slug=self._company_slug),
+                        ValidateInput(
+                            session_id=self._session_id,
+                            project_id=project_id,
+                            company_slug=self._company_slug,
+                            retry_feedback=self._last_retry_feedback,
+                        ),
                         **_ACT,
                     )
                     v_env = NodeStatusEnvelope(**v_env) if isinstance(v_env, dict) else v_env
+                    if isinstance(v_env, dict) and "status" not in v_env:
+                        v_env = NodeStatusEnvelope.success(primary_result=v_env)
                     continue
 
                 if sup.final_status in ("needs_user_input", "hard_block"):

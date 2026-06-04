@@ -1317,6 +1317,31 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     if not import_plan:
         return {"phase": inp.phase_id, "status": "error", "error": "Import plan not found."}
 
+    from shared.models.is_models import ISValidationResult
+
+    async with AsyncSessionLocal() as session:
+        val_rows = (
+            await session.execute(
+                select(ISValidationResult).where(
+                    ISValidationResult.session_id == uuid.UUID(inp.session_id)
+                )
+            )
+        ).scalars().all()
+        if any(v.overall_status == "fail" for v in val_rows):
+            return {
+                "phase": inp.phase_id,
+                "status": "error",
+                "error": "Validation failed — resolve validate errors before import.",
+                "blocked_by": "validation_fail",
+            }
+        if import_plan.status == "blocked":
+            return {
+                "phase": inp.phase_id,
+                "status": "error",
+                "error": "Import plan is blocked — re-validate or upload missing data.",
+                "blocked_by": "import_plan_blocked",
+            }
+
     phases = import_plan.phases or {}
     phase_def = phases.get(inp.phase_id)
     if not phase_def:

@@ -104,6 +104,32 @@ def evaluate_quality_gate(
             user_gap_description="Upload files with recognizable columns or describe file types in chat.",
         )
 
+    conflicts = actual.get("source_file_conflicts") or []
+    if conflicts and contract.step_name == "validate_mapped_data":
+        first = conflicts[0] if isinstance(conflicts[0], dict) else {}
+        return QualityGateResult(
+            verdict="user_gap",
+            analysis="Source filename implies a different doctype than assigned.",
+            user_gap_description=(
+                f"File '{first.get('file', '?')}' may belong to "
+                f"{first.get('implied_doctype', '?')} not {first.get('assigned_doctype', '?')}."
+            ),
+        )
+
+    if contract.step_name == "validate_mapped_data":
+        checks = actual.get("checks") or []
+        if isinstance(checks, list):
+            for check in checks:
+                if not isinstance(check, dict):
+                    continue
+                errs = check.get("errors") or []
+                if any("empty required value" in str(e).lower() for e in errs):
+                    return QualityGateResult(
+                        verdict="user_gap",
+                        analysis="Row-level empty identity or required values detected.",
+                        user_gap_description=str(errs[0])[:300] if errs else None,
+                    )
+
     # OS validate_payload shape
     if "valid" in actual:
         if actual.get("valid") is True:

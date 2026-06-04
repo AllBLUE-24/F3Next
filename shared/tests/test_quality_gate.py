@@ -96,19 +96,21 @@ def test_os_validate_invalid_user_gap():
     assert result.verdict == "user_gap"
 
 
-def test_os_validate_invalid_user_gap():
-    report = asdict(
-        build_node_report(
-            "validate_payload",
-            "OS",
-            {},
-            actual_outputs={
-                "valid": False,
-                "errors": [{"message": "Customer is required for Sales Order"}],
-            },
-        )
-    )
-    contract = StepContract(step_name="validate_payload", pipeline="OS", max_retries=2)
-    result = evaluate_quality_gate(contract, report)
+def test_validate_source_file_conflict_user_gap():
+    report = {
+        "node_status": {"status": "partial"},
+        "actual_outputs": {
+            "overall": "partial",
+            "source_file_conflicts": [
+                {
+                    "file": "active_projects.csv",
+                    "assigned_doctype": "Purchase Receipt",
+                    "implied_doctype": "Project",
+                }
+            ],
+        },
+    }
+    result = evaluate_quality_gate(_contract("validate_mapped_data"), report)
+    assert result is not None
     assert result.verdict == "user_gap"
 

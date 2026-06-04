@@ -136,6 +136,26 @@ async def build_session_context(
         if validation_summary:
             ctx["validation"] = validation_summary
 
+    from app.services.is_launcher import ImplementationLauncher
+
+    launcher = ImplementationLauncher()
+    full_report = await launcher.get_validation_report(str(is_session.project_id))
+    if full_report:
+        ctx["validation_report"] = full_report
+
+    corpus = await launcher.get_corpus_assignments(str(is_session.project_id))
+    if corpus:
+        ctx["corpus_assignments"] = corpus
+
+    import_plan = await launcher.get_import_plan(str(is_session.project_id))
+    if import_plan:
+        ctx["import_plan"] = {
+            "status": import_plan.get("plan_status") or import_plan.get("status"),
+            "blocked_reasons": import_plan.get("blocked_reasons") or [],
+            "optional_gaps": import_plan.get("optional_gaps") or [],
+        }
+
+    async with AsyncSessionLocal() as session:
         open_prompts = (
             await session.execute(
                 select(ISSupervisorPrompt)

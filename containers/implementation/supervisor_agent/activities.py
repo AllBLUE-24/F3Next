@@ -293,10 +293,102 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                 if f not in kb_auto_fields
             ]
 
-        # Missing required fields → LLM-driven message
-        if missing_required:
+        # Cross-file sanity: filename implies different doctype than assigned
+        from containers.implementation.mapping_agent.corpus_merge import (
+            filename_conflicts_with_doctype,
+            filename_implied_doctype,
+        )
+        from containers.implementation.supervisor_agent.contract import (
+            classify_gap,
+            filter_user_gap_messages,
+            should_ask_user,
+        )
+
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            dt = check.get("doctype") or ""
+            sources = check.get("source_files") or []
+            for src in sources:
+                if filename_conflicts_with_doctype(str(src), dt):
+                    implied = filename_implied_doctype(str(src))
+                    question = (
+                        f"File '{src}' looks like {implied or 'another doctype'}, "
+                        f"but rows were merged into {dt}. "
+                        "Did you mean to map this file to a different ERP document type?"
+                    )
+                    if classify_gap(question) != "pipeline_fail":
+                        final_status = "needs_user_input"
+                        actions.append(
+                            SupervisorAction(
+                                id=f"ask_user_filename_mismatch_{dt}_{src}".replace(" ", "_")[:80],
+                                type="ask_user",
+                                scope=dt,
+                                question=question,
+                                options=[
+                                    f"Keep as {dt}",
+                                    f"Re-classify as {implied}" if implied else "Upload a corrected file",
+                                ],
+                                metadata={
+                                    "tier": "critical",
+                                    "source_file": src,
+                                    "assigned_doctype": dt,
+                                    "implied_doctype": implied,
+                                    "gap_class": "user_gap",
+                                },
+                            )
+                        )
+
+        # Empty row value errors → ask_user only when contract says user_gap
+        empty_value_msgs: List[str] = []
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            for err in check.get("errors") or []:
+                err_s = str(err)
+                if "empty required value" in err_s.lower() or "empty value" in err_s.lower():
+                    empty_value_msgs.append(err_s)
+
+        user_empty_msgs = filter_user_gap_messages(empty_value_msgs)
+        if user_empty_msgs and should_ask_user(user_empty_msgs):
             final_status = "needs_user_input"
-            unique_missing = sorted(set(missing_required))
+            actions.append(
+                SupervisorAction(
+                    id="ask_user_empty_identity_values",
+                    type="ask_user",
+                    scope="validation",
+                    question=(
+                        "Some rows have empty identity fields (supplier name, item code, etc.). "
+                        "Please fix the source file or tell us how to fill these values."
+                    ),
+                    options=["Upload corrected file", "Apply safe defaults where possible"],
+                    metadata={
+                        "tier": "critical",
+                        "sample_errors": user_empty_msgs[:5],
+                        "gap_class": "user_gap",
+                    },
+                )
+            )
+
+        # Missing required fields → LLM-driven message (user_gap only)
+        pipeline_only_missing = [
+            m for m in missing_required
+            if classify_gap(f"Missing required field: {m}") == "pipeline_fail"
+        ]
+        if pipeline_only_missing and not actions:
+            activity.logger.warning(
+                "  Pipeline-class gaps only (no ask_user): %s",
+                pipeline_only_missing[:5],
+            )
+
+        user_missing = [
+            m for m in missing_required
+            if m not in kb_auto_fields
+            and classify_gap(f"Missing required field: {m}") == "user_gap"
+        ]
+        if user_missing:
+            final_status = "needs_user_input"
+            unique_missing = sorted(set(user_missing))
 
             # Try to get an LLM-enriched explanation
             llm_result = await _call_supervisor_llm(

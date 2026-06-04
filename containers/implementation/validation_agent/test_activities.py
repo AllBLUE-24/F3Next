@@ -81,5 +81,26 @@ class ValidationPartialStatusTest(unittest.TestCase):
         self.assertEqual(report["overall"], "fail")
 
 
+class ValidationReportEnrichmentTest(unittest.TestCase):
+    def test_enrich_checks_with_sources(self) -> None:
+        from shared.models.validation_report import enrich_checks_with_sources, normalize_validation_report
+
+        report = {
+            "overall": "pass",
+            "checks": [{"doctype": "Supplier", "status": "pass", "errors": [], "warnings": [], "row_count": 2}],
+        }
+        enriched = enrich_checks_with_sources(
+            report,
+            {"Supplier": ["vendors.csv", "suppliers_extra.csv"]},
+        )
+        check = enriched["checks"][0]
+        self.assertEqual(check["source_files"], ["vendors.csv", "suppliers_extra.csv"])
+
+        normalized = normalize_validation_report(enriched)
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized["checks"][0]["source_files"], ["vendors.csv", "suppliers_extra.csv"])
+
+
 if __name__ == "__main__":
     unittest.main()
