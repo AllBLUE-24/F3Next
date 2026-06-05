@@ -148,8 +148,11 @@ def _build_model_queue(requested_model: str) -> List[str]:
         if tier != requested_model:
             queue.append(tier)
             
-    # Cross-provider fallback
-    if _is_openai(requested_model) and gemini_api_keys:
+    # Cross-provider fallback (opt-in for OpenAI→Gemini to avoid dead key latency)
+    _allow_gemini_fallback = os.getenv("LLM_ALLOW_GEMINI_FALLBACK", "").lower() in (
+        "1", "true", "yes",
+    )
+    if _is_openai(requested_model) and gemini_api_keys and _allow_gemini_fallback:
         for tier in GEMINI_MODEL_TIERS:
             if tier not in queue:
                 queue.append(tier)

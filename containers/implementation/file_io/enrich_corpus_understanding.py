@@ -22,6 +22,7 @@ from containers.implementation.file_io.corpus_validation import (
     validate_corpus_understanding,
 )
 from containers.implementation.file_io.manifest_utils import extract_files_from_manifest
+from shared.llm_schema_utils import repair_pydantic_dict
 from shared.structured_llm import generate_typed
 
 
@@ -125,7 +126,9 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
             temperature=0.1,
             max_output_tokens=4000,
         )
-        understanding = CorpusUnderstanding.model_validate(llm_result)
+        understanding = CorpusUnderstanding.model_validate(
+            repair_pydantic_dict(llm_result, CorpusUnderstanding)
+        )
         understanding = merge_missing_file_entries(understanding, expected_filenames)
         status, warnings = validate_corpus_understanding(understanding, expected_filenames)
     except Exception as e:

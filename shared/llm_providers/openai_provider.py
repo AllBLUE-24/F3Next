@@ -23,6 +23,10 @@ class OpenAIProvider(AgenticProvider):
     ) -> dict:
         from openai import AsyncOpenAI
         from llm_router import _is_sidelined
+        from shared.llm_schema_utils import (
+            build_structured_system_instruction,
+            repair_pydantic_dict,
+        )
 
         available_keys = [k for k in self.api_keys if not _is_sidelined(model_name, k)]
         if not available_keys:
@@ -30,21 +34,13 @@ class OpenAIProvider(AgenticProvider):
         if not available_keys:
             raise ValueError("No OpenAI API keys available")
 
-        messages = []
-        if system_instruction:
-            messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": prompt})
+        sys_content = system_instruction or build_structured_system_instruction(schema)
+        messages = [
+            {"role": "system", "content": sys_content},
+            {"role": "user", "content": prompt},
+        ]
 
         last_err = None
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "structured_output",
-                "strict": True,
-                "schema": schema.model_json_schema(),
-            },
-        }
-
         for attempt in range(2):
             for key in available_keys:
                 client = AsyncOpenAI(api_key=key)
@@ -54,12 +50,12 @@ class OpenAIProvider(AgenticProvider):
                         messages=messages,
                         temperature=temperature,
                         max_tokens=max_tokens,
-                        response_format=response_format,
+                        response_format={"type": "json_object"},
                     )
                     raw = resp.choices[0].message.content
                     if not raw:
                         raise ValueError("Empty response from OpenAI structured output")
-                    data = json.loads(raw)
+                    data = repair_pydantic_dict(json.loads(raw), schema)
                     parsed = schema.model_validate(data)
                     return parsed.model_dump(mode="json")
                 except Exception as e:
@@ -72,24 +68,8 @@ class OpenAIProvider(AgenticProvider):
                         logger.warning(f"[OpenAIProvider] Key/model rotated ({err_str[:100]})")
                         last_err = e
                         continue
-                    # Fallback to json_object if json_schema isn't supported by the runtime/provider combo.
-                    try:
-                        resp = await client.chat.completions.create(
-                            model=model_name,
-                            messages=messages,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                            response_format={"type": "json_object"},
-                        )
-                        raw = resp.choices[0].message.content
-                        if not raw:
-                            raise ValueError("Empty response from OpenAI structured output")
-                        data = json.loads(raw)
-                        parsed = schema.model_validate(data)
-                        return parsed.model_dump(mode="json")
-                    except Exception as inner_e:
-                        last_err = inner_e
-                        raise ValueError(f"Generation failed: {inner_e}")
+                    last_err = e
+                    raise ValueError(f"Generation failed: {e}")
                 finally:
                     await client.close()
             if attempt == 0:

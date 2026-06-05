@@ -32,5 +32,9 @@ USER IMPORT NOTE (may clarify intent):
 FILES TO ANALYZE:
 {files_block}
 
-Return structured JSON matching the schema. Every file in FILES TO ANALYZE must appear in your output.
+Return structured JSON with these REQUIRED top-level keys:
+- corpus_summary: one paragraph describing the whole upload batch
+- files: array with one entry per file (filename, business_description, likely_erpnext_doctypes, etc.)
+
+Every file in FILES TO ANALYZE must appear in files[]. Never omit corpus_summary.
 """

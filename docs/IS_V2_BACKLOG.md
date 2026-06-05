@@ -141,6 +141,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Tiered F3iche inference (Step 3)** — `signals_scorer` implements registry rules; LLM only when ambiguous; discovery prior; principle-based corpus prompt + validation. *(2026-06-05 — L2 pillar 3, class A)*
 - [x] **F3iche confirmation synthesis (Step 3.5)** — discovery chat + file signals merged into `f3iche_confirmation` proposal; Yes/No + free-text correction gate replaces niche dropdown; verify step compares user vs synthesis. *(2026-06-05 — L4 pillar 3, class A)*
 - [x] **Discovery-aware F3iche routing fixes** — OpenAI default for `generate_typed`; router falls through on provider ValueError; broad discovery `manufacturing` maps via industry/chat hints; registry false-positive fixes (garment size suffix, structural 500); fresh hooks discovery at infer; synthesis fallback uses discovery resolver. *(2026-06-05 — L0+L2 pillar 3, class A)*
+- [x] **OpenAI structured output repair (Step 2b)** — json_object + schema system prompt + `repair_pydantic_dict` for missing `corpus_summary`; Gemini cross-fallback opt-in only (`LLM_ALLOW_GEMINI_FALLBACK`). *(2026-06-05 — L0 pillar 2, class A)*
 - **Corpus model doc** — single diagram: upload wave → assign corpus → classify → split → map → merge-on-write → validate → finalize plan → import phases.
 - **Per-file R2 keys + canonical merge blob** — optional if merge-on-write + guards are insufficient for audit/debug.
 - **Unified merge policy** — all consumers use `corpus_merge.py` (map, validate, finalize, preview, import preflight).
