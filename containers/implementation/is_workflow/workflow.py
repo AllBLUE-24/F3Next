@@ -476,6 +476,7 @@ class ImplementationWorkflow:
                     sig.uploaded_files,
                     r2_manifest_url,
                     session_id=self._session_id,
+                    project_id=project_id,
                     discovery_f3iche=self._discovery_f3iche,
                 ),
                 **_LONG,

@@ -76,6 +76,8 @@ class _SignalsInferenceService:
         corpus_understanding: Optional[Dict] = None,
         file_meta: Optional[Dict] = None,
         discovery_f3iche: Optional[str] = None,
+        discovery_industry: Optional[str] = None,
+        chat_transcript: Optional[str] = None,
     ) -> tuple[str, float, List[str], str, Dict]:
         """
         Tiered inference: registry rules → LLM (if ambiguous) → blend.
@@ -104,7 +106,12 @@ class _SignalsInferenceService:
             file_contents=contents,
             registry=registry,
         )
-        registry_result = apply_discovery_prior(registry_result, discovery_f3iche)
+        registry_result = apply_discovery_prior(
+            registry_result,
+            discovery_f3iche,
+            discovery_industry=discovery_industry,
+            chat_transcript=chat_transcript,
+        )
 
         registry_hits = registry_result.get("hits") or []
         hit_summaries = [
@@ -122,6 +129,10 @@ class _SignalsInferenceService:
             ]
             if discovery_f3iche:
                 signals.append(f"[discovery_prior] user stated: {discovery_f3iche}")
+            if registry_result.get("discovery_prior_applied"):
+                signals.append(
+                    f"[discovery_prior] applied → {registry_result['discovery_prior_applied']}"
+                )
             activity.logger.info(
                 "  Registry confident → %s (%.0f%%, %d hits)",
                 reg_top, reg_conf * 100, registry_result["signal_count"],
@@ -258,6 +269,7 @@ class InferF3icheInput:
     uploaded_files: List[Dict]
     r2_manifest_url: str = ""         # R2 key to file contents manifest
     session_id: str = ""              # v2: needed for DB persistence
+    project_id: str = ""              # v2: fresh discovery load from hooks
     discovery_f3iche: Optional[str] = None
 
 
@@ -288,22 +300,42 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
     activity.logger.info("  Loaded %d file contents from R2 manifest", len(file_contents))
 
     discovery_f3iche = inp.discovery_f3iche
-    if not discovery_f3iche and inp.session_id:
+    discovery_industry: Optional[str] = None
+    chat_transcript: Optional[str] = None
+
+    if inp.project_id or inp.session_id:
         try:
             import uuid
             from sqlalchemy import select
             from shared.database.db import AsyncSessionLocal
             from shared.models.is_models import ISSession
+            from containers.implementation.signals_agent.discovery_context import load_discovery_context
 
             async with AsyncSessionLocal() as db:
-                row = (await db.execute(
-                    select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
-                )).scalar_one_or_none()
-                if row and row.discovery_f3iche:
-                    discovery_f3iche = row.discovery_f3iche
-                    activity.logger.info("  Discovery prior loaded: %s", discovery_f3iche)
+                sess_row = None
+                project_id = inp.project_id
+                if inp.session_id:
+                    sess_row = (await db.execute(
+                        select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+                    )).scalar_one_or_none()
+                    if sess_row and not project_id:
+                        project_id = str(sess_row.project_id)
+
+                if project_id:
+                    ctx = await load_discovery_context(
+                        db, project_id=project_id, session_row=sess_row,
+                    )
+                    discovery_f3iche = ctx.get("discovery_f3iche") or discovery_f3iche
+                    discovery_industry = ctx.get("discovery_industry")
+                    chat_transcript = ctx.get("chat_transcript")
+                    if discovery_f3iche or discovery_industry:
+                        activity.logger.info(
+                            "  Discovery context loaded: f3iche=%s industry=%s",
+                            discovery_f3iche,
+                            discovery_industry,
+                        )
         except Exception as e:
-            activity.logger.debug("  Could not load discovery_f3iche: %s", e)
+            activity.logger.debug("  Could not load discovery context: %s", e)
 
     svc = _SignalsInferenceService()
     f3iche_id, confidence, signals, method, registry_result = svc.infer_f3iche(
@@ -312,6 +344,8 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
         corpus_understanding=manifest.get("corpus_understanding"),
         file_meta=manifest.get("file_meta"),
         discovery_f3iche=discovery_f3iche,
+        discovery_industry=discovery_industry,
+        chat_transcript=chat_transcript,
     )
 
     # Semantic cross-check via kb_embeddings (async-safe)

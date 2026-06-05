@@ -212,7 +212,10 @@ _LLM_MOCK_RESPONSES: Dict[str, Any] = {
                 "likely_entity_types": ["Customer", "Project", "Item"],
                 "likely_erpnext_doctypes": ["Sales Order", "Project"],
                 "explicitly_not_doctypes": ["Work Order", "BOM"],
-                "column_interpretations": {"Client": "customer name", "Product": "sold SKU/service"},
+                "column_interpretations": [
+                    {"column": "Client", "meaning": "customer name"},
+                    {"column": "Product", "meaning": "sold SKU/service"},
+                ],
                 "confidence": 0.85,
                 "reasoning_signals": ["[MOCK] project + client columns, no manufacturing signals"],
             }

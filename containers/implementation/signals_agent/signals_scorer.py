@@ -41,7 +41,12 @@ def _column_matches(columns: List[str], patterns: List[str]) -> Optional[str]:
         if not pat_n:
             continue
         for col in cols_n:
-            if col == pat_n or (len(pat_n) >= 3 and pat_n in col):
+            if col == pat_n:
+                return pat
+            if len(pat_n) >= 3 and pat_n in col:
+                return pat
+            # "Project" column should match "project name" / "project code" rules
+            if len(col) >= 3 and col in pat_n:
                 return pat
     return None
 
@@ -102,7 +107,7 @@ def _score_structural_rules(
     for rule in rules:
         pat = _norm(str(rule.get("pattern") or ""))
         if "500 unique" in pat or "500+" in pat:
-            if unique_item_estimate >= 5 or total_rows >= 500:
+            if total_rows >= 500:
                 hits.extend(_apply_rule(scores, rule, matched_pattern=rule.get("pattern", ""), found_in="structural"))
         elif "fewer than 50" in pat or "low item" in pat:
             if total_rows > 0 and total_rows < 50 and unique_item_estimate < 5:
@@ -134,7 +139,10 @@ def _score_data_value_rules(
                     continue
             else:
                 pat = str(rule.get("pattern") or "")
-                if "size suffix" in pat.lower() and re.search(r"-[SMLX]{1,2}\b", snippet, re.I):
+                if "size suffix" in pat.lower() and re.search(
+                    r"(?i)\b(?:shirt|shirts|pant|pants|trouser|kurta|dress|garment|top|tee|blouse|jacket|suit)-[SMLX]{1,2}\b",
+                    snippet,
+                ):
                     hits.extend(_apply_rule(scores, rule, matched_pattern=pat, found_in=fname))
                 elif "pipe/grade" in pat.lower() and re.search(r"\d+\s*mm|\d+\s*inch", snippet, re.I):
                     hits.extend(_apply_rule(scores, rule, matched_pattern=pat, found_in=fname))
@@ -217,28 +225,77 @@ def score_manifest(
     }
 
 
+def _recompute_top(score_result: Dict[str, Any], niche_scores: Dict[str, float]) -> Dict[str, Any]:
+    ordered = sorted(niche_scores.items(), key=lambda kv: (-kv[1], kv[0]))
+    out = dict(score_result)
+    out["niche_scores"] = niche_scores
+    out["top_niche"] = ordered[0][0] if ordered else ""
+    out["confidence"] = ordered[0][1] if ordered else 0.0
+    out["margin"] = round(ordered[0][1] - ordered[1][1], 3) if len(ordered) > 1 else 0.0
+    threshold = float(score_result.get("threshold") or 0.60)
+    signal_count = int(score_result.get("signal_count") or 0)
+    out["confident"] = (
+        out["confidence"] >= threshold
+        and out["margin"] >= 0.05
+        and signal_count >= 3
+    )
+    return out
+
+
 def apply_discovery_prior(
     score_result: Dict[str, Any],
     discovery_f3iche: Optional[str],
     *,
+    discovery_industry: Optional[str] = None,
+    chat_transcript: Optional[str] = None,
     boost: float = 0.15,
+    broad_boost: float = 0.08,
 ) -> Dict[str, Any]:
-    """Nudge scores toward discovery f3iche when present (weak prior, not override)."""
-    if not discovery_f3iche:
+    """
+    Nudge scores toward discovery f3iche when present.
+
+    Handles both specific niche IDs and broad discovery categories
+    (trading | manufacturing | service) plus industry/chat hints.
+    """
+    if not discovery_f3iche and not discovery_industry:
         return score_result
 
+    from containers.implementation.signals_agent.discovery_niche_resolver import (
+        niche_broad_category,
+        resolve_niche_from_discovery,
+    )
+
     niche_scores = dict(score_result.get("niche_scores") or {})
-    discovery = discovery_f3iche.strip()
+    niche_ids = list(niche_scores.keys())
+    discovery = (discovery_f3iche or "").strip()
+
+    resolved = resolve_niche_from_discovery(
+        discovery_f3iche=discovery_f3iche,
+        discovery_industry=discovery_industry,
+        chat_transcript=chat_transcript,
+        niche_ids=niche_ids,
+    )
+
+    if resolved and resolved in niche_scores:
+        niche_scores[resolved] = min(1.0, niche_scores[resolved] + boost + broad_boost)
+        score_result = _recompute_top(score_result, niche_scores)
+        score_result["discovery_prior_applied"] = resolved
+        return score_result
+
     if discovery in niche_scores:
         niche_scores[discovery] = min(1.0, niche_scores[discovery] + boost)
-        score_result = dict(score_result)
-        score_result["niche_scores"] = niche_scores
-        ordered = sorted(niche_scores.items(), key=lambda kv: (-kv[1], kv[0]))
-        score_result["top_niche"] = ordered[0][0]
-        score_result["confidence"] = ordered[0][1]
-        if len(ordered) > 1:
-            score_result["margin"] = round(ordered[0][1] - ordered[1][1], 3)
+        score_result = _recompute_top(score_result, niche_scores)
         score_result["discovery_prior_applied"] = discovery
+        return score_result
+
+    if discovery in ("trading", "manufacturing", "service"):
+        for niche_id in niche_ids:
+            if niche_broad_category(niche_id) == discovery:
+                niche_scores[niche_id] = min(1.0, niche_scores[niche_id] + broad_boost)
+        score_result = _recompute_top(score_result, niche_scores)
+        score_result["discovery_prior_applied"] = discovery
+        return score_result
+
     return score_result
 
 

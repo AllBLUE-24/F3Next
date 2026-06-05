@@ -16,6 +16,10 @@ from sqlalchemy import select
 from temporalio import activity
 
 from containers.implementation.signals_agent.discovery_context import load_discovery_context
+from containers.implementation.signals_agent.discovery_niche_resolver import (
+    discovery_evidence_bullets,
+    resolve_niche_from_discovery,
+)
 from containers.implementation.signals_agent.f3iche_confirmation_models import (
     F3icheConfirmationSynthesis,
     F3icheCorrectionResolution,
@@ -134,27 +138,61 @@ async def synthesize_f3iche_confirmation_core(
     except Exception as e:
         import logging
         logging.getLogger(__name__).error("F3iche synthesis LLM failed: %s", e)
-        proposed = inp.infer_result.get("f3iche") or "trading_fmcg_distributor"
-        if proposed not in niche_ids:
-            proposed = registry_scores and max(registry_scores, key=registry_scores.get) or niche_ids[0]
+
         industry = (
             discovery_ctx.get("discovery_industry")
             or discovery_ctx.get("discovery_metadata", {}).get("industry")
             or "general"
         )
+        discovery_resolved = resolve_niche_from_discovery(
+            discovery_f3iche=discovery_ctx.get("discovery_f3iche"),
+            discovery_industry=industry,
+            chat_transcript=discovery_ctx.get("chat_transcript"),
+            niche_ids=niche_ids,
+        )
+        proposed = (
+            discovery_resolved
+            or inp.infer_result.get("f3iche")
+            or "trading_fmcg_distributor"
+        )
+        if proposed not in niche_ids:
+            proposed = (
+                max(registry_scores, key=registry_scores.get)
+                if registry_scores
+                else niche_ids[0]
+            )
+
+        discovery_evidence = discovery_evidence_bullets(
+            discovery_f3iche=discovery_ctx.get("discovery_f3iche"),
+            discovery_industry=industry,
+            headline=discovery_ctx.get("headline"),
+            chat_transcript=discovery_ctx.get("chat_transcript"),
+        )
+        used_discovery = bool(discovery_resolved and proposed == discovery_resolved)
+        msg_parts = []
+        if discovery_evidence:
+            msg_parts.append("Based on your discovery conversation")
+        msg_parts.append(f"we think your business is {_display_name_for(proposed)}")
+        if not used_discovery and discovery_ctx.get("discovery_f3iche"):
+            msg_parts.append(
+                f"(discovery indicated {discovery_ctx['discovery_f3iche']}; "
+                "file signals were also considered)"
+            )
+
         synthesis = F3icheConfirmationSynthesis(
-            confirmation_message=(
-                f"We analyzed your files and think your business is {_display_name_for(proposed)}. "
-                f"Is that correct?"
-            ),
+            confirmation_message=". ".join(msg_parts) + ". Is that correct?",
             proposed_f3iche=proposed,
             proposed_industry=industry,
             display_name=_display_name_for(proposed),
             confidence=float(inp.infer_result.get("confidence") or 0.5),
             evidence_from_files=inp.infer_result.get("collected_signals", [])[:4],
-            evidence_from_discovery=[],
-            conflicts=[f"Synthesis fallback: {e}"],
-            alignment="partial",
+            evidence_from_discovery=discovery_evidence,
+            conflicts=(
+                ["File signals and discovery did not fully align — please confirm."]
+                if discovery_ctx.get("discovery_f3iche") and not used_discovery
+                else []
+            ),
+            alignment="partial" if discovery_ctx.get("discovery_f3iche") else "agree",
         )
 
     if synthesis.proposed_f3iche not in niche_ids:

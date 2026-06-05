@@ -1,9 +1,14 @@
 """Pydantic schemas for LLM corpus understanding (Step 2b)."""
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import List
 
 from pydantic import BaseModel, Field
+
+
+class ColumnInterpretation(BaseModel):
+    column: str
+    meaning: str = Field(description="Plain English meaning of this column")
 
 
 class FileUnderstanding(BaseModel):
@@ -23,9 +28,9 @@ class FileUnderstanding(BaseModel):
         default_factory=list,
         description="ERPNext doctypes this file is clearly NOT, e.g. client orders ≠ Work Order",
     )
-    column_interpretations: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Per-column plain English meaning",
+    column_interpretations: List[ColumnInterpretation] = Field(
+        default_factory=list,
+        description="Per-column plain English meaning (list avoids Gemini additionalProperties issues)",
     )
     confidence: float = Field(ge=0.0, le=1.0, default=0.7)
     reasoning_signals: List[str] = Field(default_factory=list)

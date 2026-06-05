@@ -10,7 +10,9 @@ from containers.implementation.signals_agent.signals_scorer import (
 GREEN_SURFACE_FILES = {
     "raw_purchase_orders.csv": (
         "PO_Number,Vendor_Name,Item,Ordered_Qty,Price_Per_Unit\r\n"
-        "PO-26-001,Gupta Chemical Traders,RM-EPOX-LIQ,2000,4.60"
+        "PO-26-001,Gupta Chemical Traders,RM-EPOX-LIQ,2000,4.60\r\n"
+        "PO-26-002,Karan Acids & Solvents,RM-SOLVENT-X,400,\r\n"
+        "PO-26-003,Unknown Supplier Ltd,RM-HARD-AMN,100,9.00"
     ),
     "client_orders.csv": (
         "Client,Project,Target_Date,Product,Vol,Price\r\n"
@@ -38,6 +40,32 @@ def test_score_manifest_detects_signals():
     assert result["signal_count"] > 0
     assert result["top_niche"]
     assert "manufacturing_project_chemical" in result["niche_scores"]
+
+
+def test_green_surface_not_classified_as_garment():
+    meta = _meta_for(GREEN_SURFACE_FILES)
+    result = score_manifest(
+        filenames=list(GREEN_SURFACE_FILES.keys()),
+        file_meta=meta,
+        file_contents=GREEN_SURFACE_FILES,
+    )
+    assert result["top_niche"] != "manufacturing_garment_variants"
+
+
+def test_broad_manufacturing_discovery_prior_resolves_chemical():
+    meta = _meta_for(GREEN_SURFACE_FILES)
+    base = score_manifest(
+        filenames=list(GREEN_SURFACE_FILES.keys()),
+        file_meta=meta,
+        file_contents=GREEN_SURFACE_FILES,
+    )
+    boosted = apply_discovery_prior(
+        base,
+        "manufacturing",
+        discovery_industry="Chemical coatings and floor installation",
+    )
+    assert boosted.get("discovery_prior_applied")
+    assert boosted["top_niche"] == "manufacturing_project_chemical"
 
 
 def test_discovery_prior_boosts_niche():

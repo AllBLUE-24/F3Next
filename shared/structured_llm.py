@@ -11,6 +11,7 @@ active backend is Gemini or OpenAI.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Optional, Type, TypeVar
 
 from pydantic import BaseModel
@@ -19,12 +20,19 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
+# IS structured steps (corpus, synthesis, data readiness) default to OpenAI unless overridden.
+_DEFAULT_STRUCTURED_MODEL = (
+    os.getenv("STRUCTURED_LLM_MODEL")
+    or os.getenv("IS_STRUCTURED_MODEL")
+    or "gpt-4o-mini"
+)
+
 
 async def generate_typed(
     *,
     prompt: str,
     schema: Type[T],
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = _DEFAULT_STRUCTURED_MODEL,
     temperature: float = 0.0,
     max_output_tokens: int = 2000,
     system_instruction: Optional[str] = None,

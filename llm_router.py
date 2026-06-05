@@ -404,7 +404,12 @@ async def invoke_structured_llm(
                 max_tokens=max_tokens,
                 model_name=current_model,
             )
-        except RuntimeError:
+        except (RuntimeError, ValueError) as exc:
+            logger.warning(
+                "[llm_router] Structured output failed on '%s' (%s) — trying next model",
+                current_model,
+                str(exc)[:120],
+            )
             continue
 
     raise Exception(
