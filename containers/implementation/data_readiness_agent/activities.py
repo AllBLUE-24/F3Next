@@ -255,20 +255,33 @@ def _upload_readiness_report_r2(
         return ""
 
 
+def _recompute_viability_summary(pre_analysis: Dict[str, Any]) -> Dict[str, Any]:
+    """Refresh blocking counts after bottleneck tags mutate can_proceed_without."""
+    summary = dict(pre_analysis.get("summary") or {})
+    blocking_partial = [
+        p for p in pre_analysis.get("partial_doctypes", [])
+        if not p.get("can_proceed_without")
+    ]
+    blocking_missing = [
+        m for m in pre_analysis.get("missing_doctypes", [])
+        if not m.get("can_proceed_without")
+    ]
+    summary["n_blocking_partial"] = len(blocking_partial)
+    summary["n_blocking_missing"] = len(blocking_missing)
+    summary["minimum_viable_possible"] = (
+        len(blocking_partial) == 0 and len(blocking_missing) == 0
+    )
+    pre_analysis["summary"] = summary
+    return summary
+
+
 def _is_blocking_gap(gap: Dict[str, Any]) -> bool:
     """True when a gap should block minimum_viable_import_possible."""
-    if gap.get("can_proceed_without"):
-        return False
-    if gap.get("ready_with_assumptions") or gap.get("assumption_only"):
-        return False
-    must_ask = gap.get("must_ask_fields") or []
-    if gap.get("assumed_fields") and not must_ask:
-        return False
-    return _criticality_from_phase(gap.get("phase")) == "critical"
+    return not bool(gap.get("can_proceed_without"))
 
 
-def _has_critical_gaps(gaps: List[Dict[str, Any]]) -> bool:
-    return any(_is_blocking_gap(g) for g in gaps)
+def _has_blocking_gaps(pre_analysis: Dict[str, Any]) -> bool:
+    return not bool((pre_analysis.get("summary") or {}).get("minimum_viable_possible", True))
 
 
 def _gap_from_deterministic_partial(p: Dict[str, Any]) -> "DoctypeGap":
@@ -277,8 +290,8 @@ def _gap_from_deterministic_partial(p: Dict[str, Any]) -> "DoctypeGap":
     if not can_proceed:
         can_proceed = _criticality_from_phase(p.get("phase")) != "critical"
     assumed = p.get("assumed_fields") or []
-    must_ask = p.get("must_ask_fields") or []
-    if assumed and not must_ask:
+    blocking = p.get("blocking_fields") or p.get("missing_required_fields") or []
+    if assumed and not blocking:
         can_proceed = True
     reason = (
         f"Partial data coverage ({round(float(p.get('coverage_pct', 0)) * 100)}%) "
@@ -295,7 +308,7 @@ def _gap_from_deterministic_partial(p: Dict[str, Any]) -> "DoctypeGap":
         criticality=_criticality_from_phase(p.get("phase")),
         reason=reason,
         missing_fields=p.get("missing_required_fields") or p.get("missing_fields") or [],
-        recommendation="Review mapped fields before import." if must_ask else "Proceed — defaults will be applied at mapping.",
+        recommendation="Review mapped fields before import." if blocking else "Proceed — defaults will be applied at mapping.",
         can_proceed_without=can_proceed,
     )
 
@@ -505,7 +518,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
         field_mappings_kb=kb,
     )
     _tag_bottleneck_gaps(pre_analysis, mvp_focus)
-    summary = pre_analysis.get("summary", {})
+    summary = _recompute_viability_summary(pre_analysis)
     activity.logger.info(
         "  Gap scan: ready=%d partial=%d missing=%d unmappable=%d score=%.0f%%",
         summary.get("n_ready", 0),
@@ -651,18 +664,19 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 ],
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
             },
-            minimum_viable_import_possible=not (
-                _has_critical_gaps(pre_analysis.get("missing_doctypes", []))
-                or _has_critical_gaps(pre_analysis.get("partial_doctypes", []))
+            minimum_viable_import_possible=(
+                bool(summary.get("minimum_viable_possible"))
+                and not bool(live_erp_overlay.get("live_empty_blocking"))
+            ),
+            user_action_required=(
+                _has_blocking_gaps(pre_analysis)
+                or bool(pre_analysis.get("unmappable_chunks"))
                 or bool(live_erp_overlay.get("live_empty_blocking"))
             ),
-            user_action_required=bool(
-                pre_analysis.get("partial_doctypes")
-                or pre_analysis.get("missing_doctypes")
-                or pre_analysis.get("unmappable_chunks")
-                or live_erp_overlay.get("live_empty_blocking")
-            ),
-            questions_for_user=[UserQuestion(**q) for q in (llm_raw.get("questions_for_user") or [])],
+            questions_for_user=[
+                UserQuestion(**q) for q in (llm_raw.get("questions_for_user") or [])
+                if not q.get("is_blocking") or _has_blocking_gaps(pre_analysis)
+            ],
             executive_summary=llm_raw.get("executive_summary", ""),
             import_readiness_score=float(llm_raw.get("import_readiness_score", summary.get("raw_readiness_score", 1.0))),
             user_decision=llm_raw.get("user_decision"),
@@ -730,11 +744,10 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 },
             },
             minimum_viable_import_possible=(
-                len(critical_missing) == 0
-                and len(critical_partial) == 0
+                bool(summary.get("minimum_viable_possible"))
                 and not live_erp_overlay.get("live_empty_blocking")
             ),
-            user_action_required=len(partial_list) + len(missing_list) > 0 or len(unmappable_list) > 0,
+            user_action_required=_has_blocking_gaps(pre_analysis) or len(unmappable_list) > 0,
             questions_for_user=[],
             executive_summary=(
                 f"Import readiness: {raw_score*100:.0f}%. "

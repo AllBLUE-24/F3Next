@@ -20,9 +20,9 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from containers.implementation.data_readiness_agent.field_policy import (
-    classify_missing_fields,
-    identity_satisfied,
+    assess_field_coverage,
 )
+from containers.implementation.is_common.required_fields import get_required_fields
 from containers.implementation.file_io.manifest_utils import (
     corpus_exclusions_by_doctype,
     normalize_manifest_input,
@@ -86,8 +86,22 @@ def _score_columns_vs_doctype(columns: List[str], doctype: str, kb: Dict[str, An
         elif erp_name in required_fields:
             missing.append(erp_name)
 
-    total_fields = max(len(fmap), 1)
-    score = len(matched) / total_fields
+    graph_required = get_required_fields(doctype)
+    for gf in graph_required:
+        if gf not in matched and gf not in missing:
+            missing.append(gf)
+
+    # Score against graph required fields only (avoids false positives e.g. Stock Entry vs orders)
+    graph_matched = [m for m in matched if m in graph_required]
+    for gf in graph_required:
+        if gf == "items" and any(
+            m.startswith("items.") or m in {"item_code", "qty", "rate"}
+            for m in matched
+        ):
+            if gf not in graph_matched:
+                graph_matched.append(gf)
+    total_fields = max(len(graph_required), 1)
+    score = len(graph_matched) / total_fields
     return score, matched, missing
 
 
@@ -266,33 +280,17 @@ def _apply_field_policy(
     missing: List[str],
     columns: List[str],
     kb: Dict[str, Any],
-    party_row_count: int = 0,
-    corpus_hit: bool = False,
 ) -> Dict[str, Any]:
-    """Classify coverage using default-aware field policy."""
-    assumed, _, must_ask = classify_missing_fields(doctype, missing, matched, kb)
-    ident_ok = identity_satisfied(
-        doctype,
-        matched,
-        columns,
-        party_row_count=party_row_count,
-        corpus_hit=corpus_hit,
-    )
-    assumption_only = bool(assumed) and not must_ask
-    return {
-        "assumed_fields": assumed,
-        "must_ask_fields": must_ask,
-        "identity_satisfied": ident_ok,
-        "assumption_only": assumption_only,
-        "can_proceed_without": ident_ok and not must_ask,
-        "ready_with_assumptions": ident_ok and assumption_only,
-    }
+    """Classify coverage using graph required_fields (same contract as validate)."""
+    return assess_field_coverage(doctype, matched, columns, kb)
 
 
 # ─── public API ───────────────────────────────────────────────────────────────
 
 # Coverage threshold: above this → READY, below → PARTIAL
 _READY_THRESHOLD = 0.45
+# Minimum graph-field coverage to classify as partial (not missing) when blocking remains
+_PARTIAL_THRESHOLD = 0.75
 # Minimum score to consider a file as a candidate for a doctype
 _CANDIDATE_THRESHOLD = 0.10
 
@@ -375,56 +373,74 @@ def analyze_gaps(
         # Party-split shortcut (e.g. messy_partners.csv with Role column)
         if doctype in party_evidence:
             pe = party_evidence[doctype]
+            identity_field = "customer_name" if doctype == "Customer" else "supplier_name"
+            party_matched: List[str] = []
+            if any(_norm_col(c) in ("company name", "company_name") for c in pe["columns"]):
+                party_matched.append(identity_field)
             policy = _apply_field_policy(
                 doctype,
-                matched=[],
-                missing=(field_mappings_kb.get("doctypes") or {}).get(doctype, {}).get("mandatory_fields") or [],
+                matched=party_matched,
+                missing=[],
                 columns=pe["columns"],
                 kb=field_mappings_kb,
-                party_row_count=pe["row_count"],
             )
             matched_file_doctype_pairs.add((pe["source_file"], doctype))
-            ready_doctypes.append({
+            entry = {
                 "doctype": doctype,
                 "source_file": pe["source_file"],
-                "coverage_pct": 0.75,
-                "mapped_fields": [],
+                "coverage_pct": 0.75 if policy["can_proceed_without"] else 0.35,
+                "mapped_fields": party_matched,
                 "missing_optional_fields": [],
                 "assumed_fields": policy["assumed_fields"],
-                "must_ask_fields": policy["must_ask_fields"],
-                "ready_with_assumptions": True,
-                "can_proceed_without": True,
-                "assumption_only": True,
+                "blocking_fields": policy["blocking_fields"],
+                "ready_with_assumptions": policy["ready_with_assumptions"],
+                "can_proceed_without": policy["can_proceed_without"],
+                "assumption_only": policy["assumption_only"],
                 "phase": phase,
                 "evidence_type": "party_split",
-            })
+            }
+            if policy["can_proceed_without"]:
+                ready_doctypes.append(entry)
+            else:
+                partial_doctypes.append({
+                    **entry,
+                    "missing_required_fields": policy["blocking_fields"],
+                    "coverage_pct": 0.35,
+                })
             continue
 
         # Transactional Item stub (Product/Item column in orders/POs)
         if doctype == "Item" and item_stub:
+            item_matched: List[str] = []
+            cols_n = {_norm_col(c) for c in item_stub["columns"]}
+            if cols_n & _ITEM_STUB_COLUMNS:
+                item_matched.append("item_code")
             policy = _apply_field_policy(
                 "Item",
-                matched=[],
-                missing=(field_mappings_kb.get("doctypes") or {}).get("Item", {}).get("mandatory_fields") or [],
+                matched=item_matched,
+                missing=[],
                 columns=item_stub["columns"],
                 kb=field_mappings_kb,
-                corpus_hit=True,
             )
             matched_file_doctype_pairs.add((item_stub["source_file"], doctype))
-            ready_doctypes.append({
+            entry = {
                 "doctype": doctype,
                 "source_file": item_stub["source_file"],
-                "coverage_pct": 0.55,
-                "mapped_fields": [],
+                "coverage_pct": 0.55 if policy["can_proceed_without"] else 0.3,
+                "mapped_fields": item_matched,
                 "missing_optional_fields": [],
                 "assumed_fields": policy["assumed_fields"],
-                "must_ask_fields": policy["must_ask_fields"],
-                "ready_with_assumptions": True,
-                "can_proceed_without": True,
-                "assumption_only": True,
+                "blocking_fields": policy["blocking_fields"],
+                "ready_with_assumptions": policy["ready_with_assumptions"],
+                "can_proceed_without": policy["can_proceed_without"],
+                "assumption_only": policy["assumption_only"],
                 "phase": phase,
                 "evidence_type": "transactional_stub",
-            })
+            }
+            if policy["can_proceed_without"]:
+                ready_doctypes.append(entry)
+            else:
+                partial_doctypes.append({**entry, "missing_required_fields": policy["blocking_fields"]})
             continue
 
         for fname, meta in file_meta.items():
@@ -462,10 +478,9 @@ def analyze_gaps(
             policy = _apply_field_policy(
                 doctype,
                 matched=[],
-                missing=(field_mappings_kb.get("doctypes") or {}).get(doctype, {}).get("mandatory_fields") or [],
+                missing=[],
                 columns=meta.get("columns") or [],
                 kb=field_mappings_kb,
-                corpus_hit=True,
             )
             if policy["can_proceed_without"]:
                 matched_file_doctype_pairs.add((cf, doctype))
@@ -476,7 +491,7 @@ def analyze_gaps(
                     "mapped_fields": [],
                     "missing_optional_fields": [],
                     "assumed_fields": policy["assumed_fields"],
-                    "must_ask_fields": policy["must_ask_fields"],
+                    "blocking_fields": policy["blocking_fields"],
                     "ready_with_assumptions": True,
                     "can_proceed_without": True,
                     "assumption_only": True,
@@ -520,9 +535,9 @@ def analyze_gaps(
                 "mapped_fields": best_matched,
                 "missing_optional_fields": best_missing if not policy["assumption_only"] else [],
                 "assumed_fields": policy["assumed_fields"],
-                "must_ask_fields": policy["must_ask_fields"],
+                "blocking_fields": policy["blocking_fields"],
                 "ready_with_assumptions": policy["ready_with_assumptions"] or embedded_project,
-                "can_proceed_without": True,
+                "can_proceed_without": policy["can_proceed_without"],
                 "assumption_only": policy["assumption_only"] or embedded_project,
                 "phase": phase,
             }
@@ -532,7 +547,7 @@ def analyze_gaps(
                     "Project names found in order file; no dedicated project master uploaded"
                 )
             ready_doctypes.append(ready_entry)
-        elif best_score >= _READY_THRESHOLD and best_file:
+        elif best_score >= _READY_THRESHOLD and best_file and policy["can_proceed_without"]:
             matched_file_doctype_pairs.add((best_file, doctype))
             ready_doctypes.append({
                 "doctype": doctype,
@@ -541,18 +556,19 @@ def analyze_gaps(
                 "mapped_fields": best_matched,
                 "missing_optional_fields": best_missing,
                 "assumed_fields": policy["assumed_fields"],
+                "blocking_fields": policy["blocking_fields"],
                 "can_proceed_without": True,
                 "phase": phase,
             })
-        elif best_score >= _CANDIDATE_THRESHOLD and best_file:
+        elif best_score >= _PARTIAL_THRESHOLD and best_file:
             matched_file_doctype_pairs.add((best_file, doctype))
             partial_doctypes.append({
                 "doctype": doctype,
                 "source_file": best_file,
                 "coverage_pct": round(best_score, 3),
-                "missing_required_fields": policy["must_ask_fields"] or best_missing,
+                "missing_required_fields": policy["blocking_fields"] or best_missing,
                 "assumed_fields": policy["assumed_fields"],
-                "must_ask_fields": policy["must_ask_fields"],
+                "blocking_fields": policy["blocking_fields"],
                 "can_proceed_without": policy["can_proceed_without"],
                 "assumption_only": policy["assumption_only"],
                 "phase": phase,
@@ -562,9 +578,10 @@ def analyze_gaps(
                 "doctype": doctype,
                 "phase": phase,
                 "coverage_pct": 0.0,
-                "missing_required_fields": policy["must_ask_fields"] or best_missing,
+                "missing_required_fields": policy["blocking_fields"] or best_missing,
                 "assumed_fields": policy["assumed_fields"],
-                "can_proceed_without": False,
+                "blocking_fields": policy["blocking_fields"],
+                "can_proceed_without": policy["can_proceed_without"],
             })
 
     kb_doctypes = set((field_mappings_kb.get("doctypes") or {}).keys())
@@ -634,6 +651,11 @@ def analyze_gaps(
     n_assumption_ready = sum(1 for r in ready_doctypes if r.get("ready_with_assumptions"))
     blocking_partial = [p for p in partial_doctypes if not p.get("can_proceed_without")]
     blocking_missing = [m for m in missing_doctypes if not m.get("can_proceed_without")]
+    n_field_blocking = sum(
+        len(x.get("blocking_fields") or [])
+        for x in (*ready_doctypes, *partial_doctypes, *missing_doctypes)
+        if not x.get("can_proceed_without")
+    )
     raw_score = round(n_ready / max(total, 1), 3)
 
     return {
@@ -656,6 +678,8 @@ def analyze_gaps(
             "n_blocking_partial": len(blocking_partial),
             "n_missing": len(missing_doctypes),
             "n_blocking_missing": len(blocking_missing),
+            "n_field_blocking": n_field_blocking,
+            "minimum_viable_possible": len(blocking_missing) == 0 and len(blocking_partial) == 0,
             "n_unmappable_files": len(unmappable_chunks),
             "raw_readiness_score": raw_score,
             "files_scanned": len(file_meta),

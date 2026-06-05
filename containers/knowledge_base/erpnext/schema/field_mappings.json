@@ -905,6 +905,8 @@
           "mandatory": true,
           "user_input_synonyms": [
             "vendor",
+            "vendor_name",
+            "vendor name",
             "seller"
           ],
           "validation": "must_exist"
@@ -1155,7 +1157,9 @@
           "user_input_synonyms": [
             "deliver_by",
             "delivery_deadline",
-            "ship_by"
+            "ship_by",
+            "target_date",
+            "target date"
           ],
           "default_value": "transaction_date + 10 days",
           "validation": "must_be_after_transaction_date"

@@ -54,6 +54,8 @@
       "default_value": null,
       "user_input_synonyms": [
         "vendor",
+        "vendor_name",
+        "vendor name",
         "seller",
         "supplier",
         "Supplier"

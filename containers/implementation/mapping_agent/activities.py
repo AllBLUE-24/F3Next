@@ -36,6 +36,8 @@ from containers.implementation.utils.llm_helper import generate_json
 # 🚀 Importing the prompt cleanly!
 from containers.implementation.mapping_agent.prompts import REFINE_MAPPING_PROMPT
 from containers.implementation.mapping_agent.kb import field_mappings as _kb_field_mappings
+from containers.implementation.mapping_agent.column_map_tiered import map_columns_tiered
+from containers.implementation.mapping_agent.preflight_fields import preflight_mapped_records
 from containers.implementation.mapping_agent.classifier import classify_doctype
 from containers.implementation.mapping_agent.extraction import (
     extract_unstructured_records,
@@ -1041,10 +1043,15 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     activity.logger.info("  ⏭️ Skipping split group %s → %s (not scheduled as 'create' in plan)", entity_type, group_doctype)
                     continue
 
-                field_mapping = engine.map_columns(columns, group_doctype, sample_row=group_rows[0] if group_rows else None)
+                field_mapping, map_audit = await map_columns_tiered(
+                    engine, columns, group_doctype,
+                    sample_rows=group_rows,
+                    corpus_hints=corpus_hints,
+                )
                 results.append({
                     "doctype": group_doctype,
                     "field_mapping": field_mapping,
+                    "column_map_audit": map_audit,
                     "rows": group_rows,
                     "inferred_doctype": group_doctype,
                     "source_columns": columns,
@@ -1103,10 +1110,15 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
                 )
 
-            field_mapping = engine.map_columns(columns, doctype, sample_row=clean_rows[0] if clean_rows else None)
+            field_mapping, map_audit = await map_columns_tiered(
+                engine, columns, doctype,
+                sample_rows=clean_rows,
+                corpus_hints=corpus_hints,
+            )
             results = [{
                 "doctype": doctype,
                 "field_mapping": field_mapping,
+                "column_map_audit": map_audit,
                 "rows": clean_rows,
                 "inferred_doctype": doctype,
                 "source_columns": columns,
@@ -1161,8 +1173,10 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 doctype = implied_dt
                 if rows and field_mapping and not is_unstructured:
                     cols = source_columns or [c for c in rows[0].keys() if c]
-                    field_mapping = engine.map_columns(
-                        cols, doctype, sample_row=rows[0] if rows else None
+                    field_mapping, _ = await map_columns_tiered(
+                        engine, cols, doctype,
+                        sample_rows=rows,
+                        corpus_hints=corpus_hints,
                     )
             else:
                 activity.logger.warning(
@@ -1223,6 +1237,15 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             mapped_records = await validate_records_against_schema(doctype, mapped_records, project_id=inp.project_id)
         except Exception:
             pass
+
+        preflight = preflight_mapped_records(doctype, mapped_records)
+        if preflight.get("blocking"):
+            activity.logger.warning(
+                "  ⚠️ Preflight blocking for %s → %s: %s",
+                inp.filename,
+                doctype,
+                preflight.get("missing_fields"),
+            )
 
         mapped_records, quarantined_rows = filter_quarantined_records(doctype, mapped_records)
         if quarantined_rows:

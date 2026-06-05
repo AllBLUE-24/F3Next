@@ -134,6 +134,8 @@
         "deliver_by",
         "delivery_deadline",
         "ship_by",
+        "target_date",
+        "target date",
         "Delivery Date",
         "delivery date",
         "delivery_date"

@@ -225,6 +225,7 @@ def _resolve_default_value(
     dval: Any,
     *,
     context: Optional[Dict[str, Any]] = None,
+    record: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Resolve KB default_value tokens into concrete scalars."""
     if dval == "today" or dval == "now":
@@ -235,8 +236,24 @@ def _resolve_default_value(
         if company:
             return company
 
+    if isinstance(dval, str) and "+" in dval and record:
+        m = re.match(
+            r"transaction_date\s*\+\s*(\d+)\s*days?",
+            dval.strip(),
+            re.I,
+        )
+        if m:
+            base_raw = record.get("transaction_date")
+            if base_raw:
+                base_s = str(base_raw)[:10]
+                if _is_iso_date(base_s):
+                    base_d = datetime.strptime(base_s, "%Y-%m-%d").date()
+                    return (base_d + timedelta(days=int(m.group(1)))).isoformat()
+
     if isinstance(dval, (str, int, float, bool)) and dval not in ("today", None):
-        if isinstance(dval, str) and any(tok in dval for tok in ("+", "fetch_from", "user_default")):
+        if isinstance(dval, str) and any(tok in dval for tok in ("fetch_from", "user_default")):
+            return None
+        if isinstance(dval, str) and "+" in dval:
             return None
         return dval
 
@@ -423,7 +440,7 @@ def apply_defaults_and_normalize(
                     continue
 
             dval = cfg.get("default_value")
-            resolved = _resolve_default_value(doctype, fname, dval, context=context)
+            resolved = _resolve_default_value(doctype, fname, dval, context=context, record=r)
             if resolved is not None:
                 r[fname] = resolved
                 continue
