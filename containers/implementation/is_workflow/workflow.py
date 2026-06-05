@@ -183,6 +183,7 @@ class ImplementationWorkflow:
         self._last_retry_feedback: Optional[str] = None
         self._f3iche_confirmation: Optional[Dict[str, Any]] = None
         self._infer_result: Optional[Dict[str, Any]] = None
+        self._corpus_understanding: Optional[Dict[str, Any]] = None
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -456,6 +457,7 @@ class ImplementationWorkflow:
                     ),
                     **_LONG,
                 )
+                self._corpus_understanding = enrich_result
                 _kv(L, "corpus_summary", (enrich_result.get("corpus_summary") or "")[:120])
                 _kv(L, "files_understood", enrich_result.get("files_understood", 0))
                 _kv(L, "corpus_status", enrich_result.get("status", "unknown"))
@@ -595,7 +597,13 @@ class ImplementationWorkflow:
         try:
             alignment_result = await workflow.execute_activity(
                 align_discovery_and_signals,
-                AlignDiscoverySignalsInput(session_id=self._session_id, project_id=project_id),
+                AlignDiscoverySignalsInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    confirmed_f3iche=conf.f3iche_user,
+                    synthesis_proposal=self._f3iche_confirmation,
+                    corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
+                ),
                 **_ACT,
             )
             _kv(L, "alignment_score", alignment_result.get("alignment_score"))
@@ -632,6 +640,11 @@ class ImplementationWorkflow:
                     r2_manifest_url=r2_manifest_url,
                     collected_signals=infer_result["collected_signals"],
                     discovery_alignment_score=alignment_result.get("alignment_score"),
+                    discovery_alignment_mismatches=alignment_result.get("mismatches") or [],
+                    discovery_alignment_reasoning=alignment_result.get("reasoning"),
+                    mvp_focus=alignment_result.get("mvp_focus"),
+                    corpus_understanding=self._corpus_understanding,
+                    synthesis_proposal=self._f3iche_confirmation,
                 ),
                 **_ACT,
             )
@@ -676,6 +689,8 @@ class ImplementationWorkflow:
                     project_id=project_id,
                     company_slug=self._company_slug,
                     r2_manifest_url=r2_manifest_url,
+                    mvp_focus=alignment_result.get("mvp_focus"),
+                    corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
                 ),
                 **_ACT,
             )

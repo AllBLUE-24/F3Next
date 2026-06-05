@@ -121,11 +121,18 @@ class _CompanyProfileService:
                 *[str(c) for c in f3iche_data.get("critical_checks", [])[:2]],
             ])) or "No F3iche narrative retrieved."
 
-        prompt = f"""
-You are the F3Next Profile Agent. Assemble a context profile for a company named '{kwargs.get("company_name", "Unknown")}'.
-Their target business niche/f3iche model is: {f3iche} (Industry: {industry}).
+        company_label = kwargs.get("company_name") or "the company"
+        corpus = kwargs.get("corpus_understanding") or {}
+        corpus_summary = corpus.get("corpus_summary") or "(not available)"
+        mvp_focus = kwargs.get("mvp_focus") or {}
+        alignment_block = kwargs.get("discovery_alignment") or {}
 
-Deterministic template constraints for this niche:
+        prompt = f"""
+You are the F3Next Profile Agent. Assemble a context profile for {company_label}.
+Their target business niche/f3iche model is: {f3iche} (Industry: {industry}).
+Industry sub-sector: {kwargs.get("industry_sub") or "(not specified)"}
+
+Deterministic template constraints for this niche (DRAFT — Step 8 finalizes doctypes):
   Required Modules: {f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))}
 
 [Layer 0: Company Context]
@@ -142,6 +149,15 @@ Deterministic template constraints for this niche:
 
 [Layer 4: Industry Reality]
 {industry_block}
+
+[Corpus Understanding — semantic file roles]
+{corpus_summary}
+
+[MVP Focus from discovery]
+{json.dumps(mvp_focus, indent=2) if mvp_focus else "(none)"}
+
+[Discovery vs files alignment]
+{json.dumps(alignment_block, indent=2) if alignment_block else "(not run)"}
 
 User import note:
 {user_import_note or "No explicit import note provided."}
@@ -176,6 +192,7 @@ Return EXACTLY this JSON structure:
                 "llm_confidence": 0.0
             }
 
+        draft_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
         return {
             "project_id": project_id,
             "version": version,
@@ -188,7 +205,14 @@ Return EXACTLY this JSON structure:
             "company_name":        kwargs.get("company_name"),
             "workflows":           [w.get("name", "") for w in f3iche_data.get("workflows", [])],
             "modules":             f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", [])),
-            "required_doctypes":   f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", [])),
+            "required_modules":    f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", [])),
+            "required_doctypes":   draft_doctypes,
+            "draft_required_doctypes": draft_doctypes,
+            "required_doctypes_status": "draft",
+            "mvp_focus":           kwargs.get("mvp_focus"),
+            "corpus_summary":      corpus_summary if corpus_summary != "(not available)" else None,
+            "corpus_understanding": corpus if corpus else None,
+            "discovery_alignment": alignment_block or None,
             "f3iche_user":         kwargs.get("f3iche_user"),
             "f3iche_signals":      kwargs.get("f3iche_signals"),
             "f3iche_match_status": kwargs.get("f3iche_match_status", "matched"),
@@ -198,7 +222,7 @@ Return EXACTLY this JSON structure:
             "field_mappings":      kwargs.get("field_mappings"),
             "validation_report":   kwargs.get("validation_report"),
             "import_phase":        kwargs.get("import_phase"),
-            "llm_enrichment":      llm_enrichment
+            "llm_enrichment":      llm_enrichment,
         }
 
 
@@ -228,6 +252,11 @@ class BuildProfileInput:
     validation_report: Optional[Dict] = None
     import_phase: Optional[str] = None
     discovery_alignment_score: Optional[float] = None
+    discovery_alignment_mismatches: List[str] = field(default_factory=list)
+    discovery_alignment_reasoning: Optional[str] = None
+    mvp_focus: Optional[Dict[str, Any]] = None
+    corpus_understanding: Optional[Dict[str, Any]] = None
+    synthesis_proposal: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -241,6 +270,9 @@ class MergeProfileInput:
 class AlignDiscoverySignalsInput:
     session_id: str
     project_id: str
+    confirmed_f3iche: Optional[str] = None
+    synthesis_proposal: Optional[Dict[str, Any]] = None
+    corpus_summary: Optional[str] = None
 
 @dataclass
 class RetrieveIndustryKnowledgeInput:
@@ -256,6 +288,8 @@ class EnrichCompanyProfileInput:
     project_id: str
     company_slug: str
     r2_manifest_url: str
+    mvp_focus: Optional[Dict[str, Any]] = None
+    corpus_summary: Optional[str] = None
 
 # ── Activity definitions ─────────────────────────────────────────────────────
 
@@ -267,6 +301,53 @@ async def build_company_profile(inp: BuildProfileInput) -> Any:
     Returns: "success"
     """
     activity.logger.info("▶ build_company_profile started | project=%s f3iche=%s", inp.project_id, inp.f3iche)
+
+    from containers.implementation.profile_agent.profile_identity import resolve_profile_identity
+    from containers.implementation.signals_agent.discovery_context import load_discovery_context
+
+    discovery_ctx: Dict[str, Any] = {}
+    if inp.project_id:
+        try:
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.is_models import ISSession
+
+            async with AsyncSessionLocal() as db:
+                sess_row = None
+                if inp.session_id:
+                    sess_row = (await db.execute(
+                        select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+                    )).scalar_one_or_none()
+                discovery_ctx = await load_discovery_context(
+                    db, project_id=inp.project_id, session_row=sess_row,
+                )
+        except Exception as e:
+            activity.logger.debug("  Could not load discovery context: %s", e)
+
+    identity = resolve_profile_identity(
+        company_slug=inp.company_slug,
+        company_name=inp.company_name,
+        industry=inp.industry,
+        industry_sub=inp.industry_sub,
+        company_size=inp.company_size,
+        discovery_ctx=discovery_ctx,
+        synthesis=inp.synthesis_proposal,
+    )
+    inp.company_name = identity["company_name"]
+    inp.industry = identity["industry"] or inp.industry
+    inp.industry_sub = identity["industry_sub"]
+    inp.company_size = identity["company_size"]
+
+    corpus = inp.corpus_understanding
+    if not corpus and inp.r2_manifest_url:
+        try:
+            manifest = json.loads(
+                _get_s3_client().get_object(Bucket="clean-data", Key=inp.r2_manifest_url)["Body"].read()
+            )
+            corpus = manifest.get("corpus_understanding")
+        except Exception:
+            corpus = inp.corpus_understanding
+
+    mvp_focus = inp.mvp_focus or discovery_ctx.get("mvp_focus")
 
     # ── RAG: fetch knowledge BEFORE building profile (G1) ─────────────────────
     from containers.implementation.utils.rag_helper import rag_retrieve
@@ -316,6 +397,13 @@ async def build_company_profile(inp: BuildProfileInput) -> Any:
         field_mappings=inp.field_mappings,
         validation_report=inp.validation_report,
         import_phase=inp.import_phase,
+        corpus_understanding=corpus,
+        mvp_focus=mvp_focus,
+        discovery_alignment={
+            "alignment_score": inp.discovery_alignment_score,
+            "mismatches": inp.discovery_alignment_mismatches,
+            "reasoning": inp.discovery_alignment_reasoning,
+        } if inp.discovery_alignment_score is not None else None,
     )
     activity.logger.info("  Profile built | modules=%s", profile.get('modules', []))
 
@@ -343,6 +431,7 @@ async def build_company_profile(inp: BuildProfileInput) -> Any:
                     company_name=inp.company_name,
                     company_size=inp.company_size,
                     discovery_alignment_score=inp.discovery_alignment_score,
+                    discovery_mismatches=inp.discovery_alignment_mismatches or None,
                     workflows=profile.get("workflows"),
                     required_modules=profile.get("modules"),
                     required_doctypes=profile.get("required_doctypes"),
@@ -561,15 +650,22 @@ async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[s
     from containers.implementation.profile_agent.prompts import ALIGNMENT_PROMPT
 
     discovery_data = {}
+    chat_transcript = ""
+    mvp_focus_from_ctx: Optional[Dict[str, Any]] = None
     signals_data = []
 
     async with AsyncSessionLocal() as session:
-        # 1. Fetch Discovery Data (Safely querying the 'hooks' table directly)
-        stmt_hooks = text("SELECT discovery_metadata FROM hooks WHERE project_id = :pid ORDER BY created_at DESC LIMIT 1")
-        res_hooks = await session.execute(stmt_hooks, {"pid": inp.project_id})
-        hook_row = res_hooks.fetchone()
-        if hook_row and hook_row[0]:
-            discovery_data = hook_row[0]
+        from containers.implementation.signals_agent.discovery_context import load_discovery_context
+
+        sess_row = (await session.execute(
+            select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+        )).scalar_one_or_none()
+        ctx = await load_discovery_context(
+            db=session, project_id=inp.project_id, session_row=sess_row,
+        )
+        discovery_data = ctx.get("discovery_metadata") or {}
+        chat_transcript = ctx.get("chat_transcript") or ""
+        mvp_focus_from_ctx = ctx.get("mvp_focus")
 
         # 2. Fetch Signals Data
         stmt_signals = select(ISF3icheScore).where(
@@ -586,8 +682,12 @@ async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[s
 
     # 3. Call the LLM
     prompt = ALIGNMENT_PROMPT.format(
-        discovery_data=json.dumps(discovery_data, indent=2),
-        signals_data=json.dumps(signals_data, indent=2)
+        confirmed_f3iche=inp.confirmed_f3iche or "(unknown)",
+        synthesis_proposal=json.dumps(inp.synthesis_proposal or {}, indent=2, default=str),
+        corpus_summary=inp.corpus_summary or "(not available)",
+        discovery_data=json.dumps(discovery_data, indent=2, default=str),
+        chat_transcript=chat_transcript or "(no discovery chat)",
+        signals_data=json.dumps(signals_data, indent=2),
     )
 
     try:
@@ -608,7 +708,9 @@ async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[s
             f3iche = discovery_data.get("f3iche") if isinstance(discovery_data, dict) else None
             industry = discovery_data.get("industry") if isinstance(discovery_data, dict) else None
             company_size = discovery_data.get("company_size") if isinstance(discovery_data, dict) else None
-            mvp_focus = discovery_data.get("mvp_focus") if isinstance(discovery_data, dict) else None
+            mvp_focus = mvp_focus_from_ctx or (
+                discovery_data.get("mvp_focus") if isinstance(discovery_data, dict) else None
+            )
 
             update_vals = {}
             if f3iche: update_vals["discovery_f3iche"] = f3iche
@@ -638,7 +740,9 @@ async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[s
             actor="llm",
             details={
                 "alignment_score": alignment_result.get("alignment_score"),
-                "mismatches": alignment_result.get("mismatches")
+                "mismatches": alignment_result.get("mismatches"),
+                "reasoning": alignment_result.get("reasoning"),
+                "confirmed_f3iche": inp.confirmed_f3iche,
             },
             result="success"
         )
@@ -646,6 +750,9 @@ async def align_discovery_and_signals(inp: AlignDiscoverySignalsInput) -> Dict[s
 
     except Exception as e:
         activity.logger.error("  ❌ Database update failed during alignment: %s", e)
+
+    if mvp_focus_from_ctx and "mvp_focus" not in alignment_result:
+        alignment_result["mvp_focus"] = mvp_focus_from_ctx
 
     activity.logger.info("✅ align_discovery_and_signals done | score=%s", alignment_result.get("alignment_score"))
     return alignment_result
@@ -785,50 +892,78 @@ async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, An
             region_name="auto",
         )
 
+    from containers.implementation.profile_agent.manifest_completeness import score_manifest_completeness
+
     # 1. Fetch current profile from DB
-    profile_dict = {}
+    profile_dict: Dict[str, Any] = {}
     profile_id = None
     profile_version = 1
-    
+    r2_profile_key: Optional[str] = None
+
     try:
         async with AsyncSessionLocal() as session:
             stmt = select(ISCompanyProfile).where(
                 ISCompanyProfile.session_id == uuid.UUID(inp.session_id)
             ).order_by(ISCompanyProfile.version.desc()).limit(1)
-            
+
             res = await session.execute(stmt)
             latest = res.scalar_one_or_none()
-            
+
             if latest:
                 profile_id = latest.id
                 profile_version = latest.version
+                r2_profile_key = latest.r2_path
                 profile_dict = {
                     "f3iche": latest.f3iche,
                     "industry": latest.industry,
                     "required_modules": latest.required_modules,
                     "required_doctypes": latest.required_doctypes,
                     "industry_best_practices": latest.industry_best_practices,
-                    "industry_differentiators": getattr(latest, 'industry_differentiators', None),
+                    "industry_differentiators": getattr(latest, "industry_differentiators", None),
                     "business_reality": latest.business_reality,
                     "context_flags": latest.context_flags,
                     "company_name": latest.company_name,
                     "company_size": latest.company_size,
                     "industry_sub": latest.industry_sub,
+                    "discovery_alignment_score": latest.discovery_alignment_score,
+                    "discovery_mismatches": latest.discovery_mismatches,
                 }
     except Exception as e:
         activity.logger.error("  ❌ Failed to fetch profile: %s", e)
         return {"status": "error"}
 
+    # 1b. Merge full Step 7 R2 snapshot (7a fields, mvp_focus, corpus, draft doctypes)
+    if not r2_profile_key:
+        r2_profile_key = f"{inp.company_slug}/{inp.project_id}/_profile/company_context_v{profile_version}.json"
+    try:
+        s3 = get_s3_client()
+        r2_obj = s3.get_object(Bucket="clean-data", Key=r2_profile_key)
+        r2_profile = json.loads(r2_obj["Body"].read().decode("utf-8"))
+        if isinstance(r2_profile, dict):
+            profile_dict = {**r2_profile, **{k: v for k, v in profile_dict.items() if v is not None}}
+            activity.logger.info("  Merged Step 7 R2 profile (%d keys)", len(profile_dict))
+    except Exception as e:
+        activity.logger.debug("  No prior R2 profile to merge: %s", e)
+
     # 2. Fetch Manifest / File Snippets from R2
+    manifest: Dict[str, Any] = {}
     file_contents = {}
+    corpus_summary = inp.corpus_summary or ""
     if inp.r2_manifest_url:
         try:
             s3 = get_s3_client()
             response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
             manifest = json.loads(response["Body"].read().decode("utf-8"))
             file_contents = manifest.get("files", {})
+            if not corpus_summary:
+                corpus = manifest.get("corpus_understanding") or {}
+                corpus_summary = corpus.get("corpus_summary") or ""
         except Exception as e:
             activity.logger.error("  ❌ Failed to load manifest: %s", e)
+
+    draft_doctype_count = len(profile_dict.get("required_doctypes") or profile_dict.get("draft_required_doctypes") or [])
+    manifest_completeness = score_manifest_completeness(manifest, draft_doctype_count=draft_doctype_count)
+    mvp_focus = inp.mvp_focus or profile_dict.get("mvp_focus") or {}
 
     snippets = []
     for fname, txt in file_contents.items():
@@ -855,8 +990,11 @@ async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, An
 
     # 4. Call LLM for Enrichment
     prompt = PROFILE_ENRICHMENT_PROMPT.format(
-        current_profile=json.dumps(profile_dict, indent=2),
+        current_profile=json.dumps(profile_dict, indent=2, default=str),
+        mvp_focus=json.dumps(mvp_focus, indent=2, default=str) if mvp_focus else "(none)",
+        corpus_summary=corpus_summary or "(not available)",
         data_snippets="\n".join(snippets),
+        manifest_completeness=manifest_completeness,
         rag_context=rag_context_str,
     )
 
@@ -893,19 +1031,31 @@ async def enrich_company_profile(inp: EnrichCompanyProfileInput) -> Dict[str, An
                     except Exception:
                         pass
 
-    # 4. Save Final JSON to R2
-    r2_key = f"{inp.company_slug}/{inp.project_id}/_profile/company_context_v{profile_version}.json"
-    
-    # Merge existing profile with new enrichment data
+    # Blend LLM completeness with deterministic manifest score
+    llm_completeness = enrichment_data.get("completeness_score")
+    if llm_completeness is not None:
+        blended_completeness = round(
+            float(llm_completeness) * 0.6 + manifest_completeness * 0.4, 2
+        )
+        enrichment_data["completeness_score"] = blended_completeness
+        enrichment_data["manifest_completeness"] = manifest_completeness
+
+    # 4. Save Final JSON to R2 — merge onto full Step 7 snapshot, do not replace
+    r2_key = r2_profile_key or f"{inp.company_slug}/{inp.project_id}/_profile/company_context_v{profile_version}.json"
+
     final_profile = {
         **profile_dict,
         "version": profile_version,
         "session_id": inp.session_id,
+        "mvp_focus": mvp_focus or profile_dict.get("mvp_focus"),
+        "corpus_summary": corpus_summary or profile_dict.get("corpus_summary"),
+        "manifest_completeness": manifest_completeness,
         "data_quality_score": enrichment_data.get("data_quality_score"),
         "completeness_score": enrichment_data.get("completeness_score"),
         "data_observations": enrichment_data.get("data_observations", []),
         "recommended_customizations": enrichment_data.get("recommended_customizations", []),
-        "_persisted_at": datetime.utcnow().isoformat() + "Z"
+        "required_doctypes_status": profile_dict.get("required_doctypes_status", "draft"),
+        "_persisted_at": datetime.utcnow().isoformat() + "Z",
     }
 
     try:

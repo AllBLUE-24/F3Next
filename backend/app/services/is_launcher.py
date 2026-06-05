@@ -236,17 +236,52 @@ class ImplementationLauncher:
         if not resolved_f3iche:
             raise ValueError("Could not resolve f3iche for confirmation")
 
+        from containers.implementation.signals_agent.discovery_context import load_discovery_context
+        from containers.implementation.profile_agent.profile_identity import resolve_profile_identity
+        from shared.models.core import Project
+
+        is_session = await self._get_session(project_id)
+        discovery_ctx: Dict[str, Any] = {}
+        company_slug: Optional[str] = None
+        if is_session:
+            async with AsyncSessionLocal() as session:
+                discovery_ctx = await load_discovery_context(
+                    db=session,
+                    project_id=str(is_session.project_id),
+                    session_row=is_session,
+                )
+                proj = (
+                    await session.execute(
+                        select(Project).where(Project.id == is_session.project_id)
+                    )
+                ).scalar_one_or_none()
+                if proj and proj.company_slug:
+                    company_slug = proj.company_slug
+
+        identity = resolve_profile_identity(
+            company_slug=company_slug,
+            company_name=company_name,
+            industry=resolved_industry,
+            industry_sub=industry_sub,
+            company_size=company_size,
+            discovery_ctx=discovery_ctx,
+            synthesis=synthesis,
+        )
+
         await self.signal_f3iche_confirmed(
             project_id,
             resolved_f3iche,
-            resolved_industry,
-            industry_sub=industry_sub,
-            company_name=company_name,
-            company_size=company_size,
+            identity["industry"] or resolved_industry,
+            industry_sub=identity["industry_sub"] or industry_sub,
+            company_name=identity["company_name"] or company_name,
+            company_size=identity["company_size"] or company_size,
         )
         return {
             "f3iche_user": resolved_f3iche,
-            "industry": resolved_industry,
+            "industry": identity["industry"] or resolved_industry,
+            "industry_sub": identity["industry_sub"],
+            "company_name": identity["company_name"],
+            "company_size": identity["company_size"],
             "accepted": accepted,
         }
 

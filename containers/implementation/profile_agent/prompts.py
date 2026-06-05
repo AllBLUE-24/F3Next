@@ -1,10 +1,21 @@
 ALIGNMENT_PROMPT = """
-You are the F3Next Alignment Agent. Your job is to compare what a user claimed during their discovery chat (DISCOVERY) with what our system detected from their actual uploaded files (SIGNALS).
+You are the F3Next Alignment Agent. Compare discovery intent with file reality AFTER the user confirmed their business type.
 
-DISCOVERY METADATA (From Chatbot):
+USER-CONFIRMED F3ICHE: {confirmed_f3iche}
+
+F3ICHE SYNTHESIS PROPOSAL (Step 3.5 — files + discovery merged):
+{synthesis_proposal}
+
+CORPUS UNDERSTANDING (semantic file descriptions from Step 2b):
+{corpus_summary}
+
+DISCOVERY METADATA (structured tags from chatbot):
 {discovery_data}
 
-SIGNALS METADATA (From Uploaded Files):
+DISCOVERY CHAT TRANSCRIPT:
+{chat_transcript}
+
+SIGNALS METADATA (deterministic file inference scores):
 {signals_data}
 
 Compare the two and provide:
@@ -29,8 +40,19 @@ You are the F3Next Profile Enrichment Agent. Your job is to analyze a company's 
 CURRENT COMPANY PROFILE:
 {current_profile}
 
+MVP FOCUS (from discovery — primary bottleneck + functional requirements):
+{mvp_focus}
+
+CORPUS UNDERSTANDING (semantic descriptions per file — prefer over raw column guessing):
+{corpus_summary}
+
 RAW UPLOADED DATA SNIPPETS:
 {data_snippets}
+
+MANIFEST COMPLETENESS (deterministic score 0–1 based on file count/rows): {manifest_completeness}
+
+Note: required_doctypes in the profile are DRAFT from the niche template until Step 8 (target structure).
+Do not treat missing BOM/Work Order files as blocking unless corpus or data clearly shows manufacturing batch production.
 
 [Authoritative ERPNext & Industry Context]
 Use the knowledge below to inform your recommended customizations and completeness evaluation.
@@ -50,4 +72,4 @@ Return EXACTLY this JSON structure:
   "data_observations": ["observation 1", "observation 2"],
   "recommended_customizations": ["customization 1", "customization 2"]
 }}
-"""
+"""
