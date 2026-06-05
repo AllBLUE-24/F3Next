@@ -33,35 +33,6 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
   const [importNote, setImportNote] = useState("");
   const router = useRouter();
   const params = useParams<{ companySlug: string }>();
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deployTriggered, setDeployTriggered] = useState(false);
-
-  const handleDeploy = async () => {
-    setIsDeploying(true);
-    try {
-      const base = getBaseApiUrl();
-      const res = await fetch(`${base}/api/deploy/infra`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: projectId,
-          company_slug: params?.companySlug || 'unknown',
-          tier: 'standard'
-        })
-      });
-      if (res.ok) {
-        setDeployTriggered(true);
-      } else {
-        setError("Instance deployment failed to trigger.");
-      }
-    } catch(err) {
-      console.error(err);
-      setError("Network error while deploying instance.");
-    } finally {
-      setIsDeploying(false);
-    }
-  };
-
   const addFiles = useCallback((incoming: FileList | null) => {
     if (!incoming) return;
     const next: FileEntry[] = Array.from(incoming).map((f) => ({
@@ -167,21 +138,6 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
           </p>
         </div>
 
-        {/* --- DEPLOY INSTANCE BUTTON --- */}
-        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5 flex items-center justify-between mb-4">
-          <div>
-             <h3 className="text-white font-bold text-sm mb-1">Provision Live ERP</h3>
-             <p className="text-xs text-gray-500">Deploy your ERPNext instance now so it&apos;s ready when analysis finishes.</p>
-          </div>
-          <button
-             type="button"
-             onClick={handleDeploy}
-             disabled={isDeploying || deployTriggered}
-             className="px-6 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 font-bold text-sm transition-all disabled:opacity-50"
-          >
-             {isDeploying ? 'Deploying...' : deployTriggered ? 'Deploy Triggered ✓' : 'Deploy Now'}
-          </button>
-        </div>
       </div>
 
       {/* Drop Zone */}

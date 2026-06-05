@@ -52,7 +52,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | # | Pillar | Goal | Status | Backlog |
 |---|--------|------|--------|---------|
 | 1 | **Universal ingestion & corpus** | Upload wave → unified corpus; re-uploads merge | ~70% | P3 corpus model |
-| 2 | **Parse & normalize structure** | CSV/TSV/XLSX/JSON → rows + columns; R2 manifest | ~70% | Parse roadmap (P3 bridge) |
+| 2 | **Parse & normalize structure** | CSV/TSV/XLSX/JSON → rows + columns; R2 manifest v2 + LLM corpus understanding | ~85% | Column-map LLM fallback (tiered resolution) |
 | 3 | **Intent & classification** | Chunk → doctype(s) + confidence; local + LLM fallback | ~50% | P2 transparency; P3 tiered resolution |
 | 4 | **Signaling & synonyms** | KB priors + aliases; LLM when no match | ~50% | P3 synonym growth; ~15 doctypes today |
 | 5 | **ERP knowledge (static + live)** | Schema, child tables, links, lifecycle, phases, deps | ~40% | P3 SchemaResolver v1; validation_rules |
@@ -137,6 +137,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 
 ## P3 — Architecture (stop patching long-term)
 
+- [x] **Manifest v2 + corpus understanding (Step 2)** — `file_meta` (columns, row_count, sample_rows) + LLM `enrich_corpus_understanding`; gap_analyzer respects `explicitly_not_doctypes`. *(2026-06-05 — L2 pillar 2, class A)*
 - **Corpus model doc** — single diagram: upload wave → assign corpus → classify → split → map → merge-on-write → validate → finalize plan → import phases.
 - **Per-file R2 keys + canonical merge blob** — optional if merge-on-write + guards are insufficient for audit/debug.
 - **Unified merge policy** — all consumers use `corpus_merge.py` (map, validate, finalize, preview, import preflight).

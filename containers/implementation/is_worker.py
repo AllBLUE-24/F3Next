@@ -53,6 +53,7 @@ from containers.implementation.virus_scan_agent.activities import virus_scan_qua
 from containers.implementation.supervisor_agent.activities import supervise_step, apply_supervisor_actions
 from containers.implementation.derive_agent.activities import derive_required_records
 from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files
+from containers.implementation.file_io.enrich_corpus_understanding import enrich_corpus_understanding
 from containers.implementation.file_io.persist_profile     import persist_profile
 from containers.implementation.file_io.persist_session     import persist_session
 from containers.implementation.file_io.persist_mapping     import persist_mapping
@@ -119,6 +120,7 @@ async def main() -> None:
                         virus_scan_quarantine,
                         # file_io
                         fetch_clean_files,
+                        enrich_corpus_understanding,
                         persist_profile,
                         persist_session,
                         persist_mapping,

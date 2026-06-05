@@ -37,6 +37,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput, PreflightImportInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
+    from containers.implementation.file_io.enrich_corpus_understanding import enrich_corpus_understanding, EnrichCorpusUnderstandingInput
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
     from containers.implementation.supervisor_agent.activities import supervise_step, SuperviseStepInput
     from containers.implementation.supervisor_agent.activities import apply_supervisor_actions
@@ -430,6 +431,22 @@ class ImplementationWorkflow:
             L.info("      ⚠️  Continuing with empty manifest — signals inference will be limited")
             r2_manifest_url = "error"
             self._parsed_files = []
+
+        # ── Step 2b: LLM corpus understanding (semantic file descriptions) ──
+        if r2_manifest_url and not r2_manifest_url.startswith("error"):
+            try:
+                enrich_result: Dict = await workflow.execute_activity(
+                    enrich_corpus_understanding,
+                    EnrichCorpusUnderstandingInput(
+                        manifest_url=r2_manifest_url,
+                        user_import_note=sig.user_note,
+                    ),
+                    **_LONG,
+                )
+                _kv(L, "corpus_summary", (enrich_result.get("corpus_summary") or "")[:120])
+                _kv(L, "files_understood", enrich_result.get("files_understood", 0))
+            except Exception as e:
+                L.info("      ⚠️  Corpus understanding failed (non-fatal): %s", e)
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 3 / 14  —  Signals Inference (F3iche Detection)

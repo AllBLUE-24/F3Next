@@ -151,13 +151,18 @@ async def _load_session_context(session_id: str) -> Dict[str, Any]:
         return {}
 
 
-def _download_manifest(r2_manifest_url: str) -> Dict[str, str]:
-    """Download the manifest JSON from R2 and return {filename: content}."""
+def _download_manifest(r2_manifest_url: str) -> Dict[str, Any]:
+    """Download the full manifest JSON from R2 (v2 with file_meta, or legacy v1)."""
     try:
         s3 = _get_s3()
         resp = s3.get_object(Bucket="clean-data", Key=r2_manifest_url)
         manifest = json.loads(resp["Body"].read().decode("utf-8"))
-        return manifest.get("files", {})
+        if isinstance(manifest, dict) and "files" in manifest:
+            return manifest
+        # Legacy v1: plain {filename: content}
+        if isinstance(manifest, dict) and all(isinstance(v, str) for v in manifest.values()):
+            return {"files": manifest}
+        return {}
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not download manifest from R2: %s", e)
         return {}
@@ -336,9 +341,10 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
 
     # 2. Download manifest (all uploaded file contents)
     manifest = _download_manifest(inp.r2_manifest_url)
-    activity.logger.info("  Manifest: %d files", len(manifest))
+    manifest_files = manifest.get("files") or {}
+    activity.logger.info("  Manifest: %d files", len(manifest_files))
 
-    if not manifest:
+    if not manifest_files:
         activity.logger.warning("  ⚠️ Empty manifest — cannot assess readiness, skipping gate")
         empty = DataReadinessAssessment(
             minimum_viable_import_possible=True,

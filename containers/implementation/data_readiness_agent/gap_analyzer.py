@@ -17,7 +17,12 @@ from __future__ import annotations
 import csv
 import io
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+from containers.implementation.file_io.manifest_utils import (
+    corpus_exclusions_by_doctype,
+    normalize_manifest_input,
+)
 
 # ─── helpers (replicated from classifier.py to avoid cross-agent imports) ─────
 
@@ -119,7 +124,7 @@ _CANDIDATE_THRESHOLD = 0.10
 
 
 def analyze_gaps(
-    manifest: Dict[str, str],
+    manifest: Union[Dict[str, str], Dict[str, Any]],
     target_structure: Dict[str, Any],
     field_mappings_kb: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -128,13 +133,15 @@ def analyze_gaps(
     required doctype and classify coverage.
 
     Args:
-        manifest:          {filename: file_content_string}
+        manifest:          v2 manifest object OR legacy {filename: content_string}
         target_structure:  ISTargetStructure.primary_result["target_structure"]
                            (has required_doctypes, setup_steps, import_phases)
         field_mappings_kb: loaded field_mappings.json
 
     Returns a pre_analysis dict consumed by the LLM prompt.
     """
+    files, prebuilt_meta, corpus_understanding = normalize_manifest_input(manifest)
+    doctype_exclusions = corpus_exclusions_by_doctype(corpus_understanding)
     required_doctypes: List[str] = target_structure.get("required_doctypes") or []
     setup_steps: List[Dict] = target_structure.get("setup_steps") or []
     import_phases: Dict[str, Any] = target_structure.get("import_phases") or {}
@@ -150,19 +157,27 @@ def analyze_gaps(
             doctype_phase[dt] = ph
             doctype_action[dt] = act
 
-    # Pre-parse all files
+    # Build per-file metadata (prefer v2 pre-parsed meta from Step 2)
     file_meta: Dict[str, Dict] = {}
-    for fname, content in manifest.items():
+    for fname, content in files.items():
         if not content:
             continue
-        is_structured = any(fname.lower().endswith(ext) for ext in (".csv", ".xlsx", ".xls", ".tsv"))
-        columns = _parse_columns_from_content(content, fname) if is_structured else None
+        pre = prebuilt_meta.get(fname) or {}
+        columns = pre.get("columns")
+        if not columns:
+            is_structured = any(fname.lower().endswith(ext) for ext in (".csv", ".xlsx", ".xls", ".tsv"))
+            columns = _parse_columns_from_content(content, fname) if is_structured else None
+            is_structured = bool(columns)
+        else:
+            is_structured = pre.get("is_structured", True)
         file_meta[fname] = {
             "filename": fname,
             "is_structured": is_structured,
             "columns": columns or [],
             "content_snippet": (content or "")[:1500],
-            "char_len": len(content or ""),
+            "char_len": pre.get("char_len") or len(content or ""),
+            "row_count": pre.get("row_count", 0),
+            "sample_rows": pre.get("sample_rows") or [],
         }
 
     # ── Classify every required doctype ──────────────────────────────────────
@@ -180,6 +195,10 @@ def analyze_gaps(
         best_missing: List[str] = []
 
         for fname, meta in file_meta.items():
+            # Corpus understanding (Step 2b) suppresses false-positive column matches
+            if fname in (doctype_exclusions.get(doctype) or []):
+                continue
+
             if meta["is_structured"] and meta["columns"]:
                 score, matched, missing = _score_columns_vs_doctype(
                     meta["columns"], doctype, field_mappings_kb
@@ -317,6 +336,7 @@ def analyze_gaps(
         "partial_doctypes": partial_doctypes,
         "missing_doctypes": missing_doctypes,
         "unmappable_chunks": unmappable_chunks,
+        "corpus_understanding": corpus_understanding,
         "summary": {
             "total_required": total,
             "n_ready": n_ready,

@@ -183,6 +183,21 @@ _LLM_MOCK_RESPONSES: Dict[str, Any] = {
         "user_decision": None,
     },
     "supervise_step":      {"actions": [], "summary_for_ui": "[MOCK] No issues detected.", "final_status": "resolved"},
+    "corpus_understanding": {
+        "corpus_summary": "[MOCK] Mixed procurement, client orders, and partner master data.",
+        "files": [
+            {
+                "filename": "client_orders.csv",
+                "business_description": "[MOCK] Client project orders / installation jobs",
+                "likely_entity_types": ["Customer", "Project", "Item"],
+                "likely_erpnext_doctypes": ["Sales Order", "Project"],
+                "explicitly_not_doctypes": ["Work Order", "BOM"],
+                "column_interpretations": {"Client": "customer name", "Product": "sold SKU/service"},
+                "confidence": 0.85,
+                "reasoning_signals": ["[MOCK] project + client columns, no manufacturing signals"],
+            }
+        ],
+    },
     "generic":             {"status": "mock_ok", "result": "[MOCK LLM RESPONSE]"},
 }
 
@@ -222,6 +237,8 @@ def _install_mock_llm() -> None:
         schema_name = getattr(schema, "__name__", "")
         if "data readiness analyst" in prompt_lower or schema_name == "DataReadinessAssessment":
             resp = _LLM_MOCK_RESPONSES["data_readiness"]
+        elif "corpus understanding" in prompt_lower or schema_name == "CorpusUnderstanding":
+            resp = _LLM_MOCK_RESPONSES["corpus_understanding"]
         else:
             resp = _LLM_MOCK_RESPONSES["generic"]
         log.info("  🤖 [MOCK LLM] returning structured canned response")
@@ -275,6 +292,14 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
     elif step == "fetch_clean_files":
         from containers.implementation.file_io.fetch_clean_files import fetch_clean_files, FetchCleanFilesInput
         return await fetch_clean_files(FetchCleanFilesInput(**fixture))
+
+    # ── enrich_corpus_understanding ───────────────────────────────────────────
+    elif step == "enrich_corpus_understanding":
+        from containers.implementation.file_io.enrich_corpus_understanding import (
+            enrich_corpus_understanding,
+            EnrichCorpusUnderstandingInput,
+        )
+        return await enrich_corpus_understanding(EnrichCorpusUnderstandingInput(**fixture))
 
     # ── infer_f3iche ──────────────────────────────────────────────────────────
     elif step == "infer_f3iche":
@@ -403,6 +428,7 @@ BANNER = "═" * 72
 VALID_STEPS = [
     "virus_scan_quarantine",
     "fetch_clean_files",
+    "enrich_corpus_understanding",
     "infer_f3iche",
     "verify_f3iche",
     "align_discovery_and_signals",

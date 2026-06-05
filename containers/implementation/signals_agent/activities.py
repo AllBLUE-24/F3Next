@@ -31,18 +31,25 @@ def _get_s3_client():
     )
 
 
-def _load_file_contents_from_r2(r2_manifest_url: str) -> Dict[str, str]:
-    """Download the file contents manifest from R2 and return {filename: content}."""
+def _load_manifest_from_r2(r2_manifest_url: str) -> Dict:
+    """Download the full manifest from R2 (v2 or legacy v1)."""
     if not r2_manifest_url or r2_manifest_url.startswith("error:"):
         return {}
     try:
         s3 = _get_s3_client()
         response = s3.get_object(Bucket="clean-data", Key=r2_manifest_url)
-        manifest = json.loads(response["Body"].read().decode("utf-8"))
-        return manifest.get("files", {})
+        return json.loads(response["Body"].read().decode("utf-8"))
     except Exception as e:
         activity.logger.error("  ❌ Failed to load manifest from R2: %s", e)
         return {}
+
+
+def _load_file_contents_from_r2(r2_manifest_url: str) -> Dict[str, str]:
+    """Download the file contents manifest from R2 and return {filename: content}."""
+    from containers.implementation.file_io.manifest_utils import extract_files_from_manifest
+
+    manifest = _load_manifest_from_r2(r2_manifest_url)
+    return extract_files_from_manifest(manifest)
 
 
 class _SignalsInferenceService:
@@ -66,6 +73,8 @@ class _SignalsInferenceService:
         self,
         uploaded_files: List[Dict],
         file_contents: Optional[Dict[str, str]] = None,
+        corpus_understanding: Optional[Dict] = None,
+        file_meta: Optional[Dict] = None,
     ) -> tuple[str, float, List[str]]:
         from containers.implementation.utils.llm_helper import generate_json
         
@@ -77,11 +86,26 @@ class _SignalsInferenceService:
         file_summaries = []
         if file_contents:
             for fname, text in file_contents.items():
+                meta = (file_meta or {}).get(fname) or {}
+                cols = meta.get("columns") or []
+                samples = meta.get("sample_rows") or []
                 snippet = text[:1500] if text else "(empty file)"
-                file_summaries.append(f"Filename: {fname}\nContent Snippet:\n{snippet}\n---")
+                file_summaries.append(
+                    f"Filename: {fname}\n"
+                    f"Columns: {json.dumps(cols)}\n"
+                    f"Sample Rows: {json.dumps(samples[:2])}\n"
+                    f"Content Snippet:\n{snippet}\n---"
+                )
         else:
             for fname in filenames:
                 file_summaries.append(f"Filename: {fname}\n---")
+
+        corpus_block = ""
+        if corpus_understanding:
+            corpus_block = (
+                f"\nCorpus Understanding (semantic analysis from Step 2 — TRUST THIS):\n"
+                f"{json.dumps(corpus_understanding, indent=2)}\n"
+            )
                 
         prompt = f"""
 You are the F3Next Signals Agent. Your job is to infer the core business type (F3iche) of a company based on the files they have uploaded to our ERP generation system.
@@ -94,6 +118,7 @@ Uploaded Files:
 
 Sample Data Extracted from Files:
 {"".join(file_summaries)}
+{corpus_block}
 
 Analyze the filenames and content (specifically looking at column headers, data tracking structures, and terminology).
 1. Choose the SINGLE BEST MATCHING NICHE from the `niche_ids` list. Do NOT invent a new ID.
@@ -213,12 +238,18 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
     activity.logger.info("▶ infer_f3iche started | files=%d manifest=%s",
                          len(inp.uploaded_files), inp.r2_manifest_url)
     
-    # Load file contents from R2 manifest
+    # Load full manifest from R2 (v2 includes file_meta + corpus_understanding)
+    manifest = _load_manifest_from_r2(inp.r2_manifest_url)
     file_contents = _load_file_contents_from_r2(inp.r2_manifest_url)
     activity.logger.info("  Loaded %d file contents from R2 manifest", len(file_contents))
     
     svc = _SignalsInferenceService()
-    f3iche_id, confidence, signals = svc.infer_f3iche(inp.uploaded_files, file_contents)
+    f3iche_id, confidence, signals = svc.infer_f3iche(
+        inp.uploaded_files,
+        file_contents,
+        corpus_understanding=manifest.get("corpus_understanding"),
+        file_meta=manifest.get("file_meta"),
+    )
 
     # Semantic cross-check via kb_embeddings (async-safe)
     try:

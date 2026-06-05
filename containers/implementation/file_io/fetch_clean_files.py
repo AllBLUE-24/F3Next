@@ -6,8 +6,11 @@ consolidated manifest JSON back to R2, and returns the R2 key as a string.
 
 Temporal event history only sees a tiny string — never raw file content.
 
-Only reads text-parseable formats: .csv, .json, .xml, .sql, .txt, .tsv
-Skips binary blobs (.xlsx, .zip, .gz, .pdf, .png, etc.)
+Manifest v2 adds per-file metadata (columns, row_count, sample_rows) alongside
+raw content. Semantic understanding is added by enrich_corpus_understanding (Step 2b).
+
+Only reads text-parseable formats: .csv, .json, .xml, .sql, .txt, .tsv, .xlsx
+Skips binary blobs (.zip, .gz, .pdf, .png, etc.)
 """
 from __future__ import annotations
 
@@ -15,11 +18,13 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import boto3
 from botocore.config import Config
 from temporalio import activity
+
+from containers.implementation.file_io.manifest_utils import build_manifest_v2
 
 
 # Formats we can safely decode as UTF-8 text or parse structurally
@@ -63,9 +68,11 @@ async def fetch_clean_files(inp: FetchCleanFilesInput) -> Dict[str, Any]:
     Read text-parseable files from R2 clean-data bucket, write a consolidated
     manifest to R2, and return the R2 key.
 
-    Manifest JSON structure: {files: {filename: content_str, ...}, file_count: N, _created_at: ...}
+    Manifest v2 structure:
+      {files, file_meta, file_count, _manifest_version, _created_at}
+    corpus_understanding is added by enrich_corpus_understanding (Step 2b).
 
-    Returns: {"manifest_url": str, "parsed_files": List[str]}
+    Returns: {"manifest_url": str, "parsed_files": List[str], "file_meta_summary": {...}}
     """
     activity.logger.info("▶ fetch_clean_files started | %d files to check", len(inp.uploaded_files))
 
@@ -130,13 +137,10 @@ async def fetch_clean_files(inp: FetchCleanFilesInput) -> Dict[str, Any]:
     # ── Write consolidated manifest to R2 ────────────────────────────────────
     slug = inp.company_slug or "unknown"
     manifest_key = f"{slug}/{inp.project_id}/_file_contents/manifest.json"
+    created_at = datetime.utcnow().isoformat() + "Z"
+    manifest = build_manifest_v2(contents, created_at=created_at)
 
     try:
-        manifest = {
-            "files": contents,
-            "file_count": len(contents),
-            "_created_at": datetime.utcnow().isoformat() + "Z",
-        }
         s3.put_object(
             Bucket="clean-data",
             Key=manifest_key,
@@ -154,7 +158,17 @@ async def fetch_clean_files(inp: FetchCleanFilesInput) -> Dict[str, Any]:
     # Note: is_files does not have parsed/included_in_manifest/parsed_at columns.
     # File tracking is handled by virus_scan_status and bucket_location.
     
+    meta_summary = {
+        fname: {
+            "columns": meta.get("columns", []),
+            "row_count": meta.get("row_count", 0),
+            "is_structured": meta.get("is_structured", False),
+        }
+        for fname, meta in (manifest.get("file_meta") or {}).items()
+    } if manifest_key and not manifest_key.startswith("error") else {}
+
     return {
         "manifest_url": manifest_key,
-        "parsed_files": list(contents.keys())
+        "parsed_files": list(contents.keys()),
+        "file_meta_summary": meta_summary,
     }
