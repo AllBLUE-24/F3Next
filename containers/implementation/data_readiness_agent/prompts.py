@@ -44,10 +44,11 @@ You have been given:
    or a later supervisor-assisted re-upload.
 
 MVP SCOPE CONTEXT:
-The client's stated primary bottleneck is: {mvp_primary_bottleneck}
-The pipeline is currently in MVP mode. Only assess data readiness for the doctypes in the
-TARGET STRUCTURE below. Any uploaded files mapping to doctypes NOT in this target structure
-should be marked as "extra_data" — do NOT flag them as gaps. They will be imported in a
+Primary bottleneck: {mvp_primary_bottleneck}
+Full MVP focus (discovery): {mvp_focus_json}
+Only assess data readiness for doctypes in TARGET STRUCTURE below.
+Deferred doctypes (out of MVP scope): {deferred_doctypes}
+Any uploaded files mapping to doctypes NOT in this target structure should be marked as "extra_data" — do NOT flag them as gaps. They will be imported in a
 later phase.
 
 ─── YOUR TASKS ────────────────────────────────────────────────────────────────

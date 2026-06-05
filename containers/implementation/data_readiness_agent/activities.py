@@ -430,8 +430,12 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             company_profile=json.dumps(company_profile, indent=2),
             user_import_note=session_context.get("user_import_note", "") or "No user note provided.",
             mvp_primary_bottleneck=mvp_focus.get("primary_bottleneck", "General Operations") if mvp_focus else "General Operations",
+            mvp_focus_json=json.dumps(mvp_focus or {}, indent=2, default=str),
+            deferred_doctypes=json.dumps(target_structure.get("deferred_doctypes") or [], indent=2),
             target_structure=json.dumps({
                 "required_doctypes": required_doctypes,
+                "seed_doctypes": target_structure.get("seed_doctypes", []),
+                "deferred_doctypes": target_structure.get("deferred_doctypes", []),
                 "import_phases": target_structure.get("import_phases", {}),
             }, indent=2),
             pre_analysis=json.dumps({

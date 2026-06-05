@@ -23,25 +23,18 @@ Use the knowledge below to justify your phase assignments and identify any speci
 [APQC Process Framework Reference]
 {apqc_context}
 
+NOTE: setup_steps and import_phases are already built deterministically from erpnext_doctype_graph.json.
+Do NOT return a new doctype list or reorder phases — only annotate reasoning.
+
 YOUR INSTRUCTIONS:
-1. Review the required_doctypes in the company profile and confirm the phase assignments are correct per ERPNext dependency rules.
-   Also account for the uploaded corpus summary and user note so the seed doctypes reflect the actual files in scope.
-2. Flag any special doctype setup that the standard graph may not handle (e.g., custom fields, batch tracking, multi-currency).
-3. Provide concise reasoning based on the ERPNext documentation and APQC context above.
+1. Review the seed_doctypes and MVP boundary in the company profile. Confirm they match the uploaded corpus.
+2. Flag any special setup the graph may not capture (custom fields, batch tracking, multi-currency, project links).
+3. Provide concise reasoning citing ERPNext docs and APQC context.
 
 Return EXACTLY this JSON structure:
 {{
-  "required_doctypes": ["Company", "UOM", "Item Group", "Item", "Workstation", "Job Card"],
-  "import_phases": {{
-    "phase_a_config": {{"doctypes": ["Company", "UOM", "Item Group", "Warehouse", "Workstation", "Operation"]}},
-    "phase_b_master": {{"doctypes": ["Item", "Customer", "Supplier", "BOM"]}},
-    "phase_c_transactional": {{"doctypes": ["Project", "Purchase Order", "Job Card", "Stock Entry"]}}
-  }},
-  "setup_steps": [
-    {{"step": 1, "phase": "phase_a_config", "doctype": "Company"}},
-    {{"step": 2, "phase": "phase_a_config", "doctype": "UOM"}}
-  ],
-  "llm_reasoning": "Reasoning citing ERPNext docs and APQC references where applicable."
+  "llm_reasoning": "Reasoning citing ERPNext docs and APQC references where applicable.",
+  "special_setup_flags": ["optional flag 1", "optional flag 2"]
 }}
 """
 
@@ -56,16 +49,54 @@ PRIMARY BOTTLENECK:
 FUNCTIONAL REQUIREMENTS:
 {functional_requirements}
 
+[CORPUS UNDERSTANDING — semantic file roles from upload]
+{corpus_summary}
+
+[FILE EVIDENCE — deterministic seed hints from corpus]
+{file_evidence}
+
 [ERPNext Context]
 {erpnext_context}
 
 YOUR INSTRUCTIONS:
 Translate the generic Functional Requirements into the MINIMUM necessary ERPNext seed doctypes.
-Do NOT list prerequisite doctypes like Company, Fiscal Year, UOM, or Currency. The underlying graph engine will automatically resolve prerequisites.
-Only list the 4-6 high-level "Seed Doctypes" required to deliver the functional requirements (e.g., 'Item', 'Sales Invoice', 'BOM', 'Work Order').
+Prefer FILE EVIDENCE and CORPUS when they conflict with generic requirements.
+Do NOT list prerequisite doctypes like Company, Fiscal Year, UOM, or Currency. The graph engine resolves prerequisites.
+Only list 4-6 high-level seed doctypes (e.g., Item, Sales Order, Project, Purchase Order).
+Do NOT include Work Order or BOM unless file evidence supports manufacturing batch data.
 
 Return EXACTLY this JSON structure:
 {{
-  "seed_doctypes": ["Doctype1", "Doctype2", "Doctype3"]
+  "seed_doctypes": ["Doctype1", "Doctype2", "Doctype3"],
+  "reasoning": "Brief explanation"
+}}
+"""
+
+MVP_BOTTLENECK_PROMPT = """
+You are the F3Next ERPNext Technical Translator. Functional requirements were not provided, but we have discovery bottleneck + file corpus.
+
+PRIMARY BOTTLENECK:
+{primary_bottleneck}
+
+[CORPUS UNDERSTANDING]
+{corpus_summary}
+
+[FILE EVIDENCE]
+{file_evidence}
+
+[F3ICHE CONFIRMED]
+{f3iche}
+
+[ERPNext Context]
+{erpnext_context}
+
+Translate into MINIMUM ERPNext seed doctypes (4-6). Use file evidence first.
+No Company/UOM/Fiscal Year — graph adds prerequisites.
+Defer Work Order/BOM unless files clearly show manufacturing/recipes.
+
+Return EXACTLY this JSON:
+{{
+  "seed_doctypes": ["Doctype1", "Doctype2"],
+  "reasoning": "Brief explanation"
 }}
 """

@@ -39,6 +39,17 @@ _DOCTYPE_GRAPH_PATH   = _KB_ERP / "erpnext_doctype_graph.json"
 _DEFAULTS_BASELINE_PATH = _KB_ERP / "erpnext_deafaults_baseline.json"
 
 
+def _get_s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
+
+
 # ─── PREREQUISITE PLANNER ─────────────────────────────────────────────────────
 
 def _load_doctype_graph() -> Dict[str, Any]:
@@ -383,6 +394,11 @@ class BuildTargetInput:
     company_slug: str = "unknown"
     user_import_note: Optional[str] = None
     r2_manifest_url: Optional[str] = None
+    corpus_understanding: Optional[Dict[str, Any]] = None
+    corpus_summary: Optional[str] = None
+    mvp_focus: Optional[Dict[str, Any]] = None
+    synthesis_proposal: Optional[Dict[str, Any]] = None
+    discovery_alignment: Optional[Dict[str, Any]] = None
 
 
 # ─── ACTIVITIES ───────────────────────────────────────────────────────────────
@@ -402,9 +418,27 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
     """
     activity.logger.info("▶ build_target_structure started | session=%s f3iche=%s", inp.session_id, inp.f3iche)
 
+    from containers.implementation.target_agent.mvp_boundary import (
+        build_mvp_boundary,
+        defer_without_evidence,
+        load_f3iche_template_seeds,
+        merge_seed_sources,
+        reconcile_setup_step_actions,
+        seeds_from_corpus,
+        validation_rules_from_f3iche,
+    )
+    from containers.implementation.target_agent.prompts import MVP_BOTTLENECK_PROMPT
+
     # 1. Fetch the enriched Company Profile and Session from DB
-    profile_dict = {}
-    mvp_focus = None
+    profile_dict: Dict[str, Any] = {}
+    mvp_focus: Optional[Dict[str, Any]] = inp.mvp_focus
+    manifest: Dict[str, Any] = {}
+    corpus_understanding: Optional[Dict[str, Any]] = inp.corpus_understanding
+    corpus_summary: str = inp.corpus_summary or ""
+    f3iche_data: Dict[str, Any] = {}
+    mvp_mode = "full_template_fallback"
+    boundary_reasoning = ""
+
     try:
         async with AsyncSessionLocal() as session:
             # Profile
@@ -416,18 +450,22 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
             if latest:
                 profile_dict = {
                     "industry":                latest.industry,
+                    "industry_sub":            latest.industry_sub,
                     "required_modules":        latest.required_modules,
                     "required_doctypes":       latest.required_doctypes,
                     "industry_best_practices": latest.industry_best_practices,
                     "data_quality_score":      latest.data_quality_score,
                     "completeness_score":      latest.completeness_score,
+                    "discovery_alignment_score": latest.discovery_alignment_score,
+                    "discovery_mismatches":    latest.discovery_mismatches,
+                    "profile_version":         latest.version,
                 }
-            
-            # Session (for mvp_focus)
+
+            # Session (for mvp_focus fallback)
             stmt_sess = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
             res_sess = await session.execute(stmt_sess)
             sess_row = res_sess.scalar_one_or_none()
-            if sess_row and sess_row.mvp_focus:
+            if not mvp_focus and sess_row and sess_row.mvp_focus:
                 mvp_focus = sess_row.mvp_focus
             if sess_row:
                 corpus_lines: List[str] = []
@@ -461,93 +499,119 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
 
         if inp.r2_manifest_url:
             try:
-                s3 = boto3.client(
-                    "s3",
-                    endpoint_url=os.getenv("R2_ENDPOINT"),
-                    aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-                    aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-                    config=Config(signature_version="s3v4"),
-                    region_name="auto",
-                )
+                s3 = _get_s3_client()
                 response = s3.get_object(Bucket="clean-data", Key=inp.r2_manifest_url)
                 manifest = json.loads(response["Body"].read().decode("utf-8"))
-                corpus_lines = [profile_dict.get("uploaded_corpus_summary", "").strip()] if profile_dict.get("uploaded_corpus_summary") else []
-                for filename, content in (manifest.get("files") or {}).items():
-                    if not content:
-                        continue
-                    if filename.lower().endswith((".csv", ".tsv")):
-                        try:
-                            import csv as _csv
-                            import io as _io
-                            rows = list(_csv.DictReader(_io.StringIO(content)))
-                            columns = list(rows[0].keys()) if rows else []
-                            corpus_lines.append(f"{filename}: {', '.join(columns[:10])}")
-                        except Exception:
-                            corpus_lines.append(filename)
-                    else:
-                        corpus_lines.append(filename)
-                if corpus_lines:
-                    profile_dict["uploaded_corpus_summary"] = "\n".join([line for line in corpus_lines if line])
+                if not corpus_understanding:
+                    corpus_understanding = manifest.get("corpus_understanding")
+                if not corpus_summary:
+                    corpus_summary = (corpus_understanding or {}).get("corpus_summary") or ""
             except Exception as e:
-                activity.logger.warning("  ⚠️ Could not build uploaded corpus summary: %s", e)
+                activity.logger.warning("  ⚠️ Could not load manifest: %s", e)
     except Exception as e:
         activity.logger.error("  ❌ Failed to fetch profile/session from DB: %s", e)
 
-    seed_doctypes: List[str] = []
-    
+    graph = _load_doctype_graph()
+
+    def _canon(doctypes: List[str]) -> List[str]:
+        return _canonicalize_doctypes(doctypes, graph)
+
+    corpus_seeds, file_evidence = seeds_from_corpus(corpus_understanding, canonicalize=_canon)
+    profile_dict["corpus_summary"] = corpus_summary or "(not available)"
+    profile_dict["uploaded_corpus_summary"] = corpus_summary or profile_dict.get("uploaded_corpus_summary", "")
+    if file_evidence:
+        profile_dict["file_evidence"] = file_evidence
+
+    f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
+    template_seeds, f3iche_data = load_f3iche_template_seeds(str(f3iche_path))
+    if template_seeds and not profile_dict.get("required_doctypes"):
+        profile_dict["required_doctypes"] = _canon(template_seeds)
+    if f3iche_data.get("required_modules") and not profile_dict.get("required_modules"):
+        profile_dict["required_modules"] = f3iche_data.get("required_modules")
+
+    llm_seeds: List[str] = []
+    from containers.implementation.utils.rag_helper import rag_retrieve
+
+    async def _erp_context(query: str) -> str:
+        try:
+            chunks = await rag_retrieve(query, "erpnext_docs", top_k=3)
+            return "\n".join(chunks)
+        except Exception:
+            return ""
+
+    evidence_str = json.dumps(file_evidence, indent=2, default=str) if file_evidence else "(none)"
+
     # ── MVP MODE: LLM Translation Node ──
     if mvp_focus and mvp_focus.get("functional_requirements"):
-        activity.logger.info("  🎯 MVP mode active. Translating functional requirements: %s", mvp_focus["functional_requirements"])
+        activity.logger.info("  🎯 MVP mode: functional_requirements present")
+        mvp_mode = "mvp_translation"
         from containers.implementation.target_agent.prompts import MVP_TRANSLATION_PROMPT
-        from containers.implementation.utils.llm_helper import generate_json
-        
-        # We can grab a little ERPNext context to help the LLM
-        from containers.implementation.utils.rag_helper import rag_retrieve
-        erp_context = ""
-        try:
-            req_str = " ".join(mvp_focus["functional_requirements"])
-            chunks = await rag_retrieve(f"ERPNext {req_str} doctypes modules", "erpnext_docs", top_k=3)
-            erp_context = "\n".join(chunks)
-        except Exception:
-            pass
 
+        erp_context = await _erp_context(" ".join(mvp_focus["functional_requirements"]))
         prompt = MVP_TRANSLATION_PROMPT.format(
             primary_bottleneck=mvp_focus.get("primary_bottleneck", "General Operations"),
             functional_requirements=json.dumps(mvp_focus["functional_requirements"]),
-            erpnext_context=erp_context
+            corpus_summary=corpus_summary or "(not available)",
+            file_evidence=evidence_str,
+            erpnext_context=erp_context,
         )
-        
         try:
             translation = generate_json(prompt, temperature=0.1)
-            seed_doctypes = translation.get("seed_doctypes", [])
-            activity.logger.info("  ✅ MVP Translation Node output %d seed doctypes: %s", len(seed_doctypes), seed_doctypes)
+            llm_seeds = translation.get("seed_doctypes", [])
+            boundary_reasoning = translation.get("reasoning") or boundary_reasoning
+            activity.logger.info("  ✅ MVP translation: %s", llm_seeds)
         except Exception as e:
             activity.logger.warning("  ⚠️ MVP Translation failed: %s", e)
-    
-    # ── FALLBACK: load seed doctypes from profile or f3iche template ──
-    if not seed_doctypes:
-        activity.logger.info("  📋 Full mode: Falling back to f3iche template required_doctypes")
-        if not profile_dict.get("required_doctypes"):
-            f3iche_path = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches" / f"{inp.f3iche}.json"
-            if f3iche_path.exists():
-                try:
-                    with open(f3iche_path, "r", encoding="utf-8") as f:
-                        f3iche_data = json.load(f)
-                    template_doctypes = f3iche_data.get("required_doctypes", f3iche_data.get("mandatory_doctypes", []))
-                    template_modules  = f3iche_data.get("required_modules", f3iche_data.get("absolute_profile", {}).get("mandatory_modules", []))
-                    if template_doctypes:
-                        profile_dict["required_doctypes"] = template_doctypes
-                        activity.logger.info("  📋 Loaded %d required_doctypes from f3iche template '%s'",
-                                             len(template_doctypes), inp.f3iche)
-                    if template_modules and not profile_dict.get("required_modules"):
-                        profile_dict["required_modules"] = template_modules
-                except Exception as e:
-                    activity.logger.warning("  ⚠️ Could not load f3iche template: %s", e)
 
-        seed_doctypes = profile_dict.get("required_doctypes") or []
+    elif mvp_focus or corpus_seeds or corpus_summary:
+        activity.logger.info("  🎯 MVP bottleneck+corpus mode")
+        mvp_mode = "mvp_bottleneck_corpus"
+        erp_context = await _erp_context(f"{inp.f3iche} {corpus_summary[:200]}")
+        prompt = MVP_BOTTLENECK_PROMPT.format(
+            primary_bottleneck=(mvp_focus or {}).get("primary_bottleneck", "General Operations"),
+            corpus_summary=corpus_summary or "(not available)",
+            file_evidence=evidence_str,
+            f3iche=inp.f3iche,
+            erpnext_context=erp_context,
+        )
+        try:
+            translation = generate_json(prompt, temperature=0.1)
+            llm_seeds = translation.get("seed_doctypes", [])
+            boundary_reasoning = translation.get("reasoning") or boundary_reasoning
+            activity.logger.info("  ✅ MVP bottleneck seeds: %s", llm_seeds)
+        except Exception as e:
+            activity.logger.warning("  ⚠️ MVP bottleneck translation failed: %s", e)
+
+    # Merge: corpus evidence first (authoritative), then LLM, then profile/template
+    seeds_before_filter = merge_seed_sources(
+        corpus_seeds,
+        _canon(llm_seeds),
+        _canon(profile_dict.get("required_doctypes") or []),
+        _canon(template_seeds),
+    )
+    if not seeds_before_filter:
+        activity.logger.info("  📋 Full template fallback — no corpus/LLM seeds")
+        seeds_before_filter = _canon(template_seeds) or _canon(profile_dict.get("required_doctypes") or [])
+
+    seed_doctypes, deferred_doctypes = defer_without_evidence(
+        seeds_before_filter, corpus_seeds, file_evidence,
+    )
+    if deferred_doctypes:
+        activity.logger.info("  ⏸️  Deferred without file evidence: %s", deferred_doctypes)
+    if not boundary_reasoning:
+        boundary_reasoning = (
+            f"Seeds from {mvp_mode}: corpus={len(corpus_seeds)}, "
+            f"active={len(seed_doctypes)}, deferred={len(deferred_doctypes)}"
+        )
+
+    profile_dict["seed_doctypes"] = seed_doctypes
+    profile_dict["deferred_doctypes"] = deferred_doctypes
+    activity.logger.info(
+        "  mvp_mode=%s | corpus_seeds=%d | seeds_before_filter=%d | active_seeds=%d",
+        mvp_mode, len(corpus_seeds), len(seeds_before_filter), len(seed_doctypes),
+    )
 
     # ── 2. GRAPH RESOLUTION ───────────────────────────────────────────────────
-    graph    = _load_doctype_graph()
     baseline = _load_defaults_baseline()
     seed_doctypes = _canonicalize_doctypes(seed_doctypes, graph)
     profile_dict["required_doctypes"] = seed_doctypes
@@ -583,6 +647,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
             classified_lookup=classified_lookup,
             seed_doctypes=seed_doctypes,
         )
+        setup_steps = reconcile_setup_step_actions(setup_steps, seed_doctypes)
         all_required_doctypes = resolution["all_required"]
         activity.logger.info("  ✅ Graph resolution complete | total=%d steps=%d",
                              len(all_required_doctypes), len(setup_steps))
@@ -649,27 +714,48 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
         else:
             resolved_industry = "Unknown"
 
+    mvp_boundary_key = f"{inp.company_slug}/{inp.project_id}/_target/mvp_boundary.json"
+    mvp_boundary = build_mvp_boundary(
+        mode=mvp_mode,
+        source_mvp_focus=mvp_focus,
+        seed_doctypes_chosen=seed_doctypes,
+        deferred_doctypes=deferred_doctypes,
+        file_evidence=file_evidence,
+        corpus_summary=corpus_summary or None,
+        reasoning=boundary_reasoning,
+        profile_version=int(profile_dict.get("profile_version") or 1),
+        synthesis_proposal=inp.synthesis_proposal,
+        discovery_alignment=inp.discovery_alignment,
+        seeds_before_filter=seeds_before_filter,
+    )
+    validation_rules = validation_rules_from_f3iche(f3iche_data)
+
     result = {
         "f3iche":            inp.f3iche,
         "industry":          resolved_industry,
-        "required_doctypes": all_required_doctypes,   # full graph-resolved list (incl. prereqs)
+        "seed_doctypes":     seed_doctypes,
+        "deferred_doctypes": deferred_doctypes,
+        "mvp_mode":          mvp_mode,
+        "mvp_boundary_r2_key": mvp_boundary_key,
+        "required_doctypes": all_required_doctypes,
         "import_phases":     import_phases,
-        "setup_steps":       setup_steps,             # graph-authoritative, layer-ordered
+        "setup_steps":       setup_steps,
         "graph_driven":      graph_driven,
-        "validation_rules":  {}
+        "llm_reasoning":     llm_reasoning,
+        "validation_rules":  validation_rules,
     }
 
-    # 6. Save to R2
+    # 6. Save to R2 (mvp_boundary + target_structure)
     r2_key = f"{inp.company_slug}/{inp.project_id}/_target/target_structure.json"
     try:
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=os.getenv("R2_ENDPOINT"),
-            aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-            config=Config(signature_version="s3v4"),
-            region_name="auto",
+        s3 = _get_s3_client()
+        s3.put_object(
+            Bucket="clean-data",
+            Key=mvp_boundary_key,
+            Body=json.dumps(mvp_boundary, indent=2, default=str).encode("utf-8"),
+            ContentType="application/json",
         )
+        activity.logger.info("  ✅ R2 uploaded: clean-data/%s", mvp_boundary_key)
         s3.put_object(
             Bucket="clean-data",
             Key=r2_key,
@@ -712,6 +798,9 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
                 "setup_steps":  len(result.get("setup_steps", [])),
                 "graph_driven": graph_driven,
                 "llm_enhanced": llm_enhanced,
+                "mvp_mode":     mvp_mode,
+                "seed_doctypes": len(seed_doctypes),
+                "deferred_doctypes": len(deferred_doctypes),
             },
             result="success",
         )
@@ -740,8 +829,10 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
 
     primary = {
         "target_structure": result,
+        "mvp_boundary": mvp_boundary,
         "graph_driven": graph_driven,
         "llm_enhanced": llm_enhanced,
+        "mvp_mode": mvp_mode,
     }
     if errors:
         return NodeStatusEnvelope.failed(primary_result=primary, errors=errors, warnings=warnings)

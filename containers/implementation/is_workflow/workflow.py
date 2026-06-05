@@ -713,6 +713,15 @@ class ImplementationWorkflow:
                     f3iche=conf.f3iche_user,
                     company_slug=self._company_slug,
                     r2_manifest_url=r2_manifest_url,
+                    corpus_understanding=self._corpus_understanding,
+                    corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
+                    mvp_focus=alignment_result.get("mvp_focus"),
+                    synthesis_proposal=self._f3iche_confirmation,
+                    discovery_alignment={
+                        "alignment_score": alignment_result.get("alignment_score"),
+                        "mismatches": alignment_result.get("mismatches"),
+                        "reasoning": alignment_result.get("reasoning"),
+                    } if alignment_result else None,
                 ),
                 **_ACT,
             )
@@ -731,8 +740,9 @@ class ImplementationWorkflow:
             _kv(L, "setup_steps", n_steps)
             _kv(L, "table", "is_target_structures")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_target/target_structure.json")
+            _kv(L, "mvp_boundary", f"clean-data/{self._company_slug}/{project_id}/_target/mvp_boundary.json")
             _kv(L, "audit", "is_audit_trail → target_generated")
-            _step_ok(L, 7, "Build Target Structure", f"{n_doctypes} doctypes, {n_steps} steps")
+            _step_ok(L, 8, "Build Target Structure", f"{n_doctypes} doctypes, {n_steps} steps")
         except Exception as e:
             _step_fail(L, 7, "Build Target Structure", str(e))
             self._stage = "error"

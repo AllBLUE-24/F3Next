@@ -56,7 +56,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 3 | **Intent & classification** | F3iche: registry scorer + LLM when ambiguous; mapping uses corpus hints | ~75% | P2 transparency; column-map LLM fallback |
 | 4 | **Signaling & synonyms** | KB priors + aliases; LLM when no match | ~50% | P3 synonym growth; ~15 doctypes today |
 | 5 | **ERP knowledge (static + live)** | Schema, child tables, links, lifecycle, phases, deps | ~40% | P3 SchemaResolver v1; validation_rules |
-| 6 | **Industry & company context** | F3iche + pgvector RAG + profile | ~75% Steps 6–7 | Identity resolver, alignment+corpus in 6a/7, 7b R2 merge *(2026-06-05)* |
+| 6 | **Industry & company context** | F3iche + pgvector RAG + profile | ~80% Steps 6–8 | Step 8 corpus-aware seeds, mvp_boundary.json, action reconcile *(2026-06-05)* |
 | 7 | **Mapping & merge** | Column→field, party split, dedupe, defaults | Strong for GS | P0 done; P3 unified merge |
 | 8 | **Gap analysis & supervisor** | Target vs actual diff; auto_fix; ask_user for data gaps only | ~50% | P1 supervisor contract; post-mapping readiness |
 | 9 | **Validation & trust gate** | pass / partial / fail; block bad import | Validate + sidebar aligned on Validate route | Tier 7c for full ValidationReport |
