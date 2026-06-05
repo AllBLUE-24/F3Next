@@ -189,6 +189,7 @@ async def classify_doctype(
     candidates: List[str],
     user_import_note: Optional[str] = None,
     model_name: Optional[str] = None,
+    corpus_file_hints: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Returns: {doctype, confidence, method, scores, signals}
@@ -246,6 +247,16 @@ async def classify_doctype(
         prompt += f"Columns: {columns[:60]}\n"
     if user_import_note:
         prompt += f"User import note: {user_import_note[:1200]}\n"
+    if corpus_file_hints:
+        likely = corpus_file_hints.get("likely_erpnext_doctypes") or []
+        not_dt = corpus_file_hints.get("explicitly_not_doctypes") or []
+        desc = corpus_file_hints.get("business_description") or ""
+        if desc or likely or not_dt:
+            prompt += (
+                f"\nCorpus understanding (advisory): {desc}\n"
+                f"Likely doctypes: {likely}\n"
+                f"Unlikely doctypes (exclude unless strong contradicting evidence): {not_dt}\n"
+            )
     prompt += f"\nContent snippet:\n{snippet}\n\nCandidate doctypes:\n{candidates_with_escape}\n\nReturn strictly the JSON schema."
 
     try:

@@ -325,6 +325,8 @@ class ImplementationWorkflow:
         L.info("╚" + "═" * 70 + "╝")
         L.info("")
 
+        self._discovery_f3iche = discovery_meta.get("f3iche") if discovery_meta else None
+
         # ══════════════════════════════════════════════════════════════════════
         # STEP 0 / 14  —  Session Creation
         # ══════════════════════════════════════════════════════════════════════
@@ -445,6 +447,9 @@ class ImplementationWorkflow:
                 )
                 _kv(L, "corpus_summary", (enrich_result.get("corpus_summary") or "")[:120])
                 _kv(L, "files_understood", enrich_result.get("files_understood", 0))
+                _kv(L, "corpus_status", enrich_result.get("status", "unknown"))
+                for w in enrich_result.get("warnings") or []:
+                    L.info("      ⚠️  corpus: [%s] %s", w.get("code"), w.get("message"))
             except Exception as e:
                 L.info("      ⚠️  Corpus understanding failed (non-fatal): %s", e)
 
@@ -456,7 +461,12 @@ class ImplementationWorkflow:
         try:
             infer_result: Dict = await workflow.execute_activity(
                 infer_f3iche,
-                InferF3icheInput(sig.uploaded_files, r2_manifest_url, session_id=self._session_id),
+                InferF3icheInput(
+                    sig.uploaded_files,
+                    r2_manifest_url,
+                    session_id=self._session_id,
+                    discovery_f3iche=self._discovery_f3iche,
+                ),
                 **_LONG,
             )
             _kv(L, "inferred_f3iche", infer_result.get("f3iche"))

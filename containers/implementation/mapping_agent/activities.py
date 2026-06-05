@@ -895,6 +895,8 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         raw = response["Body"].read()
         manifest = json.loads(raw.decode("utf-8"))
         content = manifest.get("files", {}).get(inp.filename)
+        from containers.implementation.file_io.manifest_utils import corpus_file_understanding
+        corpus_hints = corpus_file_understanding(manifest.get("corpus_understanding"), inp.filename)
         if not content:
             activity.logger.warning("  ⚠️ File %s not found in manifest", inp.filename)
             return NodeStatusEnvelope.failed(
@@ -910,6 +912,12 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
 
     engine = _MappingEngine()
     candidates = await _get_candidate_doctypes(inp.session_id)
+    if corpus_hints:
+        excluded = set(corpus_hints.get("explicitly_not_doctypes") or [])
+        if excluded:
+            filtered = [c for c in candidates if c not in excluded]
+            if filtered:
+                candidates = filtered
 
     # ── New pipeline: Step A (classification) → Step B (extraction/normalization) ──
     # For structured files, extraction is deterministic mapping + folding.
@@ -931,6 +939,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 candidates=candidates,
                 user_import_note=user_note,
                 model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                corpus_file_hints=corpus_hints,
             )
             doctype = cls.get("doctype")
             cls_meta = cls
@@ -1006,8 +1015,9 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                         content_snippet=str(entity_type),
                         columns=columns,
                         candidates=candidates,
-                    user_import_note=user_note,
+                        user_import_note=user_note,
                         model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                        corpus_file_hints=corpus_hints,
                     )
                     group_doctype = cls.get("doctype")
                 if not group_doctype:
@@ -1060,6 +1070,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                         candidates=candidates,
                         user_import_note=user_note,
                         model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                        corpus_file_hints=corpus_hints,
                     )
                     doctype = cls.get("doctype")
                     if not doctype and assignment_doctypes:

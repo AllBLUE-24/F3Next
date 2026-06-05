@@ -3,9 +3,6 @@ File IO — enrich_corpus_understanding activity (Step 2b).
 
 LLM pass over the v2 manifest's file_meta to produce semantic understanding
 per file and a corpus-level summary. Writes results back to the same R2 manifest.
-
-Downstream steps (signals, gap_analyzer, target) consume corpus_understanding
-to avoid KB-only false positives (e.g. client_orders.csv ≠ Work Order).
 """
 from __future__ import annotations
 
@@ -19,35 +16,13 @@ from botocore.config import Config
 from temporalio import activity
 
 from containers.implementation.file_io.corpus_models import CorpusUnderstanding
+from containers.implementation.file_io.corpus_prompts import CORPUS_UNDERSTANDING_PROMPT
+from containers.implementation.file_io.corpus_validation import (
+    merge_missing_file_entries,
+    validate_corpus_understanding,
+)
 from containers.implementation.file_io.manifest_utils import extract_files_from_manifest
 from shared.structured_llm import generate_typed
-
-_CORPUS_PROMPT = """\
-You are the F3Next Corpus Understanding agent. Your job is to read uploaded business
-files and describe what they ACTUALLY contain — not what column names superficially suggest.
-
-CRITICAL RULES:
-1. Read column names AND sample row values together. "Product" in a client order file
-   is a sold SKU/service — NOT a manufacturing BOM item. "Project" is a client job site —
-   NOT an ERPNext Work Order.
-2. For each file, list likely_erpnext_doctypes (best matches) AND explicitly_not_doctypes
-   (common false positives to suppress). Be specific.
-3. "names" or "name" columns with person names (e.g. "Parth Kulkarni") = Employee data,
-   even if the column is plural or informal.
-4. Do NOT invent doctypes. Use standard ERPNext names: Customer, Supplier, Item, Employee,
-   Purchase Order, Sales Order, Project, BOM, Work Order, etc.
-5. If a file is clearly procurement, say Purchase Order — not Work Order.
-6. If a file is client/project orders or installation jobs, say Sales Order or Project —
-   explicitly NOT Work Order or BOM unless batch/manufacturing signals are present.
-
-USER IMPORT NOTE (may clarify intent):
-{user_import_note}
-
-FILES TO ANALYZE:
-{files_block}
-
-Return structured JSON matching the schema exactly.
-"""
 
 
 @dataclass
@@ -97,13 +72,19 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
     """
     LLM semantic pass over parsed manifest. Updates manifest in R2 with corpus_understanding.
 
-    Returns: {manifest_url, files_understood, corpus_summary}
+    Returns: {manifest_url, files_understood, corpus_summary, status, warnings}
     """
     activity.logger.info("▶ enrich_corpus_understanding | manifest=%s", inp.manifest_url)
 
     if not inp.manifest_url or inp.manifest_url.startswith("error"):
         activity.logger.warning("  ⚠️ No valid manifest URL — skipping corpus enrichment")
-        return {"manifest_url": inp.manifest_url, "files_understood": 0, "corpus_summary": ""}
+        return {
+            "manifest_url": inp.manifest_url,
+            "files_understood": 0,
+            "corpus_summary": "",
+            "status": "skipped",
+            "warnings": [],
+        }
 
     s3 = _get_s3()
     try:
@@ -111,14 +92,28 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
         manifest = json.loads(resp["Body"].read().decode("utf-8"))
     except Exception as e:
         activity.logger.error("  ❌ Failed to load manifest: %s", e)
-        return {"manifest_url": inp.manifest_url, "files_understood": 0, "corpus_summary": "", "error": str(e)}
+        return {
+            "manifest_url": inp.manifest_url,
+            "files_understood": 0,
+            "corpus_summary": "",
+            "status": "failed",
+            "warnings": [{"code": "MANIFEST_LOAD_FAILED", "message": str(e)}],
+            "error": str(e),
+        }
 
     files = extract_files_from_manifest(manifest)
     if not files:
         activity.logger.warning("  ⚠️ Empty manifest — skipping")
-        return {"manifest_url": inp.manifest_url, "files_understood": 0, "corpus_summary": ""}
+        return {
+            "manifest_url": inp.manifest_url,
+            "files_understood": 0,
+            "corpus_summary": "",
+            "status": "skipped",
+            "warnings": [],
+        }
 
-    prompt = _CORPUS_PROMPT.format(
+    expected_filenames = list(files.keys())
+    prompt = CORPUS_UNDERSTANDING_PROMPT.format(
         user_import_note=inp.user_import_note or "(none)",
         files_block=_build_files_block(manifest),
     )
@@ -131,16 +126,21 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
             max_output_tokens=4000,
         )
         understanding = CorpusUnderstanding.model_validate(llm_result)
+        understanding = merge_missing_file_entries(understanding, expected_filenames)
+        status, warnings = validate_corpus_understanding(understanding, expected_filenames)
     except Exception as e:
         activity.logger.error("  ❌ LLM corpus understanding failed: %s", e)
         return {
             "manifest_url": inp.manifest_url,
             "files_understood": 0,
             "corpus_summary": "",
+            "status": "failed",
+            "warnings": [{"code": "LLM_FAILED", "message": str(e)}],
             "error": str(e),
         }
 
     corpus_dict = understanding.model_dump()
+    corpus_dict["_validation"] = {"status": status, "warnings": warnings}
     manifest["corpus_understanding"] = corpus_dict
 
     try:
@@ -151,9 +151,10 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
             ContentType="application/json",
         )
         activity.logger.info(
-            "  ✅ Corpus understanding written | %d files | summary=%s",
+            "  ✅ Corpus understanding | status=%s | %d files | %d warnings",
+            status,
             len(understanding.files),
-            understanding.corpus_summary[:120],
+            len(warnings),
         )
     except Exception as e:
         activity.logger.error("  ❌ Failed to write enriched manifest: %s", e)
@@ -161,11 +162,18 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
             "manifest_url": inp.manifest_url,
             "files_understood": len(understanding.files),
             "corpus_summary": understanding.corpus_summary,
+            "status": "partial",
+            "warnings": warnings + [{"code": "R2_WRITE_FAILED", "message": str(e)}],
             "error": str(e),
         }
+
+    if status == "failed":
+        activity.logger.warning("  ⚠️ Corpus understanding validation failed — downstream uses deterministic fallback")
 
     return {
         "manifest_url": inp.manifest_url,
         "files_understood": len(understanding.files),
         "corpus_summary": understanding.corpus_summary,
+        "status": status,
+        "warnings": warnings,
     }

@@ -209,7 +209,9 @@ def _install_mock_llm() -> None:
     def _mock_generate_json(prompt: str, **kwargs) -> Dict:
         # Pick the most relevant canned response based on prompt keywords
         prompt_lower = prompt.lower()
-        if "f3iche" in prompt_lower and "infer" in prompt_lower:
+        if "f3iche" in prompt_lower and ("registry scores" in prompt_lower or "signals agent" in prompt_lower):
+            resp = _LLM_MOCK_RESPONSES["infer_f3iche"]
+        elif "f3iche" in prompt_lower and "infer" in prompt_lower:
             resp = _LLM_MOCK_RESPONSES["infer_f3iche"]
         elif "target" in prompt_lower or "setup_steps" in prompt_lower:
             resp = _LLM_MOCK_RESPONSES["build_target"]

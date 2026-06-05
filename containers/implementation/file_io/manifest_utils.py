@@ -178,6 +178,22 @@ def build_manifest_v2(contents: Dict[str, str], *, created_at: str) -> Dict[str,
     }
 
 
+def corpus_file_understanding(
+    corpus_understanding: Optional[Dict[str, Any]],
+    filename: str,
+) -> Optional[Dict[str, Any]]:
+    """Return per-file corpus understanding entry, if present."""
+    if not corpus_understanding:
+        return None
+    files = corpus_understanding.get("files") or []
+    if isinstance(files, dict):
+        return files.get(filename)
+    for entry in files:
+        if isinstance(entry, dict) and entry.get("filename") == filename:
+            return entry
+    return None
+
+
 def corpus_exclusions_by_doctype(corpus_understanding: Optional[Dict[str, Any]]) -> Dict[str, List[str]]:
     """
     Map ERPNext doctype → list of filenames that explicitly say they are NOT that doctype.

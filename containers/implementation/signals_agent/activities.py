@@ -54,20 +54,20 @@ def _load_file_contents_from_r2(r2_manifest_url: str) -> Dict[str, str]:
 
 class _SignalsInferenceService:
     def __init__(self):
-        self._registry_summary: Optional[Dict] = None
+        self._registry: Optional[Dict] = None
 
-    def _load_registry_summary(self) -> Dict:
-        if self._registry_summary is None:
-            path = KNOWLEDGE_DIR / "signals_registry.json"
-            activity.logger.info("▶ Loading signals registry from %s", path)
-            with open(path, "r", encoding="utf-8") as f:
-                registry = json.load(f)
-            
-            self._registry_summary = {
-                "niche_ids": registry.get("_meta", {}).get("niche_ids", []),
-                "niche_definitions": registry.get("niche_score_to_id_map", {})
-            }
-        return self._registry_summary
+    def _load_registry(self) -> Dict:
+        if self._registry is None:
+            from containers.implementation.signals_agent.signals_scorer import load_signals_registry
+            self._registry = load_signals_registry()
+        return self._registry
+
+    def _registry_summary(self) -> Dict:
+        reg = self._load_registry()
+        return {
+            "niche_ids": reg.get("_meta", {}).get("niche_ids", []),
+            "niche_definitions": reg.get("niche_score_to_id_map", {}),
+        }
 
     def infer_f3iche(
         self,
@@ -75,77 +75,120 @@ class _SignalsInferenceService:
         file_contents: Optional[Dict[str, str]] = None,
         corpus_understanding: Optional[Dict] = None,
         file_meta: Optional[Dict] = None,
-    ) -> tuple[str, float, List[str]]:
+        discovery_f3iche: Optional[str] = None,
+    ) -> tuple[str, float, List[str], str, Dict]:
+        """
+        Tiered inference: registry rules → LLM (if ambiguous) → blend.
+
+        Returns: (f3iche, confidence, signals, method, registry_result)
+        """
+        from containers.implementation.signals_agent.prompts import F3ICHE_INFERENCE_PROMPT
+        from containers.implementation.signals_agent.signals_scorer import (
+            apply_discovery_prior,
+            blend_llm_with_registry,
+            score_manifest,
+        )
         from containers.implementation.utils.llm_helper import generate_json
-        
-        registry_summary = self._load_registry_summary()
+
+        registry = self._load_registry()
+        registry_summary = self._registry_summary()
         niche_ids = registry_summary.get("niche_ids", [])
-        
+
         filenames = [f.get("file_name", f.get("name", "")) for f in uploaded_files]
-        
-        file_summaries = []
-        if file_contents:
-            for fname, text in file_contents.items():
-                meta = (file_meta or {}).get(fname) or {}
-                cols = meta.get("columns") or []
-                samples = meta.get("sample_rows") or []
-                snippet = text[:1500] if text else "(empty file)"
-                file_summaries.append(
-                    f"Filename: {fname}\n"
-                    f"Columns: {json.dumps(cols)}\n"
-                    f"Sample Rows: {json.dumps(samples[:2])}\n"
-                    f"Content Snippet:\n{snippet}\n---"
-                )
-        else:
-            for fname in filenames:
-                file_summaries.append(f"Filename: {fname}\n---")
+        contents = file_contents or {}
 
-        corpus_block = ""
-        if corpus_understanding:
-            corpus_block = (
-                f"\nCorpus Understanding (semantic analysis from Step 2 — TRUST THIS):\n"
-                f"{json.dumps(corpus_understanding, indent=2)}\n"
+        # ── Step A: deterministic registry scoring ───────────────────────────
+        registry_result = score_manifest(
+            filenames=filenames,
+            file_meta=file_meta or {},
+            file_contents=contents,
+            registry=registry,
+        )
+        registry_result = apply_discovery_prior(registry_result, discovery_f3iche)
+
+        registry_hits = registry_result.get("hits") or []
+        hit_summaries = [
+            f"[{h.get('signal_type')}] {h.get('found_in')}: '{h.get('pattern')}' "
+            f"→ {h.get('suggests_f3iche')} ({h.get('direction')}, w={h.get('weight')})"
+            for h in registry_hits[:20]
+        ]
+
+        # If registry is confident, use it directly (no LLM call)
+        if registry_result.get("confident"):
+            reg_top = registry_result["top_niche"]
+            reg_conf = float(registry_result["confidence"])
+            signals = hit_summaries[:5] + [
+                f"[registry] {registry_result['signal_count']} signals, margin={registry_result['margin']}"
+            ]
+            if discovery_f3iche:
+                signals.append(f"[discovery_prior] user stated: {discovery_f3iche}")
+            activity.logger.info(
+                "  Registry confident → %s (%.0f%%, %d hits)",
+                reg_top, reg_conf * 100, registry_result["signal_count"],
             )
-                
-        prompt = f"""
-You are the F3Next Signals Agent. Your job is to infer the core business type (F3iche) of a company based on the files they have uploaded to our ERP generation system.
+            return reg_top, reg_conf, signals, "registry", registry_result
 
-You have the following possible niches:
-{json.dumps(registry_summary, indent=2)}
+        # ── Step B: LLM for ambiguous cases ──────────────────────────────────
+        file_summaries = []
+        for fname in filenames:
+            text = contents.get(fname, "")
+            meta = (file_meta or {}).get(fname) or {}
+            cols = meta.get("columns") or []
+            samples = meta.get("sample_rows") or []
+            snippet = text[:1500] if text else "(empty file)"
+            file_summaries.append(
+                f"Filename: {fname}\n"
+                f"Columns: {json.dumps(cols)}\n"
+                f"Sample Rows: {json.dumps(samples[:2])}\n"
+                f"Content Snippet:\n{snippet}\n---"
+            )
 
-Uploaded Files:
-{json.dumps(filenames)}
+        corpus_block = (
+            json.dumps(corpus_understanding, indent=2)
+            if corpus_understanding
+            else "(not available — rely on registry scores and file data)"
+        )
 
-Sample Data Extracted from Files:
-{"".join(file_summaries)}
-{corpus_block}
+        prompt = F3ICHE_INFERENCE_PROMPT.format(
+            niche_catalog=json.dumps(registry_summary, indent=2),
+            discovery_f3iche=discovery_f3iche or "(none)",
+            registry_scores=json.dumps(registry_result.get("niche_scores") or {}, indent=2),
+            hit_count=registry_result.get("signal_count", 0),
+            registry_hits="\n".join(hit_summaries) or "(no registry hits)",
+            filenames=json.dumps(filenames),
+            file_summaries="".join(file_summaries),
+            corpus_block=corpus_block,
+        )
 
-Analyze the filenames and content (specifically looking at column headers, data tracking structures, and terminology).
-1. Choose the SINGLE BEST MATCHING NICHE from the `niche_ids` list. Do NOT invent a new ID.
-2. Provide a confidence score between 0.0 and 1.0.
-3. List 3-5 distinct, compelling signals you found that led to this conclusion (short phrases, e.g. "Contains drawing/blueprint numbers", "No BOM structures present").
+        llm_f3iche = registry_result.get("top_niche") or "trading_fmcg_distributor"
+        llm_confidence = float(registry_result.get("confidence") or 0.0)
+        signals: List[str] = hit_summaries[:3]
 
-Return ONLY a valid JSON object matching this schema exactly:
-{{
-  "f3iche": "the_niche_id",
-  "confidence": 0.85,
-  "collected_signals": ["signal 1", "signal 2", "signal 3"]
-}}
-"""
         try:
             result = generate_json(prompt, temperature=0.1, max_output_tokens=4000)
-            inferred_f3iche = result.get("f3iche", "trading")
-
-            if inferred_f3iche not in niche_ids:
-                inferred_f3iche = "trading"
-
-            confidence = float(result.get("confidence", 0.0))
-            signals = result.get("collected_signals", [])
-
-            return (inferred_f3iche, confidence, signals)
+            llm_f3iche = result.get("f3iche", llm_f3iche)
+            if llm_f3iche not in niche_ids:
+                llm_f3iche = registry_result.get("top_niche") or niche_ids[0]
+            llm_confidence = float(result.get("confidence", llm_confidence))
+            llm_signals = result.get("collected_signals") or []
+            method_note = result.get("method_note", "")
+            signals = list(llm_signals) + hit_summaries[:2]
+            if method_note:
+                signals.append(f"[llm] {method_note}")
         except Exception as e:
-            activity.logger.error("LLM Inference failed: %s", e)
-            return ("trading", 0.0, [f"Failed to infer via LLM: {str(e)}"])
+            activity.logger.error("  LLM inference failed, using registry top: %s", e)
+            signals.append(f"[fallback] LLM failed: {e}")
+
+        # ── Step C: blend registry + LLM ─────────────────────────────────────
+        final_f3iche, final_conf, method = blend_llm_with_registry(
+            registry_result=registry_result,
+            llm_f3iche=llm_f3iche,
+            llm_confidence=llm_confidence,
+        )
+        if discovery_f3iche and final_f3iche == discovery_f3iche:
+            signals.append(f"[discovery_prior] aligned with user-stated: {discovery_f3iche}")
+
+        return final_f3iche, final_conf, signals, method, registry_result
 
 
 
@@ -215,6 +258,7 @@ class InferF3icheInput:
     uploaded_files: List[Dict]
     r2_manifest_url: str = ""         # R2 key to file contents manifest
     session_id: str = ""              # v2: needed for DB persistence
+    discovery_f3iche: Optional[str] = None
 
 
 @dataclass
@@ -242,13 +286,32 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
     manifest = _load_manifest_from_r2(inp.r2_manifest_url)
     file_contents = _load_file_contents_from_r2(inp.r2_manifest_url)
     activity.logger.info("  Loaded %d file contents from R2 manifest", len(file_contents))
-    
+
+    discovery_f3iche = inp.discovery_f3iche
+    if not discovery_f3iche and inp.session_id:
+        try:
+            import uuid
+            from sqlalchemy import select
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.is_models import ISSession
+
+            async with AsyncSessionLocal() as db:
+                row = (await db.execute(
+                    select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+                )).scalar_one_or_none()
+                if row and row.discovery_f3iche:
+                    discovery_f3iche = row.discovery_f3iche
+                    activity.logger.info("  Discovery prior loaded: %s", discovery_f3iche)
+        except Exception as e:
+            activity.logger.debug("  Could not load discovery_f3iche: %s", e)
+
     svc = _SignalsInferenceService()
-    f3iche_id, confidence, signals = svc.infer_f3iche(
+    f3iche_id, confidence, signals, method, registry_result = svc.infer_f3iche(
         inp.uploaded_files,
         file_contents,
         corpus_understanding=manifest.get("corpus_understanding"),
         file_meta=manifest.get("file_meta"),
+        discovery_f3iche=discovery_f3iche,
     )
 
     # Semantic cross-check via kb_embeddings (async-safe)
@@ -282,6 +345,9 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
         "f3iche": f3iche_id,
         "confidence": round(confidence, 2),
         "collected_signals": signals,
+        "inference_method": method,
+        "registry_signal_count": registry_result.get("signal_count", 0),
+        "registry_confident": registry_result.get("confident", False),
     }
 
     # ── Persist to DB (v2 schema) ────────────────────────────────────────────
@@ -292,19 +358,48 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
             from shared.models.is_models import ISFileSignal, ISF3icheScore
 
             async with AsyncSessionLocal() as session:
-                # Write ISFileSignal rows — one per collected signal
-                for sig_text in signals:
+                # Registry rule hits (deterministic)
+                for hit in registry_result.get("hits") or []:
                     session.add(ISFileSignal(
                         id=uuid.uuid4(),
                         session_id=uuid.UUID(inp.session_id),
-                        signal_type="data_pattern",
-                        pattern_matched=sig_text,
+                        signal_type=hit.get("signal_type") or "registry",
+                        pattern_matched=str(hit.get("pattern") or ""),
+                        suggests_f3iche=hit.get("suggests_f3iche") or f3iche_id,
+                        weight=float(hit.get("weight") or 0.0),
+                        confidence=confidence,
+                        found_in=hit.get("found_in"),
+                    ))
+
+                hit_patterns = {str(h.get("pattern") or "") for h in (registry_result.get("hits") or [])}
+                # Narrative signals (LLM / blended summary)
+                for sig_text in signals:
+                    if any(pat and pat in sig_text for pat in hit_patterns):
+                        continue
+                    session.add(ISFileSignal(
+                        id=uuid.uuid4(),
+                        session_id=uuid.UUID(inp.session_id),
+                        signal_type="inference_summary",
+                        pattern_matched=sig_text[:500],
                         suggests_f3iche=f3iche_id,
                         weight=1.0,
                         confidence=confidence,
                     ))
 
-                # Write ISF3icheScore row for the inferred niche
+                # All niche scores from registry
+                for niche, score in (registry_result.get("niche_scores") or {}).items():
+                    if score > 0:
+                        session.add(ISF3icheScore(
+                            id=uuid.uuid4(),
+                            session_id=uuid.UUID(inp.session_id),
+                            f3iche=niche,
+                            score=score,
+                            confidence=score,
+                            source="registry",
+                            is_selected=(niche == f3iche_id),
+                        ))
+
+                # Selected inference row
                 session.add(ISF3icheScore(
                     id=uuid.uuid4(),
                     session_id=uuid.UUID(inp.session_id),
@@ -341,8 +436,10 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
         except Exception as e:
             activity.logger.error("  ❌ DB persistence failed: %s", e)
 
-    activity.logger.info("✅ infer_f3iche done | inferred: %s (%.0f%%) via %d signals",
-                         f3iche_id, confidence*100, len(signals))
+    activity.logger.info(
+        "✅ infer_f3iche done | %s (%.0f%%) method=%s signals=%d registry_hits=%d",
+        f3iche_id, confidence * 100, method, len(signals), registry_result.get("signal_count", 0),
+    )
     return result
 
 
