@@ -28,6 +28,10 @@ from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche, InferF3icheInput, VerifyF3icheInput
+    from containers.implementation.signals_agent.f3iche_confirmation_activities import (
+        synthesize_f3iche_confirmation,
+        SynthesizeF3icheConfirmationInput,
+    )
     from containers.implementation.profile_agent.activities    import align_discovery_and_signals, build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput, AlignDiscoverySignalsInput, RetrieveIndustryKnowledgeInput, EnrichCompanyProfileInput, retrieve_industry_knowledge, enrich_company_profile
     from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
     from containers.implementation.derive_agent.activities     import derive_required_records, DeriveRequiredRecordsInput
@@ -177,6 +181,8 @@ class ImplementationWorkflow:
         self._corpus_assignments: Dict[str, Dict[str, Any]] = {}
         self._gate_retry_counts: Dict[str, int] = {}
         self._last_retry_feedback: Optional[str] = None
+        self._f3iche_confirmation: Optional[Dict[str, Any]] = None
+        self._infer_result: Optional[Dict[str, Any]] = None
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -236,6 +242,10 @@ class ImplementationWorkflow:
     @workflow.query
     def get_analysis_tasks(self) -> List[Dict]:
         return self._analysis_tasks
+
+    @workflow.query
+    def get_f3iche_confirmation(self) -> Optional[Dict[str, Any]]:
+        return self._f3iche_confirmation
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -326,6 +336,7 @@ class ImplementationWorkflow:
         L.info("")
 
         self._discovery_f3iche = discovery_meta.get("f3iche") if discovery_meta else None
+        self._discovery_industry = discovery_meta.get("industry") if discovery_meta else None
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 0 / 14  —  Session Creation
@@ -479,6 +490,38 @@ class ImplementationWorkflow:
             self._stage = "error"
             raise ApplicationError(f"F3iche inference failed: {e}")
 
+        self._infer_result = infer_result
+
+        # ── Step 3.5: Synthesize F3iche confirmation (files + discovery) ───────
+        try:
+            synthesis_result: Dict = await workflow.execute_activity(
+                synthesize_f3iche_confirmation,
+                SynthesizeF3icheConfirmationInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    infer_result=infer_result,
+                    r2_manifest_url=r2_manifest_url,
+                ),
+                **_LONG,
+            )
+            self._f3iche_confirmation = synthesis_result
+            _kv(L, "proposed_f3iche", synthesis_result.get("proposed_f3iche"))
+            _kv(L, "alignment", synthesis_result.get("alignment"))
+            _step_ok(L, "3.5", "F3iche Confirmation Synthesis", synthesis_result.get("display_name", ""))
+        except Exception as e:
+            _step_fail(L, "3.5", "F3iche Confirmation Synthesis", str(e))
+            L.info("      ⚠️  Synthesis failed — gate will use raw inference fallback")
+            self._f3iche_confirmation = {
+                "confirmation_message": (
+                    f"We think your business type is {infer_result.get('f3iche', 'unknown')}. Is that correct?"
+                ),
+                "proposed_f3iche": infer_result.get("f3iche"),
+                "proposed_industry": self._discovery_industry or "general",
+                "display_name": infer_result.get("f3iche", ""),
+                "confidence": infer_result.get("confidence", 0.5),
+                "alignment": "partial",
+            }
+
         self._set_task("t2", "done")
         self._set_task("t3", "done")
         self._set_task("t4", "done", f"Inferred: {infer_result['f3iche']}")
@@ -517,14 +560,22 @@ class ImplementationWorkflow:
         # ══════════════════════════════════════════════════════════════════════
         # STEP 5 / 14  —  Verify F3iche (User vs Inferred)
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 5, "Verify F3iche (User vs Inferred)",
-                    f"user={conf.f3iche_user} vs inferred={infer_result['f3iche']}")
+        inferred_for_verify = (
+            (self._f3iche_confirmation or {}).get("proposed_f3iche")
+            or infer_result["f3iche"]
+        )
+        _step_start(L, 5, "Verify F3iche (User vs Synthesis)",
+                    f"user={conf.f3iche_user} vs proposed={inferred_for_verify}")
 
         verify_result = {"status": "unknown"}
         try:
             verify_result = await workflow.execute_activity(
                 verify_f3iche,
-                VerifyF3icheInput(conf.f3iche_user, infer_result["f3iche"], infer_result["confidence"]),
+                VerifyF3icheInput(
+                    conf.f3iche_user,
+                    inferred_for_verify,
+                    (self._f3iche_confirmation or {}).get("confidence") or infer_result["confidence"],
+                ),
                 **_ACT,
             )
             _kv(L, "match_status", verify_result.get("status"))

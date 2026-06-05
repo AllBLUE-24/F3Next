@@ -3,30 +3,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowRight, CheckCircle, Sparkles, ChevronDown, AlertTriangle, Info, Upload } from 'lucide-react';
+import { ArrowRight, CheckCircle, Sparkles, AlertTriangle, Info, Upload, X } from 'lucide-react';
 import { useAnalysis } from '@/hooks/implementation/useAnalysis';
 import { BrainVisualizer } from './BrainVisualizer';
 import { TaskStream } from './TaskStream';
 import type { AnalysisTask } from '@/types/implementation';
 import { getBaseApiUrl } from '@/lib/config';
 import { SupervisorInlineUploader } from '../supervisor/SupervisorInlineUploader';
-
-// ── Niche display lookup ────────────────────────────────────────────────────
-const NICHE_DISPLAY: Record<string, { label: string; industry: string }> = {
-  trading:                          { label: 'Trading / Distribution', industry: 'trading' },
-  trading_fmcg_distributor:         { label: 'FMCG Distribution', industry: 'trading' },
-  trading_hardware_variants:        { label: 'Hardware / Building Materials', industry: 'trading' },
-  trading_autoparts_highvolume:     { label: 'Auto Parts (High Volume)', industry: 'trading' },
-  manufacturing:                    { label: 'Manufacturing', industry: 'manufacturing' },
-  manufacturing_garment_variants:   { label: 'Garment Manufacturing', industry: 'manufacturing' },
-  manufacturing_food_batch:         { label: 'Food / Batch Manufacturing', industry: 'manufacturing' },
-  manufacturing_fabrication_jobshop:{ label: 'Metal Fabrication / Job Shop', industry: 'manufacturing' },
-  manufacturing_project_chemical:   { label: 'Chemical Manufacturing', industry: 'manufacturing' },
-  service:                          { label: 'Professional Services', industry: 'service' },
-  service_professional:             { label: 'Professional Services', industry: 'service' },
-};
-
-const ALL_NICHES = Object.keys(NICHE_DISPLAY);
 
 // ── DataReadinessGateCard ──────────────────────────────────────────────────
 // Shown inline in the main content area when stage === 'awaiting_data_readiness_confirmation'.
@@ -359,8 +342,8 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [confirmedF3iche, setConfirmedF3iche] = useState(false);
   const [confirmedMapping, setConfirmedMapping] = useState(false);
-  const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showCorrection, setShowCorrection] = useState(false);
+  const [correctionText, setCorrectionText] = useState('');
 
   // FIX: Added `?? []` so it never tries to run .filter() on undefined!
   const tasks    = devTasks ?? live.tasks ?? [];
@@ -368,12 +351,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   const isDone   = devTasks ? false : (live.isComplete || live.stage === 'awaiting_validation_submission');
   const stage    = live.stage;
 
-  // When stage reaches f3iche_confirmation, pre-select the inferred niche
-  useEffect(() => {
-    if (stage === 'awaiting_f3iche_confirmation' && live.inferredNiche && !selectedNiche) {
-      setSelectedNiche(live.inferredNiche);
-    }
-  }, [stage, live.inferredNiche, selectedNiche]);
+  const f3icheProposal = live.f3icheConfirmation;
 
   // Clear confirm locks once workflow advances past each gate
   useEffect(() => {
@@ -400,31 +378,31 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
     }
   }, [devTasks, isDone, router, validateHref, jobId]);
 
-  // ── F3iche confirmation handler ─────────────────────────────────────────
-  const handleConfirmF3iche = useCallback(async () => {
-    if (!selectedNiche || confirming) return;
+  const submitF3icheConfirmation = useCallback(async (accepted: boolean) => {
+    if (confirming) return;
+    if (!accepted && !correctionText.trim()) return;
     setConfirming(true);
     try {
       const API_BASE = getBaseApiUrl();
-      const nicheInfo = NICHE_DISPLAY[selectedNiche] || { label: selectedNiche, industry: 'trading' };
       const res = await fetch(`${API_BASE}/api/implementation/signal/f3iche-confirmed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: jobId,
-          f3iche_user: selectedNiche,
-          industry: nicheInfo.industry,
+          accepted,
+          correction_text: accepted ? undefined : correctionText.trim(),
         }),
       });
-      if (!res.ok) throw new Error('Failed to confirm F3iche');
+      if (!res.ok) throw new Error('Failed to confirm business type');
       setConfirmedF3iche(true);
+      setShowCorrection(false);
       live.refresh();
     } catch (err) {
       console.error('F3iche confirmation failed:', err);
     } finally {
       setConfirming(false);
     }
-  }, [selectedNiche, confirming, jobId]);
+  }, [confirming, correctionText, jobId, live]);
 
   return (
     <div className="space-y-8">
@@ -511,63 +489,98 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
               <Sparkles className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h3 className="text-white font-bold text-lg">Business type detected</h3>
-              <p className="text-gray-400 text-sm mt-1">
-                We analyzed your files and identified your business type.
-                {live.confidence !== null && (
-                  <span className="text-amber-400 ml-1 font-medium">{(live.confidence * 100).toFixed(0)}% confidence</span>
-                )}
-              </p>
+              <h3 className="text-white font-bold text-lg">Confirm your business type</h3>
+              {f3icheProposal?.display_name && (
+                <p className="text-amber-300 text-sm font-medium mt-1">{f3icheProposal.display_name}</p>
+              )}
+              {live.confidence !== null && (
+                <p className="text-gray-500 text-xs mt-1">{(live.confidence * 100).toFixed(0)}% confidence</p>
+              )}
             </div>
           </div>
 
-          {/* Niche selector */}
-          <div className="relative">
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl text-left hover:border-amber-500/30 transition-colors"
-            >
-              <span className="text-white font-medium">
-                {selectedNiche ? (NICHE_DISPLAY[selectedNiche]?.label || selectedNiche) : 'Select business type...'}
-              </span>
-              <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
-            </button>
+          <p className="text-gray-300 text-sm leading-relaxed">
+            {f3icheProposal?.confirmation_message ||
+              'We are analyzing your files and discovery context. The confirmation message will appear shortly.'}
+          </p>
 
-            {showDropdown && (
-              <div className="absolute z-20 mt-1 w-full bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl max-h-64 overflow-y-auto">
-                {ALL_NICHES.map((niche) => (
-                  <button
-                    key={niche}
-                    onClick={() => { setSelectedNiche(niche); setShowDropdown(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-white/[0.06] transition-colors first:rounded-t-xl last:rounded-b-xl ${
-                      selectedNiche === niche
-                        ? 'text-amber-400 bg-amber-500/10'
-                        : 'text-gray-300'
-                    }`}
-                  >
-                    {NICHE_DISPLAY[niche]?.label || niche}
-                    <span className="ml-2 text-xs text-gray-600 capitalize">{NICHE_DISPLAY[niche]?.industry}</span>
-                  </button>
+          {(f3icheProposal?.evidence_from_files?.length ?? 0) > 0 && (
+            <div className="text-xs text-gray-500 space-y-1">
+              <p className="font-semibold text-gray-400 uppercase tracking-wide">From your files</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                {f3icheProposal!.evidence_from_files!.slice(0, 4).map((e, i) => (
+                  <li key={i}>{e}</li>
                 ))}
-              </div>
-            )}
-          </div>
+              </ul>
+            </div>
+          )}
 
-          {/* Confirm button */}
-          <button
-            onClick={handleConfirmF3iche}
-            disabled={!selectedNiche || confirming}
-            className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/30 disabled:cursor-not-allowed text-black font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            {confirming ? (
-              <>
-                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                Confirming...
-              </>
-            ) : (
-              <>Confirm &amp; Continue</>
-            )}
-          </button>
+          {(f3icheProposal?.evidence_from_discovery?.length ?? 0) > 0 && (
+            <div className="text-xs text-gray-500 space-y-1">
+              <p className="font-semibold text-gray-400 uppercase tracking-wide">From discovery</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                {f3icheProposal!.evidence_from_discovery!.slice(0, 3).map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {(f3icheProposal?.conflicts?.length ?? 0) > 0 && (
+            <div className="flex items-start gap-2 text-amber-400/90 text-xs bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <p>{f3icheProposal!.conflicts!.join(' ')}</p>
+            </div>
+          )}
+
+          {!showCorrection ? (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => submitF3icheConfirmation(true)}
+                disabled={!f3icheProposal?.proposed_f3iche || confirming}
+                className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/30 disabled:cursor-not-allowed text-black font-bold rounded-xl transition-colors"
+              >
+                {confirming ? 'Confirming…' : 'Yes, that\'s right'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCorrection(true)}
+                disabled={confirming}
+                className="flex-1 py-3 px-4 bg-white/[0.04] border border-white/10 hover:border-white/20 text-gray-300 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                No, not quite
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                value={correctionText}
+                onChange={(e) => setCorrectionText(e.target.value)}
+                placeholder="Tell us what we got wrong — e.g. we manufacture coatings and run installation projects, not pure trading."
+                rows={3}
+                className="w-full px-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl text-sm text-white placeholder:text-gray-600 resize-none focus:outline-none focus:border-amber-500/40"
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => submitF3icheConfirmation(false)}
+                  disabled={!correctionText.trim() || confirming}
+                  className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-bold rounded-xl"
+                >
+                  {confirming ? 'Sending…' : 'Submit correction'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowCorrection(false); setCorrectionText(''); }}
+                  className="px-4 py-3 text-gray-500 hover:text-gray-300 text-sm"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

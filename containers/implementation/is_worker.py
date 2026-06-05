@@ -38,6 +38,10 @@ from temporalio.worker import Worker
 
 from containers.implementation.is_workflow.workflow import ImplementationWorkflow, TASK_QUEUE
 from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche
+from containers.implementation.signals_agent.f3iche_confirmation_activities import (
+    synthesize_f3iche_confirmation,
+    resolve_f3iche_correction,
+)
 from containers.implementation.profile_agent.activities    import build_company_profile, merge_company_profile, align_discovery_and_signals, retrieve_industry_knowledge, enrich_company_profile
 from containers.implementation.target_agent.activities     import build_target_structure
 from containers.implementation.data_readiness_agent.activities import assess_data_readiness
@@ -88,6 +92,8 @@ async def main() -> None:
                         # signals_agent
                         infer_f3iche,
                         verify_f3iche,
+                        synthesize_f3iche_confirmation,
+                        resolve_f3iche_correction,
                         # profile_agent
                         build_company_profile,
                         merge_company_profile,

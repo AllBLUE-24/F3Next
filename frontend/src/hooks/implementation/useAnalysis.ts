@@ -19,9 +19,23 @@ const NEEDS_INPUT_STAGES = new Set([
   'awaiting_mapping_confirmation',
 ]);
 
+export interface F3icheConfirmation {
+  confirmation_message?: string;
+  proposed_f3iche?: string;
+  proposed_industry?: string;
+  display_name?: string;
+  confidence?: number;
+  evidence_from_files?: string[];
+  evidence_from_discovery?: string[];
+  conflicts?: string[];
+  alignment?: string;
+  inferred_f3iche?: string;
+}
+
 interface AnalysisState {
   tasks: AnalysisTask[];
   profile: CompanyProfile | null;
+  f3icheConfirmation: F3icheConfirmation | null;
   session: {
     status?: string | null;
     user_import_note?: string | null;
@@ -49,6 +63,7 @@ export function useAnalysis(jobId: string | null) {
   const [state, setState] = useState<AnalysisState>({
     tasks: [],
     profile: null,
+    f3icheConfirmation: null,
     session: null,
     stage: '',
     inferredNiche: null,
@@ -70,13 +85,16 @@ export function useAnalysis(jobId: string | null) {
       const data = await res.json();
       const stage: string = data.stage || '';
 
+      const confirmation: F3icheConfirmation | null = data.f3iche_confirmation || null;
+
       setState({
         tasks: data.analysis_tasks || [],
         profile: data.profile || null,
+        f3icheConfirmation: confirmation,
         session: data.session || null,
         stage,
-        inferredNiche: data.profile?.f3iche_signals || null,
-        confidence: data.profile?.confidence ?? null,
+        inferredNiche: confirmation?.proposed_f3iche || data.profile?.f3iche_signals || null,
+        confidence: confirmation?.confidence ?? data.profile?.confidence ?? null,
         isComplete: TERMINAL_STAGES.has(stage),
         needsInput: NEEDS_INPUT_STAGES.has(stage),
         error: null,

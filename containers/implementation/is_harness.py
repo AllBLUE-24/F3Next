@@ -183,6 +183,26 @@ _LLM_MOCK_RESPONSES: Dict[str, Any] = {
         "user_decision": None,
     },
     "supervise_step":      {"actions": [], "summary_for_ui": "[MOCK] No issues detected.", "final_status": "resolved"},
+    "f3iche_confirmation": {
+        "confirmation_message": (
+            "[MOCK] Your files show project-based coating sales and installation jobs — "
+            "not pure FMCG distribution. Does that match your business?"
+        ),
+        "proposed_f3iche": "manufacturing_project_chemical",
+        "proposed_industry": "manufacturing",
+        "display_name": "Chemical Coatings Manufacturer & Project Installer",
+        "confidence": 0.82,
+        "evidence_from_files": ["[MOCK] client_orders.csv — project + product columns"],
+        "evidence_from_discovery": ["[MOCK] user described coating manufacturing with on-site installation"],
+        "conflicts": [],
+        "alignment": "agree",
+    },
+    "f3iche_correction": {
+        "f3iche": "manufacturing_food_batch",
+        "industry": "manufacturing",
+        "display_name": "Food / Batch Manufacturing",
+        "reasoning": "[MOCK] User correction mapped to batch manufacturing",
+    },
     "corpus_understanding": {
         "corpus_summary": "[MOCK] Mixed procurement, client orders, and partner master data.",
         "files": [
@@ -241,6 +261,10 @@ def _install_mock_llm() -> None:
             resp = _LLM_MOCK_RESPONSES["data_readiness"]
         elif "corpus understanding" in prompt_lower or schema_name == "CorpusUnderstanding":
             resp = _LLM_MOCK_RESPONSES["corpus_understanding"]
+        elif schema_name == "F3icheConfirmationSynthesis" or "f3iche confirmation" in prompt_lower:
+            resp = _LLM_MOCK_RESPONSES["f3iche_confirmation"]
+        elif schema_name == "F3icheCorrectionResolution" or "correction" in prompt_lower and "f3iche" in prompt_lower:
+            resp = _LLM_MOCK_RESPONSES["f3iche_correction"]
         else:
             resp = _LLM_MOCK_RESPONSES["generic"]
         log.info("  🤖 [MOCK LLM] returning structured canned response")
@@ -312,6 +336,22 @@ async def _run_step(step: str, fixture: Dict, phase: Optional[str], dry_run: boo
     elif step == "verify_f3iche":
         from containers.implementation.signals_agent.activities import verify_f3iche, VerifyF3icheInput
         return await verify_f3iche(VerifyF3icheInput(**fixture))
+
+    # ── synthesize_f3iche_confirmation ────────────────────────────────────────
+    elif step == "synthesize_f3iche_confirmation":
+        from containers.implementation.signals_agent.f3iche_confirmation_activities import (
+            synthesize_f3iche_confirmation,
+            SynthesizeF3icheConfirmationInput,
+        )
+        return await synthesize_f3iche_confirmation(SynthesizeF3icheConfirmationInput(**fixture))
+
+    # ── resolve_f3iche_correction ─────────────────────────────────────────────
+    elif step == "resolve_f3iche_correction":
+        from containers.implementation.signals_agent.f3iche_confirmation_activities import (
+            resolve_f3iche_correction,
+            ResolveF3icheCorrectionInput,
+        )
+        return await resolve_f3iche_correction(ResolveF3icheCorrectionInput(**fixture))
 
     # ── align_discovery_and_signals ───────────────────────────────────────────
     elif step == "align_discovery_and_signals":
@@ -432,6 +472,8 @@ VALID_STEPS = [
     "fetch_clean_files",
     "enrich_corpus_understanding",
     "infer_f3iche",
+    "synthesize_f3iche_confirmation",
+    "resolve_f3iche_correction",
     "verify_f3iche",
     "align_discovery_and_signals",
     "retrieve_industry_knowledge",

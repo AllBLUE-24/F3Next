@@ -22,7 +22,7 @@ from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import (
     ISSession, ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment,
     ISMappedData, ISValidationResult, ISValidationError,
-    ISImportPlan, ISImportLog, ISSupervisorPrompt,
+    ISImportPlan, ISImportLog, ISSupervisorPrompt, ISAuditTrail,
 )
 from shared.models.hooks import Hook
 
@@ -167,6 +167,88 @@ class ImplementationLauncher:
                 user_note=user_note,
             ),
         )
+
+    async def get_f3iche_confirmation(self, project_id: str | UUID) -> Dict[str, Any]:
+        """Return synthesis proposal for the f3iche confirmation gate."""
+        try:
+            handle = await self._handle(project_id)
+            confirmation = await handle.query(ImplementationWorkflow.get_f3iche_confirmation)
+            if confirmation:
+                return confirmation
+        except Exception as exc:
+            logger.debug("Workflow f3iche confirmation query failed: %s", exc)
+
+        # Fallback: latest audit trail entry
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            return {}
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISAuditTrail)
+                .where(
+                    ISAuditTrail.session_id == is_session.id,
+                    ISAuditTrail.action == "f3iche_confirmation_synthesized",
+                )
+                .order_by(ISAuditTrail.created_at.desc())
+                .limit(1)
+            )
+            row = (await session.execute(stmt)).scalar_one_or_none()
+            if row and row.details:
+                return dict(row.details)
+        return {}
+
+    async def confirm_f3iche(
+        self,
+        project_id: str | UUID,
+        *,
+        accepted: bool,
+        correction_text: Optional[str] = None,
+        f3iche_user: Optional[str] = None,
+        industry: Optional[str] = None,
+        industry_sub: Optional[str] = None,
+        company_name: Optional[str] = None,
+        company_size: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Resolve user yes/no on f3iche synthesis and signal the workflow."""
+        synthesis = await self.get_f3iche_confirmation(project_id)
+
+        if accepted:
+            resolved_f3iche = f3iche_user or synthesis.get("proposed_f3iche") or ""
+            resolved_industry = industry or synthesis.get("proposed_industry") or "general"
+        else:
+            if not correction_text or not correction_text.strip():
+                raise ValueError("correction_text is required when accepted=false")
+            from containers.implementation.signals_agent.f3iche_confirmation_activities import (
+                ResolveF3icheCorrectionInput,
+                resolve_f3iche_correction_core,
+            )
+            is_session = await self._get_session(project_id)
+            resolved = await resolve_f3iche_correction_core(
+                ResolveF3icheCorrectionInput(
+                    correction_text=correction_text.strip(),
+                    synthesis=synthesis,
+                    session_id=str(is_session.id) if is_session else None,
+                )
+            )
+            resolved_f3iche = resolved.get("f3iche") or synthesis.get("proposed_f3iche") or ""
+            resolved_industry = resolved.get("industry") or synthesis.get("proposed_industry") or "general"
+
+        if not resolved_f3iche:
+            raise ValueError("Could not resolve f3iche for confirmation")
+
+        await self.signal_f3iche_confirmed(
+            project_id,
+            resolved_f3iche,
+            resolved_industry,
+            industry_sub=industry_sub,
+            company_name=company_name,
+            company_size=company_size,
+        )
+        return {
+            "f3iche_user": resolved_f3iche,
+            "industry": resolved_industry,
+            "accepted": accepted,
+        }
 
     async def signal_f3iche_confirmed(
         self,
@@ -829,17 +911,21 @@ class ImplementationLauncher:
         """Convenience: returns everything in one round-trip batch."""
         import asyncio
         h = await self._handle(project_id)
-        stage, tasks = await asyncio.gather(
+        stage, tasks, f3iche_confirmation = await asyncio.gather(
             h.query(ImplementationWorkflow.get_stage),
             h.query(ImplementationWorkflow.get_analysis_tasks),
+            h.query(ImplementationWorkflow.get_f3iche_confirmation),
         )
         session = await self._get_session(project_id)
         file_batches = list(session.file_batches or []) if session else []
         total_files = sum(len((batch or {}).get("files") or []) for batch in file_batches)
+        if not f3iche_confirmation:
+            f3iche_confirmation = await self.get_f3iche_confirmation(project_id)
         return {
             "stage": stage, 
             "profile": await self.get_profile(project_id), 
             "analysis_tasks": tasks,
+            "f3iche_confirmation": f3iche_confirmation or None,
             "session": {
                 "status": session.status if session else None,
                 "user_import_note": session.user_import_note if session else None,

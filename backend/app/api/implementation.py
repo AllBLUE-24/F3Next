@@ -158,23 +158,47 @@ async def signal_files_uploaded(
 
 class F3icheConfirmedRequest(BaseModel):
     project_id: UUID
-    f3iche_user: str
-    industry: str
+    accepted: bool = True
+    correction_text: Optional[str] = None
+    # Legacy override (optional when accepted=true — synthesis proposal is used)
+    f3iche_user: Optional[str] = None
+    industry: Optional[str] = None
     industry_sub: Optional[str] = None
     company_name: Optional[str] = None
     company_size: Optional[str] = None
 
 
-@router.post("/signal/f3iche-confirmed", summary="User has confirmed their business type")
+@router.get("/f3iche/confirmation/{project_id}", summary="F3iche confirmation proposal for UI gate")
+async def get_f3iche_confirmation(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        confirmation = await launcher.get_f3iche_confirmation(project_id)
+        return {"ok": True, "confirmation": confirmation}
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/signal/f3iche-confirmed", summary="User confirms or corrects proposed business type")
 async def signal_f3iche_confirmed(
     req: F3icheConfirmedRequest,
     launcher: ImplementationLauncher = Depends(get_launcher),
 ):
-    await launcher.signal_f3iche_confirmed(
-        req.project_id, req.f3iche_user, req.industry,
-        req.industry_sub, req.company_name, req.company_size,
-    )
-    return {"ok": True, "signal": "f3iche_confirmed"}
+    try:
+        result = await launcher.confirm_f3iche(
+            req.project_id,
+            accepted=req.accepted,
+            correction_text=req.correction_text,
+            f3iche_user=req.f3iche_user,
+            industry=req.industry,
+            industry_sub=req.industry_sub,
+            company_name=req.company_name,
+            company_size=req.company_size,
+        )
+        return {"ok": True, "signal": "f3iche_confirmed", **result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 class MappingConfirmedRequest(BaseModel):

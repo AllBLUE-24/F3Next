@@ -348,6 +348,7 @@ async def infer_f3iche(inp: InferF3icheInput) -> Dict:
         "inference_method": method,
         "registry_signal_count": registry_result.get("signal_count", 0),
         "registry_confident": registry_result.get("confident", False),
+        "registry_scores": registry_result.get("niche_scores") or {},
     }
 
     # ── Persist to DB (v2 schema) ────────────────────────────────────────────
