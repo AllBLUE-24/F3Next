@@ -80,6 +80,34 @@ class ValidationPartialStatusTest(unittest.TestCase):
         self.assertEqual(supplier_check["status"], "fail")
         self.assertEqual(report["overall"], "fail")
 
+    def test_purchase_order_fails_when_items_empty(self) -> None:
+        engine = _ValidationEngine(
+            graph={
+                "doctypes": {
+                    "Purchase Order": {
+                        "required_fields": ["supplier", "items (item_code, qty, rate)", "transaction_date"],
+                    }
+                }
+            }
+        )
+        report = engine.validate(
+            {
+                "Purchase Order": {
+                    "records": [
+                        {
+                            "supplier": "Gupta Chemical Traders",
+                            "transaction_date": "2026-01-01",
+                            "items": [],
+                        }
+                    ]
+                }
+            },
+            {"required_doctypes": ["Purchase Order"], "validation_rules": {}},
+        )
+        po_check = next(c for c in report["checks"] if c["doctype"] == "Purchase Order")
+        self.assertEqual(po_check["status"], "fail")
+        self.assertTrue(any("items" in str(e).lower() for e in po_check["errors"]))
+
 
 class ValidationReportEnrichmentTest(unittest.TestCase):
     def test_enrich_checks_with_sources(self) -> None:

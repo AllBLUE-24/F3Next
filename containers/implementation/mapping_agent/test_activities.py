@@ -59,6 +59,28 @@ class MappingEnginePartySplitTest(unittest.TestCase):
         self.assertEqual(len((split or {}).get("Customer", [])), 1)
         self.assertEqual(len((split or {}).get("Supplier", [])), 1)
 
+    def test_split_by_role_column_green_surface(self) -> None:
+        """messy_partners.csv uses Role — must match gap_analyzer party-split."""
+        engine = _MappingEngine()
+        engine._field_mappings = {
+            "party_type_synonyms": {
+                "client": "Customer",
+                "customer": "Customer",
+                "vendor": "Supplier",
+                "supplier": "Supplier",
+            }
+        }
+        rows = [
+            {"Company_Name": "Rohan Construction", "Role": "Customer", "City": "Mumbai"},
+            {"Company_Name": "Gupta Chemical Traders", "Role": "Supplier", "City": "Ahmedabad"},
+            {"Company_Name": "Karan Acids & Solvents", "Role": "Vendor", "City": "Nagpur"},
+        ]
+        split = engine._split_by_entity_type(rows, ["Company_Name", "Role", "City"])
+        self.assertIsNotNone(split)
+        self.assertEqual(set(split or {}), {"Customer", "Supplier"})
+        self.assertEqual(len((split or {}).get("Customer", [])), 1)
+        self.assertEqual(len((split or {}).get("Supplier", [])), 2)
+
 
 class CorpusMergeTest(unittest.TestCase):
     def test_merge_suppliers_dedupes_by_name(self) -> None:

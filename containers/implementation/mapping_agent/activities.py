@@ -220,7 +220,10 @@ class _MappingEngine:
         }
 
         type_col = None
-        type_synonyms = {"type", "entity type", "entity_type", "record type", "party type", "party_type"}
+        type_synonyms = {
+            "type", "entity type", "entity_type", "record type",
+            "party type", "party_type", "role",
+        }
         for c in columns:
             normalized_column = c.lower().strip().replace("_", " ")
             if c and (normalized_column in type_synonyms or c.lower().strip() in type_synonyms):
@@ -1144,6 +1147,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             activity.logger.warning("  ⚠️ Could not check existing mappings for dedup: %s", e)
 
     mapped_doctypes = []
+    preflight_blocks: List[Dict[str, Any]] = []
     for result in results:
         doctype = result.get("doctype")
         if not doctype:
@@ -1241,11 +1245,18 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         preflight = preflight_mapped_records(doctype, mapped_records)
         if preflight.get("blocking"):
             activity.logger.warning(
-                "  ⚠️ Preflight blocking for %s → %s: %s",
+                "  🚫 Preflight blocking for %s → %s: %s",
                 inp.filename,
                 doctype,
                 preflight.get("missing_fields"),
             )
+            preflight_blocks.append({
+                "doctype": doctype,
+                "source_file": inp.filename,
+                "missing_fields": preflight.get("missing_fields") or [],
+                "messages": preflight.get("messages") or [],
+            })
+            continue
 
         mapped_records, quarantined_rows = filter_quarantined_records(doctype, mapped_records)
         if quarantined_rows:
@@ -1353,14 +1364,45 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         )
         mapped_doctypes.append(doctype)
 
+    preflight_warnings = [
+        {
+            "code": "PREFLIGHT_BLOCKING",
+            "message": (
+                f"{b['doctype']}: missing required fields "
+                f"{', '.join(b.get('missing_fields') or [])} in {b.get('source_file')}"
+            ),
+            "doctype": b.get("doctype"),
+            "missing_fields": b.get("missing_fields"),
+        }
+        for b in preflight_blocks
+    ]
+
     if not mapped_doctypes:
         activity.logger.info("  ⚠️ No doctypes mapped for %s", inp.filename)
+        if preflight_blocks:
+            return NodeStatusEnvelope.failed(
+                primary_result={
+                    "file": inp.filename,
+                    "doctypes_mapped": [],
+                    "preflight_blocks": preflight_blocks,
+                },
+                errors=preflight_warnings,
+            )
         return NodeStatusEnvelope.partial(
             primary_result={"file": inp.filename, "doctypes_mapped": []},
             warnings=[{"code": "NO_DOCTYPES_MAPPED", "message": f"No doctypes mapped for file '{inp.filename}'"}],
         )
 
     activity.logger.info("✅ map_file_to_erpnext done | doctypes=%s", mapped_doctypes)
+    if preflight_blocks:
+        return NodeStatusEnvelope.partial(
+            primary_result={
+                "file": inp.filename,
+                "doctypes_mapped": mapped_doctypes,
+                "preflight_blocks": preflight_blocks,
+            },
+            warnings=preflight_warnings,
+        )
     return NodeStatusEnvelope.success(primary_result={"file": inp.filename, "doctypes_mapped": mapped_doctypes})
 
 

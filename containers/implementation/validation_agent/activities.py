@@ -280,17 +280,16 @@ class _ValidationEngine:
                     f"{doctype}: records have only {fields_per_record} non-empty field(s) — critically sparse data"
                 )
 
-        # Required-field check: scan first 10 rows for column presence (legacy).
+        # Required-field check: scan first 10 rows (items must be non-empty child rows).
         required = self._get_required_fields(doctype)
         if rows and required:
-            sample_rows = rows[:10]
+            from containers.implementation.is_common.field_presence import (
+                field_present_in_mapped_row,
+            )
+
+            sample_rows = [r for r in rows[:10] if isinstance(r, dict)]
             for field in required:
-                field_present_in_any = any(
-                    field in row or any(field in str(k) for k in row.keys())
-                    for row in sample_rows
-                    if isinstance(row, dict)
-                )
-                if not field_present_in_any:
+                if not any(field_present_in_mapped_row(field, row) for row in sample_rows):
                     msg = self._format_kb_message("missing_required_field", field=field)
                     check["errors"].append(msg or f"Missing required field: {field}")
                     check["status"] = "fail"
@@ -302,14 +301,15 @@ class _ValidationEngine:
             value_check_fields.insert(0, identity_field)
 
         if rows and value_check_fields:
+            from containers.implementation.is_common.field_presence import (
+                field_present_in_mapped_row,
+            )
+
             for i, row in enumerate(rows):
                 if not isinstance(row, dict):
                     continue
                 for field in value_check_fields:
-                    if field not in row:
-                        continue
-                    val = row.get(field)
-                    if val is None or (isinstance(val, str) and not str(val).strip()):
+                    if not field_present_in_mapped_row(field, row):
                         msg = self._format_kb_message(
                             "empty_row_value", row=i + 1, field=field,
                         )
