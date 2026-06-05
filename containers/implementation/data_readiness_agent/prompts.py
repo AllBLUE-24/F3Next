@@ -36,7 +36,10 @@ You have been given:
    organized by import phase (Phase A: Config, Phase B: Master, Phase C: Transactional).
 
 2. PRE-ANALYSIS — a deterministic scan of the uploaded files vs. the target structure.
-   This scan used column-name matching and keyword scoring. Trust it.
+   This scan used column-name matching, party-split detection, corpus signals, and
+   default-aware field policy. Trust it. Entries with "ready_with_assumptions" or
+   "assumed_fields" mean mapping will apply ERPNext defaults — do NOT flag these as
+   blocking gaps or ask the user to re-upload.
 
 3. COMPANY PROFILE — business type (f3iche), industry, company size.
 

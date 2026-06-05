@@ -5,7 +5,7 @@ Deterministic pre-LLM gap analysis.
 
 Given:
   - manifest: {filename: content_or_columns} from R2
-  - target_structure: ISTargetStructure result (required_doctypes, setup_steps, import_phases)
+  - target_structure: ISTargetStructure result (seed_doctypes, required_doctypes, setup_steps)
   - field_mappings_kb: the field_mappings.json knowledge base
 
 Produces a structured pre_analysis dict that is fed to the LLM in prompts.py.
@@ -17,8 +17,12 @@ from __future__ import annotations
 import csv
 import io
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
+from containers.implementation.data_readiness_agent.field_policy import (
+    classify_missing_fields,
+    identity_satisfied,
+)
 from containers.implementation.file_io.manifest_utils import (
     corpus_exclusions_by_doctype,
     normalize_manifest_input,
@@ -28,6 +32,10 @@ from containers.implementation.file_io.manifest_utils import (
 
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", str(s or "").strip().lower())
+
+
+def _norm_col(s: str) -> str:
+    return _norm(str(s or "").replace("_", " "))
 
 
 def _tokenise(s: str) -> List[str]:
@@ -53,14 +61,14 @@ def _score_columns_vs_doctype(columns: List[str], doctype: str, kb: Dict[str, An
         if fcfg.get("mandatory") or fcfg.get("reqd") or fcfg.get("fieldname") in mandatory_root
     ]
 
-    cols = [_norm(c) for c in columns if c]
+    cols = [_norm_col(c) for c in columns if c]
     matched, missing = [], []
 
     for fn, fcfg in fmap.items():
         erp_name = fcfg.get("fieldname", fn)
-        synonyms = [_norm(s) for s in (fcfg.get("user_input_synonyms") or [])]
-        synonyms.append(_norm(erp_name))
-        synonyms.append(_norm(fn))
+        synonyms = [_norm_col(s) for s in (fcfg.get("user_input_synonyms") or [])]
+        synonyms.append(_norm_col(erp_name))
+        synonyms.append(_norm_col(fn))
 
         hit = False
         for syn in synonyms:
@@ -115,6 +123,150 @@ def _parse_columns_from_content(content: str, filename: str) -> Optional[List[st
     return None
 
 
+# ─── MVP scope + evidence helpers ─────────────────────────────────────────────
+
+_ROLE_COL_NAMES = frozenset({"role", "party type", "party_type", "type", "entity type", "entity_type"})
+_CUSTOMER_ROLES = frozenset({"customer", "client", "buyer"})
+_SUPPLIER_ROLES = frozenset({"supplier", "vendor", "seller"})
+_ITEM_STUB_COLUMNS = frozenset({"product", "item", "item code", "item_code", "sku", "material", "fg item"})
+
+
+def _resolve_scope_doctypes(target_structure: Dict[str, Any]) -> Tuple[List[str], bool]:
+    """Return (doctypes_to_scan, using_mvp_seeds)."""
+    deferred = set(target_structure.get("deferred_doctypes") or [])
+    seeds = target_structure.get("seed_doctypes") or []
+    if seeds:
+        return [d for d in seeds if d not in deferred], True
+    required = target_structure.get("required_doctypes") or []
+    return [d for d in required if d not in deferred], False
+
+
+def _corpus_doctype_hits(corpus_understanding: Optional[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """Map doctype → filenames where corpus understanding positively identified it."""
+    hits: Dict[str, List[str]] = {}
+    if not corpus_understanding:
+        return hits
+    for entry in corpus_understanding.get("files") or []:
+        if not isinstance(entry, dict):
+            continue
+        fname = entry.get("filename") or ""
+        for dt in entry.get("likely_erpnext_doctypes") or []:
+            if fname and dt:
+                hits.setdefault(dt, []).append(fname)
+    return hits
+
+
+def _find_role_column(columns: List[str]) -> Optional[str]:
+    for col in columns:
+        if _norm_col(col) in _ROLE_COL_NAMES:
+            return col
+    return None
+
+
+def _build_party_split_evidence(
+    files: Dict[str, str],
+    file_meta: Dict[str, Dict],
+) -> Dict[str, Dict[str, Any]]:
+    """Detect dual-entity party files (Role column → Customer + Supplier)."""
+    evidence: Dict[str, Dict[str, Any]] = {}
+    for fname, meta in file_meta.items():
+        columns = meta.get("columns") or []
+        role_col = _find_role_column(columns)
+        if not role_col:
+            continue
+        content = files.get(fname) or ""
+        if not content:
+            continue
+        try:
+            rows = list(csv.DictReader(io.StringIO(content)))
+        except Exception:
+            continue
+        customer_count = sum(
+            1 for r in rows if _norm(r.get(role_col, "")) in _CUSTOMER_ROLES
+        )
+        supplier_count = sum(
+            1 for r in rows if _norm(r.get(role_col, "")) in _SUPPLIER_ROLES
+        )
+        if customer_count > 0:
+            evidence["Customer"] = {
+                "source_file": fname,
+                "row_count": customer_count,
+                "columns": columns,
+                "evidence_type": "party_split",
+            }
+        if supplier_count > 0:
+            evidence["Supplier"] = {
+                "source_file": fname,
+                "row_count": supplier_count,
+                "columns": columns,
+                "evidence_type": "party_split",
+            }
+    return evidence
+
+
+def _build_item_stub_evidence(file_meta: Dict[str, Dict]) -> Dict[str, Any]:
+    """Detect Item identity from transactional Product/Item columns."""
+    best: Dict[str, Any] = {}
+    for fname, meta in file_meta.items():
+        columns = meta.get("columns") or []
+        cols_norm = {_norm_col(c) for c in columns}
+        if not (cols_norm & _ITEM_STUB_COLUMNS):
+            continue
+        row_count = int(meta.get("row_count") or 0)
+        if row_count <= 0 and meta.get("sample_rows"):
+            row_count = len(meta["sample_rows"])
+        if row_count > 0:
+            best = {
+                "source_file": fname,
+                "row_count": row_count,
+                "columns": columns,
+                "evidence_type": "transactional_stub",
+            }
+            break
+    return best
+
+
+def _filename_prior_boost(fname: str, doctype: str) -> float:
+    try:
+        from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
+        from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+        fscores = filename_prior_scores(fname)
+        return float(fscores.get(resolve_doctype(doctype), 0.0) or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _apply_field_policy(
+    doctype: str,
+    *,
+    matched: List[str],
+    missing: List[str],
+    columns: List[str],
+    kb: Dict[str, Any],
+    party_row_count: int = 0,
+    corpus_hit: bool = False,
+) -> Dict[str, Any]:
+    """Classify coverage using default-aware field policy."""
+    assumed, _, must_ask = classify_missing_fields(doctype, missing, matched, kb)
+    ident_ok = identity_satisfied(
+        doctype,
+        matched,
+        columns,
+        party_row_count=party_row_count,
+        corpus_hit=corpus_hit,
+    )
+    assumption_only = bool(assumed) and not must_ask
+    return {
+        "assumed_fields": assumed,
+        "must_ask_fields": must_ask,
+        "identity_satisfied": ident_ok,
+        "assumption_only": assumption_only,
+        "can_proceed_without": ident_ok and not must_ask,
+        "ready_with_assumptions": ident_ok and assumption_only,
+    }
+
+
 # ─── public API ───────────────────────────────────────────────────────────────
 
 # Coverage threshold: above this → READY, below → PARTIAL
@@ -129,20 +281,18 @@ def analyze_gaps(
     field_mappings_kb: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Deterministic gap analysis: compare every uploaded file against every
-    required doctype and classify coverage.
+    Deterministic gap analysis: compare uploaded files against MVP seed doctypes.
 
     Args:
         manifest:          v2 manifest object OR legacy {filename: content_string}
-        target_structure:  ISTargetStructure.primary_result["target_structure"]
-                           (has required_doctypes, setup_steps, import_phases)
+        target_structure:  ISTargetStructure (seed_doctypes preferred over full graph)
         field_mappings_kb: loaded field_mappings.json
 
     Returns a pre_analysis dict consumed by the LLM prompt.
     """
     files, prebuilt_meta, corpus_understanding = normalize_manifest_input(manifest)
     doctype_exclusions = corpus_exclusions_by_doctype(corpus_understanding)
-    required_doctypes: List[str] = target_structure.get("required_doctypes") or []
+    scope_doctypes, mvp_scoped = _resolve_scope_doctypes(target_structure)
     setup_steps: List[Dict] = target_structure.get("setup_steps") or []
     import_phases: Dict[str, Any] = target_structure.get("import_phases") or {}
 
@@ -180,22 +330,81 @@ def analyze_gaps(
             "sample_rows": pre.get("sample_rows") or [],
         }
 
-    # ── Classify every required doctype ──────────────────────────────────────
+    party_evidence = _build_party_split_evidence(files, file_meta)
+    item_stub = _build_item_stub_evidence(file_meta)
+    corpus_hits = _corpus_doctype_hits(corpus_understanding)
+
+    # ── Classify every scoped doctype ────────────────────────────────────────
     ready_doctypes: List[Dict] = []
     partial_doctypes: List[Dict] = []
     missing_doctypes: List[Dict] = []
-    matched_file_doctype_pairs: set = set()   # (filename, doctype) that scored
+    matched_file_doctype_pairs: set = set()
 
-    for doctype in required_doctypes:
+    for doctype in scope_doctypes:
         phase = doctype_phase.get(doctype, "unknown")
         action = doctype_action.get(doctype, "must_create")
         best_score = 0.0
         best_file = None
         best_matched: List[str] = []
         best_missing: List[str] = []
+        best_columns: List[str] = []
+
+        # Party-split shortcut (e.g. messy_partners.csv with Role column)
+        if doctype in party_evidence:
+            pe = party_evidence[doctype]
+            policy = _apply_field_policy(
+                doctype,
+                matched=[],
+                missing=(field_mappings_kb.get("doctypes") or {}).get(doctype, {}).get("mandatory_fields") or [],
+                columns=pe["columns"],
+                kb=field_mappings_kb,
+                party_row_count=pe["row_count"],
+            )
+            matched_file_doctype_pairs.add((pe["source_file"], doctype))
+            ready_doctypes.append({
+                "doctype": doctype,
+                "source_file": pe["source_file"],
+                "coverage_pct": 0.75,
+                "mapped_fields": [],
+                "missing_optional_fields": [],
+                "assumed_fields": policy["assumed_fields"],
+                "must_ask_fields": policy["must_ask_fields"],
+                "ready_with_assumptions": True,
+                "can_proceed_without": True,
+                "assumption_only": True,
+                "phase": phase,
+                "evidence_type": "party_split",
+            })
+            continue
+
+        # Transactional Item stub (Product/Item column in orders/POs)
+        if doctype == "Item" and item_stub:
+            policy = _apply_field_policy(
+                "Item",
+                matched=[],
+                missing=(field_mappings_kb.get("doctypes") or {}).get("Item", {}).get("mandatory_fields") or [],
+                columns=item_stub["columns"],
+                kb=field_mappings_kb,
+                corpus_hit=True,
+            )
+            matched_file_doctype_pairs.add((item_stub["source_file"], doctype))
+            ready_doctypes.append({
+                "doctype": doctype,
+                "source_file": item_stub["source_file"],
+                "coverage_pct": 0.55,
+                "mapped_fields": [],
+                "missing_optional_fields": [],
+                "assumed_fields": policy["assumed_fields"],
+                "must_ask_fields": policy["must_ask_fields"],
+                "ready_with_assumptions": True,
+                "can_proceed_without": True,
+                "assumption_only": True,
+                "phase": phase,
+                "evidence_type": "transactional_stub",
+            })
+            continue
 
         for fname, meta in file_meta.items():
-            # Corpus understanding (Step 2b) suppresses false-positive column matches
             if fname in (doctype_exclusions.get(doctype) or []):
                 continue
 
@@ -203,38 +412,65 @@ def analyze_gaps(
                 score, matched, missing = _score_columns_vs_doctype(
                     meta["columns"], doctype, field_mappings_kb
                 )
+                best_columns = meta["columns"]
             else:
                 score = _keyword_score_text(meta["content_snippet"], doctype, field_mappings_kb)
                 matched, missing = [], []
 
-            # Filename priors (align with mapping classifier)
-            try:
-                from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
-                from containers.implementation.is_common.doctype_resolver import resolve_doctype
+            score += _filename_prior_boost(fname, doctype)
 
-                fscores = filename_prior_scores(fname)
-                score += float(fscores.get(resolve_doctype(doctype), 0.0) or 0.0)
-            except Exception:
-                pass
+            # Corpus positive signal
+            if fname in (corpus_hits.get(doctype) or []):
+                score = max(score, 0.5)
 
             if score > best_score:
                 best_score = score
                 best_file = fname
                 best_matched = matched
                 best_missing = missing
+                if meta["columns"]:
+                    best_columns = meta["columns"]
 
-        if best_score >= _READY_THRESHOLD and best_file:
-            matched_file_doctype_pairs.add((best_file, doctype))
-            ready_doctypes.append({
-                "doctype": doctype,
-                "source_file": best_file,
-                "coverage_pct": round(best_score, 3),
-                "mapped_fields": best_matched,
-                "missing_optional_fields": best_missing,
-                "phase": phase,
-            })
-        elif action in ("use_default", "auto_created_by_erpnext"):
-            # Automatically ready via system defaults or auto-provisioning
+        # Corpus-only hit (no column match but Step 2b identified doctype)
+        corpus_files = corpus_hits.get(doctype) or []
+        if not best_file and corpus_files:
+            cf = corpus_files[0]
+            meta = file_meta.get(cf) or {}
+            policy = _apply_field_policy(
+                doctype,
+                matched=[],
+                missing=(field_mappings_kb.get("doctypes") or {}).get(doctype, {}).get("mandatory_fields") or [],
+                columns=meta.get("columns") or [],
+                kb=field_mappings_kb,
+                corpus_hit=True,
+            )
+            if policy["can_proceed_without"]:
+                matched_file_doctype_pairs.add((cf, doctype))
+                ready_doctypes.append({
+                    "doctype": doctype,
+                    "source_file": cf,
+                    "coverage_pct": 0.6,
+                    "mapped_fields": [],
+                    "missing_optional_fields": [],
+                    "assumed_fields": policy["assumed_fields"],
+                    "must_ask_fields": policy["must_ask_fields"],
+                    "ready_with_assumptions": True,
+                    "can_proceed_without": True,
+                    "assumption_only": True,
+                    "phase": phase,
+                    "evidence_type": "corpus_positive",
+                })
+                continue
+
+        policy = _apply_field_policy(
+            doctype,
+            matched=best_matched,
+            missing=best_missing,
+            columns=best_columns,
+            kb=field_mappings_kb,
+        )
+
+        if action in ("use_default", "auto_created_by_erpnext"):
             source_file = "System Auto-provisioning" if action == "auto_created_by_erpnext" else "ERPNext Defaults Baseline"
             if best_file:
                 source_file = f"{best_file} / {source_file}"
@@ -244,6 +480,35 @@ def analyze_gaps(
                 "coverage_pct": 1.0,
                 "mapped_fields": best_matched,
                 "missing_optional_fields": [],
+                "assumed_fields": policy["assumed_fields"],
+                "can_proceed_without": True,
+                "phase": phase,
+            })
+        elif policy["can_proceed_without"] and best_file:
+            matched_file_doctype_pairs.add((best_file, doctype))
+            ready_doctypes.append({
+                "doctype": doctype,
+                "source_file": best_file,
+                "coverage_pct": round(max(best_score, 0.5 if policy["ready_with_assumptions"] else best_score), 3),
+                "mapped_fields": best_matched,
+                "missing_optional_fields": best_missing if not policy["assumption_only"] else [],
+                "assumed_fields": policy["assumed_fields"],
+                "must_ask_fields": policy["must_ask_fields"],
+                "ready_with_assumptions": policy["ready_with_assumptions"],
+                "can_proceed_without": True,
+                "assumption_only": policy["assumption_only"],
+                "phase": phase,
+            })
+        elif best_score >= _READY_THRESHOLD and best_file:
+            matched_file_doctype_pairs.add((best_file, doctype))
+            ready_doctypes.append({
+                "doctype": doctype,
+                "source_file": best_file,
+                "coverage_pct": round(best_score, 3),
+                "mapped_fields": best_matched,
+                "missing_optional_fields": best_missing,
+                "assumed_fields": policy["assumed_fields"],
+                "can_proceed_without": True,
                 "phase": phase,
             })
         elif best_score >= _CANDIDATE_THRESHOLD and best_file:
@@ -252,7 +517,11 @@ def analyze_gaps(
                 "doctype": doctype,
                 "source_file": best_file,
                 "coverage_pct": round(best_score, 3),
-                "missing_required_fields": best_missing,
+                "missing_required_fields": policy["must_ask_fields"] or best_missing,
+                "assumed_fields": policy["assumed_fields"],
+                "must_ask_fields": policy["must_ask_fields"],
+                "can_proceed_without": policy["can_proceed_without"],
+                "assumption_only": policy["assumption_only"],
                 "phase": phase,
             })
         else:
@@ -260,16 +529,19 @@ def analyze_gaps(
                 "doctype": doctype,
                 "phase": phase,
                 "coverage_pct": 0.0,
-                "missing_required_fields": best_missing,
+                "missing_required_fields": policy["must_ask_fields"] or best_missing,
+                "assumed_fields": policy["assumed_fields"],
+                "can_proceed_without": False,
             })
 
     kb_doctypes = set((field_mappings_kb.get("doctypes") or {}).keys())
 
-    # ── Corpus expansion: strong filename priors for KB doctypes ─────────────
+    # ── Corpus expansion: strong filename priors for KB doctypes in scope ──────
     try:
         from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
         from containers.implementation.is_common.doctype_resolver import resolve_doctype
 
+        scope_set = set(scope_doctypes)
         seen_ready = {resolve_doctype(r["doctype"]) for r in ready_doctypes}
         seen_partial = {resolve_doctype(p["doctype"]) for p in partial_doctypes}
         for fname in file_meta:
@@ -277,6 +549,8 @@ def analyze_gaps(
             if not implied:
                 continue
             canon = resolve_doctype(implied)
+            if canon not in scope_set:
+                continue
             if canon in seen_ready or canon in seen_partial:
                 continue
             if canon not in kb_doctypes:
@@ -287,28 +561,23 @@ def analyze_gaps(
                 "coverage_pct": 0.85,
                 "mapped_fields": [],
                 "missing_optional_fields": [],
+                "ready_with_assumptions": True,
+                "can_proceed_without": True,
                 "phase": doctype_phase.get(canon, "phase_c_transactional"),
             })
             seen_ready.add(canon)
     except Exception:
         pass
 
-    # ── Unmappable chunks: file portions not matched to anything ─────────────
+    # ── Unmappable chunks ────────────────────────────────────────────────────
     unmappable_chunks: List[Dict] = []
 
     for fname, meta in file_meta.items():
-        # Check if this file scored meaningfully for ANY known doctype
         max_any_score = 0.0
         if meta["is_structured"] and meta["columns"]:
             for doctype in kb_doctypes:
                 score, _, _ = _score_columns_vs_doctype(meta["columns"], doctype, field_mappings_kb)
-                try:
-                    from containers.implementation.mapping_agent.corpus_merge import filename_prior_scores
-                    from containers.implementation.is_common.doctype_resolver import resolve_doctype
-
-                    score += float(filename_prior_scores(fname).get(resolve_doctype(doctype), 0.0) or 0.0)
-                except Exception:
-                    pass
+                score += _filename_prior_boost(fname, doctype)
                 if score > max_any_score:
                     max_any_score = score
         else:
@@ -326,9 +595,12 @@ def analyze_gaps(
                 "max_score_vs_any_doctype": round(max_any_score, 3),
             })
 
-    # ── Summary ───────────────────────────────────────────────────────────────
-    total = len(required_doctypes)
+    # ── Summary (MVP seed denominator) ───────────────────────────────────────
+    total = len(scope_doctypes)
     n_ready = len(ready_doctypes)
+    n_assumption_ready = sum(1 for r in ready_doctypes if r.get("ready_with_assumptions"))
+    blocking_partial = [p for p in partial_doctypes if not p.get("can_proceed_without")]
+    blocking_missing = [m for m in missing_doctypes if not m.get("can_proceed_without")]
     raw_score = round(n_ready / max(total, 1), 3)
 
     return {
@@ -337,11 +609,20 @@ def analyze_gaps(
         "missing_doctypes": missing_doctypes,
         "unmappable_chunks": unmappable_chunks,
         "corpus_understanding": corpus_understanding,
+        "assumptions": [
+            {"doctype": r["doctype"], "fields": r.get("assumed_fields", [])}
+            for r in ready_doctypes
+            if r.get("assumed_fields")
+        ],
         "summary": {
             "total_required": total,
+            "mvp_scoped": mvp_scoped,
             "n_ready": n_ready,
+            "n_assumption_ready": n_assumption_ready,
             "n_partial": len(partial_doctypes),
+            "n_blocking_partial": len(blocking_partial),
             "n_missing": len(missing_doctypes),
+            "n_blocking_missing": len(blocking_missing),
             "n_unmappable_files": len(unmappable_chunks),
             "raw_readiness_score": raw_score,
             "files_scanned": len(file_meta),

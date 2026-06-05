@@ -508,14 +508,19 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                     )
                 )
             if not critical_msg and critical_gaps:
+                upload_required = [
+                    g for g in critical_gaps
+                    if not g.get("can_proceed_without") and not g.get("ready_with_assumptions")
+                ]
                 critical_doctype_names = ", ".join(
-                    g.get("doctype", "") for g in critical_gaps if g.get("doctype")
+                    g.get("doctype", "") for g in upload_required if g.get("doctype")
                 )
-                critical_msg = (
-                    f"We couldn't find data for: {critical_doctype_names}. "
-                    "These are required by ERPNext and cannot be skipped — the import will fail without them. "
-                    "Please upload files containing this data before we continue."
-                )
+                if critical_doctype_names:
+                    critical_msg = (
+                        f"We couldn't find data for: {critical_doctype_names}. "
+                        "These are required by ERPNext and cannot be skipped — the import will fail without them. "
+                        "Please upload files containing this data before we continue."
+                    )
 
             if not important_msg and important_gaps:
                 important_doctype_names = ", ".join(

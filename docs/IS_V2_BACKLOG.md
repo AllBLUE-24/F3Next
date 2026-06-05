@@ -58,7 +58,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 5 | **ERP knowledge (static + live)** | Schema, child tables, links, lifecycle, phases, deps | ~40% | P3 SchemaResolver v1; validation_rules |
 | 6 | **Industry & company context** | F3iche + pgvector RAG + profile | ~80% Steps 6–8 | Step 8 corpus-aware seeds, mvp_boundary.json, action reconcile *(2026-06-05)* |
 | 7 | **Mapping & merge** | Column→field, party split, dedupe, defaults | Strong for GS | P0 done; P3 unified merge |
-| 8 | **Gap analysis & supervisor** | Target vs actual diff; auto_fix; ask_user for data gaps only | ~50% | P1 supervisor contract; post-mapping readiness |
+| 8 | **Gap analysis & supervisor** | MVP seed scope; party-split; default-aware assumptions; supervisor soft messaging | ~65% | P1 post-mapping readiness recheck |
 | 9 | **Validation & trust gate** | pass / partial / fail; block bad import | Validate + sidebar aligned on Validate route | Tier 7c for full ValidationReport |
 | 10 | **Phased import & verify** | Order, link resolution, idempotency, submit policy | ~70% | lifecycle.py; import idempotency shipped |
 
@@ -104,6 +104,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [ ] **Extend supervisor on validate** — enable `IS_SUPERVISOR_ENABLED=1`; feed quality report; ask targeted questions (“PR rows from `active_projects` — did you mean Project?”).
 - [ ] **Supervisor scope expansion** — empty values and cross-file sanity (today: missing field *keys* + WO enum auto-fix only).
 - [x] **Supervisor contract** — `ask_user` only for user-resolvable data gaps; cross-file + empty value paths. *(2026-06-04 — `supervisor_agent/contract.py`)*
+- [x] **Step 8c MVP-scoped readiness** — scan `seed_doctypes` not full graph; party-split Role→Customer/Supplier; corpus-positive signals; `field_policy` default-aware assumptions; R2 target load for seeds/deferred; Green Surface `3rd_run` golden tests. *(2026-06-05 — L3–L4 pillar 8, class A)*
 
 ---
 

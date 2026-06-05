@@ -70,6 +70,20 @@ def _get_s3():
 
 # ── DB loaders ────────────────────────────────────────────────────────────────
 
+def _download_r2_json(r2_key: str) -> Dict[str, Any]:
+    """Load a JSON artifact from R2 (clean-data bucket)."""
+    if not r2_key:
+        return {}
+    try:
+        s3 = _get_s3()
+        resp = s3.get_object(Bucket="clean-data", Key=r2_key)
+        data = json.loads(resp["Body"].read().decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not load R2 JSON %s: %s", r2_key, e)
+        return {}
+
+
 async def _load_target_structure(session_id: str) -> Dict[str, Any]:
     try:
         async with AsyncSessionLocal() as db:
@@ -91,11 +105,18 @@ async def _load_target_structure(session_id: str) -> Dict[str, Any]:
             phases = row.import_phases
             if isinstance(phases, str):
                 phases = json.loads(phases)
-            return {
+            result = {
                 "required_doctypes": required or [],
                 "setup_steps": steps or [],
                 "import_phases": phases or {},
+                "seed_doctypes": [],
+                "deferred_doctypes": [],
             }
+            if row.r2_path:
+                r2_data = _download_r2_json(row.r2_path)
+                result["seed_doctypes"] = r2_data.get("seed_doctypes") or []
+                result["deferred_doctypes"] = r2_data.get("deferred_doctypes") or []
+            return result
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not load target structure: %s", e)
         return {}
@@ -177,22 +198,48 @@ def _criticality_from_phase(phase: Optional[str]) -> str:
     return "optional"
 
 
+def _is_blocking_gap(gap: Dict[str, Any]) -> bool:
+    """True when a gap should block minimum_viable_import_possible."""
+    if gap.get("can_proceed_without"):
+        return False
+    if gap.get("ready_with_assumptions") or gap.get("assumption_only"):
+        return False
+    must_ask = gap.get("must_ask_fields") or []
+    if gap.get("assumed_fields") and not must_ask:
+        return False
+    return _criticality_from_phase(gap.get("phase")) == "critical"
+
+
 def _has_critical_gaps(gaps: List[Dict[str, Any]]) -> bool:
-    return any(_criticality_from_phase(g.get("phase")) == "critical" for g in gaps)
+    return any(_is_blocking_gap(g) for g in gaps)
 
 
 def _gap_from_deterministic_partial(p: Dict[str, Any]) -> "DoctypeGap":
     from containers.implementation.data_readiness_agent.models import DoctypeGap
+    can_proceed = bool(p.get("can_proceed_without"))
+    if not can_proceed:
+        can_proceed = _criticality_from_phase(p.get("phase")) != "critical"
+    assumed = p.get("assumed_fields") or []
+    must_ask = p.get("must_ask_fields") or []
+    if assumed and not must_ask:
+        can_proceed = True
+    reason = (
+        f"Partial data coverage ({round(float(p.get('coverage_pct', 0)) * 100)}%) "
+        f"from {p.get('source_file', 'uploaded file')}."
+    )
+    if assumed and can_proceed:
+        fields = ", ".join(a.get("field", "") for a in assumed if a.get("field"))
+        reason = (
+            f"Data found in {p.get('source_file', 'uploaded file')}; "
+            f"defaults will be applied for: {fields}."
+        )
     return DoctypeGap(
         doctype=p.get("doctype", ""),
         criticality=_criticality_from_phase(p.get("phase")),
-        reason=(
-            f"Partial data coverage ({round(float(p.get('coverage_pct', 0)) * 100)}%) "
-            f"from {p.get('source_file', 'uploaded file')}."
-        ),
+        reason=reason,
         missing_fields=p.get("missing_required_fields") or p.get("missing_fields") or [],
-        recommendation="Review mapped fields before import.",
-        can_proceed_without=_criticality_from_phase(p.get("phase")) != "critical",
+        recommendation="Review mapped fields before import." if must_ask else "Proceed — defaults will be applied at mapping.",
+        can_proceed_without=can_proceed,
     )
 
 
@@ -323,9 +370,16 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     # 1. Load target structure
     target_structure = await _load_target_structure(inp.session_id)
     required_doctypes = target_structure.get("required_doctypes", [])
-    activity.logger.info("  Target structure: %d required doctypes", len(required_doctypes))
+    seed_doctypes = target_structure.get("seed_doctypes") or []
+    scope_doctypes = seed_doctypes or required_doctypes
+    activity.logger.info(
+        "  Target structure: %d required, %d seed (scope=%d)",
+        len(required_doctypes),
+        len(seed_doctypes),
+        len(scope_doctypes),
+    )
 
-    if not required_doctypes:
+    if not scope_doctypes:
         activity.logger.warning("  ⚠️ No required_doctypes in target structure — skipping assessment")
         empty = DataReadinessAssessment(
             minimum_viable_import_possible=True,
@@ -401,7 +455,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
 
         live_erp_overlay = await assess_live_erp_masters(
             inp.project_id,
-            required_doctypes,
+            scope_doctypes,
             ready_doctypes=pre_analysis.get("ready_doctypes", []),
             partial_doctypes=pre_analysis.get("partial_doctypes", []),
             log=activity.logger,
@@ -439,9 +493,11 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 "import_phases": target_structure.get("import_phases", {}),
             }, indent=2),
             pre_analysis=json.dumps({
+                "ready_doctypes": pre_analysis.get("ready_doctypes", []),
                 "partial_doctypes": pre_analysis.get("partial_doctypes", []),
                 "missing_doctypes": pre_analysis.get("missing_doctypes", []),
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
+                "assumptions": pre_analysis.get("assumptions", []),
                 "summary": summary,
             }, indent=2),
         )
@@ -588,8 +644,8 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             for u in pre_analysis.get("unmappable_chunks", [])
         ]
         raw_score = summary.get("raw_readiness_score", 1.0)
-        critical_missing = [m for m in missing_list if m.criticality == "critical"]
-        critical_partial = [p for p in partial_list if p.criticality == "critical"]
+        critical_missing = [m for m in missing_list if m.criticality == "critical" and not m.can_proceed_without]
+        critical_partial = [p for p in partial_list if p.criticality == "critical" and not p.can_proceed_without]
         assessment = DataReadinessAssessment(
             ready_doctypes=ready_list,
             partial_doctypes=partial_list,

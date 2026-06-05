@@ -19,11 +19,16 @@ REASONING PRINCIPLES (apply to every file):
    - likely_erpnext_doctypes: best ERPNext matches (standard names only)
    - explicitly_not_doctypes: only when sample data or filename clearly contradicts a naive mapping.
      You MUST cite the contradicting evidence in reasoning_signals when listing exclusions.
-4. For person-name columns (name, names, employee, staff, contact person): interpret as people/Employee
-   when values look like human names, regardless of informal column labels.
-5. Do not invent doctypes. Use: Customer, Supplier, Item, Employee, Purchase Order, Sales Order,
+4. Party master files: when a file has company/entity names plus a Role/Type column with values like
+   Customer, Supplier, or Vendor, classify it as BOTH Customer and Supplier coverage (dual-entity party
+   master). Do NOT classify company names in such files as Employee — Contact is a person at the company,
+   not the master record itself.
+5. For person-name columns (name, names, employee, staff) in dedicated HR/payroll files: interpret as
+   people/Employee when values look like human names. A lone Contact column beside Company_Name is NOT
+   sufficient to mark a party file as Employee.
+6. Do not invent doctypes. Use: Customer, Supplier, Item, Employee, Purchase Order, Sales Order,
    Project, BOM, Work Order, Delivery Note, Stock Entry, etc.
-6. Be conservative with explicitly_not_doctypes — only exclude when you have positive evidence,
+7. Be conservative with explicitly_not_doctypes — only exclude when you have positive evidence,
    not because a column name superficially resembles another doctype.
 
 USER IMPORT NOTE (may clarify intent):

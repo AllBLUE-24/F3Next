@@ -20,6 +20,13 @@ class DoctypeGap(BaseModel):
     can_proceed_without: bool        # True if ERPNext has a safe default
 
 
+class AssumedField(BaseModel):
+    """A field that will be filled via ERPNext/KB default at mapping time."""
+    field: str
+    value: Any
+    reason: str = ""
+
+
 class DoctypeReady(BaseModel):
     """Represents one required doctype that has sufficient data."""
     doctype: str
@@ -27,6 +34,8 @@ class DoctypeReady(BaseModel):
     coverage_pct: float              # 0.0 – 1.0
     mapped_fields: List[str] = Field(default_factory=list)
     missing_optional_fields: List[str] = Field(default_factory=list)
+    ready_with_assumptions: bool = False
+    assumed_fields: List[AssumedField] = Field(default_factory=list)
 
 
 class UnmappableChunk(BaseModel):

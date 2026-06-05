@@ -47,6 +47,36 @@
       "weight": 0.6
     },
     {
+      "keyword": "partners",
+      "doctype": "Customer",
+      "weight": 0.8
+    },
+    {
+      "keyword": "messy_partners",
+      "doctype": "Customer",
+      "weight": 1.0
+    },
+    {
+      "keyword": "client_orders",
+      "doctype": "Sales Order",
+      "weight": 1.2
+    },
+    {
+      "keyword": "client orders",
+      "doctype": "Sales Order",
+      "weight": 1.5
+    },
+    {
+      "keyword": "purchase_orders",
+      "doctype": "Purchase Order",
+      "weight": 1.5
+    },
+    {
+      "keyword": "raw_purchase_orders",
+      "doctype": "Purchase Order",
+      "weight": 2.0
+    },
+    {
       "keyword": "supplier",
       "doctype": "Supplier",
       "weight": 1.0
