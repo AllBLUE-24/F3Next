@@ -129,6 +129,10 @@ _ROLE_COL_NAMES = frozenset({"role", "party type", "party_type", "type", "entity
 _CUSTOMER_ROLES = frozenset({"customer", "client", "buyer"})
 _SUPPLIER_ROLES = frozenset({"supplier", "vendor", "seller"})
 _ITEM_STUB_COLUMNS = frozenset({"product", "item", "item code", "item_code", "sku", "material", "fg item"})
+_TRANSACTIONAL_ORDER_RE = re.compile(
+    r"client[_\s-]?order|sales[_\s-]?order|purchase[_\s-]?order|raw[_\s-]?purchase|[_\s-]order",
+    re.I,
+)
 
 
 def _resolve_scope_doctypes(target_structure: Dict[str, Any]) -> Tuple[List[str], bool]:
@@ -224,6 +228,24 @@ def _build_item_stub_evidence(file_meta: Dict[str, Dict]) -> Dict[str, Any]:
             }
             break
     return best
+
+
+def _is_transactional_order_file(fname: str) -> bool:
+    return bool(_TRANSACTIONAL_ORDER_RE.search(str(fname or "")))
+
+
+def _inject_party_scope(
+    scope_doctypes: List[str],
+    party_evidence: Dict[str, Dict[str, Any]],
+) -> List[str]:
+    """Ensure Customer/Supplier are assessed when party-split file exists."""
+    scope = list(scope_doctypes)
+    scope_set = set(scope)
+    for dt in party_evidence:
+        if dt not in scope_set:
+            scope.append(dt)
+            scope_set.add(dt)
+    return scope
 
 
 def _filename_prior_boost(fname: str, doctype: str) -> float:
@@ -331,6 +353,7 @@ def analyze_gaps(
         }
 
     party_evidence = _build_party_split_evidence(files, file_meta)
+    scope_doctypes = _inject_party_scope(scope_doctypes, party_evidence)
     item_stub = _build_item_stub_evidence(file_meta)
     corpus_hits = _corpus_doctype_hits(corpus_understanding)
 
@@ -486,7 +509,11 @@ def analyze_gaps(
             })
         elif policy["can_proceed_without"] and best_file:
             matched_file_doctype_pairs.add((best_file, doctype))
-            ready_doctypes.append({
+            embedded_project = (
+                doctype == "Project"
+                and _is_transactional_order_file(best_file)
+            )
+            ready_entry: Dict[str, Any] = {
                 "doctype": doctype,
                 "source_file": best_file,
                 "coverage_pct": round(max(best_score, 0.5 if policy["ready_with_assumptions"] else best_score), 3),
@@ -494,11 +521,17 @@ def analyze_gaps(
                 "missing_optional_fields": best_missing if not policy["assumption_only"] else [],
                 "assumed_fields": policy["assumed_fields"],
                 "must_ask_fields": policy["must_ask_fields"],
-                "ready_with_assumptions": policy["ready_with_assumptions"],
+                "ready_with_assumptions": policy["ready_with_assumptions"] or embedded_project,
                 "can_proceed_without": True,
-                "assumption_only": policy["assumption_only"],
+                "assumption_only": policy["assumption_only"] or embedded_project,
                 "phase": phase,
-            })
+            }
+            if embedded_project:
+                ready_entry["evidence_type"] = "embedded_in_transactional"
+                ready_entry["coverage_note"] = (
+                    "Project names found in order file; no dedicated project master uploaded"
+                )
+            ready_doctypes.append(ready_entry)
         elif best_score >= _READY_THRESHOLD and best_file:
             matched_file_doctype_pairs.add((best_file, doctype))
             ready_doctypes.append({

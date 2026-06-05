@@ -11,6 +11,13 @@ _MANUFACTURING_SEEDS = frozenset({
     "Quality Inspection Template",
 })
 
+# Deferred when LLM/f3iche suggests them but no file or corpus signal exists.
+_OPTIONAL_WITHOUT_FILE_EVIDENCE = frozenset({
+    "Item Variant", "Quotation", "Delivery Note", "Task", "Timesheet",
+})
+
+_PARTY_SEEDS = frozenset({"Customer", "Supplier"})
+
 # Filename/corpus keyword hints when likely_erpnext_doctypes is empty.
 _FILE_HINTS: List[Tuple[re.Pattern, List[str]]] = [
     (re.compile(r"purchase.?order|raw.?purchase|po[_\s-]", re.I), ["Purchase Order", "Supplier", "Item"]),
@@ -124,6 +131,53 @@ def defer_without_evidence(
         active.append(dt)
 
     return active, deferred
+
+
+def refine_mvp_seeds(
+    seeds: List[str],
+    corpus_seeds: List[str],
+    file_evidence: List[Dict[str, Any]],
+    deferred: Optional[List[str]] = None,
+) -> Tuple[List[str], List[str]]:
+    """
+    Post-filter MVP seeds:
+      - Inject Customer/Supplier when party file evidence exists
+      - Defer optional doctypes (Item Variant, Quotation, etc.) without corpus/file signal
+    """
+    corpus_set = set(corpus_seeds)
+    evidence_seeds: Set[str] = set()
+    has_party_file = False
+
+    for entry in file_evidence or []:
+        suggested = entry.get("suggested_seeds") or []
+        evidence_seeds.update(suggested)
+        if _PARTY_SEEDS & set(suggested):
+            has_party_file = True
+        fname = str(entry.get("file") or entry.get("filename") or "").lower()
+        if not has_party_file and any(
+            re.search(p, fname) for p in (r"partner", r"parties", r"vendor", r"customer")
+        ):
+            has_party_file = True
+            evidence_seeds.update(_PARTY_SEEDS)
+
+    active: List[str] = []
+    extra_deferred: List[str] = list(deferred or [])
+
+    for dt in seeds:
+        if dt in _OPTIONAL_WITHOUT_FILE_EVIDENCE:
+            if dt not in corpus_set and dt not in evidence_seeds:
+                extra_deferred.append(dt)
+                continue
+        active.append(dt)
+
+    if has_party_file:
+        for dt in ("Customer", "Supplier"):
+            if dt not in active:
+                active.insert(0, dt)
+                if dt in extra_deferred:
+                    extra_deferred.remove(dt)
+
+    return active, extra_deferred
 
 
 def reconcile_setup_step_actions(

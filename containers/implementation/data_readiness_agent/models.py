@@ -36,6 +36,8 @@ class DoctypeReady(BaseModel):
     missing_optional_fields: List[str] = Field(default_factory=list)
     ready_with_assumptions: bool = False
     assumed_fields: List[AssumedField] = Field(default_factory=list)
+    evidence_type: Optional[str] = None
+    coverage_note: Optional[str] = None
 
 
 class UnmappableChunk(BaseModel):

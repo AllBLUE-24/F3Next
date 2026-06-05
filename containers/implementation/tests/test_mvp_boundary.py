@@ -6,6 +6,7 @@ from containers.implementation.target_agent.mvp_boundary import (
     defer_without_evidence,
     merge_seed_sources,
     reconcile_setup_step_actions,
+    refine_mvp_seeds,
     seeds_from_corpus,
 )
 
@@ -58,6 +59,33 @@ def test_defer_manufacturing_without_evidence():
 def test_merge_seed_sources_preserves_order():
     merged = merge_seed_sources(["Item"], ["Purchase Order", "Item"], ["Customer"])
     assert merged == ["Item", "Purchase Order", "Customer"]
+
+
+def test_refine_mvp_seeds_injects_party_masters():
+    seeds = ["Project", "Item", "Sales Order", "Purchase Order", "Stock Entry"]
+    evidence = [
+        {
+            "file": "messy_partners.csv",
+            "suggested_seeds": ["Customer", "Supplier"],
+        }
+    ]
+    active, deferred = refine_mvp_seeds(seeds, [], evidence, [])
+    assert "Customer" in active
+    assert "Supplier" in active
+
+
+def test_refine_mvp_seeds_defers_optional_without_evidence():
+    seeds = [
+        "Project", "Item", "Stock Entry", "Purchase Order", "Sales Order",
+        "Item Variant", "Quotation", "Delivery Note", "Task", "Timesheet",
+    ]
+    active, deferred = refine_mvp_seeds(seeds, ["Project", "Item"], [], [])
+    assert "Item Variant" in deferred
+    assert "Quotation" in deferred
+    assert "Delivery Note" in deferred
+    assert "Task" in deferred
+    assert "Timesheet" in deferred
+    assert "Stock Entry" in active
 
 
 def test_reconcile_work_order_requires_bom():

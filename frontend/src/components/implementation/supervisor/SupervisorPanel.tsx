@@ -79,8 +79,17 @@ type DataReadinessGap = {
   can_proceed_without?: boolean;
 };
 
+type DataReadinessReady = {
+  doctype: string;
+  source_file?: string;
+  coverage_pct?: number;
+  ready_with_assumptions?: boolean;
+  evidence_type?: string;
+  coverage_note?: string;
+};
+
 type DataReadinessReport = {
-  ready_doctypes?: unknown[];
+  ready_doctypes?: DataReadinessReady[];
   partial_doctypes?: DataReadinessGap[];
   missing_doctypes?: DataReadinessGap[];
   unmappable_chunks?: Array<{ filename?: string; description?: string; reason?: string }>;
@@ -216,6 +225,57 @@ function TierBadge({ tier }: { tier: ActionTier }) {
     );
   }
   return null;
+}
+
+function ReadyList({ items }: { items: DataReadinessReady[] }) {
+  const [open, setOpen] = useState(true);
+  if (!items.length) return null;
+
+  return (
+    <div className="rounded-lg border border-emerald-500/15 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.02] transition-colors text-left"
+      >
+        <span className="text-[11px] font-semibold text-emerald-300/90">
+          Covered in upload{" "}
+          <span className="text-zinc-500 font-normal">({items.length})</span>
+        </span>
+        {open ? (
+          <ChevronUp className="w-3 h-3 text-zinc-600" />
+        ) : (
+          <ChevronDown className="w-3 h-3 text-zinc-600" />
+        )}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-2">
+          {items.map((item) => (
+            <div key={item.doctype} className="flex items-start gap-2">
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-emerald-400" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-zinc-200">
+                  {item.doctype}
+                  {item.ready_with_assumptions && (
+                    <span className="ml-1.5 text-[10px] font-normal text-amber-400/80">
+                      (defaults)
+                    </span>
+                  )}
+                </p>
+                {item.source_file && (
+                  <p className="text-[10px] text-zinc-500 mt-0.5">from {item.source_file}</p>
+                )}
+                {item.coverage_note && (
+                  <p className="text-[10px] text-zinc-500 leading-relaxed mt-0.5">
+                    {item.coverage_note}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function GapList({
@@ -807,6 +867,11 @@ export function SupervisorPanel() {
                 <p className="text-[11px] text-zinc-400 leading-relaxed">
                   {readiness.executive_summary}
                 </p>
+              )}
+
+              {/* Ready doctypes — show what IS covered */}
+              {Array.isArray(readiness.ready_doctypes) && readiness.ready_doctypes.length > 0 && (
+                <ReadyList items={readiness.ready_doctypes as DataReadinessReady[]} />
               )}
 
               {/* Gap details — collapsed by default when prompts also shown */}

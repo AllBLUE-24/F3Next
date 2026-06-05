@@ -193,9 +193,66 @@ def _criticality_from_phase(phase: Optional[str]) -> str:
     phase_l = (phase or "").lower()
     if phase_l.startswith("phase_a") or phase_l.startswith("phase_b"):
         return "critical"
-    if phase_l.startswith("phase_c"):
+    if phase_l.startswith("phase_c") or phase_l.startswith("phase_d"):
         return "non_critical"
     return "optional"
+
+
+def _tag_bottleneck_gaps(
+    pre_analysis: Dict[str, Any],
+    mvp_focus: Optional[Dict[str, Any]],
+) -> None:
+    """Flag gaps that matter for the stated MVP bottleneck (e.g. Stock Entry for material tracking)."""
+    bottleneck = str((mvp_focus or {}).get("primary_bottleneck") or "").lower()
+    if not bottleneck:
+        return
+    material_keywords = ("material", "inventory", "stock", "consumption", "tracking")
+    if not any(kw in bottleneck for kw in material_keywords):
+        return
+    for bucket in ("missing_doctypes", "partial_doctypes"):
+        for entry in pre_analysis.get(bucket) or []:
+            if entry.get("doctype") == "Stock Entry":
+                entry["bottleneck_relevant"] = True
+                entry["can_proceed_without"] = True
+                entry.setdefault(
+                    "coverage_note",
+                    "No stock movement file yet — import can proceed; add Stock Entry data for live consumption tracking",
+                )
+
+
+def _upload_readiness_report_r2(
+    company_slug: str,
+    project_id: str,
+    *,
+    pre_analysis: Dict[str, Any],
+    assessment_dict: Dict[str, Any],
+    target_structure: Dict[str, Any],
+    mvp_focus: Optional[Dict[str, Any]],
+) -> str:
+    """Persist full readiness artifact to R2 for harness/debug."""
+    key = f"{company_slug}/{project_id}/_readiness/data_readiness_report.json"
+    payload = {
+        "pre_analysis": pre_analysis,
+        "assessment": assessment_dict,
+        "target_scope": {
+            "seed_doctypes": target_structure.get("seed_doctypes") or [],
+            "deferred_doctypes": target_structure.get("deferred_doctypes") or [],
+        },
+        "mvp_focus": mvp_focus,
+    }
+    try:
+        s3 = _get_s3()
+        s3.put_object(
+            Bucket="clean-data",
+            Key=key,
+            Body=json.dumps(payload, indent=2, default=str).encode("utf-8"),
+            ContentType="application/json",
+        )
+        activity.logger.info("  ✅ R2 uploaded: clean-data/%s", key)
+        return key
+    except Exception as e:
+        activity.logger.warning("  ⚠️ R2 readiness report upload failed: %s", e)
+        return ""
 
 
 def _is_blocking_gap(gap: Dict[str, Any]) -> bool:
@@ -245,13 +302,22 @@ def _gap_from_deterministic_partial(p: Dict[str, Any]) -> "DoctypeGap":
 
 def _gap_from_deterministic_missing(m: Dict[str, Any]) -> "DoctypeGap":
     from containers.implementation.data_readiness_agent.models import DoctypeGap
+    can_proceed = bool(m.get("can_proceed_without"))
+    if not can_proceed:
+        can_proceed = _criticality_from_phase(m.get("phase")) != "critical"
+    reason = m.get("coverage_note") or "No uploaded file covers this doctype."
+    recommendation = (
+        "Continue import — add this data later for full bottleneck coverage."
+        if m.get("bottleneck_relevant") and can_proceed
+        else "Upload a file containing this data, or use ERPNext defaults."
+    )
     return DoctypeGap(
         doctype=m.get("doctype", ""),
         criticality=_criticality_from_phase(m.get("phase")),
-        reason="No uploaded file covers this doctype.",
+        reason=reason,
         missing_fields=m.get("missing_required_fields") or m.get("missing_fields") or [],
-        recommendation="Upload a file containing this data, or use ERPNext defaults.",
-        can_proceed_without=_criticality_from_phase(m.get("phase")) != "critical",
+        recommendation=recommendation,
+        can_proceed_without=can_proceed,
     )
 
 
@@ -438,6 +504,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
         target_structure=target_structure,
         field_mappings_kb=kb,
     )
+    _tag_bottleneck_gaps(pre_analysis, mvp_focus)
     summary = pre_analysis.get("summary", {})
     activity.logger.info(
         "  Gap scan: ready=%d partial=%d missing=%d unmappable=%d score=%.0f%%",
@@ -680,6 +747,16 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     # 6. Persist to Supabase
     await _persist_assessment(inp.session_id, assessment)
 
+    assessment_dict = assessment.model_dump()
+    readiness_r2_key = _upload_readiness_report_r2(
+        inp.company_slug,
+        inp.project_id,
+        pre_analysis=pre_analysis,
+        assessment_dict=assessment_dict,
+        target_structure=target_structure,
+        mvp_focus=mvp_focus,
+    )
+
     # 7. Audit log
     try:
         from containers.implementation.file_io.persist_audit import log_audit
@@ -703,14 +780,14 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
 
     activity.logger.info("✅ assess_data_readiness done")
 
-    assessment_dict = assessment.model_dump()
+    primary = {"assessment": assessment_dict, "readiness_r2_key": readiness_r2_key}
 
     if assessment.minimum_viable_import_possible:
-        return NodeStatusEnvelope.success(primary_result={"assessment": assessment_dict})
+        return NodeStatusEnvelope.success(primary_result=primary)
 
     # Not viable → return partial so Supervisor + workflow gate can act
     return NodeStatusEnvelope.partial(
-        primary_result={"assessment": assessment_dict},
+        primary_result=primary,
         warnings=[
             {
                 "code": "MINIMUM_VIABLE_NOT_MET",

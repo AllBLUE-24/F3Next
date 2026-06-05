@@ -105,6 +105,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [ ] **Supervisor scope expansion** — empty values and cross-file sanity (today: missing field *keys* + WO enum auto-fix only).
 - [x] **Supervisor contract** — `ask_user` only for user-resolvable data gaps; cross-file + empty value paths. *(2026-06-04 — `supervisor_agent/contract.py`)*
 - [x] **Step 8c MVP-scoped readiness** — scan `seed_doctypes` not full graph; party-split Role→Customer/Supplier; corpus-positive signals; `field_policy` default-aware assumptions; R2 target load for seeds/deferred; Green Surface `3rd_run` golden tests. *(2026-06-05 — L3–L4 pillar 8, class A)*
+- [x] **Step 8c readiness report R2 + seed refine** — `data_readiness_report.json` in R2; `refine_mvp_seeds` injects Customer/Supplier, defers Item Variant/Quotation/Delivery Note/Task/Timesheet without file evidence; phase_d→Important; embedded Project note; Ready list in supervisor UI. *(2026-06-05 — L3–L4 pillar 8, class A)*
 
 ---
 

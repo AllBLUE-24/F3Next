@@ -103,8 +103,13 @@ E. Set "user_action_required":
 
 F. Write "executive_summary" (≤3 sentences):
    - State the import readiness score as a percentage.
-   - Name the most critical missing item (if any) and WHY it matters (the dependency).
-   - State what the user must do next to unblock the import.
+   - Name the highest-priority gap (if any) and WHY it matters — use "important" tier
+     language for phase_c/phase_d gaps, not "critical", unless criticality is critical.
+   - If ready_doctypes includes entries with ready_with_assumptions or evidence_type
+     "embedded_in_transactional", mention what IS covered (e.g. Project names in orders).
+   - For bottleneck_relevant gaps (e.g. Stock Entry for material tracking): say import
+     CAN proceed with PO/SO/Project data; Stock Entry is needed later for live consumption.
+   - State what the user must do next to unblock OR whether they can continue now.
 
 G. Set "import_readiness_score":
    - (number of ready_doctypes) / (total required doctypes)

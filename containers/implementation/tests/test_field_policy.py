@@ -1,6 +1,10 @@
-"""Tests for default-aware field policy."""
+"""Tests for default-aware field policy and readiness helpers."""
 from __future__ import annotations
 
+from containers.implementation.data_readiness_agent.activities import (
+    _criticality_from_phase,
+    _tag_bottleneck_gaps,
+)
 from containers.implementation.data_readiness_agent.field_policy import (
     classify_missing_fields,
     identity_satisfied,
@@ -37,3 +41,21 @@ def test_party_row_count_satisfies_identity():
         columns=["Company_Name", "Role"],
         party_row_count=2,
     )
+
+
+def test_phase_d_projects_is_non_critical():
+    assert _criticality_from_phase("phase_d_projects") == "non_critical"
+
+
+def test_bottleneck_tags_stock_entry_gap():
+    pre = {
+        "missing_doctypes": [{"doctype": "Stock Entry", "phase": "phase_c_transactional"}],
+        "partial_doctypes": [],
+    }
+    _tag_bottleneck_gaps(
+        pre,
+        {"primary_bottleneck": "Lack of real-time tracking for material consumption against projects."},
+    )
+    entry = pre["missing_doctypes"][0]
+    assert entry.get("bottleneck_relevant") is True
+    assert entry.get("can_proceed_without") is True

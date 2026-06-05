@@ -26,38 +26,25 @@ THIRD_RUN_FILES = {
     ),
 }
 
-MVP_SEEDS = [
-    "Customer",
-    "Supplier",
-    "Item",
+# Mirrors production mvp_boundary.json seed_doctypes_chosen (pre-refine)
+ACTUAL_MVP_SEEDS = [
     "Project",
-    "Sales Order",
+    "Item",
+    "Stock Entry",
     "Purchase Order",
+    "Sales Order",
+    "Item Variant",
+    "Task",
+    "Timesheet",
+    "Quotation",
+    "Delivery Note",
 ]
 
-DEFERRED = ["BOM", "Work Order", "Employee"]
+DEFERRED = ["Batch", "BOM", "Work Order", "Job Card"]
 
 
-def _target_structure():
+def _corpus():
     return {
-        "seed_doctypes": MVP_SEEDS,
-        "deferred_doctypes": DEFERRED,
-        "required_doctypes": MVP_SEEDS + ["Company", "Warehouse", "UOM"],
-        "setup_steps": [
-            {"doctype": dt, "phase": "phase_b_master", "action": "must_create"}
-            for dt in ("Customer", "Supplier", "Item")
-        ]
-        + [
-            {"doctype": dt, "phase": "phase_c_transactional", "action": "must_create"}
-            for dt in ("Project", "Sales Order", "Purchase Order")
-        ],
-        "import_phases": {},
-    }
-
-
-def _analyze():
-    manifest = build_manifest_v2(THIRD_RUN_FILES, created_at="2026-06-05T00:00:00Z")
-    manifest["corpus_understanding"] = {
         "corpus_summary": "Party master, client orders, purchase orders",
         "files": [
             {
@@ -75,36 +62,66 @@ def _analyze():
             },
         ],
     }
-    return analyze_gaps(manifest, _target_structure(), _kb_field_mappings())
 
 
-def test_mvp_scope_uses_seed_doctypes_not_full_graph():
-    result = _analyze()
-    summary = result["summary"]
-    assert summary["mvp_scoped"] is True
-    assert summary["total_required"] == len(MVP_SEEDS)
+def _target_structure(seeds=None):
+    seeds = seeds or ACTUAL_MVP_SEEDS
+    return {
+        "seed_doctypes": seeds,
+        "deferred_doctypes": DEFERRED,
+        "required_doctypes": seeds + ["Company", "Warehouse", "UOM"],
+        "setup_steps": [
+            {"doctype": "Project", "phase": "phase_d_projects", "action": "must_create"},
+            {"doctype": "Item", "phase": "phase_b_master", "action": "must_create"},
+            {"doctype": "Stock Entry", "phase": "phase_c_transactional", "action": "must_create"},
+            {"doctype": "Purchase Order", "phase": "phase_c_transactional", "action": "must_create"},
+            {"doctype": "Sales Order", "phase": "phase_c_transactional", "action": "must_create"},
+            {"doctype": "Task", "phase": "phase_d_projects", "action": "must_create"},
+            {"doctype": "Timesheet", "phase": "phase_d_projects", "action": "must_create"},
+            {"doctype": "Item Variant", "phase": "phase_b_master", "action": "must_create"},
+            {"doctype": "Quotation", "phase": "phase_c_transactional", "action": "must_create"},
+            {"doctype": "Delivery Note", "phase": "phase_c_transactional", "action": "must_create"},
+        ],
+        "import_phases": {},
+    }
 
 
-def test_party_split_covers_customer_and_supplier():
+def _analyze(seeds=None):
+    manifest = build_manifest_v2(THIRD_RUN_FILES, created_at="2026-06-05T00:00:00Z")
+    manifest["corpus_understanding"] = _corpus()
+    return analyze_gaps(manifest, _target_structure(seeds), _kb_field_mappings())
+
+
+def test_party_masters_injected_when_missing_from_seeds():
+    """Legacy target structures without Customer/Supplier still get party coverage."""
     result = _analyze()
     ready = {r["doctype"]: r for r in result["ready_doctypes"]}
-    missing = [m["doctype"] for m in result["missing_doctypes"]]
-
     assert "Customer" in ready
     assert "Supplier" in ready
-    assert "Customer" not in missing
-    assert "Supplier" not in missing
-    assert ready["Customer"].get("ready_with_assumptions") is True
-    assert ready["Customer"]["source_file"] == "messy_partners.csv"
-    assert ready["Supplier"]["source_file"] == "messy_partners.csv"
 
 
-def test_item_stub_from_transactional_files():
+def test_project_ready_with_embedded_transactional_note():
+    result = _analyze()
+    ready = {r["doctype"]: r for r in result["ready_doctypes"]}
+    assert "Project" in ready
+    project = ready["Project"]
+    assert project.get("evidence_type") == "embedded_in_transactional"
+    assert project.get("ready_with_assumptions") is True
+    assert project.get("source_file") == "client_orders.csv"
+
+
+def test_core_transactional_doctypes_ready():
     result = _analyze()
     ready = {r["doctype"]: r for r in result["ready_doctypes"]}
     assert "Item" in ready
-    assert ready["Item"].get("ready_with_assumptions") is True
-    assert ready["Item"]["source_file"] in ("client_orders.csv", "raw_purchase_orders.csv")
+    assert "Purchase Order" in ready
+    assert "Sales Order" in ready
+
+
+def test_stock_entry_missing_from_upload():
+    result = _analyze()
+    missing = [m["doctype"] for m in result["missing_doctypes"]]
+    assert "Stock Entry" in missing
 
 
 def test_deferred_doctypes_not_scanned():
@@ -118,15 +135,9 @@ def test_deferred_doctypes_not_scanned():
         assert deferred not in all_doctypes
 
 
-def test_assumptions_emitted_for_defaultable_fields():
-    result = _analyze()
-    assumptions = result.get("assumptions") or []
-    doctypes_with_assumptions = {a["doctype"] for a in assumptions}
-    assert "Customer" in doctypes_with_assumptions or "Supplier" in doctypes_with_assumptions
-
-
-def test_no_blocking_gaps_for_mvp_masters():
+def test_readiness_score_reflects_covered_seeds():
     result = _analyze()
     summary = result["summary"]
-    assert summary["n_blocking_missing"] == 0
+    assert summary["mvp_scoped"] is True
+    assert summary["n_ready"] >= 6
     assert summary["raw_readiness_score"] >= 0.5

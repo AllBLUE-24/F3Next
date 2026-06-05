@@ -596,6 +596,11 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
     seed_doctypes, deferred_doctypes = defer_without_evidence(
         seeds_before_filter, corpus_seeds, file_evidence,
     )
+    from containers.implementation.target_agent.mvp_boundary import refine_mvp_seeds
+
+    seed_doctypes, deferred_doctypes = refine_mvp_seeds(
+        seed_doctypes, corpus_seeds, file_evidence, deferred_doctypes,
+    )
     if deferred_doctypes:
         activity.logger.info("  ⏸️  Deferred without file evidence: %s", deferred_doctypes)
     if not boundary_reasoning:
