@@ -9,56 +9,55 @@ import HeroBackground from '@/components/landing/HeroBackground';
 import { ArrowRight, Shield, Zap, Clock } from 'lucide-react';
 
 export const metadata = {
-  title: "F3Next — Headless Operational Systems for Manufacturers",
-  description: "Stop running your ₹5Cr factory on messy Excel spreadsheets and chaotic WhatsApp chats. Deploys your live ERPNext instance in minutes with zero employee training.",
+  title: "F3Next — The Intelligence Layer for Your Business",
+  description: "Run your business by simply talking to it. F3Next turns messy spreadsheets and daily updates into a live, intelligent ERP — set up, run, and watched over for you. No consultants, no training.",
 };
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-[#09090B] text-white selection:bg-amber-500/20 selection:text-amber-200" style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
+    <main className="min-h-screen bg-[var(--bg-void)] text-white selection:bg-amber-500/20 selection:text-amber-200 font-sans">
       <Header />
 
       {/* ── HERO ── */}
-      <div className="relative pt-32 pb-8 lg:pt-44 lg:pb-16 overflow-hidden">
+      <div className="relative pt-36 pb-8 lg:pt-48 lg:pb-16 overflow-hidden">
         <HeroBackground />
 
         <div className="mx-auto max-w-6xl px-6 lg:px-8 relative z-10">
 
           {/* Pill badge */}
-          <div className="flex justify-center mb-10 fade-in-up">
-            <div className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5 text-[11px] font-medium tracking-wide text-zinc-400 backdrop-blur-sm">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Building for Indian manufacturers
+          <div className="flex justify-center mb-9 fade-in-up">
+            <div className="brand-pill">
+              <span className="live-dot" />
+              The intelligence layer for your business
             </div>
           </div>
 
           {/* Headline */}
           <div className="text-center max-w-4xl mx-auto fade-in-up">
-            <h1
-              className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.035em] leading-[1.08] text-white"
-              style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-            >
-              Stop running your factory on{' '}
-              <span className="text-amber-500">Excel&nbsp;and&nbsp;WhatsApp.</span>
+            <h1 className="font-display text-[2.75rem] leading-[1.05] sm:text-6xl lg:text-[4.75rem] font-bold">
+              <span className="text-sheen">Run your business</span>
+              <br />
+              <span className="text-sheen">by simply </span>
+              <span className="text-amber-500">talking to it.</span>
             </h1>
 
-            <p className="mt-7 text-base sm:text-lg leading-relaxed text-zinc-400 max-w-2xl mx-auto font-normal">
-              F3Next deploys secure database systems for your daily inventory, purchase orders, and dispatches — without hiring consultants or training your staff.
+            <p className="mt-7 text-base sm:text-lg leading-relaxed text-[var(--text-secondary)] max-w-2xl mx-auto font-normal">
+              F3Next turns your messy spreadsheets and daily updates into a live, intelligent ERP — set up, run, and watched over for you. No consultants, no training, no software to learn.
             </p>
 
             {/* Trust signals */}
-            <div className="mt-6 flex justify-center items-center gap-8 text-[12px] text-zinc-500 font-medium">
+            <div className="mt-7 flex flex-wrap justify-center items-center gap-x-8 gap-y-3 text-[12px] text-[var(--text-muted)] font-medium">
               <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-zinc-600" />
-                Deploys in minutes
+                <Clock className="w-3.5 h-3.5 text-amber-500/70" />
+                Live in minutes
               </span>
-              <span className="hidden sm:flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-zinc-600" />
+              <span className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-500/70" />
                 Zero training needed
               </span>
               <span className="flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-zinc-600" />
-                Starts at ₹999/mo
+                <Shield className="w-3.5 h-3.5 text-amber-500/70" />
+                Your data, sandboxed &amp; private
               </span>
             </div>
           </div>
@@ -67,7 +66,7 @@ export default function LandingPage() {
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 fade-in-up">
             <Link
               href="/signup"
-              className="group inline-flex items-center gap-2.5 rounded-xl bg-amber-500 px-7 py-3.5 text-[14px] font-semibold text-black hover:bg-amber-400 transition-all duration-200 shadow-xl shadow-amber-500/15 lift-hover cursor-pointer"
+              className="btn-primary focus-ring group cursor-pointer px-7 py-3.5 text-[14px]"
             >
               Get Started Free
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200 shrink-0" />
@@ -75,7 +74,7 @@ export default function LandingPage() {
 
             <Link
               href="#how-it-works"
-              className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-[14px] font-medium text-zinc-400 border border-white/[0.08] hover:border-white/[0.15] hover:text-white transition-all duration-200 cursor-pointer"
+              className="btn-ghost focus-ring cursor-pointer px-7 py-3.5 text-[14px]"
             >
               See how it works
             </Link>
@@ -94,17 +93,17 @@ export default function LandingPage() {
       <Contact />
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/[0.06] bg-[#09090B]">
+      <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-void)]">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="flex flex-col md:flex-row justify-between items-start gap-12">
 
             {/* Brand */}
             <div className="space-y-3">
-              <span className="text-lg font-semibold text-white tracking-tight" style={{ fontFamily: 'var(--font-outfit), sans-serif' }}>
+              <span className="font-display text-lg font-semibold text-white">
                 F3<span className="text-amber-500">Next</span>
               </span>
               <p className="text-[13px] text-zinc-600 max-w-xs leading-relaxed">
-                Headless operational systems built for Indian manufacturers.
+                The intelligence layer for your business. Built for Indian manufacturers.
               </p>
             </div>
 

@@ -17,15 +17,18 @@ export default function Header() {
   return (
     <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
       scrolled
-        ? 'bg-[#09090B]/90 backdrop-blur-xl border-b border-white/[0.06]'
+        ? 'bg-[var(--bg-void)]/80 backdrop-blur-xl border-b border-[var(--border-subtle)]'
         : 'bg-transparent'
     }`}>
       <nav className="flex items-center justify-between px-6 py-4 lg:px-10 max-w-7xl mx-auto" aria-label="Global">
 
         {/* Logo */}
         <div className="flex lg:flex-1">
-          <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2 group">
-            <span className="text-lg font-semibold text-white tracking-tight" style={{ fontFamily: 'var(--font-outfit), sans-serif' }}>
+          <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2.5 group">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border-default)] bg-white/[0.03] text-amber-500 transition-colors duration-200 group-hover:border-[var(--accent-border)]">
+              <span className="font-display text-[13px] font-bold leading-none">F3</span>
+            </span>
+            <span className="font-display text-lg font-semibold text-white">
               F3<span className="text-amber-500">Next</span>
             </span>
           </Link>
@@ -44,7 +47,7 @@ export default function Header() {
         </div>
 
         {/* Desktop Links */}
-        <div className="hidden lg:flex lg:gap-x-8 items-center">
+        <div className="hidden lg:flex lg:gap-x-9 items-center">
           {[
             { href: '#chaos-to-clarity', label: 'Why F3Next' },
             { href: '#how-it-works', label: 'How it Works' },
@@ -54,7 +57,7 @@ export default function Header() {
             <Link
               key={item.href}
               href={item.href}
-              className="text-[13px] font-medium text-zinc-500 hover:text-white transition-colors duration-200"
+              className="text-[13px] font-medium text-[var(--text-muted)] hover:text-white transition-colors duration-200"
             >
               {item.label}
             </Link>
@@ -63,7 +66,7 @@ export default function Header() {
 
         {/* Desktop CTAs */}
         <div className="hidden lg:flex lg:flex-1 lg:justify-end gap-5 items-center">
-          <Link href="/login" className="text-[13px] font-medium text-zinc-500 hover:text-white transition-colors duration-200">
+          <Link href="/login" className="text-[13px] font-medium text-[var(--text-muted)] hover:text-white transition-colors duration-200">
             Sign in
           </Link>
           <Link
@@ -79,10 +82,10 @@ export default function Header() {
       {mobileMenuOpen && (
         <div className="lg:hidden" role="dialog" aria-modal="true">
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-[#09090B] border-l border-white/[0.06] px-6 py-6 sm:max-w-sm">
+          <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-[var(--bg-void)] border-l border-[var(--border-subtle)] px-6 py-6 sm:max-w-sm">
             <div className="flex items-center justify-between">
               <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
-                <span className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-outfit), sans-serif' }}>
+                <span className="font-display text-lg font-semibold text-white">
                   F3<span className="text-amber-500">Next</span>
                 </span>
               </Link>

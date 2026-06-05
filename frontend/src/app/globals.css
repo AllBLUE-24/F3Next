@@ -1,62 +1,79 @@
 @import "tailwindcss";
 
-/* ─── F3Next Design System ─── Dark, minimal, pitch-ready ─── */
+/* ─────────────────────────────────────────────────────────────
+   F3Next Design System
+   The operating intelligence of your business.
+   Calm · precise · premium. One accent, layered ink, soft light.
+   ───────────────────────────────────────────────────────────── */
 
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg-void: #09090B;
-  --bg-shell: #0c0c0f;
-  --bg-float: #111114;
-  --bg-card: #151519;
-  --bg-elevated: #1a1a1f;
+  /* ── Ink surfaces — layered, faint warmth so it reads crafted not OLED-flat ── */
+  --bg-void: #09090b;        /* page base */
+  --bg-shell: #0d0d11;       /* rails, chrome */
+  --bg-float: #131318;       /* floating panels */
+  --bg-card: #17171d;        /* cards */
+  --bg-elevated: #1e1e25;    /* hover / popovers */
+  --bg-overlay: rgba(7, 7, 10, 0.72);
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.1);
+  /* ── Hairlines ── */
+  --border-subtle: rgba(255, 255, 255, 0.055);
+  --border-default: rgba(255, 255, 255, 0.10);
   --border-strong: rgba(255, 255, 255, 0.16);
+  --border-accent: rgba(245, 158, 11, 0.32);
 
-  /* Text */
-  --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
+  /* ── Text ── */
+  --text-primary: #fafafa;
+  --text-secondary: #a8a8b3;
+  --text-muted: #71717a;
+  --text-faint: #4d4d57;
 
-  /* Accent */
+  /* ── Accent — amber, the single hero color (signal: live / action / AI) ── */
   --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-strong: #d97706;
   --accent-soft: rgba(245, 158, 11, 0.12);
-  --accent-border: rgba(245, 158, 11, 0.3);
+  --accent-faint: rgba(245, 158, 11, 0.06);
+  --accent-border: rgba(245, 158, 11, 0.32);
+  --accent-glow: rgba(245, 158, 11, 0.22);
 
-  /* Feedback */
-  --success: #22c55e;
-  --error: #ef4444;
-  --info: #3b82f6;
+  /* ── Feedback (used sparingly) ── */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --info: #60a5fa;
 
-  /* Shadows */
-  --shadow-depth: 0 4px 24px -12px rgb(0 0 0 / 0.7);
-  --shadow-lift: 0 12px 32px -20px rgb(255 255 255 / 0.06),
-    0 12px 32px -18px rgb(0 0 0 / 0.8);
+  /* ── Shadows — soft, deep, with a top inner-light edge for material ── */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-depth: 0 8px 30px -14px rgb(0 0 0 / 0.7);
+  --shadow-lift: inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 24px 48px -28px rgb(0 0 0 / 0.85);
+  --shadow-accent: 0 10px 34px -10px var(--accent-glow);
 
-  /* Shape */
+  /* ── Shape ── */
+  --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
+  --radius-2xl: 28px;
 
-  /* Layout */
-  --header-height: 56px;
-  --sidebar-width: 224px;
+  /* ── Layout ── */
+  --header-height: 64px;
+  --sidebar-width: 240px;
 
-  /* Grid */
-  --grid-color: rgb(255 255 255 / 0.03);
-  --grid-size: 40px;
+  /* ── Grid ── */
+  --grid-color: rgb(255 255 255 / 0.025);
+  --grid-size: 44px;
 
-  /* Gradients */
-  --gradient-card-start: #0f1218;
-  --gradient-card-end: #0a0c10;
+  /* ── Gradients ── */
+  --gradient-card-start: #15151b;
+  --gradient-card-end: #0b0b0e;
 
-  /* Nav */
-  --nav-font: 0.72rem;
+  /* ── Typography ── */
+  --nav-font: 0.7rem;
+  --font-display: var(--font-outfit), "Outfit", -apple-system, sans-serif;
 }
 
 @theme inline {
@@ -64,6 +81,7 @@
   --color-foreground: var(--text-primary);
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, "Inter", sans-serif;
+  --font-display: var(--font-outfit), "Outfit", sans-serif;
   --font-mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
@@ -309,3 +327,146 @@ body {
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Premium primitives — shared brand layer (landing · auth · app)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Display type — confident, tight headings */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.035em;
+  font-feature-settings: "ss01", "ss02";
+}
+
+/* Eyebrow / kicker label above headings */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Headline gradient — soft top-down sheen, premium feel */
+.text-sheen {
+  background: linear-gradient(180deg, #ffffff 0%, #d4d4d8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.text-accent { color: var(--accent); }
+
+/* Hairline top edge — material light catch */
+.edge-top {
+  position: relative;
+}
+.edge-top::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.12), transparent);
+}
+
+/* Ambient radial spotlight (hero / brand panels) */
+.spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 50% 0%, var(--accent-faint), transparent 70%),
+    radial-gradient(40% 40% at 80% 10%, rgb(255 255 255 / 0.03), transparent 60%);
+}
+
+/* Fine dotted texture for depth without noise */
+.dot-grid {
+  background-image: radial-gradient(var(--border-subtle) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #1a1205;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.75rem 1.5rem;
+  box-shadow: var(--shadow-accent);
+  transition: background-color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s ease;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+.btn-primary:active { transform: translateY(0); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.75rem 1.5rem;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+.btn-ghost:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: rgb(255 255 255 / 0.02);
+}
+
+/* Focus ring — accessible + on-brand */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-void), 0 0 0 4px var(--accent-border);
+}
+
+/* Pill badge */
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgb(255 255 255 / 0.03);
+  backdrop-filter: blur(8px);
+  padding: 0.375rem 0.875rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+/* Live dot */
+.live-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 var(--accent-glow);
+  animation: livePulse 2.4s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); opacity: 1; }
+  50% { box-shadow: 0 0 0 6px transparent; opacity: 0.7; }
+}
+
+/* Slow-drifting ambient glow */
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -3%) scale(1.05); }
+}
+.animate-drift { animation: drift 18s ease-in-out infinite; }

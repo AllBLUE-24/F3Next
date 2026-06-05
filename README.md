@@ -1,9 +1,11 @@
 # F3Next — AI-Powered ERP Implementation & Operations
 
 > **Automate ERP implementation and operations.** Replace months of consulting and lakhs of cost with minutes of AI-driven setup — no employee training needed.
+>
+> *the brain of your company - new identity of f3next*
 
-[![Live](https://img.shields.io/badge/Live-f3next.in-amber)](https://f3next.in)
-[![GitHub](https://img.shields.io/github/stars/AllBLUE-24/F3Next?style=social)](https://github.com/AllBLUE-24/F3Next)
+[Live](https://f3next.in)
+[GitHub](https://github.com/AllBLUE-24/F3Next)
 
 ---
 
@@ -11,10 +13,10 @@
 
 Traditional ERP implementation is broken — **6 months, ₹5+ lakhs, 70% failure rate**. F3Next replaces this entire pipeline with AI:
 
-1. **AI Consultant** — Recommends the right ERP based on 5–7 smart questions  
-2. **Automated Deployment** — Cloud ERP instance deployed in minutes, not months  
-3. **Intelligent Data Migration** — Upload any format; AI maps, validates, and migrates  
-4. **Prompt-to-Action Operations** — Run your ERP by typing plain English commands  
+1. **AI Consultant** — Recommends the right ERP based on 5–7 smart questions
+2. **Automated Deployment** — Cloud ERP instance deployed in minutes, not months
+3. **Intelligent Data Migration** — Upload any format; AI maps, validates, and migrates
+4. **Prompt-to-Action Operations** — Run your ERP by typing plain English commands
 
 **Zero consultants. Zero training. Fraction of the cost.**
 
@@ -22,15 +24,17 @@ Traditional ERP implementation is broken — **6 months, ₹5+ lakhs, 70% failur
 
 ## 🏗️ Architecture
 
-| Layer | Technology | Environment |
-|-------|-----------|-------------|
-| **Frontend** | Next.js 15 (React) | Vercel |
-| **Backend API** | FastAPI (Python) | Render |
-| **Containers** | Discovery, Implementation, OS, Health Check, Knowledge Base, ERPNext agents | DigitalOcean Droplet |
-| **Workflow Engine** | Temporal (Server + Workers) | DigitalOcean Droplet |
-| **Database** | PostgreSQL | Supabase |
-| **Auth** | Supabase Auth (Email + Google OAuth) | Supabase |
-| **File Storage** | Cloudflare R2 / AWS S3 | Cloud |
+
+| Layer               | Technology                                                                  | Environment          |
+| ------------------- | --------------------------------------------------------------------------- | -------------------- |
+| **Frontend**        | Next.js 15 (React)                                                          | Vercel               |
+| **Backend API**     | FastAPI (Python)                                                            | Render               |
+| **Containers**      | Discovery, Implementation, OS, Health Check, Knowledge Base, ERPNext agents | DigitalOcean Droplet |
+| **Workflow Engine** | Temporal (Server + Workers)                                                 | DigitalOcean Droplet |
+| **Database**        | PostgreSQL                                                                  | Supabase             |
+| **Auth**            | Supabase Auth (Email + Google OAuth)                                        | Supabase             |
+| **File Storage**    | Cloudflare R2 / AWS S3                                                      | Cloud                |
+
 
 ---
 
@@ -89,14 +93,16 @@ docker compose up --build
 
 The project is fully environment-driven. All service URLs are configured via `.env` files — **no hardcoded URLs**.
 
-| Variable | Description | Local | Production |
-|----------|-------------|-------|------------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8000` | `https://your-backend.onrender.com` |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | — | `https://xxx.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | — | `eyJ...` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://...@localhost` | Supabase pooler URL |
-| `TEMPORAL_HOST` | Temporal server address | `localhost:7233` | `<droplet-ip>:7233` |
-| `ALLOWED_ORIGINS` | Extra CORS origins (comma-separated) | — | Custom domains |
+
+| Variable                        | Description                          | Local                                | Production                          |
+| ------------------------------- | ------------------------------------ | ------------------------------------ | ----------------------------------- |
+| `NEXT_PUBLIC_API_URL`           | Backend API URL                      | `http://localhost:8000`              | `https://your-backend.onrender.com` |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                 | —                                    | `https://xxx.supabase.co`           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key                    | —                                    | `eyJ...`                            |
+| `DATABASE_URL`                  | PostgreSQL connection string         | `postgresql+asyncpg://...@localhost` | Supabase pooler URL                 |
+| `TEMPORAL_HOST`                 | Temporal server address              | `localhost:7233`                     | `<droplet-ip>:7233`                 |
+| `ALLOWED_ORIGINS`               | Extra CORS origins (comma-separated) | —                                    | Custom domains                      |
+
 
 See `.env.example` and `frontend/.env.example` for the full list.
 
@@ -135,7 +141,7 @@ F3Next/
 ## 🤝 Contact
 
 - **Phone / WhatsApp**: +91 93709 83966  
-- **Email**: parth.kulkarni2412@gmail.com  
+- **Email**: [parth.kulkarni2412@gmail.com](mailto:parth.kulkarni2412@gmail.com)  
 - **LinkedIn**: [Parth Kulkarni](https://www.linkedin.com/in/parth-kulkarni-f3/)  
 - **Website**: [f3next.in](https://f3next.in)
 
