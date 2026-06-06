@@ -39,6 +39,15 @@ def test_validate_partial_on_low_confidence():
     assert any(w["code"] == "LOW_CONFIDENCE" for w in warnings)
 
 
+def test_detect_corpus_overclaims_warning():
+    from containers.implementation.file_io.corpus_validation import detect_corpus_overclaims
+
+    warnings = detect_corpus_overclaims({
+        "overclaims": [{"filename": "a.csv", "doctype": "Task", "reason": "no evidence"}],
+    })
+    assert warnings[0]["code"] == "CORPUS_OVERCLAIM"
+
+
 def test_validate_partial_on_exclusion_without_evidence():
     understanding = CorpusUnderstanding(
         corpus_summary="Orders",

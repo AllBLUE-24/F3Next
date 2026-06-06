@@ -555,6 +555,21 @@ def analyze_gaps(
         if not best_file and corpus_files:
             cf = corpus_files[0]
             meta = file_meta.get(cf) or {}
+            col_score, _, _ = _score_columns_vs_doctype(
+                meta.get("columns") or [], doctype, field_mappings_kb,
+            )
+            col_score += _filename_prior_boost(cf, doctype)
+            if col_score < _CANDIDATE_THRESHOLD:
+                partial_doctypes.append({
+                    "doctype": doctype,
+                    "source_file": cf,
+                    "coverage_pct": round(col_score, 3),
+                    "missing_required_fields": [],
+                    "evidence_type": "corpus_overclaim",
+                    "can_proceed_without": False,
+                    "phase": phase,
+                })
+                continue
             policy = _apply_field_policy(
                 doctype,
                 matched=[],
@@ -799,11 +814,37 @@ def analyze_gaps(
     )
     raw_score = round(n_dry_run_ready / max(total, 1), 3)
 
+    ready_pairs = {
+        (r.get("source_file"), r.get("doctype"))
+        for r in ready_doctypes
+        if r.get("source_file") and r.get("doctype")
+    }
+    from containers.implementation.data_readiness_agent.file_doctype_matrix import (
+        assess_file_doctype_matrix,
+    )
+
+    file_doctype_matrix = assess_file_doctype_matrix(
+        files=files,
+        file_meta=file_meta,
+        scope_doctypes=scope_doctypes,
+        field_mappings_kb=field_mappings_kb,
+        corpus_understanding=corpus_understanding,
+        party_evidence=party_evidence,
+        corpus_hits=corpus_hits,
+        ready_pairs=ready_pairs,
+        f3iche_id=f3iche_id,
+        score_columns_fn=_score_columns_vs_doctype,
+        keyword_score_fn=_keyword_score_text,
+        filename_boost_fn=_filename_prior_boost,
+    )
+
     return {
         "ready_doctypes": ready_doctypes,
         "partial_doctypes": partial_doctypes,
         "missing_doctypes": missing_doctypes,
         "unmappable_chunks": unmappable_chunks,
+        "file_doctype_matrix": file_doctype_matrix,
+        "corpus_overclaims": file_doctype_matrix.get("overclaims") or [],
         "corpus_understanding": corpus_understanding,
         "assumptions": [
             {"doctype": r["doctype"], "fields": r.get("assumed_fields", [])}
@@ -825,5 +866,7 @@ def analyze_gaps(
             "n_unmappable_files": len(unmappable_chunks),
             "raw_readiness_score": raw_score,
             "files_scanned": len(file_meta),
+            "corpus_overclaims": len(file_doctype_matrix.get("overclaims") or []),
+            "matrix_pairs": file_doctype_matrix.get("summary", {}).get("pairs_assessed", 0),
         },
     }

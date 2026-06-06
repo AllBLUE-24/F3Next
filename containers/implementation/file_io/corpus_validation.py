@@ -58,6 +58,43 @@ def validate_corpus_understanding(
     return "ok", warnings
 
 
+def detect_corpus_overclaims(
+    matrix: Dict[str, Any],
+) -> List[Dict[str, str]]:
+    """
+    Flag corpus likely_erpnext_doctypes entries with no file column evidence.
+
+    Expects output from assess_file_doctype_matrix (rows + overclaims).
+    """
+    warnings: List[Dict[str, str]] = []
+    for item in matrix.get("overclaims") or []:
+        if not isinstance(item, dict):
+            continue
+        warnings.append({
+            "code": "CORPUS_OVERCLAIM",
+            "message": item.get("reason") or (
+                f"{item.get('filename')}: corpus claimed {item.get('doctype')} without evidence"
+            ),
+            "filename": str(item.get("filename") or ""),
+            "doctype": str(item.get("doctype") or ""),
+        })
+    return warnings
+
+
+def validate_corpus_with_matrix(
+    understanding: CorpusUnderstanding,
+    expected_filenames: List[str],
+    matrix: Dict[str, Any],
+) -> Tuple[str, List[Dict[str, str]]]:
+    """Combine standard corpus validation with matrix-derived overclaim warnings."""
+    status, warnings = validate_corpus_understanding(understanding, expected_filenames)
+    overclaim_warnings = detect_corpus_overclaims(matrix)
+    warnings = list(warnings) + overclaim_warnings
+    if overclaim_warnings and status == "ok":
+        status = "partial"
+    return status, warnings
+
+
 def merge_missing_file_entries(
     understanding: CorpusUnderstanding,
     expected_filenames: List[str],

@@ -581,7 +581,13 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
                 "assumptions": pre_analysis.get("assumptions", []),
                 "summary": summary,
+                "corpus_overclaims": pre_analysis.get("corpus_overclaims", []),
             }, indent=2),
+            file_doctype_matrix=json.dumps(
+                pre_analysis.get("file_doctype_matrix") or {},
+                indent=2,
+                default=str,
+            ),
         )
 
         llm_raw = await generate_typed(
@@ -626,6 +632,8 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             "missing_doctypes": pre_analysis.get("missing_doctypes", []),
             "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
             "complete_gaps": live_erp_overlay.get("complete_gaps", []),
+            "file_doctype_matrix": pre_analysis.get("file_doctype_matrix"),
+            "corpus_overclaims": pre_analysis.get("corpus_overclaims") or [],
             "gap_items": merge_gap_item_dicts(
                 readiness_gap_items,
                 live_erp_overlay.get("complete_gaps") or [],

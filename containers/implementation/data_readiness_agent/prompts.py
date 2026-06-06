@@ -137,6 +137,11 @@ TARGET STRUCTURE (required doctypes by phase):
 PRE-ANALYSIS (deterministic file scan):
 {pre_analysis}
 
+FILE×DOCTYPE MATRIX (authoritative — use instead of re-inferring coverage):
+Each row: filename, doctype, in_mvp_scope, corpus_claims, evidenced, field_provable, ready, corpus_overclaim.
+Trust field_provable and ready flags. If corpus_overclaim is true, do NOT mark that doctype ready.
+{file_doctype_matrix}
+
 ─── OUTPUT ────────────────────────────────────────────────────────────────────
 
 Return ONLY the JSON object matching the DataReadinessAssessment schema.
