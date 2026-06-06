@@ -115,6 +115,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Phase 4 corpus×MVP matrix** — `file_doctype_matrix.py` explicit `(file, doctype)` flags; `corpus_overclaim` hardening in `corpus_validation.py`; matrix in Step 8c gap report + LLM prompt; golden tests. *(2026-06-05 — L2–L3 pillars 1–8, class A)*
 - [x] **Phase 5 SchemaResolver + transparency** — `schema_resolver.py` injects heuristic `child_fields` in dry-run; `synonym_promotion.py` KB checklist; real `mapping_method` on persist; validate UI classification badges. *(2026-06-05 — L3–L5 pillars 3–5, class A+B)*
 - [x] **LER greenfield target_doctype + gap attribution** — `resolve_link_target_doctype`; transactional SO/PO refs defer New Age / Unknown Supplier; LER hits tagged with source doctype; supervisor `complete_gaps` NameError fix; Green Surface `3rd_run` LER tests. *(2026-06-05 — L3 pillar 7, class A)*
+- [x] **P1 party stubs + Contact scope + validate UX** — `transactional_party_stubs` enriches Customer/Supplier from SO/PO refs; `link_scope_policy` skips Contact link without Contact in scope; supervisor `ask_user` for blocking LER; AnalyzeView manual continue (no redirect loop). *(2026-06-05 — L3–L5 pillars 7–8, class A)*
 
 ---
 

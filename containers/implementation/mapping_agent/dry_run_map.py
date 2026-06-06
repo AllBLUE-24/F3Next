@@ -47,9 +47,14 @@ def _map_columns_deterministic(
     kb: Dict[str, Any],
     *,
     sample_row: Optional[Dict[str, Any]] = None,
+    scoped_doctypes: Optional[set[str]] = None,
 ) -> Dict[str, str]:
     tier1 = engine.map_columns(columns, doctype, sample_row=sample_row)
-    return kb_fuzzy_map_columns(columns, doctype, kb, already_mapped=tier1)
+    merged = kb_fuzzy_map_columns(columns, doctype, kb, already_mapped=tier1)
+    from containers.implementation.is_common.link_scope_policy import filter_field_mapping
+
+    filtered, _ = filter_field_mapping(merged, doctype, kb, scoped_doctypes=scoped_doctypes)
+    return filtered
 
 
 def _apply_field_mapping(

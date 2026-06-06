@@ -563,6 +563,39 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         except Exception as e:
             activity.logger.error("  ❌ Failed to load payload for %s: %s", doctype, e)
 
+    slug = inp.company_slug or "unknown"
+
+    # ── 2.4 Transactional party stubs (SO/PO refs → Customer/Supplier masters) ──
+    try:
+        from containers.implementation.is_common.transactional_party_stubs import (
+            derive_transactional_party_masters,
+        )
+
+        mapped_data, stub_audit = derive_transactional_party_masters(mapped_data)
+        for entry in stub_audit:
+            master_dt = entry.get("master_doctype")
+            if not master_dt:
+                continue
+            r2_key = (aggregated.get(master_dt) or {}).get("r2_path")
+            if not r2_key:
+                r2_key = f"{slug}/{inp.project_id}/mappings/mapped_payloads/{master_dt}.json"
+            payload = mapped_data.get(master_dt)
+            if isinstance(payload, dict):
+                s3.put_object(
+                    Bucket="clean-data",
+                    Key=r2_key,
+                    Body=json.dumps(payload, indent=2, default=str).encode("utf-8"),
+                    ContentType="application/json",
+                )
+                activity.logger.info(
+                    "  ➕ Transactional party stubs: %s +%d (%s)",
+                    master_dt,
+                    entry.get("stubs_added"),
+                    ", ".join(entry.get("names") or []),
+                )
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Transactional party stub enrichment failed: %s", e)
+
     # ── 2.5 LER — resolve link fields against live ERP (same path as import Pass 2.5)
     r2_keys_by_doctype = {
         dt: (aggregated.get(dt) or {}).get("r2_path", "")
@@ -616,7 +649,6 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
     activity.logger.info("  Validation result: %s | %d errors, %d warnings", v_status, n_errors, n_warnings)
 
     # ── 4. Upload validation report to R2 ────────────────────────────────────
-    slug = inp.company_slug or "unknown"
     report_key = f"{slug}/{inp.project_id}/_validation/report.json"
     try:
         s3.put_object(
@@ -762,6 +794,7 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         "doctypes_checked": len(report.get("checks", []) or []),
         "checks": report.get("checks", []) or [],
         "source_file_conflicts": source_file_conflicts,
+        "ler_gaps": report.get("ler_gaps") or [],
     }
 
     if v_status == "fail" or errors:

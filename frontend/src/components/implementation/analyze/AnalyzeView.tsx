@@ -348,8 +348,10 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   // FIX: Added `?? []` so it never tries to run .filter() on undefined!
   const tasks    = devTasks ?? live.tasks ?? [];
   const profile  = live.profile;
-  const isDone   = devTasks ? false : (live.isComplete || live.stage === 'awaiting_validation_submission');
   const stage    = live.stage;
+  const pipelineReady = !devTasks && stage === 'awaiting_validation_submission';
+  const isDone   = devTasks ? false : live.isComplete;
+  const showComplete = isDone || pipelineReady;
 
   const f3icheProposal = live.f3icheConfirmation;
 
@@ -369,14 +371,6 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   const doneTasks  = tasks.filter((t) => t.status === 'done').length;
   const totalTasks = tasks.filter((t) => t.status !== 'idle').length || 1;
   const pct        = Math.round((doneTasks / totalTasks) * 100);
-
-  // Auto-advance only in real mode when analysis is fully complete
-  useEffect(() => {
-    if (!devTasks && isDone) {
-      const t = setTimeout(() => router.push(`${validateHref}?jobId=${jobId}`), 1800);
-      return () => clearTimeout(t);
-    }
-  }, [devTasks, isDone, router, validateHref, jobId]);
 
   const submitF3icheConfirmation = useCallback(async (accepted: boolean) => {
     if (confirming) return;
@@ -410,11 +404,11 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-2">Step 02 of 04</p>
         <h1 className="text-3xl font-black text-white mb-3">
-          {isDone ? 'Analysis complete.' : 'Analyzing your data.'}
+          {showComplete ? 'Analysis complete.' : 'Analyzing your data.'}
         </h1>
         <p className="text-gray-500 text-base leading-relaxed">
-          {isDone
-            ? 'We\'ve built your company profile. Review it in the next step.'
+          {showComplete
+            ? 'We\'ve built your company profile. Continue to validation when you\'re ready.'
             : stage === 'awaiting_f3iche_confirmation'
               ? 'We\'ve identified your business type. Please confirm to continue.'
               : 'Our agent is reading your files, mapping your data, and building your company profile.'}
@@ -428,10 +422,10 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
 
       {/* Brain canvas */}
       <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0D0D14]">
-        <BrainVisualizer isActive={!isDone && stage !== 'awaiting_f3iche_confirmation'} />
+        <BrainVisualizer isActive={!showComplete && stage !== 'awaiting_f3iche_confirmation'} />
         <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {isDone ? (
+            {showComplete ? (
               <CheckCircle className="w-4 h-4 text-green-400" />
             ) : (stage === 'awaiting_f3iche_confirmation' || stage === 'awaiting_mapping_confirmation') ? (
               <Sparkles className="w-4 h-4 text-amber-400" />
@@ -439,7 +433,7 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
               <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
             )}
             <span className="text-xs font-mono text-gray-500">
-              {isDone ? 'Agent finished' : (stage === 'awaiting_f3iche_confirmation' || stage === 'awaiting_mapping_confirmation') ? 'Waiting for your confirmation' : 'Agent is thinking…'}
+              {showComplete ? 'Agent finished' : (stage === 'awaiting_f3iche_confirmation' || stage === 'awaiting_mapping_confirmation') ? 'Waiting for your confirmation' : 'Agent is thinking…'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -668,12 +662,16 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
         </div>
       )}
 
-      {isDone && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+      {pipelineReady && (
+        <button
+          type="button"
+          onClick={() => router.push(`${validateHref}?jobId=${jobId}`)}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/20 hover:bg-green-500/15 transition-colors text-left"
+        >
           <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-          <p className="text-sm text-green-400">Analysis complete. Taking you to validation…</p>
-          <ArrowRight className="w-4 h-4 text-green-400 ml-auto animate-pulse" />
-        </div>
+          <p className="text-sm text-green-400">Mapping and validation are ready. Review your data before import.</p>
+          <ArrowRight className="w-4 h-4 text-green-400 ml-auto" />
+        </button>
       )}
 
       {stage === 'error' && (

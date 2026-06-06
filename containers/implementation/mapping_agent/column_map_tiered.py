@@ -126,4 +126,13 @@ async def map_columns_tiered(
     audit["missing_required_after"] = [
         f for f in required if f not in set(merged.values())
     ]
+
+    from containers.implementation.is_common.link_scope_policy import filter_field_mapping
+
+    merged, stripped = filter_field_mapping(
+        merged, doctype, kb, scoped_doctypes=set((corpus_hints or {}).get("scoped_doctypes") or []),
+    )
+    if stripped:
+        audit["stripped_link_fields"] = stripped
+
     return merged, audit

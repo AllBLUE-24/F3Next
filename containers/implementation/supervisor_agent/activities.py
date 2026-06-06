@@ -421,6 +421,48 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                 )
             )
 
+        # Blocking LER link misses → ask_user (chat can answer via supervisor_response)
+        ler_gaps = (st.primary_result or {}).get("ler_gaps") if isinstance(st.primary_result, dict) else []
+        ler_blocking = [
+            g for g in (ler_gaps or [])
+            if isinstance(g, dict) and str(g.get("severity", "")).lower() == "blocking"
+        ]
+        if ler_blocking:
+            final_status = "needs_user_input"
+            sample_q = str(ler_blocking[0].get("question") or "")
+            if len(ler_blocking) == 1 and sample_q:
+                ler_question = sample_q
+            else:
+                targets = sorted({
+                    str((g.get("metadata") or {}).get("target_doctype") or g.get("field") or "")
+                    for g in ler_blocking
+                    if (g.get("metadata") or {}).get("target_doctype") or g.get("field")
+                })
+                ler_question = (
+                    "Some link fields could not be resolved on your live ERP site: "
+                    f"{', '.join(targets) or 'master records'}. "
+                    "Upload missing master data, create records in ERPNext, or tell us how to proceed."
+                )
+            actions.append(
+                SupervisorAction(
+                    id="ask_user_ler_blocking_links",
+                    type="ask_user",
+                    scope="validation",
+                    question=ler_question,
+                    options=[
+                        "Upload missing master data",
+                        "Continue with defaults where possible",
+                    ],
+                    metadata={
+                        "tier": "critical",
+                        "gap_class": "user_gap",
+                        "origin": "ler",
+                        "ler_blocking_count": len(ler_blocking),
+                        "sample_gaps": ler_blocking[:5],
+                    },
+                )
+            )
+
     # ══════════════════════════════════════════════════════════════════════════
     # NODE: assess_data_readiness
     # ══════════════════════════════════════════════════════════════════════════
