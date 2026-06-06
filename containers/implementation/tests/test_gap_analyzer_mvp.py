@@ -116,6 +116,15 @@ def test_core_transactional_doctypes_ready():
     assert "Item" in ready
     assert "Purchase Order" in ready
     assert "Sales Order" in ready
+    for dt in ("Purchase Order", "Sales Order", "Customer", "Supplier"):
+        assert ready[dt].get("dry_run_passed") is True, f"{dt} should pass dry-run preflight"
+
+
+def test_dry_run_ready_count_in_summary():
+    result = _analyze()
+    summary = result["summary"]
+    assert summary.get("n_dry_run_ready", 0) >= 6
+    assert summary["n_dry_run_ready"] <= summary["n_ready"]
 
 
 def test_stock_entry_missing_from_upload():

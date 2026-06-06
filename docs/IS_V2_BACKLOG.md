@@ -109,6 +109,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Field-level readiness + tiered column map** — `is_common/required_fields` shared with validate; Step 8c `assess_field_coverage` blocks on graph-required fields; KB exact → LLM → KB fuzzy mapping (`Vendor_Name`→`supplier`, `Target_Date`→`delivery_date`); relative date defaults; mapping preflight; Green Surface `3rd_run` golden tests. *(2026-06-05 — L3–L4 pillars 7–8, class A)*
 - [x] **Party-split mapping + blocking preflight** — `Role` column splits to Customer/Supplier (aligned with 8c); `is_common/field_presence` rejects empty `items[]`; Step 9 preflight blocks persist; validate fails on empty child tables. *(2026-06-05 — L3–L4 pillars 7–8, class A)*
 - [x] **Phase 0 contract hygiene** — `role` in `party_entity_rules.json`; shared `is_common/party_rules`; PO `child_fields`; SO `vol`→qty; KB child_fields audit test; `field_policy` hints derived from KB. *(2026-06-05 — L2–L3 pillars 7–8, class A+B)*
+- [x] **Phase 1 dry-run readiness truth** — `mapping_agent/dry_run_map.py`; Step 8c gates Ready on dry-run preflight; `n_dry_run_ready` score; Green Surface `3rd_run` golden tests. *(2026-06-05 — L3 pillar 8, class A)*
 
 ---
 

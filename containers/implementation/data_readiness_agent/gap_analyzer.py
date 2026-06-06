@@ -22,6 +22,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from containers.implementation.data_readiness_agent.field_policy import (
     assess_field_coverage,
 )
+from containers.implementation.is_common.party_rules import (
+    find_split_column,
+    is_customer_role,
+    is_supplier_role,
+)
 from containers.implementation.is_common.required_fields import get_required_fields
 from containers.implementation.file_io.manifest_utils import (
     corpus_exclusions_by_doctype,
@@ -139,9 +144,6 @@ def _parse_columns_from_content(content: str, filename: str) -> Optional[List[st
 
 # ─── MVP scope + evidence helpers ─────────────────────────────────────────────
 
-_ROLE_COL_NAMES = frozenset({"role", "party type", "party_type", "type", "entity type", "entity_type"})
-_CUSTOMER_ROLES = frozenset({"customer", "client", "buyer"})
-_SUPPLIER_ROLES = frozenset({"supplier", "vendor", "seller"})
 _ITEM_STUB_COLUMNS = frozenset({"product", "item", "item code", "item_code", "sku", "material", "fg item"})
 _TRANSACTIONAL_ORDER_RE = re.compile(
     r"client[_\s-]?order|sales[_\s-]?order|purchase[_\s-]?order|raw[_\s-]?purchase|[_\s-]order",
@@ -174,13 +176,6 @@ def _corpus_doctype_hits(corpus_understanding: Optional[Dict[str, Any]]) -> Dict
     return hits
 
 
-def _find_role_column(columns: List[str]) -> Optional[str]:
-    for col in columns:
-        if _norm_col(col) in _ROLE_COL_NAMES:
-            return col
-    return None
-
-
 def _build_party_split_evidence(
     files: Dict[str, str],
     file_meta: Dict[str, Dict],
@@ -189,7 +184,7 @@ def _build_party_split_evidence(
     evidence: Dict[str, Dict[str, Any]] = {}
     for fname, meta in file_meta.items():
         columns = meta.get("columns") or []
-        role_col = _find_role_column(columns)
+        role_col = find_split_column(columns)
         if not role_col:
             continue
         content = files.get(fname) or ""
@@ -200,10 +195,10 @@ def _build_party_split_evidence(
         except Exception:
             continue
         customer_count = sum(
-            1 for r in rows if _norm(r.get(role_col, "")) in _CUSTOMER_ROLES
+            1 for r in rows if is_customer_role(r.get(role_col, ""))
         )
         supplier_count = sum(
-            1 for r in rows if _norm(r.get(role_col, "")) in _SUPPLIER_ROLES
+            1 for r in rows if is_supplier_role(r.get(role_col, ""))
         )
         if customer_count > 0:
             evidence["Customer"] = {
@@ -283,6 +278,72 @@ def _apply_field_policy(
 ) -> Dict[str, Any]:
     """Classify coverage using graph required_fields (same contract as validate)."""
     return assess_field_coverage(doctype, matched, columns, kb)
+
+
+def _run_dry_run(
+    doctype: str,
+    source_file: str,
+    files: Dict[str, str],
+    kb: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Deterministic map→fold→defaults→preflight for readiness gating."""
+    content = files.get(source_file) or ""
+    if not content:
+        return {
+            "passed": False,
+            "preflight": {
+                "blocking": True,
+                "missing_fields": [],
+                "messages": ["Empty source file"],
+            },
+            "missing_required_after": [],
+            "record_count": 0,
+        }
+    from containers.implementation.mapping_agent.dry_run_map import dry_run_map_file
+
+    return dry_run_map_file(
+        content,
+        doctype,
+        kb=kb,
+        company_context={"company_name": "Session Company"},
+    )
+
+
+def _gate_readiness_entry(
+    entry: Dict[str, Any],
+    *,
+    doctype: str,
+    source_file: Optional[str],
+    files: Dict[str, str],
+    kb: Dict[str, Any],
+    policy_can_proceed: bool,
+    dry_run_exempt: bool = False,
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Apply dry-run gating. Returns ('ready'|'partial', entry_with_dry_run_fields).
+    """
+    out = dict(entry)
+    if dry_run_exempt or not source_file:
+        out["dry_run_passed"] = True
+        out["dry_run_exempt"] = dry_run_exempt
+        return ("ready" if policy_can_proceed else "partial", out)
+
+    dry_run = _run_dry_run(doctype, source_file, files, kb)
+    out["dry_run"] = dry_run
+    out["dry_run_passed"] = bool(dry_run.get("passed"))
+    if policy_can_proceed and out["dry_run_passed"]:
+        return ("ready", out)
+
+    partial = dict(out)
+    partial["dry_run_failed"] = not out["dry_run_passed"]
+    partial["missing_required_fields"] = (
+        dry_run.get("missing_required_after")
+        or out.get("blocking_fields")
+        or partial.get("missing_required_fields")
+        or []
+    )
+    partial["can_proceed_without"] = False
+    return ("partial", partial)
 
 
 # ─── public API ───────────────────────────────────────────────────────────────
@@ -399,14 +460,18 @@ def analyze_gaps(
                 "phase": phase,
                 "evidence_type": "party_split",
             }
-            if policy["can_proceed_without"]:
-                ready_doctypes.append(entry)
+            bucket, gated = _gate_readiness_entry(
+                entry,
+                doctype=doctype,
+                source_file=pe["source_file"],
+                files=files,
+                kb=field_mappings_kb,
+                policy_can_proceed=policy["can_proceed_without"],
+            )
+            if bucket == "ready":
+                ready_doctypes.append(gated)
             else:
-                partial_doctypes.append({
-                    **entry,
-                    "missing_required_fields": policy["blocking_fields"],
-                    "coverage_pct": 0.35,
-                })
+                partial_doctypes.append(gated)
             continue
 
         # Transactional Item stub (Product/Item column in orders/POs)
@@ -437,10 +502,18 @@ def analyze_gaps(
                 "phase": phase,
                 "evidence_type": "transactional_stub",
             }
-            if policy["can_proceed_without"]:
-                ready_doctypes.append(entry)
+            bucket, gated = _gate_readiness_entry(
+                entry,
+                doctype=doctype,
+                source_file=item_stub["source_file"],
+                files=files,
+                kb=field_mappings_kb,
+                policy_can_proceed=policy["can_proceed_without"],
+            )
+            if bucket == "ready":
+                ready_doctypes.append(gated)
             else:
-                partial_doctypes.append({**entry, "missing_required_fields": policy["blocking_fields"]})
+                partial_doctypes.append(gated)
             continue
 
         for fname, meta in file_meta.items():
@@ -484,7 +557,7 @@ def analyze_gaps(
             )
             if policy["can_proceed_without"]:
                 matched_file_doctype_pairs.add((cf, doctype))
-                ready_doctypes.append({
+                corpus_entry = {
                     "doctype": doctype,
                     "source_file": cf,
                     "coverage_pct": 0.6,
@@ -497,7 +570,19 @@ def analyze_gaps(
                     "assumption_only": True,
                     "phase": phase,
                     "evidence_type": "corpus_positive",
-                })
+                }
+                bucket, gated = _gate_readiness_entry(
+                    corpus_entry,
+                    doctype=doctype,
+                    source_file=cf,
+                    files=files,
+                    kb=field_mappings_kb,
+                    policy_can_proceed=True,
+                )
+                if bucket == "ready":
+                    ready_doctypes.append(gated)
+                else:
+                    partial_doctypes.append(gated)
                 continue
 
         policy = _apply_field_policy(
@@ -512,7 +597,7 @@ def analyze_gaps(
             source_file = "System Auto-provisioning" if action == "auto_created_by_erpnext" else "ERPNext Defaults Baseline"
             if best_file:
                 source_file = f"{best_file} / {source_file}"
-            ready_doctypes.append({
+            default_entry = {
                 "doctype": doctype,
                 "source_file": source_file,
                 "coverage_pct": 1.0,
@@ -521,7 +606,17 @@ def analyze_gaps(
                 "assumed_fields": policy["assumed_fields"],
                 "can_proceed_without": True,
                 "phase": phase,
-            })
+            }
+            _, gated = _gate_readiness_entry(
+                default_entry,
+                doctype=doctype,
+                source_file=None,
+                files=files,
+                kb=field_mappings_kb,
+                policy_can_proceed=True,
+                dry_run_exempt=True,
+            )
+            ready_doctypes.append(gated)
         elif policy["can_proceed_without"] and best_file:
             matched_file_doctype_pairs.add((best_file, doctype))
             embedded_project = (
@@ -546,10 +641,21 @@ def analyze_gaps(
                 ready_entry["coverage_note"] = (
                     "Project names found in order file; no dedicated project master uploaded"
                 )
-            ready_doctypes.append(ready_entry)
+            bucket, gated = _gate_readiness_entry(
+                ready_entry,
+                doctype=doctype,
+                source_file=best_file,
+                files=files,
+                kb=field_mappings_kb,
+                policy_can_proceed=True,
+            )
+            if bucket == "ready":
+                ready_doctypes.append(gated)
+            else:
+                partial_doctypes.append(gated)
         elif best_score >= _READY_THRESHOLD and best_file and policy["can_proceed_without"]:
             matched_file_doctype_pairs.add((best_file, doctype))
-            ready_doctypes.append({
+            threshold_entry = {
                 "doctype": doctype,
                 "source_file": best_file,
                 "coverage_pct": round(best_score, 3),
@@ -559,7 +665,19 @@ def analyze_gaps(
                 "blocking_fields": policy["blocking_fields"],
                 "can_proceed_without": True,
                 "phase": phase,
-            })
+            }
+            bucket, gated = _gate_readiness_entry(
+                threshold_entry,
+                doctype=doctype,
+                source_file=best_file,
+                files=files,
+                kb=field_mappings_kb,
+                policy_can_proceed=True,
+            )
+            if bucket == "ready":
+                ready_doctypes.append(gated)
+            else:
+                partial_doctypes.append(gated)
         elif best_score >= _PARTIAL_THRESHOLD and best_file:
             matched_file_doctype_pairs.add((best_file, doctype))
             partial_doctypes.append({
@@ -605,7 +723,7 @@ def analyze_gaps(
                 continue
             if canon not in kb_doctypes:
                 continue
-            ready_doctypes.append({
+            prior_entry = {
                 "doctype": canon,
                 "source_file": fname,
                 "coverage_pct": 0.85,
@@ -614,8 +732,21 @@ def analyze_gaps(
                 "ready_with_assumptions": True,
                 "can_proceed_without": True,
                 "phase": doctype_phase.get(canon, "phase_c_transactional"),
-            })
-            seen_ready.add(canon)
+            }
+            bucket, gated = _gate_readiness_entry(
+                prior_entry,
+                doctype=canon,
+                source_file=fname,
+                files=files,
+                kb=field_mappings_kb,
+                policy_can_proceed=True,
+            )
+            if bucket == "ready":
+                ready_doctypes.append(gated)
+                seen_ready.add(canon)
+            else:
+                partial_doctypes.append(gated)
+                seen_partial.add(canon)
     except Exception:
         pass
 
@@ -648,6 +779,7 @@ def analyze_gaps(
     # ── Summary (MVP seed denominator) ───────────────────────────────────────
     total = len(scope_doctypes)
     n_ready = len(ready_doctypes)
+    n_dry_run_ready = sum(1 for r in ready_doctypes if r.get("dry_run_passed"))
     n_assumption_ready = sum(1 for r in ready_doctypes if r.get("ready_with_assumptions"))
     blocking_partial = [p for p in partial_doctypes if not p.get("can_proceed_without")]
     blocking_missing = [m for m in missing_doctypes if not m.get("can_proceed_without")]
@@ -656,7 +788,7 @@ def analyze_gaps(
         for x in (*ready_doctypes, *partial_doctypes, *missing_doctypes)
         if not x.get("can_proceed_without")
     )
-    raw_score = round(n_ready / max(total, 1), 3)
+    raw_score = round(n_dry_run_ready / max(total, 1), 3)
 
     return {
         "ready_doctypes": ready_doctypes,
@@ -673,6 +805,7 @@ def analyze_gaps(
             "total_required": total,
             "mvp_scoped": mvp_scoped,
             "n_ready": n_ready,
+            "n_dry_run_ready": n_dry_run_ready,
             "n_assumption_ready": n_assumption_ready,
             "n_partial": len(partial_doctypes),
             "n_blocking_partial": len(blocking_partial),

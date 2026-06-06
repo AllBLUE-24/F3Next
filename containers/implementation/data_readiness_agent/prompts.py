@@ -36,10 +36,14 @@ You have been given:
    organized by import phase (Phase A: Config, Phase B: Master, Phase C: Transactional).
 
 2. PRE-ANALYSIS — a deterministic scan of the uploaded files vs. the target structure.
-   This scan used column-name matching, party-split detection, corpus signals, and
-   default-aware field policy. Trust it. Entries with "ready_with_assumptions" or
-   "assumed_fields" mean mapping will apply ERPNext defaults — do NOT flag these as
-   blocking gaps or ask the user to re-upload.
+   This scan used column-name matching, party-split detection, corpus signals,
+   default-aware field policy, and a dry-run mapping preflight (map → fold → defaults
+   → required-field check — same contract as Step 9, without persisting). Trust it.
+   Only entries with "dry_run_passed": true (or "dry_run_exempt": true for system
+   defaults) are truly Ready. Entries with "ready_with_assumptions" or "assumed_fields"
+   mean mapping will apply ERPNext defaults — do NOT flag these as blocking gaps when
+   dry_run_passed is true. If dry_run_failed is true, treat as partial/blocking even
+   when column coverage looked good.
 
 3. COMPANY PROFILE — business type (f3iche), industry, company size.
 
@@ -112,7 +116,8 @@ F. Write "executive_summary" (≤3 sentences):
    - State what the user must do next to unblock OR whether they can continue now.
 
 G. Set "import_readiness_score":
-   - (number of ready_doctypes) / (total required doctypes)
+   - Use summary.n_dry_run_ready / summary.total_required when present
+   - Otherwise (number of ready_doctypes with dry_run_passed) / (total required doctypes)
    - Round to 2 decimal places
 
 H. If the schema includes "gap_report" or "user_decision", preserve the deterministic

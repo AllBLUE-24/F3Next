@@ -44,6 +44,9 @@ def field_present_in_mapped_row(field: str, row: Dict[str, Any]) -> bool:
     if field == "items":
         return _items_populated(row)
 
+    if field == "item_name" and _non_empty(row.get("item_code")):
+        return True
+
     if field in row:
         return _non_empty(row.get(field))
 
