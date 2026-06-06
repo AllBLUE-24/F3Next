@@ -235,7 +235,10 @@ class _ValidationEngine:
     ) -> Dict[str, Any]:
         """Append KB link-missing messages for LER misses (post-rewrite)."""
         from containers.implementation.is_common.gap_report import gap_from_ler_info
-        from containers.implementation.is_common.ler_greenfield import classify_ler_unresolvable
+        from containers.implementation.is_common.ler_greenfield import (
+            classify_ler_unresolvable,
+            resolve_link_target_doctype,
+        )
 
         unres = ler_report.get("unresolvable_values") or []
         if not unres:
@@ -259,7 +262,7 @@ class _ValidationEngine:
             dt = entry.get("doctype") or "Unknown"
             field = entry.get("field") or entry.get("fieldname") or "link"
             value = entry.get("value") or entry.get("raw_value") or ""
-            target = entry.get("link_target") or entry.get("options") or field
+            target = resolve_link_target_doctype(entry)
             disposition, msg = classify_ler_unresolvable(entry, mapped)
 
             check = by_doctype.get(dt)
@@ -300,6 +303,7 @@ class _ValidationEngine:
                     "tier": "critical",
                     "resolution": "ask_user",
                     "link_target": target,
+                    "target_doctype": target,
                     "value": value,
                 },
             })

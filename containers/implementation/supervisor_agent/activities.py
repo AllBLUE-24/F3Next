@@ -441,6 +441,7 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         )
 
         gap_items = collect_gap_items(gap_report=gap_report, assessment=assessment)
+        complete_gaps = list(gap_report.get("complete_gaps") or [])
         critical_gaps, important_gaps, ler_info_gaps = partition_gaps_for_supervisor(
             gap_items,
             missing_doctypes=missing_doctypes,

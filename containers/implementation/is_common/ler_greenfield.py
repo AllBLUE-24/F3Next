@@ -2,9 +2,20 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-_MASTER_DOCTYPES = frozenset({"Customer", "Supplier", "Item", "Company", "Warehouse"})
+_MASTER_DOCTYPES = frozenset({"Customer", "Supplier", "Item", "Company", "Warehouse", "Project"})
+
+# ERP field name (lowercase) → link target doctype
+_FIELD_TO_DOCTYPE: Dict[str, str] = {
+    "customer": "Customer",
+    "supplier": "Supplier",
+    "item_code": "Item",
+    "item": "Item",
+    "company": "Company",
+    "warehouse": "Warehouse",
+    "project": "Project",
+}
 
 _IDENTITY_FIELDS: Dict[str, List[str]] = {
     "Customer": ["customer_name", "customer"],
@@ -12,11 +23,50 @@ _IDENTITY_FIELDS: Dict[str, List[str]] = {
     "Item": ["item_code", "item_name"],
     "Company": ["company_name", "company"],
     "Warehouse": ["warehouse", "warehouse_name"],
+    "Project": ["project_name", "name", "project"],
+}
+
+# Transactional payloads that imply a master will be created from the same upload wave
+_TRANSACTIONAL_REF_FIELDS: Dict[str, List[Tuple[str, str]]] = {
+    "Customer": [("Sales Order", "customer")],
+    "Supplier": [("Purchase Order", "supplier")],
+    "Project": [("Sales Order", "project"), ("Purchase Order", "project")],
+    "Item": [
+        ("Sales Order", "items"),
+        ("Purchase Order", "items"),
+    ],
 }
 
 
 def _norm(s: Any) -> str:
     return re.sub(r"\s+", " ", str(s or "").strip().lower())
+
+
+def resolve_link_target_doctype(entry: Dict[str, Any]) -> str:
+    """
+    Resolve ERP doctype for a LER unresolvable hit.
+
+    LER emits ``target_doctype``; legacy paths used field names (``customer``).
+    """
+    raw = (
+        entry.get("target_doctype")
+        or entry.get("link_target")
+        or entry.get("options")
+        or entry.get("field")
+        or ""
+    )
+    key = str(raw).strip()
+    if not key:
+        return ""
+    if key in _MASTER_DOCTYPES:
+        return key
+    mapped = _FIELD_TO_DOCTYPE.get(key.lower())
+    if mapped:
+        return mapped
+    # Title-case fallback for single-token targets
+    if key.lower() == key and key.isalpha():
+        return key.title()
+    return key
 
 
 def _collect_identity_values(records: List[Dict[str, Any]], fields: List[str]) -> Set[str]:
@@ -31,8 +81,24 @@ def _collect_identity_values(records: List[Dict[str, Any]], fields: List[str]) -
     return values
 
 
+def _item_codes_from_child_table(records: List[Dict[str, Any]]) -> Set[str]:
+    codes: Set[str] = set()
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        items = rec.get("items")
+        if not isinstance(items, list):
+            continue
+        for row in items:
+            if isinstance(row, dict):
+                code = row.get("item_code")
+                if code not in (None, ""):
+                    codes.add(_norm(code))
+    return codes
+
+
 def batch_identity_values(mapped_data: Dict[str, Any], link_target: str) -> Set[str]:
-    """Collect normalized identity values from same-session mapped payloads."""
+    """Collect normalized identity values from same-session mapped master payloads."""
     target = str(link_target or "").strip()
     if not target or target not in _MASTER_DOCTYPES:
         return set()
@@ -42,8 +108,37 @@ def batch_identity_values(mapped_data: Dict[str, Any], link_target: str) -> Set[
     if not isinstance(records, list):
         return set()
 
-    fields = _IDENTITY_FIELDS.get(target, [])
-    return _collect_identity_values(records, fields)
+    values = _collect_identity_values(records, _IDENTITY_FIELDS.get(target, []))
+    if target == "Item":
+        for dt in ("Sales Order", "Purchase Order"):
+            txn = mapped_data.get(dt) or {}
+            txn_records = txn.get("records") or []
+            if isinstance(txn_records, list):
+                values |= _item_codes_from_child_table(txn_records)
+    return values
+
+
+def transactional_reference_values(
+    mapped_data: Dict[str, Any],
+    link_target: str,
+) -> Set[str]:
+    """Values referenced on transactional rows (party/project/item stubs in orders)."""
+    values: Set[str] = set()
+    for src_dt, field in _TRANSACTIONAL_REF_FIELDS.get(link_target, []):
+        payload = mapped_data.get(src_dt) or {}
+        records = payload.get("records") or []
+        if not isinstance(records, list):
+            continue
+        if field == "items":
+            values |= _item_codes_from_child_table(records)
+            continue
+        for rec in records:
+            if not isinstance(rec, dict):
+                continue
+            val = rec.get(field)
+            if val not in (None, ""):
+                values.add(_norm(val))
+    return values
 
 
 def session_covers_link_value(
@@ -52,16 +147,18 @@ def session_covers_link_value(
     link_target: str,
     value: str,
 ) -> bool:
-    """True when mapped batch contains a master record matching the unresolved link value."""
+    """True when mapped batch (masters or transactional refs) covers the unresolved link."""
     if not value or not link_target:
         return False
     needle = _norm(value)
     if not needle:
         return False
+
     identities = batch_identity_values(mapped_data, link_target)
+    identities |= transactional_reference_values(mapped_data, link_target)
+
     if needle in identities:
         return True
-    # Fuzzy: uploaded name contained in link value or vice versa (party names)
     for ident in identities:
         if len(ident) >= 4 and (ident in needle or needle in ident):
             return True
@@ -75,11 +172,9 @@ def classify_ler_unresolvable(
     """
     Returns (disposition, message) where disposition is 'info' or 'blocking'.
     """
-    link_target = str(
-        entry.get("link_target") or entry.get("options") or entry.get("field") or ""
-    ).strip()
+    link_target = resolve_link_target_doctype(entry)
     value = str(entry.get("value") or entry.get("raw_value") or "").strip()
-    doctype = str(entry.get("doctype") or "Unknown")
+    source_doctype = str(entry.get("doctype") or "Unknown")
 
     if link_target in _MASTER_DOCTYPES and session_covers_link_value(
         mapped_data, link_target=link_target, value=value
@@ -89,13 +184,12 @@ def classify_ler_unresolvable(
             (
                 f"{link_target} '{value}' is not on your live ERP site yet — it is in your "
                 f"uploaded data and will be created during master import before "
-                f"{doctype} records are imported."
+                f"{source_doctype} records are imported."
             ),
         )
 
+    display = link_target or str(entry.get("field") or "link")
     return (
         "blocking",
-        (
-            f"{link_target} '{value}' was not found on your live ERP site."
-        ),
+        f"{display} '{value}' was not found on your live ERP site.",
     )

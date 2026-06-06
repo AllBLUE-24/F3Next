@@ -100,6 +100,12 @@ async def resolve_all_mapped_payloads(
         mapped_data[doctype] = updated
         aggregate["per_doctype"][doctype] = summary
         aggregate["corrections"].extend(summary.get("corrections") or [])
-        aggregate["unresolvable_values"].extend(summary.get("unresolvable_values") or [])
+        for hit in summary.get("unresolvable_values") or []:
+            if isinstance(hit, dict) and not hit.get("doctype"):
+                tagged = dict(hit)
+                tagged["doctype"] = doctype
+                aggregate["unresolvable_values"].append(tagged)
+            else:
+                aggregate["unresolvable_values"].append(hit)
 
     return aggregate

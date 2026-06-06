@@ -54,7 +54,7 @@ def test_ler_greenfield_covered_by_session_batch():
         {
             "doctype": "Sales Order",
             "field": "customer",
-            "link_target": "Customer",
+            "target_doctype": "Customer",
             "value": "Rohan Construction",
         },
         mapped,
