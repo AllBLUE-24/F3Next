@@ -842,6 +842,14 @@ class ImplementationLauncher:
             )
             target_row = (await session.execute(target_stmt)).scalar_one_or_none()
 
+            readiness_stmt = (
+                select(ISDataReadinessAssessment)
+                .where(ISDataReadinessAssessment.session_id == is_session.id)
+                .order_by(ISDataReadinessAssessment.created_at.desc())
+                .limit(1)
+            )
+            readiness_row = (await session.execute(readiness_stmt)).scalar_one_or_none()
+
         # 5. Download actual payloads from R2
         s3 = boto3.client(
             "s3",
@@ -924,6 +932,41 @@ class ImplementationLauncher:
             if st in ("partial", "passed_with_warnings"):
                 validation_overall = "partial"
 
+        # Honesty: open critical gaps or missing MVP mapped payloads downgrade overall
+        gap_report = (readiness_row.gap_report or {}) if readiness_row else {}
+        gap_items = list(gap_report.get("gap_items") or [])
+        mapping_preflight = list(gap_report.get("mapping_preflight_blocks") or [])
+        open_critical = [
+            g for g in gap_items
+            if str((g.get("metadata") or {}).get("tier", "")).lower() == "critical"
+            and str(g.get("severity", "blocking")).lower() in ("blocking", "")
+        ]
+
+        seed_doctypes: List[str] = []
+        if target_row and target_row.r2_path:
+            try:
+                target_r2 = load_r2_json(s3, "clean-data", target_row.r2_path)
+                seed_doctypes = list(target_r2.get("seed_doctypes") or [])
+            except Exception:
+                pass
+        if not seed_doctypes and target_row:
+            required_raw = target_row.required_doctypes
+            if isinstance(required_raw, str):
+                required_raw = json.loads(required_raw)
+            seed_doctypes = list(required_raw or [])
+
+        mapped_set = {d["doctype"] for d in doctypes if (d.get("total_rows") or 0) > 0}
+        unmapped_seeds = [
+            s for s in seed_doctypes
+            if s not in mapped_set
+            and s not in ("Company", "Warehouse", "UOM")
+        ]
+
+        if open_critical or mapping_preflight:
+            validation_overall = "fail"
+        elif unmapped_seeds and validation_overall == "pass":
+            validation_overall = "partial"
+
         warning_count = sum(len(d.get("warnings") or []) for d in doctypes)
         if isinstance(profile, dict):
             profile = dict(profile)
@@ -935,11 +978,33 @@ class ImplementationLauncher:
                 except (TypeError, ValueError):
                     pass
 
+        mapping_gaps = [
+            {
+                "doctype": b.get("doctype"),
+                "source_file": b.get("source_file"),
+                "missing_fields": b.get("missing_fields") or [],
+                "message": (
+                    f"{b.get('doctype')} not mapped from {b.get('source_file')} — "
+                    f"missing {', '.join(b.get('missing_fields') or []) or 'required fields'}."
+                ),
+            }
+            for b in mapping_preflight
+            if isinstance(b, dict)
+        ]
+
         return {
             "profile": profile,
             "doctypes": doctypes,
             "import_summary": import_summary,
             "validation_overall": validation_overall,
+            "open_critical_gaps": len(open_critical),
+            "unmapped_seeds": unmapped_seeds,
+            "mapping_gaps": mapping_gaps,
+            "post_mapping_readiness_score": (
+                (gap_report.get("summary") or {}).get("n_dry_run_ready")
+                if gap_report.get("summary")
+                else None
+            ),
         }
 
     async def get_full_state(self, project_id: str | UUID) -> Dict[str, Any]:

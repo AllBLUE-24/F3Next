@@ -40,6 +40,12 @@ function SystemMessage({ message }: { message: ChatMessage }) {
   const label =
     message.message_type === "auto_fix_applied"
       ? "Auto-fix applied"
+      : message.message_type === "gap_blocking"
+        ? "Mapping blocked"
+      : message.message_type === "readiness_summary"
+        ? "Data readiness"
+      : message.message_type === "validation_summary"
+        ? "Validation"
       : message.message_type === "supervisor_question"
         ? "Needs your input"
         : "System";

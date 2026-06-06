@@ -228,11 +228,22 @@ export interface ValidatePreviewDoctype {
   records: Record<string, unknown>[];
 }
 
+export interface ValidatePreviewMappingGap {
+  doctype: string | null;
+  source_file: string | null;
+  missing_fields: string[];
+  message: string;
+}
+
 export interface ValidatePreviewData {
   profile: Record<string, unknown>;
   doctypes: ValidatePreviewDoctype[];
   import_summary: Record<string, string[]>;
   validation_overall: string;
+  open_critical_gaps?: number;
+  unmapped_seeds?: string[];
+  mapping_gaps?: ValidatePreviewMappingGap[];
+  post_mapping_readiness_score?: number | null;
 }
 
 export async function getValidatePreview(projectId: string): Promise<ValidatePreviewData> {

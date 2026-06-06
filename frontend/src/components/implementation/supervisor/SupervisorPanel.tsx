@@ -145,6 +145,58 @@ function ValidationOverallBadge({ overall }: { overall: string }) {
   );
 }
 
+function buildReadinessSummaryMessage(readiness: DataReadinessReport): string {
+  const pct = Math.round((readiness.import_readiness_score ?? 0) * 100);
+  const ready = readiness.ready_doctypes?.length ?? 0;
+  const critical = [
+    ...(readiness.missing_doctypes || []),
+    ...(readiness.partial_doctypes || []),
+  ].filter((g) => g.criticality === "critical").length;
+  const important = [
+    ...(readiness.missing_doctypes || []),
+    ...(readiness.partial_doctypes || []),
+  ].filter((g) => g.criticality === "non_critical").length;
+  const lines = [
+    `**Data readiness: ${pct}%** — ${ready} doctype${ready === 1 ? "" : "s"} pass dry-run preflight.`,
+  ];
+  if (critical > 0) lines.push(`${critical} critical gap${critical === 1 ? "" : "s"} need attention.`);
+  if (important > 0) lines.push(`${important} important gap${important === 1 ? "" : "s"} — you can continue with caution.`);
+  if (readiness.executive_summary) lines.push(readiness.executive_summary);
+  return lines.join("\n\n");
+}
+
+function buildValidationSummaryMessage(preview: ValidatePreviewData): string {
+  const totalRecords = preview.doctypes.reduce((s, d) => s + (d.total_rows ?? 0), 0);
+  const withErrors = preview.doctypes.filter(
+    (d) => d.validation_status === "fail" || d.validation_status === "failed" || (d.errors?.length ?? 0) > 0
+  ).length;
+  const overall =
+    preview.validation_overall === "fail"
+      ? "has errors"
+      : preview.validation_overall === "partial"
+        ? "passed with warnings"
+        : "all passed";
+  const lines = [
+    `**Validation ${overall}** — ${preview.doctypes.length} doctype${preview.doctypes.length === 1 ? "" : "s"}, ${totalRecords} records.`,
+  ];
+  if (withErrors > 0) lines.push(`${withErrors} doctype${withErrors === 1 ? "" : "s"} with validation errors.`);
+  if ((preview.mapping_gaps?.length ?? 0) > 0) {
+    lines.push("**Not mapped:**");
+    for (const gap of preview.mapping_gaps ?? []) {
+      lines.push(`• ${gap.message}`);
+    }
+  }
+  if ((preview.unmapped_seeds?.length ?? 0) > 0) {
+    lines.push(
+      `MVP seeds without mapped data: ${preview.unmapped_seeds!.join(", ")}.`
+    );
+  }
+  if ((preview.open_critical_gaps ?? 0) > 0) {
+    lines.push(`${preview.open_critical_gaps} open critical gap${preview.open_critical_gaps === 1 ? "" : "s"} remain.`);
+  }
+  return lines.join("\n\n");
+}
+
 function ValidationSummaryCard({ preview }: { preview: ValidatePreviewData }) {
   const totalRecords = preview.doctypes.reduce((s, d) => s + (d.total_rows ?? 0), 0);
   const withErrors = preview.doctypes.filter(
@@ -729,6 +781,28 @@ export function SupervisorPanel() {
     [readiness]
   );
 
+  const displayMessages = useMemo(() => {
+    const synth: ChatMessage[] = [];
+    if (isPostMappingRoute && validatePreview && validatePreview.doctypes.length > 0) {
+      synth.push({
+        id: "__synth_validation__",
+        role: "system",
+        content: buildValidationSummaryMessage(validatePreview),
+        message_type: "validation_summary",
+      });
+    } else if (readiness && !isPostMappingRoute) {
+      synth.push({
+        id: "__synth_readiness__",
+        role: "system",
+        content: buildReadinessSummaryMessage(readiness),
+        message_type: "readiness_summary",
+      });
+    }
+    const seen = new Set(chatMessages.map((m) => m.id));
+    const merged = [...synth.filter((m) => !seen.has(m.id)), ...chatMessages];
+    return merged;
+  }, [chatMessages, readiness, validatePreview, isPostMappingRoute]);
+
   return (
     <div className="h-full flex flex-col text-sm">
       {/* ── Header ────────────────────────────────────────── */}
@@ -769,139 +843,56 @@ export function SupervisorPanel() {
             )}
           </div>
         </div>
-        <button
-          onClick={refresh}
-          disabled={loading}
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
-          title="Refresh"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          {!isPostMappingRoute && readiness && (
+            <ScoreBadge score={readiness.import_readiness_score ?? 0} />
+          )}
+          {isPostMappingRoute && validatePreview && (
+            <ValidationOverallBadge overall={validatePreview.validation_overall} />
+          )}
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
-      {/* ── Scrollable body ───────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* ── Chat-first body ───────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col min-h-0">
         {error && (
-          <div className="text-[11px] text-red-300 border border-red-500/20 bg-red-500/10 rounded-lg px-3 py-2">
+          <div className="text-[11px] text-red-300 border border-red-500/20 bg-red-500/10 rounded-lg px-3 py-2 mb-3 shrink-0">
             {error}
           </div>
         )}
 
-        {/* Conversation history */}
-        <div className="rounded-xl border border-white/[0.06] bg-black/10 px-3 py-3 min-h-[120px]">
-          <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">Conversation</p>
-          <ChatMessageList messages={chatMessages} loading={loading && chatMessages.length === 0} />
+        <div className="flex-1 min-h-0">
+          <ChatMessageList
+            messages={displayMessages}
+            loading={loading && displayMessages.length === 0}
+          />
         </div>
 
-        {/* Open prompts — shown first, most urgent */}
         {openPrompts.map((p) => (
-          <PromptCard
-            key={p.id}
-            prompt={p}
-            onRespond={respond}
-            responding={respondingId === p.id}
-            projectId={projectId}
-            companySlug={session.companySlug}
-          />
+          <div key={p.id} className="mt-4 shrink-0">
+            <PromptCard
+              prompt={p}
+              onRespond={respond}
+              responding={respondingId === p.id}
+              projectId={projectId}
+              companySlug={session.companySlug}
+            />
+          </div>
         ))}
 
-        {/* Post-mapping validation summary (Validate / Sandbox routes) */}
-        {isPostMappingRoute && validatePreview && validatePreview.doctypes.length > 0 && (
-          <ValidationSummaryCard preview={validatePreview} />
-        )}
-
-        {/* Pre-mapping data readiness (Analyze / Upload routes only) */}
-        {readiness && !isPostMappingRoute && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
-            {/* Summary header */}
-            <div className="px-4 py-3 border-b border-white/[0.05] flex items-center justify-between">
-              <div>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Data readiness</p>
-                <p className="text-xs font-semibold text-zinc-200 mt-0.5">Pre-mapping assessment (before validation)</p>
-              </div>
-              <ScoreBadge score={readiness.import_readiness_score ?? 0} />
-            </div>
-
-            <div className="p-4 space-y-3">
-              {(readiness.import_readiness_score ?? 0) >= 0.8 && (
-                <p className="text-[10px] text-zinc-500 leading-relaxed">
-                  Final score updates after validation on the next step.
-                </p>
-              )}
-              {/* Score bar */}
-              <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{
-                    width: `${Math.round((readiness.import_readiness_score ?? 0) * 100)}%`,
-                    background:
-                      (readiness.import_readiness_score ?? 0) >= 0.8
-                        ? "rgb(52 211 153)"
-                        : (readiness.import_readiness_score ?? 0) >= 0.5
-                        ? "rgb(251 191 36)"
-                        : "rgb(239 68 68)",
-                  }}
-                />
-              </div>
-
-              {/* Tier counts */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-emerald-500/[0.08] border border-emerald-500/15 px-2.5 py-2 text-center">
-                  <p className="text-[10px] text-emerald-400/70 font-medium">Ready</p>
-                  <p className="text-sm font-mono text-emerald-300 mt-0.5">
-                    {Array.isArray(readiness.ready_doctypes) ? readiness.ready_doctypes.length : 0}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/15 px-2.5 py-2 text-center">
-                  <p className="text-[10px] text-amber-400/70 font-medium">Important</p>
-                  <p className="text-sm font-mono text-amber-300 mt-0.5">{importantGaps.length}</p>
-                </div>
-                <div className="rounded-lg bg-red-500/[0.08] border border-red-500/15 px-2.5 py-2 text-center">
-                  <p className="text-[10px] text-red-400/70 font-medium">Critical</p>
-                  <p className="text-sm font-mono text-red-300 mt-0.5">{criticalGaps.length}</p>
-                </div>
-              </div>
-
-              {/* Executive summary */}
-              {readiness.executive_summary && (
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  {readiness.executive_summary}
-                </p>
-              )}
-
-              {/* Ready doctypes — show what IS covered */}
-              {Array.isArray(readiness.ready_doctypes) && readiness.ready_doctypes.length > 0 && (
-                <ReadyList items={readiness.ready_doctypes as DataReadinessReady[]} />
-              )}
-
-              {/* Gap details — collapsed by default when prompts also shown */}
-              {criticalGaps.length > 0 && (
-                <GapList gaps={criticalGaps} tier="critical" collapsed={openPrompts.length > 0} />
-              )}
-              {importantGaps.length > 0 && (
-                <GapList gaps={importantGaps} tier="important" collapsed={openPrompts.length > 0} />
-              )}
-
-              {/* Unmappable files */}
-              {!!readiness.unmappable_chunks?.length && (
-                <div className="rounded-lg border border-zinc-700/40 bg-zinc-800/20 px-3 py-2.5 space-y-1">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-medium">
-                    Unrecognised files ({readiness.unmappable_chunks.length})
-                  </p>
-                  {readiness.unmappable_chunks.slice(0, 3).map((chunk, idx) => (
-                    <div key={`${chunk.filename ?? "chunk"}-${idx}`}>
-                      <p className="text-[11px] font-medium text-zinc-300">{chunk.filename ?? "Unknown file"}</p>
-                      <p className="text-[10px] text-zinc-500">{chunk.reason ?? chunk.description ?? "No ERPNext match found"}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {openPrompts.length === 0 && !readiness && !validatePreview && !loading && chatMessages.length === 0 && (
+        {openPrompts.length === 0 &&
+          !readiness &&
+          !validatePreview &&
+          !loading &&
+          displayMessages.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <CheckCircle2 className="w-8 h-8 text-zinc-700" />
             <p className="text-xs text-zinc-600 leading-relaxed max-w-[200px]">
