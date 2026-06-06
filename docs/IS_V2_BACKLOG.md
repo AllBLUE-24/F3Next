@@ -113,6 +113,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Phase 2 unified gap loop** — `is_common/gap_report` + `session_gaps`; mapping preflight → gap_items + chat; F3iche `import_field_policy`; LER greenfield deferral; supervisor `gap_consumer`. *(2026-06-05 — L2–L3 pillars 7–8, class A)*
 - [x] **Phase 3 honest validate UI** — chat-first `SupervisorPanel`; post-mapping validation summary in thread; `validation_overall` fails on open critical gaps / unmapped seeds / mapping preflight. *(2026-06-05 — L5 pillar 8, class A)*
 - [x] **Phase 4 corpus×MVP matrix** — `file_doctype_matrix.py` explicit `(file, doctype)` flags; `corpus_overclaim` hardening in `corpus_validation.py`; matrix in Step 8c gap report + LLM prompt; golden tests. *(2026-06-05 — L2–L3 pillars 1–8, class A)*
+- [x] **Phase 5 SchemaResolver + transparency** — `schema_resolver.py` injects heuristic `child_fields` in dry-run; `synonym_promotion.py` KB checklist; real `mapping_method` on persist; validate UI classification badges. *(2026-06-05 — L3–L5 pillars 3–5, class A+B)*
 
 ---
 

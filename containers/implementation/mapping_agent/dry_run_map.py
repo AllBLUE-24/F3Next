@@ -73,6 +73,7 @@ def dry_run_map_file(
     kb: Dict[str, Any],
     row_filter: Optional[Callable[[List[Dict[str, Any]], List[str]], List[Dict[str, Any]]]] = None,
     company_context: Optional[Dict[str, Any]] = None,
+    project_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Run map → fold → defaults → preflight without persisting.
@@ -108,10 +109,15 @@ def dry_run_map_file(
             "methods": {},
         }
 
+    from containers.implementation.mapping_agent.schema_resolver import resolve_kb_gaps_sync
+    from containers.implementation.mapping_agent.synonym_promotion import suggest_synonym_promotions
+
+    effective_kb, resolver_meta = resolve_kb_gaps_sync(doctype, kb)
+
     engine = _MappingEngine()
-    engine._field_mappings = kb
+    engine._field_mappings = effective_kb
     field_mapping = _map_columns_deterministic(
-        engine, columns, doctype, kb, sample_row=rows[0],
+        engine, columns, doctype, effective_kb, sample_row=rows[0],
     )
     methods = {src: "kb_local" for src in field_mapping}
 
@@ -121,6 +127,13 @@ def dry_run_map_file(
         doctype, folded, context=company_context or {},
     )
     preflight = preflight_mapped_records(doctype, normalized)
+    missing_required = preflight.get("missing_fields") or []
+    synonym_promotions = suggest_synonym_promotions(
+        doctype=doctype,
+        field_mapping=field_mapping,
+        columns=columns,
+        missing_required=missing_required,
+    )
 
     return {
         "passed": not preflight.get("blocking"),
@@ -128,5 +141,8 @@ def dry_run_map_file(
         "preflight": preflight,
         "record_count": len(normalized),
         "methods": methods,
-        "missing_required_after": preflight.get("missing_fields") or [],
+        "missing_required_after": missing_required,
+        "schema_resolver": resolver_meta,
+        "synonym_promotions": synonym_promotions,
+        "project_id": project_id,
     }

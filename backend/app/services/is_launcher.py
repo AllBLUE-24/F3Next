@@ -21,7 +21,7 @@ from sqlalchemy import select, update
 from shared.database.db import AsyncSessionLocal
 from shared.models.is_models import (
     ISSession, ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment,
-    ISMappedData, ISValidationResult, ISValidationError,
+    ISMappedData, ISFieldMapping, ISValidationResult, ISValidationError,
     ISImportPlan, ISImportLog, ISSupervisorPrompt, ISAuditTrail,
 )
 from shared.models.hooks import Hook
@@ -896,6 +896,12 @@ class ImplementationLauncher:
                 "status": "pending", "row_count": 0, "errors": []
             })
 
+            cls = mapping_methods_by_doctype.get(dt, {})
+            method_counts = cls.get("counts") or {}
+            primary_method = "exact_match"
+            if method_counts:
+                primary_method = max(method_counts, key=method_counts.get)
+
             doctypes.append({
                 "doctype": dt,
                 "source_file": ", ".join(agg.get("source_files") or []),
@@ -907,6 +913,11 @@ class ImplementationLauncher:
                 "warnings": [e for e in validation["errors"] if e["severity"] == "warning"],
                 "columns": columns,
                 "records": records,
+                "classification": {
+                    "primary_method": primary_method,
+                    "method_counts": method_counts,
+                    "column_methods": cls.get("methods") or {},
+                },
             })
 
         # 6. Import summary from target structure

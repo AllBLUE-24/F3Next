@@ -17,6 +17,14 @@ interface Props {
   defaultOpen?: boolean;
 }
 
+const METHOD_LABELS: Record<string, string> = {
+  exact_match: 'KB exact',
+  fuzzy_match: 'KB fuzzy',
+  llm_inferred: 'LLM',
+  user_confirmed: 'User confirmed',
+  historical_match: 'Historical',
+};
+
 const STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle; color: string; bg: string }> = {
   passed: { label: 'Passed', icon: CheckCircle, color: 'text-emerald-400', bg: 'border-emerald-500/20' },
   pass:   { label: 'Passed', icon: CheckCircle, color: 'text-emerald-400', bg: 'border-emerald-500/20' },
@@ -103,11 +111,25 @@ export function DataPreviewTable({ data, defaultOpen = false }: Props) {
               {data.columns.length} field{data.columns.length !== 1 ? 's' : ''}
             </span>
           </div>
-          {data.source_file && (
-            <p className="text-[11px] text-gray-600 mt-0.5 truncate">
-              Source: {data.source_file}
-            </p>
-          )}
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
+            {data.source_file && (
+              <p className="text-[11px] text-gray-600 truncate">
+                Source: {data.source_file}
+              </p>
+            )}
+            {data.classification?.primary_method && (
+              <span
+                className="text-[10px] font-mono bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full"
+                title={
+                  Object.entries(data.classification.method_counts || {})
+                    .map(([k, v]) => `${METHOD_LABELS[k] || k}: ${v}`)
+                    .join(', ') || undefined
+                }
+              >
+                Map: {METHOD_LABELS[data.classification.primary_method] || data.classification.primary_method}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">

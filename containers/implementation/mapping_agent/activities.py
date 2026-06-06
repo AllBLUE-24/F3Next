@@ -1161,6 +1161,8 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         rows = result.get("rows", [])
         field_mapping = result.get("field_mapping", {})
         source_columns = result.get("source_columns", [])
+        map_audit = result.get("column_map_audit") or {}
+        audit_methods: Dict[str, str] = map_audit.get("methods") or {}
 
         # Cross-file guard: filename strongly implies a different doctype (e.g. active_projects → Project).
         implied_dt = filename_implied_doctype(inp.filename)
@@ -1323,6 +1325,13 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         try:
             async with AsyncSessionLocal() as session:
                 for src_col, tgt_field in field_mapping.items():
+                    method = audit_methods.get(src_col) or "kb_local"
+                    if method == "llm_column_map":
+                        stored_method = "llm_inferred"
+                    elif method == "kb_fuzzy":
+                        stored_method = "fuzzy_match"
+                    else:
+                        stored_method = "exact_match"
                     session.add(ISFieldMapping(
                         id=uuid.uuid4(),
                         session_id=uuid.UUID(inp.session_id),
@@ -1330,7 +1339,7 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                         source_column=src_col,
                         target_doctype=doctype,
                         target_field=tgt_field,
-                        mapping_method="exact_match",
+                        mapping_method=stored_method,
                     ))
 
                 session.add(ISMappedData(

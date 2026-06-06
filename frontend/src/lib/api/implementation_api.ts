@@ -216,6 +216,12 @@ export async function listF3iches(): Promise<{
 
 // ── Validate Preview ──────────────────────────────────────────────────────────
 
+export interface ValidatePreviewClassification {
+  primary_method: string;
+  method_counts: Record<string, number>;
+  column_methods: Record<string, string>;
+}
+
 export interface ValidatePreviewDoctype {
   doctype: string;
   source_file: string | null;
@@ -226,6 +232,7 @@ export interface ValidatePreviewDoctype {
   warnings: Array<{ message: string; severity: string; field: string }>;
   columns: string[];
   records: Record<string, unknown>[];
+  classification?: ValidatePreviewClassification;
 }
 
 export interface ValidatePreviewMappingGap {
