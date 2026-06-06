@@ -512,10 +512,12 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
 
     # 4. Deterministic gap analysis (no LLM)
     kb = _kb_field_mappings() or {}
+    f3iche_id = str(company_profile.get("f3iche") or "")
     pre_analysis = analyze_gaps(
         manifest=manifest,
         target_structure=target_structure,
         field_mappings_kb=kb,
+        f3iche_id=f3iche_id or None,
     )
     _tag_bottleneck_gaps(pre_analysis, mvp_focus)
     summary = _recompute_viability_summary(pre_analysis)
@@ -611,6 +613,12 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             to_gap=_gap_from_deterministic_missing,
         )
 
+        from containers.implementation.is_common.gap_report import (
+            gaps_from_pre_analysis,
+            merge_gap_item_dicts,
+        )
+
+        readiness_gap_items = gaps_from_pre_analysis(pre_analysis)
         deterministic_gap_report = {
             "summary": summary,
             "ready_doctypes": pre_analysis.get("ready_doctypes", []),
@@ -618,6 +626,10 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             "missing_doctypes": pre_analysis.get("missing_doctypes", []),
             "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
             "complete_gaps": live_erp_overlay.get("complete_gaps", []),
+            "gap_items": merge_gap_item_dicts(
+                readiness_gap_items,
+                live_erp_overlay.get("complete_gaps") or [],
+            ),
             "link_cache_meta": {
                 k: len(v) for k, v in (live_erp_overlay.get("link_cache") or {}).items()
             },
@@ -727,6 +739,14 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
         raw_score = summary.get("raw_readiness_score", 1.0)
         critical_missing = [m for m in missing_list if m.criticality == "critical" and not m.can_proceed_without]
         critical_partial = [p for p in partial_list if p.criticality == "critical" and not p.can_proceed_without]
+        from containers.implementation.is_common.gap_report import (
+            gaps_from_pre_analysis,
+            merge_gap_item_dicts,
+        )
+        fallback_gap_items = merge_gap_item_dicts(
+            gaps_from_pre_analysis(pre_analysis),
+            live_erp_overlay.get("complete_gaps") or [],
+        )
         assessment = DataReadinessAssessment(
             ready_doctypes=ready_list,
             partial_doctypes=partial_list,
@@ -739,6 +759,10 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 "missing_doctypes": pre_analysis.get("missing_doctypes", []),
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
                 "complete_gaps": live_erp_overlay.get("complete_gaps", []),
+                "gap_items": merge_gap_item_dicts(
+                    readiness_gap_items,
+                    live_erp_overlay.get("complete_gaps") or [],
+                ),
                 "link_cache_meta": {
                     k: len(v) for k, v in (live_erp_overlay.get("link_cache") or {}).items()
                 },

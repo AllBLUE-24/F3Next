@@ -226,20 +226,32 @@ class _ValidationEngine:
 
         return report
 
-    def merge_ler_unresolvable(self, report: Dict[str, Any], ler_report: Dict[str, Any]) -> Dict[str, Any]:
+    def merge_ler_unresolvable(
+        self,
+        report: Dict[str, Any],
+        ler_report: Dict[str, Any],
+        *,
+        mapped_data: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Append KB link-missing messages for LER misses (post-rewrite)."""
+        from containers.implementation.is_common.gap_report import gap_from_ler_info
+        from containers.implementation.is_common.ler_greenfield import classify_ler_unresolvable
+
         unres = ler_report.get("unresolvable_values") or []
         if not unres:
             return report
 
-        link_rules = self._kb_rules.get("link_rules") or []
-        rule = link_rules[0] if link_rules else {}
-        template = rule.get("user_message") or self._link_policy.get("is_link_missing_message") or (
-            "{link_target} '{value}' was not found on your live ERP site."
+        rule_id = (
+            (self._kb_rules.get("link_rules") or [{}])[0].get("rule_id")
+            or self._link_policy.get("is_link_missing_rule_id")
+            or "is_link_missing_post_ler"
         )
-        rule_id = rule.get("rule_id") or self._link_policy.get("is_link_missing_rule_id") or "is_link_missing_post_ler"
 
-        by_doctype: Dict[str, Dict[str, Any]] = {c["doctype"]: c for c in report.get("checks", []) if c.get("doctype")}
+        by_doctype: Dict[str, Dict[str, Any]] = {
+            c["doctype"]: c for c in report.get("checks", []) if c.get("doctype")
+        }
+        mapped = mapped_data or {}
+        ler_gaps: List[Dict[str, Any]] = list(report.get("ler_gaps") or [])
 
         for entry in unres:
             if not isinstance(entry, dict):
@@ -248,16 +260,52 @@ class _ValidationEngine:
             field = entry.get("field") or entry.get("fieldname") or "link"
             value = entry.get("value") or entry.get("raw_value") or ""
             target = entry.get("link_target") or entry.get("options") or field
-            msg = template.replace("{link_target}", str(target)).replace("{value}", str(value))
+            disposition, msg = classify_ler_unresolvable(entry, mapped)
+
             check = by_doctype.get(dt)
             if not check:
-                check = {"doctype": dt, "status": "fail", "errors": [], "warnings": [], "row_count": 0}
+                check = {"doctype": dt, "status": "pass", "errors": [], "warnings": [], "row_count": 0}
                 report.setdefault("checks", []).append(check)
                 by_doctype[dt] = check
+
+            if disposition == "info":
+                check["warnings"].append(msg)
+                if check["status"] == "pass":
+                    check["status"] = "partial"
+                report.setdefault("warnings", []).append(msg)
+                ler_gaps.append(
+                    gap_from_ler_info(
+                        link_target=str(target),
+                        value=str(value),
+                        doctype=str(dt),
+                        field=str(field),
+                    ).to_dict()
+                )
+                if report.get("overall") == "pass":
+                    report["overall"] = "partial"
+                continue
+
             check["errors"].append(msg)
             check["status"] = "fail"
             report.setdefault("errors", []).append(msg)
             report["overall"] = "fail"
+            ler_gaps.append({
+                "field": field,
+                "doctype": dt,
+                "question": msg,
+                "severity": "blocking",
+                "rule_id": rule_id,
+                "metadata": {
+                    "origin": "ler",
+                    "tier": "critical",
+                    "resolution": "ask_user",
+                    "link_target": target,
+                    "value": value,
+                },
+            })
+
+        if ler_gaps:
+            report["ler_gaps"] = ler_gaps
 
         return report
 
@@ -545,7 +593,7 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
     engine = _ValidationEngine(graph=_load_graph(), field_mappings=_load_field_mappings())
     report = engine.validate(mapped_data, target_structure)
     if not ler_report.get("skipped"):
-        report = engine.merge_ler_unresolvable(report, ler_report)
+        report = engine.merge_ler_unresolvable(report, ler_report, mapped_data=mapped_data)
 
     from shared.models.validation_report import enrich_checks_with_sources
 

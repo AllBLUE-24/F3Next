@@ -275,9 +275,12 @@ def _apply_field_policy(
     missing: List[str],
     columns: List[str],
     kb: Dict[str, Any],
+    f3iche_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Classify coverage using graph required_fields (same contract as validate)."""
-    return assess_field_coverage(doctype, matched, columns, kb)
+    return assess_field_coverage(
+        doctype, matched, columns, kb, f3iche_id=f3iche_id,
+    )
 
 
 def _run_dry_run(
@@ -360,6 +363,8 @@ def analyze_gaps(
     manifest: Union[Dict[str, str], Dict[str, Any]],
     target_structure: Dict[str, Any],
     field_mappings_kb: Dict[str, Any],
+    *,
+    f3iche_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Deterministic gap analysis: compare uploaded files against MVP seed doctypes.
@@ -444,6 +449,7 @@ def analyze_gaps(
                 missing=[],
                 columns=pe["columns"],
                 kb=field_mappings_kb,
+                f3iche_id=f3iche_id,
             )
             matched_file_doctype_pairs.add((pe["source_file"], doctype))
             entry = {
@@ -486,6 +492,7 @@ def analyze_gaps(
                 missing=[],
                 columns=item_stub["columns"],
                 kb=field_mappings_kb,
+                f3iche_id=f3iche_id,
             )
             matched_file_doctype_pairs.add((item_stub["source_file"], doctype))
             entry = {
@@ -554,6 +561,7 @@ def analyze_gaps(
                 missing=[],
                 columns=meta.get("columns") or [],
                 kb=field_mappings_kb,
+                f3iche_id=f3iche_id,
             )
             if policy["can_proceed_without"]:
                 matched_file_doctype_pairs.add((cf, doctype))
@@ -591,6 +599,7 @@ def analyze_gaps(
             missing=best_missing,
             columns=best_columns,
             kb=field_mappings_kb,
+            f3iche_id=f3iche_id,
         )
 
         if action in ("use_default", "auto_created_by_erpnext"):

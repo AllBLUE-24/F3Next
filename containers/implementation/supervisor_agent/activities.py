@@ -435,26 +435,22 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         partial_doctypes = assessment.get("partial_doctypes", []) or []
         unmappable_chunks = assessment.get("unmappable_chunks", []) or []
         gap_report = assessment.get("gap_report") or {}
-        complete_gaps = gap_report.get("complete_gaps") or []
+        from containers.implementation.supervisor_agent.gap_consumer import (
+            collect_gap_items,
+            partition_gaps_for_supervisor,
+        )
 
-        # Live ERP / LER blocking gaps (single source from readiness agent)
+        gap_items = collect_gap_items(gap_report=gap_report, assessment=assessment)
+        critical_gaps, important_gaps, ler_info_gaps = partition_gaps_for_supervisor(
+            gap_items,
+            missing_doctypes=missing_doctypes,
+            partial_doctypes=partial_doctypes,
+        )
         ler_blocking = [
-            g for g in complete_gaps
+            g for g in gap_items
             if str(g.get("severity", "")).lower() == "blocking"
+            and str((g.get("metadata") or {}).get("origin")) in ("live_erp", "ler")
         ]
-
-        # Two-tier classification (file corpus gaps)
-        critical_gaps = [
-            g for g in (*missing_doctypes, *partial_doctypes)
-            if str(g.get("criticality", "")).lower() == "critical"
-            and not bool(g.get("can_proceed_without", False))
-        ]
-        important_gaps = [
-            g for g in (*missing_doctypes, *partial_doctypes)
-            if str(g.get("criticality", "")).lower() in ("non_critical",)
-            and not bool(g.get("can_proceed_without", True))
-        ]
-        # "optional" gaps are silently skipped — no action required
 
         has_critical = bool(critical_gaps) or bool(ler_blocking)
         has_important = bool(important_gaps)

@@ -138,15 +138,28 @@ def classify_missing_fields(
     kb: Dict[str, Any],
     *,
     columns: Optional[List[str]] = None,
+    f3iche_id: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
     """
     Split missing required fields into assumptions (defaults) vs blocking must-ask.
 
     Returns: (assumed_fields, defaultable_names, blocking_names)
     """
+    from containers.implementation.is_common.f3iche_policy import (
+        f3iche_default_for,
+        is_deferred_doctype,
+        must_ask_for_doctype,
+    )
+
     assumed: List[Dict[str, Any]] = []
     blocking: List[str] = []
     cols = columns or []
+
+    if f3iche_id and is_deferred_doctype(doctype, f3iche_id):
+        return assumed, [], []
+
+    if f3iche_id and must_ask_for_doctype(doctype, f3iche_id):
+        return assumed, [], list(missing_fields)
 
     for field in missing_fields:
         if field in matched_fields:
@@ -158,7 +171,11 @@ def classify_missing_fields(
                 "reason": "Column signal present — LLM/KB mapping will apply at Step 9",
             })
             continue
-        default_val = resolve_default(doctype, field, kb)
+        default_val = None
+        if f3iche_id:
+            default_val = f3iche_default_for(doctype, field, f3iche_id)
+        if default_val is None:
+            default_val = resolve_default(doctype, field, kb)
         if default_val == "__relative_default__":
             parent = _RELATIVE_DEFAULT_PARENT.get(field, "")
             if parent in matched_fields or _column_covers_field(parent, cols, kb):
@@ -203,12 +220,14 @@ def assess_field_coverage(
     matched_fields: List[str],
     columns: List[str],
     kb: Dict[str, Any],
+    *,
+    f3iche_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Field-level coverage using graph required_fields (same as validate)."""
     required = get_required_fields(doctype)
     missing = [f for f in required if not _matched_covers_field(f, matched_fields)]
     assumed, _, blocking = classify_missing_fields(
-        doctype, missing, matched_fields, kb, columns=columns,
+        doctype, missing, matched_fields, kb, columns=columns, f3iche_id=f3iche_id,
     )
     can_proceed = len(blocking) == 0
     return {

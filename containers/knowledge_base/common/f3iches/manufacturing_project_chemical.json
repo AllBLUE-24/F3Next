@@ -435,6 +435,18 @@
       }
     ],
     
+    "import_field_policy": {
+      "default_when_missing": {
+        "Item.item_group": "Consumable",
+        "Item.stock_uom": "Nos",
+        "Customer.territory": "All Territories",
+        "Customer.customer_group": "All Customer Groups",
+        "Supplier.supplier_group": "All Supplier Groups"
+      },
+      "always_ask": ["Batch", "BOM"],
+      "defer_until_post_mvp": ["Stock Entry", "Quality Inspection"]
+    },
+
     "notes_for_ai_agent": {
       "discovery_agent_focus": "When gathering initial context, aggressively probe the split between their Factory operations and Field operations. Most companies lean heavily into one or the other. Identify if they are strictly ETO (Engineer-to-Order) bidding on floors, or Make-to-Stock selling pails to distributors. Ask explicitly about how they handle Hazmat shipping and VOC compliance, as this alters item master setup.",
       "is_agent_mapping_rules": "During data cleaning and mapping, pay extreme attention to UOMs (Units of Measure). Chemical manufacturers often buy raw materials in Lbs/Kg but sell finished goods in Gallons/Liters. Ensure UOM conversion factors are mathematically perfect in the Item Master. Map Part A and Part B as distinct, separate Items, never merged. Force the creation of virtual Project Warehouses when mapping their location structures.",

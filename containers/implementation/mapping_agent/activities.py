@@ -1375,14 +1375,38 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         for b in preflight_blocks
     ]
 
+    if preflight_blocks:
+        try:
+            from containers.implementation.is_common.gap_report import gap_from_preflight_block
+            from containers.implementation.is_common.session_gaps import (
+                append_session_gap_items,
+                persist_mapping_gap_chat,
+            )
+
+            gap_dicts = [gap_from_preflight_block(b).to_dict() for b in preflight_blocks]
+            await append_session_gap_items(
+                inp.session_id,
+                gap_dicts,
+                preflight_blocks=preflight_blocks,
+            )
+            await persist_mapping_gap_chat(inp.session_id, preflight_blocks)
+        except Exception as e:
+            activity.logger.warning("  ⚠ Could not persist mapping gap report: %s", e)
+
     if not mapped_doctypes:
         activity.logger.info("  ⚠️ No doctypes mapped for %s", inp.filename)
         if preflight_blocks:
+            from containers.implementation.is_common.gap_report import gap_from_preflight_block
+
             return NodeStatusEnvelope.failed(
                 primary_result={
                     "file": inp.filename,
                     "doctypes_mapped": [],
                     "preflight_blocks": preflight_blocks,
+                    "gap_items": [
+                        gap_from_preflight_block(b).to_dict()
+                        for b in preflight_blocks
+                    ],
                 },
                 errors=preflight_warnings,
             )
@@ -1393,11 +1417,17 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
 
     activity.logger.info("✅ map_file_to_erpnext done | doctypes=%s", mapped_doctypes)
     if preflight_blocks:
+        from containers.implementation.is_common.gap_report import gap_from_preflight_block
+
         return NodeStatusEnvelope.partial(
             primary_result={
                 "file": inp.filename,
                 "doctypes_mapped": mapped_doctypes,
                 "preflight_blocks": preflight_blocks,
+                "gap_items": [
+                    gap_from_preflight_block(b).to_dict()
+                    for b in preflight_blocks
+                ],
             },
             warnings=preflight_warnings,
         )
