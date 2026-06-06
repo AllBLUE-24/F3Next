@@ -1398,7 +1398,49 @@
       "fieldname": "items",
       "fieldtype": "Table",
       "child_doctype": "Purchase Order Item",
-      "mandatory": true
+      "mandatory": true,
+      "minimum_rows": 1,
+      "child_fields": {
+        "item_code": {
+          "fieldname": "item_code",
+          "fieldtype": "Link",
+          "options": "Item",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "product",
+            "item",
+            "sku",
+            "material"
+          ],
+          "validation": "must_exist_in_item_master"
+        },
+        "qty": {
+          "fieldname": "qty",
+          "fieldtype": "Float",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "quantity",
+            "units",
+            "ordered_qty",
+            "ordered qty"
+          ],
+          "default_value": 1,
+          "validation": "must_be_positive"
+        },
+        "rate": {
+          "fieldname": "rate",
+          "fieldtype": "Currency",
+          "mandatory": false,
+          "user_input_synonyms": [
+            "price",
+            "unit_price",
+            "per_unit",
+            "price_per_unit"
+          ],
+          "default_value": "fetch_from_price_list_or_item_master",
+          "validation": "must_be_positive"
+        }
+      }
     }
   },
   "is_submittable": true,

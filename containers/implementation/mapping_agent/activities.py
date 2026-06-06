@@ -47,6 +47,7 @@ from containers.implementation.mapping_agent.defaults import (
     fold_child_tables,
     apply_defaults_and_normalize,
 )
+from containers.implementation.is_common.party_rules import split_column_synonyms
 from containers.implementation.mapping_agent.corpus_merge import (
     filename_conflicts_with_doctype,
     filename_implied_doctype,
@@ -220,13 +221,10 @@ class _MappingEngine:
         }
 
         type_col = None
-        type_synonyms = {
-            "type", "entity type", "entity_type", "record type",
-            "party type", "party_type", "role",
-        }
+        type_synonyms = split_column_synonyms()
         for c in columns:
             normalized_column = c.lower().strip().replace("_", " ")
-            if c and (normalized_column in type_synonyms or c.lower().strip() in type_synonyms):
+            if c and normalized_column in type_synonyms:
                 type_col = c
                 break
 

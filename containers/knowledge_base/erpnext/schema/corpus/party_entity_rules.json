@@ -16,7 +16,8 @@
     "entity_type",
     "record type",
     "party type",
-    "party_type"
+    "party_type",
+    "role"
   ],
   "always_map_split_entities": true
 }

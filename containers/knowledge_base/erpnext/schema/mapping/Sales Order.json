@@ -1431,7 +1431,8 @@
           "user_input_synonyms": [
             "quantity",
             "units",
-            "pieces"
+            "pieces",
+            "vol"
           ],
           "default_value": 1,
           "validation": "must_be_positive"

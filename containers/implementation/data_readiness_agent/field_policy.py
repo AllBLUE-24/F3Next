@@ -36,20 +36,41 @@ _IDENTITY_FIELD: Dict[str, str] = {
     "Employee": "employee_name",
 }
 
-_IDENTITY_COLUMN_HINTS: Dict[str, List[str]] = {
-    "customer_name": ["company_name", "company name", "client", "client_name", "party_name", "name"],
-    "supplier_name": ["company_name", "company name", "vendor_name", "vendor name", "party_name", "name"],
-    "item_code": ["product", "item", "item_code", "item code", "sku", "material", "fg_item"],
-    "project_name": ["project", "project_name", "project name"],
-    "customer": ["client", "customer", "buyer", "party"],
-    "supplier": ["vendor", "vendor_name", "vendor name", "seller", "supplier"],
-    "delivery_date": ["target_date", "target date", "deliver_by", "delivery_date", "due_date", "ship_by"],
-    "transaction_date": ["date", "order_date", "po_date", "order date"],
+# Structural / aggregate hints not expressed as a single KB field synonym list.
+_STRUCTURAL_COLUMN_HINTS: Dict[str, List[str]] = {
     "items": ["product", "item", "sku", "material", "ordered_qty", "vol", "qty", "price"],
     "item_name": ["product", "item", "item_code", "item code", "sku", "material"],
-    "company": ["company", "company_name", "company name"],
-    "naming_series": ["naming_series", "naming series", "series"],
 }
+
+
+def _kb_column_hints(kb: Dict[str, Any]) -> Dict[str, List[str]]:
+    """Derive column hints from KB field_mappings + child_fields."""
+    hints: Dict[str, set] = {}
+    for dt_cfg in (kb.get("doctypes") or {}).values():
+        fmap = dt_cfg.get("field_mappings") or {}
+        for fn, cfg in fmap.items():
+            field = str(cfg.get("fieldname") or fn)
+            syns = list(cfg.get("user_input_synonyms") or []) + [field, fn]
+            bucket = hints.setdefault(field, set())
+            bucket.update(_norm_col(s) for s in syns if s)
+            for child_cfg in (cfg.get("child_fields") or {}).values():
+                if not isinstance(child_cfg, dict):
+                    continue
+                cf = str(child_cfg.get("fieldname") or "")
+                if not cf:
+                    continue
+                child_syns = list(child_cfg.get("user_input_synonyms") or []) + [cf]
+                child_bucket = hints.setdefault(cf, set())
+                child_bucket.update(_norm_col(s) for s in child_syns if s)
+    return {k: sorted(v) for k, v in hints.items()}
+
+
+def _column_hints_for_field(field: str, kb: Dict[str, Any]) -> List[str]:
+    kb_hints = _kb_column_hints(kb)
+    hints = list(kb_hints.get(field, []))
+    hints.extend(_STRUCTURAL_COLUMN_HINTS.get(field, []))
+    hints.append(_norm_col(field))
+    return list(dict.fromkeys(hints))
 
 _ITEM_CHILD_MATCHED = frozenset({"item_code", "qty", "rate", "uom"})
 
@@ -84,15 +105,15 @@ def resolve_default(doctype: str, field: str, kb: Dict[str, Any]) -> Optional[An
     return _kb_default(doctype, field, kb)
 
 
-def _column_covers_field(field: str, columns: List[str]) -> bool:
+def _column_covers_field(field: str, columns: List[str], kb: Optional[Dict[str, Any]] = None) -> bool:
     cols = {_norm_col(c) for c in columns}
-    hints = _IDENTITY_COLUMN_HINTS.get(field, []) + [_norm_col(field)]
+    hints = _column_hints_for_field(field, kb or {})
     for hint in hints:
         h = _norm_col(hint)
         for col in cols:
             if col == h or (len(h) >= 3 and h in col):
                 return True
-    if field == "item_name" and _column_covers_field("item_code", columns):
+    if field == "item_name" and _column_covers_field("item_code", columns, kb):
         return True
     return False
 
@@ -130,7 +151,7 @@ def classify_missing_fields(
     for field in missing_fields:
         if field in matched_fields:
             continue
-        if cols and _column_covers_field(field, cols):
+        if cols and _column_covers_field(field, cols, kb):
             assumed.append({
                 "field": field,
                 "value": "(from uploaded column)",
@@ -140,7 +161,7 @@ def classify_missing_fields(
         default_val = resolve_default(doctype, field, kb)
         if default_val == "__relative_default__":
             parent = _RELATIVE_DEFAULT_PARENT.get(field, "")
-            if parent in matched_fields or _column_covers_field(parent, cols):
+            if parent in matched_fields or _column_covers_field(parent, cols, kb):
                 assumed.append({
                     "field": field,
                     "value": f"derived from {parent}",
@@ -165,12 +186,14 @@ def identity_satisfied(
     doctype: str,
     matched_fields: List[str],
     columns: List[str],
+    kb: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """True when identity/required link fields are derivable from columns or matches."""
     identity = _IDENTITY_FIELD.get(doctype)
     if identity and identity in matched_fields:
         return True
-    if identity and _column_covers_field(identity, columns):
+    kb = kb or {}
+    if identity and _column_covers_field(identity, columns, kb):
         return True
     return False
 
