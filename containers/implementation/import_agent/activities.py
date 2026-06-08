@@ -1025,7 +1025,11 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
             return "error:no_import_plan"
 
         # 2. Fetch all mapped data for this session
-        stmt_mapped = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
+        stmt_mapped = (
+            select(ISMappedData)
+            .where(ISMappedData.session_id == uuid.UUID(inp.session_id))
+            .limit(100)
+        )
         result_mapped = await session.execute(stmt_mapped)
         mapped_rows = result_mapped.scalars().all()
 
@@ -1040,7 +1044,11 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         mapped_dict = enrich_mapped_dict_from_r2(mapped_dict, s3)
 
         # 3. Fetch session validation errors
-        stmt_val = select(ISValidationResult).where(ISValidationResult.session_id == uuid.UUID(inp.session_id))
+        stmt_val = (
+            select(ISValidationResult)
+            .where(ISValidationResult.session_id == uuid.UUID(inp.session_id))
+            .limit(50)
+        )
         result_val = await session.execute(stmt_val)
         val_rows = result_val.scalars().all()
         has_validation_failures = any(v.overall_status == "fail" for v in val_rows)
@@ -1322,9 +1330,9 @@ async def execute_import_phase(inp: ExecutePhaseInput) -> Dict[str, Any]:
     async with AsyncSessionLocal() as session:
         val_rows = (
             await session.execute(
-                select(ISValidationResult).where(
-                    ISValidationResult.session_id == uuid.UUID(inp.session_id)
-                )
+                select(ISValidationResult)
+                .where(ISValidationResult.session_id == uuid.UUID(inp.session_id))
+                .limit(50)
             )
         ).scalars().all()
         if any(v.overall_status == "fail" for v in val_rows):

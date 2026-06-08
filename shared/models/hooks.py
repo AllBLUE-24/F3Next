@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, DateTime, Integer, Text
+from sqlalchemy import Column, ForeignKey, DateTime, Integer, Text, Index
 from sqlalchemy.types import Uuid, JSON
 from sqlalchemy.sql import func
 from shared.database.db import Base
@@ -35,5 +35,8 @@ class Hook(Base):
     # How many conversation turns have been taken (safety guardrail)
     discovery_turn_count = Column(Integer, default=0)
 
-    
+    __table_args__ = (
+        Index("idx_hooks_project_id", "project_id"),
+    )
+
 

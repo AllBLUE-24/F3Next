@@ -13,6 +13,6 @@ COMMON_KB = KB_ROOT / "common"
 F3ICHE_DIR = COMMON_KB / "f3iches"
 
 L1_MAX_SIZE = int(os.getenv("CONTEXT_ENGINE_L1_MAX", "500"))
-L1_TTL_SEC = int(os.getenv("CONTEXT_ENGINE_L1_TTL", "300"))
+L1_TTL_SEC = int(os.getenv("CONTEXT_ENGINE_L1_TTL", "600"))
 L2_TTL_SEC = int(os.getenv("CONTEXT_ENGINE_L2_TTL", "1800"))
 REDIS_URL = os.getenv("REDIS_URL", "").strip()

@@ -155,6 +155,9 @@ services:
     command: ["python", "-m", "containers.context_versioning.poller_worker"]
     environment:
       - TEMPORAL_HOST=temporal:7233
+      - REDIS_URL=redis://redis:6379/0
+      - CVS_POLL_INTERVAL_SEC=1800
+      - CONTEXT_ENGINE_L1_TTL=600
     dns:
       - 8.8.8.8
       - 1.1.1.1

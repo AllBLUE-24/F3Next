@@ -489,7 +489,11 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         }
 
         # Get all mapped data for this session
-        stmt = select(ISMappedData).where(ISMappedData.session_id == uuid.UUID(inp.session_id))
+        stmt = (
+            select(ISMappedData)
+            .where(ISMappedData.session_id == uuid.UUID(inp.session_id))
+            .limit(100)
+        )
         result = await session.execute(stmt)
         mapped_data_rows = result.scalars().all()
 

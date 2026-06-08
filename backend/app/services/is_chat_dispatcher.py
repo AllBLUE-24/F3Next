@@ -110,21 +110,28 @@ async def build_session_context(
 
         val_rows = (
             await session.execute(
-                select(ISValidationResult).where(
-                    ISValidationResult.session_id == is_session.id
-                )
+                select(ISValidationResult)
+                .where(ISValidationResult.session_id == is_session.id)
+                .limit(50)
             )
         ).scalars().all()
 
-        validation_summary: List[Dict[str, Any]] = []
-        for vr in val_rows:
-            errors = (
+        vr_ids = [vr.id for vr in val_rows]
+        errors_by_vr_id: Dict[Any, List[Any]] = {}
+        if vr_ids:
+            err_rows = (
                 await session.execute(
-                    select(ISValidationError).where(
-                        ISValidationError.validation_result_id == vr.id
-                    )
+                    select(ISValidationError)
+                    .where(ISValidationError.validation_result_id.in_(vr_ids))
+                    .limit(500)
                 )
             ).scalars().all()
+            for e in err_rows:
+                errors_by_vr_id.setdefault(e.validation_result_id, []).append(e)
+
+        validation_summary: List[Dict[str, Any]] = []
+        for vr in val_rows:
+            errors = errors_by_vr_id.get(vr.id, [])
             validation_summary.append(
                 {
                     "doctype": vr.doctype,

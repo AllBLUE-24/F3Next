@@ -1462,7 +1462,11 @@ async def refine_mapping_with_llm(inp: RefineMappingInput) -> Dict[str, Any]:
     current_mappings = []
     try:
         async with AsyncSessionLocal() as session:
-            stmt = select(ISFieldMapping).where(ISFieldMapping.session_id == uuid.UUID(inp.session_id))
+            stmt = (
+                select(ISFieldMapping)
+                .where(ISFieldMapping.session_id == uuid.UUID(inp.session_id))
+                .limit(500)
+            )
             res = await session.execute(stmt)
             records = res.scalars().all()
             for r in records:
@@ -1545,11 +1549,15 @@ async def refine_mapping_with_llm(inp: RefineMappingInput) -> Dict[str, Any]:
     for doctype in affected_doctypes:
         try:
             async with AsyncSessionLocal() as session:
-                res = await session.execute(select(ISFieldMapping).where(
-                    ISFieldMapping.session_id == uuid.UUID(inp.session_id),
-                    ISFieldMapping.target_doctype == doctype
-                ))
-                active_mappings = {r.source_column: r.target_field for r in res.scalars().all()}
+                res = await session.execute(
+                    select(ISFieldMapping.source_column, ISFieldMapping.target_field)
+                    .where(
+                        ISFieldMapping.session_id == uuid.UUID(inp.session_id),
+                        ISFieldMapping.target_doctype == doctype,
+                    )
+                    .limit(500)
+                )
+                active_mappings = {r.source_column: r.target_field for r in res.all()}
                 
                 res_meta = await session.execute(select(ISMappedData).where(
                     ISMappedData.session_id == uuid.UUID(inp.session_id),

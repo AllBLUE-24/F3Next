@@ -294,31 +294,35 @@ async def get_status(project_id: UUID):
     """
     try:
         from shared.database.db import AsyncSessionLocal
-        from shared.models.cvs_models import ContextSnapshot
-        from sqlalchemy import select
+        from sqlalchemy import text
 
         layers = ["identity", "master_data", "transaction_intel"]
         status: dict = {}
 
         async with AsyncSessionLocal() as session:
-            for layer in layers:
-                result = await session.execute(
-                    select(ContextSnapshot)
-                    .where(
-                        ContextSnapshot.project_id == str(project_id),
-                        ContextSnapshot.layer      == layer,
-                    )
-                    .order_by(ContextSnapshot.version.desc())
-                    .limit(1)
+            rows = (
+                await session.execute(
+                    text("""
+                        SELECT DISTINCT ON (layer)
+                            layer, version, trigger_event, r2_key, created_at
+                        FROM context_snapshots
+                        WHERE project_id = :pid
+                        ORDER BY layer, version DESC
+                    """),
+                    {"pid": str(project_id)},
                 )
-                row = result.scalars().first()
+            ).mappings().all()
 
+            snapshots = {row["layer"]: row for row in rows}
+            for layer in layers:
+                row = snapshots.get(layer)
                 if row:
+                    created_at = row["created_at"]
                     status[layer] = {
-                        "version":       row.version,
-                        "trigger_event": row.trigger_event,
-                        "r2_key":        row.r2_key,
-                        "created_at":    row.created_at.isoformat() if row.created_at else None,
+                        "version":       row["version"],
+                        "trigger_event": row["trigger_event"],
+                        "r2_key":        row["r2_key"],
+                        "created_at":    created_at.isoformat() if created_at else None,
                     }
                 else:
                     status[layer] = {"version": 0, "status": "not_synced"}

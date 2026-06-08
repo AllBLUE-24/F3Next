@@ -72,6 +72,7 @@ phase_c_result.json
 scripts/*
 !scripts/verify_foundation.py
 !scripts/sync_autofill_from_kb.py
+!scripts/apply_db_optimization.py
 
 # Regression test suites (foundation v1.0.0)
 /tests/

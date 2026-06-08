@@ -467,13 +467,41 @@ class ImplementationLauncher:
             return None
 
         async with AsyncSessionLocal() as session:
-            stmt = select(ISValidationResult).where(
-                ISValidationResult.session_id == is_session.id
-            )
-            results = (await session.execute(stmt)).scalars().all()
+            results = (
+                await session.execute(
+                    select(ISValidationResult)
+                    .where(ISValidationResult.session_id == is_session.id)
+                    .limit(50)
+                )
+            ).scalars().all()
 
             if not results:
                 return None
+
+            vr_ids = [vr.id for vr in results]
+            mapped_data_ids = [vr.mapped_data_id for vr in results if vr.mapped_data_id]
+
+            errors_by_vr_id: Dict[Any, List[Any]] = {}
+            if vr_ids:
+                err_rows = (
+                    await session.execute(
+                        select(ISValidationError)
+                        .where(ISValidationError.validation_result_id.in_(vr_ids))
+                        .limit(500)
+                    )
+                ).scalars().all()
+                for e in err_rows:
+                    errors_by_vr_id.setdefault(e.validation_result_id, []).append(e)
+
+            md_by_id: Dict[Any, Any] = {}
+            if mapped_data_ids:
+                md_rows = (
+                    await session.execute(
+                        select(ISMappedData).where(ISMappedData.id.in_(mapped_data_ids))
+                    )
+                ).scalars().all()
+                for md in md_rows:
+                    md_by_id[md.id] = md
 
             db_checks: List[Dict[str, Any]] = []
             report_r2_path: Optional[str] = None
@@ -481,20 +509,13 @@ class ImplementationLauncher:
             for vr in results:
                 if vr.report_r2_path and not report_r2_path:
                     report_r2_path = vr.report_r2_path
-                err_stmt = select(ISValidationError).where(
-                    ISValidationError.validation_result_id == vr.id
-                )
-                errors = (await session.execute(err_stmt)).scalars().all()
+                errors = errors_by_vr_id.get(vr.id, [])
                 check_errors = [e.error_message for e in errors if e.severity == "error"]
                 check_warnings = [e.error_message for e in errors if e.severity == "warning"]
 
                 source_files: List[str] = []
                 if vr.mapped_data_id:
-                    md = (
-                        await session.execute(
-                            select(ISMappedData).where(ISMappedData.id == vr.mapped_data_id)
-                        )
-                    ).scalar_one_or_none()
+                    md = md_by_id.get(vr.mapped_data_id)
                     if md and md.source_filename:
                         source_files = [md.source_filename]
 
@@ -737,6 +758,7 @@ class ImplementationLauncher:
                 select(ISImportLog)
                 .where(ISImportLog.import_plan_id == plan.id)
                 .order_by(ISImportLog.phase, ISImportLog.step_number)
+                .limit(200)
             )
             logs = (await session.execute(log_stmt)).scalars().all()
             
@@ -809,21 +831,35 @@ class ImplementationLauncher:
                 select(ISMappedData)
                 .where(ISMappedData.session_id == is_session.id)
                 .order_by(ISMappedData.target_doctype)
+                .limit(100)
             )
             mapped_rows = (await session.execute(mapped_stmt)).scalars().all()
 
             # 3. Validation results + errors per doctype
-            val_stmt = select(ISValidationResult).where(
-                ISValidationResult.session_id == is_session.id
-            )
-            val_rows = (await session.execute(val_stmt)).scalars().all()
+            val_rows = (
+                await session.execute(
+                    select(ISValidationResult)
+                    .where(ISValidationResult.session_id == is_session.id)
+                    .limit(50)
+                )
+            ).scalars().all()
+
+            vr_ids = [vr.id for vr in val_rows]
+            errors_by_vr_id: Dict[Any, List[Any]] = {}
+            if vr_ids:
+                err_rows = (
+                    await session.execute(
+                        select(ISValidationError)
+                        .where(ISValidationError.validation_result_id.in_(vr_ids))
+                        .limit(500)
+                    )
+                ).scalars().all()
+                for e in err_rows:
+                    errors_by_vr_id.setdefault(e.validation_result_id, []).append(e)
 
             val_map: Dict[str, Dict] = {}
             for vr in val_rows:
-                err_stmt = select(ISValidationError).where(
-                    ISValidationError.validation_result_id == vr.id
-                )
-                errors = (await session.execute(err_stmt)).scalars().all()
+                errors = errors_by_vr_id.get(vr.id, [])
                 val_map[vr.doctype] = {
                     "status": vr.overall_status,
                     "row_count": vr.row_count or 0,

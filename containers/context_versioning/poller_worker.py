@@ -1,7 +1,7 @@
 """
 CVS scheduled poller — safety net when webhooks are missed.
 
-Every 15 minutes, starts a full-layer CVS sync for projects whose latest snapshot
+Every 30 minutes (configurable), starts a full-layer CVS sync for projects whose latest snapshot
 is older than 20 minutes (or missing) while deployment credentials exist.
 """
 
@@ -20,7 +20,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s │ %(message)s")
 logger = logging.getLogger("cvs_poller")
 
-POLL_INTERVAL_SEC = int(os.getenv("CVS_POLL_INTERVAL_SEC", "900"))
+POLL_INTERVAL_SEC = int(os.getenv("CVS_POLL_INTERVAL_SEC", "1800"))
 STALE_MINUTES = int(os.getenv("CVS_POLL_STALE_MINUTES", "20"))
 
 

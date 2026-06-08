@@ -105,19 +105,15 @@ async def invalidate_session_cache(data: dict) -> dict:
 
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                select(OSSession).where(
+                update(OSSession)
+                .where(
                     OSSession.project_id == project_id,
-                    OSSession.status     == "active",
+                    OSSession.status == "active",
                 )
+                .values(company_context=None)
+                .returning(OSSession.id)
             )
-            sessions = result.scalars().all()
-
-            count = 0
-            for s in sessions:
-                # Nullify company_context so it will be re-fetched on next command
-                s.company_context = None
-                count += 1
-
+            count = len(result.fetchall())
             await session.commit()
 
         logger.info("CVS: invalidated company_context for %d OS sessions (project=%s)", count, project_id)

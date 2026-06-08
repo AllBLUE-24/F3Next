@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text
+from sqlalchemy import Column, String, ForeignKey, DateTime, Enum, Text, Index, text
 from sqlalchemy.types import Uuid, JSON
 from sqlalchemy.sql import func
 from shared.database.db import Base
@@ -74,6 +74,15 @@ class Project(Base):
     implementation_profile = Column(JSON, nullable=True)  # F3iche, industry, company context (versioned)
 
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index(
+            "idx_projects_deployed",
+            "id",
+            "company_slug",
+            postgresql_where=text("deployment_details IS NOT NULL"),
+        ),
+    )
 
 
 class ProjectMember(Base):
