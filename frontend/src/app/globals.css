@@ -9,21 +9,22 @@
 :root {
   color-scheme: dark;
 
-  /* ── Ink surfaces — layered, faint warmth so it reads crafted not OLED-flat ── */
-  --bg-void: #09090b;        /* page base */
+  /* ── Ultra-dark canvas — pitch black for premium UI with optional warmth ── */
+  --bg-pitch: #000000;       /* absolute black for hero sections */
+  --bg-void: #09090b;        /* page base (near-black with warmth) */
   --bg-shell: #0d0d11;       /* rails, chrome */
   --bg-float: #131318;       /* floating panels */
   --bg-card: #17171d;        /* cards */
   --bg-elevated: #1e1e25;    /* hover / popovers */
   --bg-overlay: rgba(7, 7, 10, 0.72);
 
-  /* ── Hairlines ── */
+  /* ── Hairlines — crisp, minimal borders ── */
   --border-subtle: rgba(255, 255, 255, 0.055);
   --border-default: rgba(255, 255, 255, 0.10);
   --border-strong: rgba(255, 255, 255, 0.16);
   --border-accent: rgba(245, 158, 11, 0.32);
 
-  /* ── Text ── */
+  /* ── Text hierarchy — stark white to muted zinc ── */
   --text-primary: #fafafa;
   --text-secondary: #a8a8b3;
   --text-muted: #71717a;
@@ -38,32 +39,52 @@
   --accent-border: rgba(245, 158, 11, 0.32);
   --accent-glow: rgba(245, 158, 11, 0.22);
 
-  /* ── Feedback (used sparingly) ── */
+  /* ── Feedback states ── */
   --success: #34d399;
+  --success-muted: rgba(52, 211, 153, 0.15);
   --warning: #fbbf24;
+  --warning-muted: rgba(251, 191, 36, 0.15);
   --error: #f87171;
+  --error-muted: rgba(248, 113, 113, 0.15);
   --info: #60a5fa;
+  --info-muted: rgba(96, 165, 250, 0.15);
 
-  /* ── Shadows — soft, deep, with a top inner-light edge for material ── */
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-depth: 0 8px 30px -14px rgb(0 0 0 / 0.7);
+  /* ── Shadows — deep, material-inspired with inner highlights ── */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 2px 4px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 8px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 8px 30px -14px rgb(0 0 0 / 0.7);
+  --shadow-xl: 0 16px 40px -20px rgb(0 0 0 / 0.8);
   --shadow-lift: inset 0 1px 0 rgb(255 255 255 / 0.05),
     0 24px 48px -28px rgb(0 0 0 / 0.85);
   --shadow-accent: 0 10px 34px -10px var(--accent-glow);
 
-  /* ── Shape ── */
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 28px;
+  /* ── Border radius — smooth, modern curves ── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
 
-  /* ── Layout ── */
+  /* ── Layout spacing ── */
   --header-height: 64px;
   --sidebar-width: 240px;
+  --drawer-width: 360px;
 
-  /* ── Grid ── */
+  /* ── Animation durations ── */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+
+  /* ── Animation easings ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Grid patterns ── */
   --grid-color: rgb(255 255 255 / 0.025);
   --grid-size: 44px;
 
@@ -76,13 +97,72 @@
   --font-display: var(--font-outfit), "Outfit", -apple-system, sans-serif;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Tailwind v4 @theme inline — comprehensive token mapping
+   Maps CSS variables to Tailwind semantic classes for streamlined DX
+   ═══════════════════════════════════════════════════════════════ */
+
 @theme inline {
+  /* ── Surfaces ── */
   --color-background: var(--bg-void);
   --color-foreground: var(--text-primary);
+  --color-pitch: var(--bg-pitch);
+  --color-void: var(--bg-void);
+  --color-shell: var(--bg-shell);
+  --color-float: var(--bg-float);
+  --color-card: var(--bg-card);
+  --color-elevated: var(--bg-elevated);
+
+  /* ── Borders ── */
+  --color-border: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border-default);
+  --color-ring: var(--accent-border);
+
+  /* ── Text ── */
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent-foreground: var(--text-primary);
+
+  /* ── Accent & States ── */
+  --color-accent: var(--accent);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #1a1205;
+  --color-destructive: var(--error);
+  --color-destructive-foreground: var(--text-primary);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  /* ── Typography ── */
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, "Inter", sans-serif;
   --font-display: var(--font-outfit), "Outfit", sans-serif;
   --font-mono: var(--font-geist-mono), "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  /* ── Border Radius ── */
+  --radius: var(--radius-md);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* ── Shadows ── */
+  --shadow: var(--shadow-md);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+
+  /* ── Animation ── */
+  --duration-fast: var(--duration-fast);
+  --duration-base: var(--duration-base);
+  --duration-slow: var(--duration-slow);
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
 }
 
 * {
