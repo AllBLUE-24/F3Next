@@ -113,12 +113,12 @@ def gap_from_preflight_block(block: Dict[str, Any]) -> GapItem:
             question_parts.append(f"(and {len(user_columns) - 8} more)")
     
     # Suggest working column names
+    working: List[str] = []
     if missing:
         from containers.implementation.mapping_agent.kb import field_mappings as _kb
         kb = _kb()
         dt_cfg = (kb.get("doctypes") or {}).get(doctype) or {}
         fmap = dt_cfg.get("field_mappings") or {}
-        working = []
         for m_field in missing[:3]:
             cfg = fmap.get(m_field) or {}
             syns = list(cfg.get("user_input_synonyms") or [])[:3]

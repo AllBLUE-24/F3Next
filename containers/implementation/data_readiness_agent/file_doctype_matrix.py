@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from containers.implementation.data_readiness_agent.field_policy import assess_field_coverage
+from containers.implementation.data_readiness_agent.gap_analyzer import readiness_file_level_only
 from containers.implementation.mapping_agent.dry_run_map import dry_run_map_file
 
 _EVIDENCE_THRESHOLD = 0.10
@@ -107,17 +108,21 @@ def assess_file_doctype_matrix(
 
         provable = False
         dry_run: Dict[str, Any] = {}
+        file_level_only = readiness_file_level_only()
         if content and (evidenced or party_hit):
-            if party_hit and party_split_for_doctype:
-                dry_run = dry_run_map_file(content, doctype, kb=field_mappings_kb)
+            if file_level_only:
+                provable = evidenced or party_hit
             else:
-                dry_run = dry_run_map_file(
-                    content,
-                    doctype,
-                    kb=field_mappings_kb,
-                    company_context={"company_name": "Session Company"},
-                )
-            provable = bool(dry_run.get("passed"))
+                if party_hit and party_split_for_doctype:
+                    dry_run = dry_run_map_file(content, doctype, kb=field_mappings_kb)
+                else:
+                    dry_run = dry_run_map_file(
+                        content,
+                        doctype,
+                        kb=field_mappings_kb,
+                        company_context={"company_name": "Session Company"},
+                    )
+                provable = bool(dry_run.get("passed"))
 
         ready = (fname, doctype) in ready_pairs
         corpus_overclaim = claimed and not evidenced

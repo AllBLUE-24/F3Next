@@ -997,6 +997,35 @@ class ImplementationWorkflow:
                             r2_manifest_url = fetch_results.get("manifest_url", r2_manifest_url)
                             self._parsed_files = fetch_results.get("parsed_files", self._parsed_files)
 
+                            # Re-enrich corpus understanding on merged manifest (Step 2b loop)
+                            if r2_manifest_url and not str(r2_manifest_url).startswith("error"):
+                                try:
+                                    from containers.implementation.supervisor_agent.activities import (
+                                        fetch_discovery_context,
+                                    )
+                                    re_discovery = await fetch_discovery_context(project_id)
+                                    enrich_result = await workflow.execute_activity(
+                                        enrich_corpus_understanding,
+                                        EnrichCorpusUnderstandingInput(
+                                            manifest_url=r2_manifest_url,
+                                            user_import_note=getattr(self, "_latest_upload_note", None),
+                                            discovery_chat_history=re_discovery.get("chat_history"),
+                                            discovery_metadata=re_discovery.get("discovery_metadata"),
+                                        ),
+                                        **_LONG,
+                                    )
+                                    self._corpus_understanding = enrich_result
+                                    L.info(
+                                        "      ✅ Corpus re-enriched after upload | %d files | status=%s",
+                                        enrich_result.get("files_understood", 0),
+                                        enrich_result.get("status", "unknown"),
+                                    )
+                                except Exception as enrich_err:
+                                    L.info(
+                                        "      ⚠️  Corpus re-enrichment failed (non-fatal): %s",
+                                        enrich_err,
+                                    )
+
                             readiness_env = await workflow.execute_activity(
                                 assess_data_readiness,
                                 AssessDataReadinessInput(

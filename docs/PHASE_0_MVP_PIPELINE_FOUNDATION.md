@@ -168,9 +168,59 @@ The `dry_run_map_file` in Step 8c uses only **Tier 1 (KB exact) + Tier 3 (KB fuz
 
 **Chosen:** Mix of B+C - Step 8c will report "file-level" gaps only, Step 9 will report field-level gaps after full mapping attempt.
 
-### Fix 4 Status: IMPLEMENTED ✓
-- Added `discovery_chat_history` and `discovery_metadata` params to `EnrichCorpusUnderstandingInput`
-- Created `_extract_discovery_context()` helper in `enrich_corpus_understanding.py`
-- Updated corpus understanding prompt template to include `{discovery_context}` placeholder
-- Wired workflow to fetch discovery data from hooks table before Step 2b
-- Discovery context now flows: hooks → workflow → corpus understanding → LLM prompt
+## Phase 1 Scope (P1 — Gap Resequencing + Corpus Loop)
+
+### Fix 2: File-Level Readiness at Step 8c ✓ COMPLETED
+- **Layer:** L2-L3
+- **Pillar:** 8
+- **Status:** IMPLEMENTED
+
+**Changes:**
+- [x] `readiness_file_level_only()` — default on via `IS_READINESS_FILE_LEVEL=1`
+- [x] Step 8c gates on file/doctype evidence (corpus, filename, party split), not KB column synonyms
+- [x] `_gate_readiness_entry` skips dry-run when file-level mode active
+- [x] Field-level gaps deferred to Step 9 mapping preflight
+- [x] `file_doctype_matrix` uses evidenced (not dry-run) for provability in file-level mode
+
+### Corpus Re-Enrichment Loop ✓ COMPLETED
+- **Layer:** L2
+- **Pillar:** 1
+- **Status:** IMPLEMENTED
+
+**Changes:**
+- [x] After supervisor-triggered re-upload, workflow re-runs `enrich_corpus_understanding`
+- [x] Discovery context passed on re-enrichment
+- [x] Readiness re-assessed on merged manifest
+
+### Mapping Preflight Context ✓ COMPLETED
+- [x] `preflight_blocks` include `user_columns`, `field_mapping`, `mapping_methods`
+- [x] Gap messages at Step 9 show what mapped vs what failed
+
+---
+
+## Out of Scope (Deferred to P2)
+
+- Synonym KB growth from successful mappings (P2)
+- SchemaResolver v1 for unknown doctypes (P2)
+- Optional LLM in dry_run (`IS_DRY_RUN_LLM=1`) for legacy field-level mode
+
+---
+
+## Change Log (continued)
+
+| Date       | Engineer | Change                                    |
+|------------|----------|-------------------------------------------|
+| 2026-06-19 | AI Agent | P1: file-level readiness at Step 8c       |
+| 2026-06-19 | AI Agent | P1: corpus re-enrichment on re-upload     |
+| 2026-06-19 | AI Agent | P1: mapping preflight column context      |
+
+---
+
+## Implementation Notes (P1)
+
+### Fix 2 Status: IMPLEMENTED ✓
+Step 8c now answers "do you have a file for this doctype?" not "do your column names match our JSON synonyms?".
+Field mapping truth lives at Step 9 (`map_columns_tiered` + preflight).
+
+Set `IS_READINESS_FILE_LEVEL=0` to restore legacy dry-run gating at Step 8c.
+

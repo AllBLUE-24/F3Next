@@ -1255,6 +1255,9 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 "source_file": inp.filename,
                 "missing_fields": preflight.get("missing_fields") or [],
                 "messages": preflight.get("messages") or [],
+                "user_columns": source_columns,
+                "field_mapping": field_mapping,
+                "mapping_methods": audit_methods,
             })
             continue
 

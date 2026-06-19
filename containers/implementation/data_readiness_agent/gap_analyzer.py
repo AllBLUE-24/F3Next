@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -321,11 +322,20 @@ def _gate_readiness_entry(
     kb: Dict[str, Any],
     policy_can_proceed: bool,
     dry_run_exempt: bool = False,
+    file_level_only: bool = False,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Apply dry-run gating. Returns ('ready'|'partial', entry_with_dry_run_fields).
+
+    When file_level_only=True, skip dry-run — field mapping is verified at Step 9.
     """
     out = dict(entry)
+    if file_level_only:
+        out["dry_run_passed"] = True
+        out["dry_run_exempt"] = True
+        out["field_gaps_deferred_to_mapping"] = True
+        return ("ready" if policy_can_proceed else "partial", out)
+
     if dry_run_exempt or not source_file:
         out["dry_run_passed"] = True
         out["dry_run_exempt"] = dry_run_exempt
@@ -359,6 +369,62 @@ _PARTIAL_THRESHOLD = 0.75
 _CANDIDATE_THRESHOLD = 0.10
 
 
+def readiness_file_level_only() -> bool:
+    """Step 8c gates on file/doctype coverage; field gaps defer to Step 9 mapping."""
+    return os.getenv("IS_READINESS_FILE_LEVEL", "1").strip().lower() in ("1", "true", "yes")
+
+
+def _file_level_covered(
+    doctype: str,
+    *,
+    best_file: Optional[str],
+    best_score: float,
+    corpus_hits: Dict[str, List[str]],
+    party_evidence: Dict[str, Dict[str, Any]],
+    item_stub: Optional[Dict[str, Any]],
+    fname: str = "",
+) -> bool:
+    """True when uploaded corpus has a file plausibly covering this doctype."""
+    if doctype in party_evidence:
+        return True
+    if doctype == "Item" and item_stub:
+        return True
+    if not best_file:
+        return False
+
+    check_name = fname or best_file
+
+    # Corpus Step 2b positive identification (strongest signal)
+    if check_name in (corpus_hits.get(doctype) or []):
+        return True
+
+    # Filename prior / implied doctype (not generic column overlap)
+    if _filename_prior_boost(check_name, doctype) >= 1.5:
+        return True
+    try:
+        from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
+        from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+        implied = filename_implied_doctype(check_name)
+        if implied and resolve_doctype(implied) == resolve_doctype(doctype):
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def _effective_can_proceed(
+    policy: Dict[str, Any],
+    *,
+    file_level_only: bool,
+    file_covered: bool,
+) -> bool:
+    if file_level_only and file_covered:
+        return True
+    return bool(policy.get("can_proceed_without"))
+
+
 def analyze_gaps(
     manifest: Union[Dict[str, str], Dict[str, Any]],
     target_structure: Dict[str, Any],
@@ -376,6 +442,7 @@ def analyze_gaps(
 
     Returns a pre_analysis dict consumed by the LLM prompt.
     """
+    file_level_only = readiness_file_level_only()
     files, prebuilt_meta, corpus_understanding = normalize_manifest_input(manifest)
     doctype_exclusions = corpus_exclusions_by_doctype(corpus_understanding)
     scope_doctypes, mvp_scoped = _resolve_scope_doctypes(target_structure)
@@ -472,7 +539,10 @@ def analyze_gaps(
                 source_file=pe["source_file"],
                 files=files,
                 kb=field_mappings_kb,
-                policy_can_proceed=policy["can_proceed_without"],
+                policy_can_proceed=_effective_can_proceed(
+                    policy, file_level_only=file_level_only, file_covered=True,
+                ),
+                file_level_only=file_level_only,
             )
             if bucket == "ready":
                 ready_doctypes.append(gated)
@@ -515,7 +585,10 @@ def analyze_gaps(
                 source_file=item_stub["source_file"],
                 files=files,
                 kb=field_mappings_kb,
-                policy_can_proceed=policy["can_proceed_without"],
+                policy_can_proceed=_effective_can_proceed(
+                    policy, file_level_only=file_level_only, file_covered=True,
+                ),
+                file_level_only=file_level_only,
             )
             if bucket == "ready":
                 ready_doctypes.append(gated)
@@ -578,7 +651,8 @@ def analyze_gaps(
                 kb=field_mappings_kb,
                 f3iche_id=f3iche_id,
             )
-            if policy["can_proceed_without"]:
+            corpus_file_covered = file_level_only or policy["can_proceed_without"]
+            if corpus_file_covered:
                 matched_file_doctype_pairs.add((cf, doctype))
                 corpus_entry = {
                     "doctype": doctype,
@@ -594,6 +668,11 @@ def analyze_gaps(
                     "phase": phase,
                     "evidence_type": "corpus_positive",
                 }
+                if file_level_only and not policy["can_proceed_without"]:
+                    corpus_entry["field_gaps_deferred_to_mapping"] = True
+                    corpus_entry["coverage_note"] = (
+                        "Corpus identified this doctype; field mapping verified at Step 9"
+                    )
                 bucket, gated = _gate_readiness_entry(
                     corpus_entry,
                     doctype=doctype,
@@ -601,6 +680,7 @@ def analyze_gaps(
                     files=files,
                     kb=field_mappings_kb,
                     policy_can_proceed=True,
+                    file_level_only=file_level_only,
                 )
                 if bucket == "ready":
                     ready_doctypes.append(gated)
@@ -615,6 +695,20 @@ def analyze_gaps(
             columns=best_columns,
             kb=field_mappings_kb,
             f3iche_id=f3iche_id,
+        )
+        file_covered = _file_level_covered(
+            doctype,
+            best_file=best_file,
+            best_score=best_score,
+            corpus_hits=corpus_hits,
+            party_evidence=party_evidence,
+            item_stub=item_stub,
+            fname=best_file or "",
+        )
+        can_proceed = _effective_can_proceed(
+            policy,
+            file_level_only=file_level_only,
+            file_covered=file_covered,
         )
 
         if action in ("use_default", "auto_created_by_erpnext"):
@@ -639,9 +733,10 @@ def analyze_gaps(
                 kb=field_mappings_kb,
                 policy_can_proceed=True,
                 dry_run_exempt=True,
+                file_level_only=file_level_only,
             )
             ready_doctypes.append(gated)
-        elif policy["can_proceed_without"] and best_file:
+        elif best_file and can_proceed:
             matched_file_doctype_pairs.add((best_file, doctype))
             embedded_project = (
                 doctype == "Project"
@@ -655,9 +750,13 @@ def analyze_gaps(
                 "missing_optional_fields": best_missing if not policy["assumption_only"] else [],
                 "assumed_fields": policy["assumed_fields"],
                 "blocking_fields": policy["blocking_fields"],
-                "ready_with_assumptions": policy["ready_with_assumptions"] or embedded_project,
-                "can_proceed_without": policy["can_proceed_without"],
-                "assumption_only": policy["assumption_only"] or embedded_project,
+                "ready_with_assumptions": policy["ready_with_assumptions"] or embedded_project or (
+                    file_level_only and file_covered and not policy["can_proceed_without"]
+                ),
+                "can_proceed_without": True,
+                "assumption_only": policy["assumption_only"] or embedded_project or (
+                    file_level_only and file_covered and not policy["can_proceed_without"]
+                ),
                 "phase": phase,
             }
             if embedded_project:
@@ -665,6 +764,12 @@ def analyze_gaps(
                 ready_entry["coverage_note"] = (
                     "Project names found in order file; no dedicated project master uploaded"
                 )
+            elif file_level_only and file_covered and not policy["can_proceed_without"]:
+                ready_entry["evidence_type"] = "file_level_deferred"
+                ready_entry["coverage_note"] = (
+                    "File covers this doctype; exact field mapping is verified at Step 9"
+                )
+                ready_entry["field_gaps_deferred_to_mapping"] = True
             bucket, gated = _gate_readiness_entry(
                 ready_entry,
                 doctype=doctype,
@@ -672,37 +777,13 @@ def analyze_gaps(
                 files=files,
                 kb=field_mappings_kb,
                 policy_can_proceed=True,
+                file_level_only=file_level_only,
             )
             if bucket == "ready":
                 ready_doctypes.append(gated)
             else:
                 partial_doctypes.append(gated)
-        elif best_score >= _READY_THRESHOLD and best_file and policy["can_proceed_without"]:
-            matched_file_doctype_pairs.add((best_file, doctype))
-            threshold_entry = {
-                "doctype": doctype,
-                "source_file": best_file,
-                "coverage_pct": round(best_score, 3),
-                "mapped_fields": best_matched,
-                "missing_optional_fields": best_missing,
-                "assumed_fields": policy["assumed_fields"],
-                "blocking_fields": policy["blocking_fields"],
-                "can_proceed_without": True,
-                "phase": phase,
-            }
-            bucket, gated = _gate_readiness_entry(
-                threshold_entry,
-                doctype=doctype,
-                source_file=best_file,
-                files=files,
-                kb=field_mappings_kb,
-                policy_can_proceed=True,
-            )
-            if bucket == "ready":
-                ready_doctypes.append(gated)
-            else:
-                partial_doctypes.append(gated)
-        elif best_score >= _PARTIAL_THRESHOLD and best_file:
+        elif best_score >= _PARTIAL_THRESHOLD and best_file and file_covered:
             matched_file_doctype_pairs.add((best_file, doctype))
             partial_doctypes.append({
                 "doctype": doctype,
@@ -719,11 +800,12 @@ def analyze_gaps(
             missing_doctypes.append({
                 "doctype": doctype,
                 "phase": phase,
-                "coverage_pct": 0.0,
+                "coverage_pct": round(best_score, 3) if best_file else 0.0,
+                "source_file": best_file,
                 "missing_required_fields": policy["blocking_fields"] or best_missing,
                 "assumed_fields": policy["assumed_fields"],
                 "blocking_fields": policy["blocking_fields"],
-                "can_proceed_without": policy["can_proceed_without"],
+                "can_proceed_without": False,
             })
 
     kb_doctypes = set((field_mappings_kb.get("doctypes") or {}).keys())
@@ -764,6 +846,7 @@ def analyze_gaps(
                 files=files,
                 kb=field_mappings_kb,
                 policy_can_proceed=True,
+                file_level_only=file_level_only,
             )
             if bucket == "ready":
                 ready_doctypes.append(gated)
