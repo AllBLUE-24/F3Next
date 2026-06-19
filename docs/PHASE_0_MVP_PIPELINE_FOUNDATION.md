@@ -224,3 +224,47 @@ Field mapping truth lives at Step 9 (`map_columns_tiered` + preflight).
 
 Set `IS_READINESS_FILE_LEVEL=0` to restore legacy dry-run gating at Step 8c.
 
+---
+
+## Phase 2 Scope (P2 — Learnings + SchemaResolver + Dry-Run LLM)
+
+### Session Mapping Learnings ✓ COMPLETED
+- **Layer:** L3
+- **Pillar:** 4 (Signaling & synonyms)
+- **Status:** IMPLEMENTED
+
+**Changes:**
+- [x] `mapping_learnings.py` — collect LLM/fuzzy mappings as session learnings
+- [x] Runtime KB overlay via `apply_learnings_to_kb` (subsequent files in same session)
+- [x] Persist learnings to R2: `mappings/session_learnings/{session_id}.json`
+- [x] KB promotion checklist: `mappings/kb_promotion_checklist/{session_id}.json`
+
+### SchemaResolver v1 — Live KB Merge ✓ COMPLETED
+- **Layer:** L3
+- **Pillar:** 5 (ERP knowledge)
+- **Status:** IMPLEMENTED
+
+**Changes:**
+- [x] `merge_live_schema_into_kb()` builds doctype entry from live ERP fields
+- [x] `resolve_kb_gaps_async()` merges live schema when doctype missing from static KB
+- [x] Step 9 `_prepare_effective_kb()` applies resolver + session learnings before mapping
+
+### Optional LLM in Dry-Run ✓ COMPLETED
+- **Layer:** L3
+- **Pillar:** 7
+- **Status:** IMPLEMENTED
+
+**Changes:**
+- [x] `IS_DRY_RUN_LLM=1` enables `dry_run_map_file_async` (full tiered mapping)
+- [x] For legacy `IS_READINESS_FILE_LEVEL=0` mode only
+
+---
+
+## Change Log (P2)
+
+| Date       | Engineer | Change                                    |
+|------------|----------|-------------------------------------------|
+| 2026-06-19 | AI Agent | P2: session mapping learnings + R2 persist |
+| 2026-06-19 | AI Agent | P2: SchemaResolver live KB merge at Step 9  |
+| 2026-06-19 | AI Agent | P2: IS_DRY_RUN_LLM optional tiered dry-run  |
+

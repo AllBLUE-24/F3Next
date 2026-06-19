@@ -71,6 +71,93 @@ def _apply_field_mapping(
     return mapped
 
 
+def _dry_run_llm_enabled() -> bool:
+    return os.getenv("IS_DRY_RUN_LLM", "0").strip().lower() in ("1", "true", "yes")
+
+
+async def dry_run_map_file_async(
+    content: str,
+    doctype: str,
+    *,
+    kb: Dict[str, Any],
+    row_filter: Optional[Callable[[List[Dict[str, Any]], List[str]], List[Dict[str, Any]]]] = None,
+    company_context: Optional[Dict[str, Any]] = None,
+    project_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Dry-run with full tiered mapping (KB → LLM → fuzzy) when IS_DRY_RUN_LLM=1."""
+    from containers.implementation.mapping_agent.column_map_tiered import map_columns_tiered
+    from containers.implementation.mapping_agent.schema_resolver import resolve_kb_gaps_sync
+    from containers.implementation.mapping_agent.synonym_promotion import suggest_synonym_promotions
+
+    rows = _parse_rows(content)
+    if not rows:
+        return {
+            "passed": False,
+            "field_mapping": {},
+            "preflight": {"blocking": True, "missing_fields": [], "messages": ["No rows in file"]},
+            "record_count": 0,
+            "methods": {},
+        }
+
+    columns = [c for c in rows[0].keys() if c]
+    if row_filter:
+        rows = row_filter(rows, columns)
+    elif doctype in ("Customer", "Supplier"):
+        rows = _filter_party_rows(rows, columns, doctype)
+
+    if not rows:
+        return {
+            "passed": False,
+            "field_mapping": {},
+            "preflight": {
+                "blocking": True,
+                "missing_fields": [],
+                "messages": [f"No rows matched party filter for {doctype}"],
+            },
+            "record_count": 0,
+            "methods": {},
+        }
+
+    effective_kb, resolver_meta = resolve_kb_gaps_sync(doctype, kb)
+    engine = _MappingEngine()
+    engine._field_mappings = effective_kb
+    field_mapping, audit = await map_columns_tiered(
+        engine,
+        columns,
+        doctype,
+        sample_rows=rows,
+        kb=effective_kb,
+    )
+    methods = dict(audit.get("methods") or {})
+
+    mapped = _apply_field_mapping(rows, field_mapping)
+    folded = fold_child_tables(doctype, mapped)
+    normalized = apply_defaults_and_normalize(
+        doctype, folded, context=company_context or {},
+    )
+    preflight = preflight_mapped_records(doctype, normalized)
+    missing_required = preflight.get("missing_fields") or []
+    synonym_promotions = suggest_synonym_promotions(
+        doctype=doctype,
+        field_mapping=field_mapping,
+        columns=columns,
+        missing_required=missing_required,
+    )
+
+    return {
+        "passed": not preflight.get("blocking"),
+        "field_mapping": field_mapping,
+        "preflight": preflight,
+        "record_count": len(normalized),
+        "methods": methods,
+        "missing_required_after": missing_required,
+        "schema_resolver": resolver_meta,
+        "synonym_promotions": synonym_promotions,
+        "project_id": project_id,
+        "dry_run_mode": "tiered_llm",
+    }
+
+
 def dry_run_map_file(
     content: str,
     doctype: str,
@@ -83,8 +170,23 @@ def dry_run_map_file(
     """
     Run map → fold → defaults → preflight without persisting.
 
-    Uses Tier 1 KB exact + Tier 3 KB fuzzy only (no LLM unless IS_DRY_RUN_LLM=1).
+    Uses Tier 1 KB exact + Tier 3 KB fuzzy by default.
+    Set IS_DRY_RUN_LLM=1 for Tier 2 LLM in legacy field-level readiness mode.
     """
+    if _dry_run_llm_enabled():
+        import asyncio
+
+        return asyncio.run(
+            dry_run_map_file_async(
+                content,
+                doctype,
+                kb=kb,
+                row_filter=row_filter,
+                company_context=company_context,
+                project_id=project_id,
+            )
+        )
+
     rows = _parse_rows(content)
     if not rows:
         return {

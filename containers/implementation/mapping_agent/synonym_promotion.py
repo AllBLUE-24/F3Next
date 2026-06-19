@@ -43,3 +43,16 @@ def suggest_synonym_promotions(
         })
 
     return suggestions
+
+
+def build_promotion_report(
+    *,
+    successful_learnings: List[Dict[str, Any]],
+    gap_suggestions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Combined KB promotion checklist for golden/beta runs."""
+    return {
+        "successful_learnings": successful_learnings,
+        "gap_suggestions": gap_suggestions,
+        "total_items": len(successful_learnings) + len(gap_suggestions),
+    }

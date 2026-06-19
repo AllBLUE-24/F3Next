@@ -511,6 +511,127 @@ class MapFileInput:
     retry_feedback: Optional[str] = None
 
 
+async def _prepare_effective_kb(
+    doctype: str,
+    *,
+    project_id: str,
+    company_slug: str,
+    session_id: str,
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """SchemaResolver + session learnings overlay for Step 9 mapping."""
+    from containers.implementation.mapping_agent.mapping_learnings import (
+        apply_learnings_to_kb,
+        load_session_learnings,
+    )
+    from containers.implementation.mapping_agent.schema_resolver import resolve_kb_gaps_async
+
+    base_kb = _kb_field_mappings()
+    effective_kb, resolver_meta = await resolve_kb_gaps_async(
+        doctype, base_kb, project_id=project_id or None,
+    )
+    learnings = await load_session_learnings(company_slug, project_id, session_id)
+    effective_kb = apply_learnings_to_kb(effective_kb, doctype, learnings)
+    if learnings:
+        resolver_meta = {
+            **resolver_meta,
+            "session_learnings_applied": len(
+                [l for l in learnings if l.get("doctype") == doctype]
+            ),
+        }
+    return effective_kb, resolver_meta
+
+
+async def _record_mapping_learnings(
+    *,
+    doctype: str,
+    source_file: str,
+    field_mapping: Dict[str, str],
+    methods: Dict[str, str],
+    company_slug: str,
+    project_id: str,
+    session_id: str,
+) -> None:
+    from containers.implementation.mapping_agent.mapping_learnings import (
+        collect_successful_learnings,
+        load_session_learnings,
+        merge_learnings,
+        save_session_learnings,
+    )
+    from containers.implementation.mapping_agent.synonym_promotion import (
+        build_promotion_report,
+        suggest_synonym_promotions,
+    )
+    from shared.r2_client import r2_write_json
+
+    new_items = collect_successful_learnings(
+        doctype=doctype,
+        source_file=source_file,
+        field_mapping=field_mapping,
+        methods=methods,
+    )
+    if not new_items:
+        return
+
+    existing = await load_session_learnings(company_slug, project_id, session_id)
+    merged = merge_learnings(existing, new_items)
+    await save_session_learnings(company_slug, project_id, session_id, merged)
+
+    gap_suggestions = suggest_synonym_promotions(
+        doctype=doctype,
+        field_mapping=field_mapping,
+        columns=list(field_mapping.keys()),
+        missing_required=[],
+    )
+    report = build_promotion_report(
+        successful_learnings=[l for l in merged if l.get("doctype") == doctype],
+        gap_suggestions=gap_suggestions,
+    )
+    checklist_key = (
+        f"{company_slug}/{project_id}/mappings/kb_promotion_checklist/{session_id}.json"
+    )
+    try:
+        await r2_write_json(checklist_key, report, bucket="clean-data")
+    except Exception as e:
+        activity.logger.warning("  ⚠ Could not persist KB promotion checklist: %s", e)
+
+
+async def _map_columns_with_session_kb(
+    engine: _MappingEngine,
+    columns: List[str],
+    doctype: str,
+    *,
+    sample_rows: Optional[List[Dict[str, Any]]],
+    corpus_hints: Optional[Dict[str, Any]],
+    inp: MapFileInput,
+) -> tuple[Dict[str, str], Dict[str, Any]]:
+    effective_kb, resolver_meta = await _prepare_effective_kb(
+        doctype,
+        project_id=inp.project_id,
+        company_slug=inp.company_slug,
+        session_id=inp.session_id,
+    )
+    engine._field_mappings = effective_kb
+    field_mapping, map_audit = await map_columns_tiered(
+        engine,
+        columns,
+        doctype,
+        sample_rows=sample_rows,
+        corpus_hints=corpus_hints,
+        kb=effective_kb,
+    )
+    map_audit["schema_resolver"] = resolver_meta
+    await _record_mapping_learnings(
+        doctype=doctype,
+        source_file=inp.filename,
+        field_mapping=field_mapping,
+        methods=map_audit.get("methods") or {},
+        company_slug=inp.company_slug,
+        project_id=inp.project_id,
+        session_id=inp.session_id,
+    )
+    return field_mapping, map_audit
+
+
 async def _load_session_required_doctypes(session_id: str) -> List[str]:
     """
     Load the most recent ISTargetStructure.required_doctypes for the session.
@@ -1044,10 +1165,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     activity.logger.info("  ⏭️ Skipping split group %s → %s (not scheduled as 'create' in plan)", entity_type, group_doctype)
                     continue
 
-                field_mapping, map_audit = await map_columns_tiered(
+                field_mapping, map_audit = await _map_columns_with_session_kb(
                     engine, columns, group_doctype,
                     sample_rows=group_rows,
                     corpus_hints=corpus_hints,
+                    inp=inp,
                 )
                 results.append({
                     "doctype": group_doctype,
@@ -1111,10 +1233,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
                 )
 
-            field_mapping, map_audit = await map_columns_tiered(
+            field_mapping, map_audit = await _map_columns_with_session_kb(
                 engine, columns, doctype,
                 sample_rows=clean_rows,
                 corpus_hints=corpus_hints,
+                inp=inp,
             )
             results = [{
                 "doctype": doctype,
@@ -1177,10 +1300,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 doctype = implied_dt
                 if rows and field_mapping and not is_unstructured:
                     cols = source_columns or [c for c in rows[0].keys() if c]
-                    field_mapping, _ = await map_columns_tiered(
+                    field_mapping, _ = await _map_columns_with_session_kb(
                         engine, cols, doctype,
                         sample_rows=rows,
                         corpus_hints=corpus_hints,
+                        inp=inp,
                     )
             else:
                 activity.logger.warning(

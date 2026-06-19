@@ -107,6 +107,51 @@ def resolve_kb_gaps_sync(
     return patched, meta
 
 
+def merge_live_schema_into_kb(
+    doctype: str,
+    kb: Dict[str, Any],
+    live_fields: List[Dict[str, Any]],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Build a minimal doctype entry from live ERP schema when KB module is missing."""
+    if not live_fields:
+        return kb, {"live_merged": False, "doctype": doctype}
+
+    patched = copy.deepcopy(kb)
+    fmap: Dict[str, Any] = {}
+    mandatory: List[str] = []
+    for f in live_fields:
+        if not isinstance(f, dict):
+            continue
+        fname = str(f.get("fieldname") or "").strip()
+        if not fname:
+            continue
+        syns = list(f.get("user_input_synonyms") or [fname])
+        if fname not in syns:
+            syns.insert(0, fname)
+        entry = {
+            "fieldname": fname,
+            "fieldtype": f.get("fieldtype") or "Data",
+            "mandatory": bool(f.get("mandatory") or f.get("reqd")),
+            "options": f.get("options"),
+            "user_input_synonyms": syns,
+        }
+        fmap[fname] = entry
+        if entry["mandatory"]:
+            mandatory.append(fname)
+
+    patched.setdefault("doctypes", {})[doctype] = {
+        "field_mappings": fmap,
+        "mandatory_fields": mandatory,
+        "_schema_source": "live_erp",
+    }
+    return patched, {
+        "live_merged": True,
+        "doctype": doctype,
+        "field_count": len(fmap),
+        "source": "live_schema",
+    }
+
+
 async def resolve_kb_gaps_async(
     doctype: str,
     kb: Dict[str, Any],
@@ -114,14 +159,28 @@ async def resolve_kb_gaps_async(
     project_id: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Try live ERP schema when heuristics are insufficient (logged for KB promotion).
+    Patch KB with heuristics and, when needed, live ERP schema for KB-miss doctypes.
     """
     patched, meta = resolve_kb_gaps_sync(doctype, kb)
-    if meta.get("resolved") or not project_id:
+    dt_in_kb = doctype in (patched.get("doctypes") or {})
+
+    if not project_id:
         return patched, meta
 
     try:
         from containers.implementation.mapping_agent.live_schema import fetch_live_doctype_schema
+
+        if not dt_in_kb:
+            live_fields = await fetch_live_doctype_schema(doctype, project_id)
+            if live_fields:
+                patched, live_meta = merge_live_schema_into_kb(doctype, patched, live_fields)
+                meta = {**meta, **live_meta, "resolved": True}
+                logger.info(
+                    "schema_resolver: merged live schema for KB-miss doctype %s (%d fields)",
+                    doctype,
+                    live_meta.get("field_count", 0),
+                )
+                return patched, meta
 
         live_fields = await fetch_live_doctype_schema(doctype, project_id)
         if live_fields:
