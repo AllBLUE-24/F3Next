@@ -26,10 +26,73 @@ from shared.llm_schema_utils import repair_pydantic_dict
 from shared.structured_llm import generate_typed
 
 
+def _extract_discovery_context(
+    chat_history: Optional[List[Dict[str, Any]]] = None,
+    discovery_metadata: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Extract key business context from discovery chat for corpus understanding.
+    
+    Returns a formatted string to inject into the corpus LLM prompt.
+    """
+    if not chat_history and not discovery_metadata:
+        return ""
+    
+    context_parts = ["BUSINESS CONTEXT FROM DISCOVERY CHAT:"]
+    
+    # Extract from metadata (completed discovery)
+    if discovery_metadata:
+        bottleneck = discovery_metadata.get("bottleneck") or discovery_metadata.get("pain_point")
+        if bottleneck:
+            context_parts.append(f"- User's stated bottleneck/pain point: {bottleneck}")
+        
+        industry = discovery_metadata.get("industry") or discovery_metadata.get("f3iche_industry")
+        if industry:
+            context_parts.append(f"- Industry/business type: {industry}")
+        
+        scale = discovery_metadata.get("scale") or discovery_metadata.get("company_scale")
+        if scale:
+            context_parts.append(f"- Company scale: {scale}")
+        
+        legacy_system = discovery_metadata.get("legacy_system")
+        if legacy_system:
+            context_parts.append(f"- Current system: {legacy_system}")
+    
+    # Extract key phrases from chat history (in-progress discovery)
+    if chat_history and isinstance(chat_history, list):
+        user_messages = [
+            msg.get("content", "")
+            for msg in chat_history
+            if isinstance(msg, dict) and msg.get("role") == "user"
+        ]
+        if user_messages:
+            # Take last 3 user messages for context (most relevant)
+            recent = user_messages[-3:]
+            context_parts.append("- Recent user statements:")
+            for i, msg in enumerate(recent, 1):
+                snippet = str(msg)[:200].strip()
+                if snippet:
+                    context_parts.append(f"  {i}. {snippet}")
+    
+    if len(context_parts) == 1:
+        return ""
+    
+    context_parts.append(
+        "\nUse this business context to inform your interpretation of the uploaded files. "
+        "If the user said they track 'chemical batches' and you see manufacturing data, "
+        "prioritize BOM/Work Order classifications. If they said 'construction projects', "
+        "prioritize Project + Sales Order classifications."
+    )
+    
+    return "\n".join(context_parts)
+
+
 @dataclass
 class EnrichCorpusUnderstandingInput:
     manifest_url: str
     user_import_note: Optional[str] = None
+    discovery_chat_history: Optional[List[Dict[str, Any]]] = None
+    discovery_metadata: Optional[Dict[str, Any]] = None
 
 
 def _get_s3():
@@ -114,7 +177,15 @@ async def enrich_corpus_understanding(inp: EnrichCorpusUnderstandingInput) -> Di
         }
 
     expected_filenames = list(files.keys())
+    
+    # Build discovery context
+    discovery_context = _extract_discovery_context(
+        inp.discovery_chat_history,
+        inp.discovery_metadata,
+    )
+    
     prompt = CORPUS_UNDERSTANDING_PROMPT.format(
+        discovery_context=discovery_context,
         user_import_note=inp.user_import_note or "(none)",
         files_block=_build_files_block(manifest),
     )

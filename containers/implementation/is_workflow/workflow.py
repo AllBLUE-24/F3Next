@@ -447,6 +447,18 @@ class ImplementationWorkflow:
             self._parsed_files = []
 
         # ── Step 2b: LLM corpus understanding (semantic file descriptions) ──
+        # Fetch discovery context for business-aware corpus classification
+        discovery_context = {}
+        try:
+            from containers.implementation.supervisor_agent.activities import fetch_discovery_context
+            discovery_context = await fetch_discovery_context(project_id)
+            if discovery_context.get("chat_history"):
+                L.info("      ✓ Discovery context loaded: %d messages, status=%s",
+                       len(discovery_context.get("chat_history", [])),
+                       discovery_context.get("discovery_status"))
+        except Exception as e:
+            L.info("      ⚠️  Could not load discovery context (non-fatal): %s", e)
+        
         if r2_manifest_url and not r2_manifest_url.startswith("error"):
             try:
                 enrich_result: Dict = await workflow.execute_activity(
@@ -454,6 +466,8 @@ class ImplementationWorkflow:
                     EnrichCorpusUnderstandingInput(
                         manifest_url=r2_manifest_url,
                         user_import_note=sig.user_note,
+                        discovery_chat_history=discovery_context.get("chat_history"),
+                        discovery_metadata=discovery_context.get("discovery_metadata"),
                     ),
                     **_LONG,
                 )

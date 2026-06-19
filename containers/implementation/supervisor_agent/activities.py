@@ -35,6 +35,50 @@ from shared.models.is_status import (
 )
 
 
+async def fetch_discovery_context(project_id: str) -> Dict[str, Any]:
+    """
+    Fetch discovery chat history and metadata from hooks table.
+    
+    Returns: {
+        "chat_history": [...],
+        "discovery_metadata": {...},
+        "discovery_status": "COMPLETE"|"ACTIVE"|...,
+    }
+    """
+    from sqlalchemy import select
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.hooks import Hook
+    from uuid import UUID
+    
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Hook).where(Hook.project_id == UUID(project_id))
+            )
+            hook = result.scalar_one_or_none()
+            
+            if not hook:
+                return {
+                    "chat_history": [],
+                    "discovery_metadata": None,
+                    "discovery_status": None,
+                }
+            
+            return {
+                "chat_history": hook.chat_history or [],
+                "discovery_metadata": hook.discovery_metadata or None,
+                "discovery_status": hook.discovery_status,
+                "discovery_coverage": hook.discovery_coverage,
+            }
+    except Exception as e:
+        activity.logger.warning("  ⚠️ Could not fetch discovery context: %s", e)
+        return {
+            "chat_history": [],
+            "discovery_metadata": None,
+            "discovery_status": None,
+        }
+
+
 @dataclass
 class SuperviseStepInput:
     project_id: str
@@ -389,6 +433,34 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
         if user_missing:
             final_status = "needs_user_input"
             unique_missing = sorted(set(user_missing))
+            
+            # Extract column context from validation report if available
+            column_context_parts = []
+            for check in checks:
+                if not isinstance(check, dict):
+                    continue
+                dt = check.get("doctype")
+                sources = check.get("source_files") or []
+                if dt:
+                    # Try to get user columns and mapping attempts
+                    mapping_methods = (check.get("metadata") or {}).get("mapping_methods") or {}
+                    user_cols = (check.get("metadata") or {}).get("user_columns") or []
+                    if user_cols:
+                        successfully_mapped = [
+                            c for c, method in mapping_methods.items()
+                            if method in ("kb_local", "llm_column_map", "kb_fuzzy")
+                        ]
+                        if successfully_mapped:
+                            column_context_parts.append(
+                                f"{dt} (from {sources[0] if sources else 'uploaded file'}): "
+                                f"Successfully mapped {len(successfully_mapped)} columns. "
+                                f"Your columns: {', '.join(user_cols[:6])}"
+                            )
+                        else:
+                            column_context_parts.append(
+                                f"{dt} (from {sources[0] if sources else 'uploaded file'}): "
+                                f"Your columns: {', '.join(user_cols[:6])}"
+                            )
 
             # Try to get an LLM-enriched explanation
             llm_result = await _call_supervisor_llm(
@@ -396,16 +468,25 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                     "type": "missing_required_fields",
                     "missing_fields": unique_missing,
                     "node": "validate_mapped_data",
+                    "column_context": column_context_parts,
                 },
                 rag=rag,
                 f3iche_id=inp.f3iche_id,
             )
 
-            critical_msg = llm_result.get("critical_message") or (
-                f"The following required fields are missing and must be provided before "
-                f"import can continue: {', '.join(unique_missing)}. "
-                "Please upload a file containing this data or provide the values directly."
-            )
+            critical_msg = llm_result.get("critical_message")
+            if not critical_msg:
+                msg_parts = [
+                    f"The following required fields are missing and must be provided before import can continue: {', '.join(unique_missing)}."
+                ]
+                if column_context_parts:
+                    msg_parts.append("Column mapping status:")
+                    msg_parts.extend(f"  • {ctx}" for ctx in column_context_parts[:3])
+                msg_parts.append(
+                    "Please upload a file containing this data with column names that match ERPNext field names, "
+                    "or provide the values directly."
+                )
+                critical_msg = " ".join(msg_parts)
 
             actions.append(
                 SupervisorAction(
@@ -417,6 +498,7 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                     metadata={
                         "missing_required_fields": unique_missing,
                         "tier": "critical",
+                        "column_context": column_context_parts,
                     },
                 )
             )
@@ -459,6 +541,31 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                         "origin": "ler",
                         "ler_blocking_count": len(ler_blocking),
                         "sample_gaps": ler_blocking[:5],
+                    },
+                )
+            )
+
+        blocking_mvp = list((st.primary_result or {}).get("blocking_unmapped_seeds") or [])
+        if blocking_mvp:
+            final_status = "needs_user_input"
+            names = ", ".join(blocking_mvp)
+            actions.append(
+                SupervisorAction(
+                    id="ask_user_missing_mvp_files",
+                    type="ask_user",
+                    scope="validation",
+                    question=(
+                        f"Your MVP scope still needs uploaded data for: {names}. "
+                        "Upload a file for each before we can import to ERPNext."
+                    ),
+                    options=[
+                        "Upload the missing files",
+                        "Review my mapped data first",
+                    ],
+                    metadata={
+                        "tier": "critical",
+                        "blocking_unmapped_seeds": blocking_mvp,
+                        "gap_class": "user_gap",
                     },
                 )
             )

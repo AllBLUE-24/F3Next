@@ -31,6 +31,8 @@ REASONING PRINCIPLES (apply to every file):
 7. Be conservative with explicitly_not_doctypes — only exclude when you have positive evidence,
    not because a column name superficially resembles another doctype.
 
+{discovery_context}
+
 USER IMPORT NOTE (may clarify intent):
 {user_import_note}
 
