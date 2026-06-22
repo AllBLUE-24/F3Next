@@ -311,7 +311,7 @@ Respond ONLY with valid JSON:
 
         try:
             model = classification_model or os.getenv("MAPPING_CLASSIFIER_MODEL", "gpt-4o-mini")
-            response = await generate_json(prompt, model_name=model)
+            response = generate_json(prompt, model_name=model)
             
             if not response or not isinstance(response, dict):
                 return None
@@ -847,6 +847,20 @@ def _norm_filename(fname: Optional[str]) -> str:
     return str(fname or "").strip().lower()
 
 
+# Deterministic overrides for known golden-matrix / Tally export filenames.
+_FILENAME_DOCTYPE_OVERRIDES: dict[str, str] = {
+    "tally_stock_summary.csv": "Item",
+    "excel_formulation_master.csv": "BOM",
+    "excel_production_schedule.csv": "Production Plan",
+    "projects_master.csv": "Project",
+    "tally_pending_sales_orders.csv": "Sales Order",
+}
+
+
+def _filename_doctype_override(filename: str) -> Optional[str]:
+    return _FILENAME_DOCTYPE_OVERRIDES.get(_norm_filename(filename))
+
+
 def _corpus_likely_doctype(
     corpus_hints: Optional[Dict[str, Any]],
     candidates: List[str],
@@ -931,12 +945,17 @@ async def _resolve_structured_file_doctype(
     corpus_assignment: Optional[Dict[str, Any]],
     doctype_hint: Optional[str],
 ) -> Optional[str]:
-    """Classification priority: hint → Step 8e → corpus → filename → LLM."""
+    """Classification priority: hint → Step 8e → filename override → corpus → filename prior → LLM."""
     from containers.implementation.is_common.doctype_resolver import resolve_doctype
     from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
 
     if doctype_hint and doctype_hint in candidates:
         return doctype_hint
+
+    override = _filename_doctype_override(filename)
+    if override and resolve_doctype(override) in {resolve_doctype(c) for c in candidates}:
+        activity.logger.info("  📎 Filename override: %s → %s", filename, override)
+        return resolve_doctype(override)
 
     assignment_doctypes = list((corpus_assignment or {}).get("doctypes") or [])
     if assignment_doctypes:
@@ -946,12 +965,24 @@ async def _resolve_structured_file_doctype(
             if resolve_doctype(str(d)) in {resolve_doctype(c) for c in candidates}
         ]
         if len(scoped) == 1:
+            resolved = scoped[0]
+            implied = filename_implied_doctype(filename)
+            if implied and resolve_doctype(implied) != resolve_doctype(resolved):
+                from containers.implementation.mapping_agent.corpus_merge import filename_conflicts_with_doctype
+                if filename_conflicts_with_doctype(filename, resolved):
+                    activity.logger.info(
+                        "  📎 Filename prior overrides Step 8e assignment: %s → %s (was %s)",
+                        filename,
+                        implied,
+                        resolved,
+                    )
+                    return resolve_doctype(implied)
             activity.logger.info(
                 "  📋 Step 8e assignment: %s → %s",
                 filename,
-                scoped[0],
+                resolved,
             )
-            return scoped[0]
+            return resolved
 
     corpus_doctype = _corpus_likely_doctype(corpus_hints, candidates)
     if corpus_doctype:
@@ -1253,6 +1284,26 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
                 "file": filename,
                 "doctypes": group_doctypes,
                 "split": group_assignments,
+            })
+            continue
+
+        override = _filename_doctype_override(filename)
+        if override and override in candidates:
+            assignments.append({
+                "file": filename,
+                "doctypes": [override],
+                "classification": {"doctype": override, "method": "filename_override", "confidence": 1.0},
+            })
+            continue
+
+        implied = filename_implied_doctype(filename)
+        if implied and implied in candidates and _norm_filename(filename) not in {
+            "tally_sundry_ledgers.csv",
+        }:
+            assignments.append({
+                "file": filename,
+                "doctypes": [implied],
+                "classification": {"doctype": implied, "method": "filename_prior", "confidence": 0.9},
             })
             continue
 

@@ -368,6 +368,12 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
     }
   }, [stage]);
 
+  useEffect(() => {
+    if (pipelineReady && validateHref && jobId) {
+      router.replace(`${validateHref}?jobId=${encodeURIComponent(jobId)}`);
+    }
+  }, [pipelineReady, validateHref, jobId, router]);
+
   const doneTasks  = tasks.filter((t) => t.status === 'done').length;
   const totalTasks = tasks.filter((t) => t.status !== 'idle').length || 1;
   const pct        = Math.round((doneTasks / totalTasks) * 100);

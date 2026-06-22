@@ -27,6 +27,22 @@ _BASE_ALIASES: dict[str, list[str]] = {
 }
 
 
+def _kb_uom_alias(val: str) -> Optional[str]:
+    """Map common abbreviations (Ltr, gal) to ERPNext UOM names via KB parsing rules."""
+    raw = str(val or "").strip()
+    if not raw:
+        return None
+    try:
+        from containers.os.payload_generator.kb_fields import field_kb
+
+        normalized = field_kb().resolve_uom(raw)
+        if normalized and normalized != raw:
+            return normalized
+    except Exception:
+        pass
+    return None
+
+
 def _suffix_candidates(base: str, known_names: list[str]) -> list[str]:
     """Find ERPNext names matching base or known aliases, e.g. WIP -> Work In Progress - GS."""
     bases = [base]
@@ -181,7 +197,23 @@ class BulkLinkResolver:
                 if not val:
                     continue
 
-                res = resolve_single(val, known_names, preferred_abbr=preferred_abbr)
+                candidates = [val]
+                if target_doctype == "UOM":
+                    alias = _kb_uom_alias(val)
+                    if alias and alias not in candidates:
+                        candidates.append(alias)
+
+                res = ResolutionResult(original=val, resolved=None)
+                for candidate in candidates:
+                    attempt = resolve_single(candidate, known_names, preferred_abbr=preferred_abbr)
+                    if attempt.resolved:
+                        res = ResolutionResult(
+                            original=val,
+                            resolved=attempt.resolved,
+                            ambiguous=attempt.ambiguous,
+                            ambiguous_candidates=attempt.ambiguous_candidates,
+                        )
+                        break
                 if res.resolved and res.resolved != val:
                     result.resolved.setdefault(target_doctype, {})[val] = res.resolved
                     log.info(

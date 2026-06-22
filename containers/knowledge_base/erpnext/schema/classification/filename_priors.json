@@ -200,6 +200,31 @@
       "keyword": "active_projects",
       "doctype": "Project",
       "weight": 3.0
+    },
+    {
+      "keyword": "stock_summary",
+      "doctype": "Item",
+      "weight": 3.5
+    },
+    {
+      "keyword": "stock summary",
+      "doctype": "Item",
+      "weight": 3.5
+    },
+    {
+      "keyword": "sundry_ledgers",
+      "doctype": "Customer",
+      "weight": 1.0
+    },
+    {
+      "keyword": "formulation",
+      "doctype": "BOM",
+      "weight": 2.5
+    },
+    {
+      "keyword": "production_schedule",
+      "doctype": "Production Plan",
+      "weight": 3.0
     }
   ]
 }

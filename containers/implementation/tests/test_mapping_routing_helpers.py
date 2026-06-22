@@ -1,9 +1,13 @@
 """Unit tests for mapping routing helpers (corpus + assignment + readiness)."""
+import csv
+import io
 import unittest
 
 from containers.implementation.mapping_agent.activities import (
+    _MappingEngine,
     _assignment_includes_doctype,
     _corpus_likely_doctype,
+    _filename_doctype_override,
     _norm_filename,
     _readiness_file_doctype_evidence,
 )
@@ -59,6 +63,25 @@ class MappingRoutingHelpersTest(unittest.TestCase):
 
     def test_norm_filename(self):
         self.assertEqual(_norm_filename(" Foo.CSV "), "foo.csv")
+
+    def test_filename_doctype_override_stock_summary(self):
+        self.assertEqual(_filename_doctype_override("tally_stock_summary.csv"), "Item")
+
+    def test_tally_sundry_ledgers_party_split(self):
+        content = (
+            "Ledger_Name,Under_Group\n"
+            "Apollo Hospitals Enterprise,Sundry Debtors\n"
+            "Dow Chemical International,Sundry Creditors\n"
+        )
+        rows = list(csv.DictReader(io.StringIO(content)))
+        columns = list(rows[0].keys())
+        engine = _MappingEngine()
+        groups = engine._split_by_entity_type(rows, columns)
+        self.assertIsNotNone(groups)
+        self.assertIn("Customer", groups)
+        self.assertIn("Supplier", groups)
+        self.assertEqual(len(groups["Customer"]), 1)
+        self.assertEqual(len(groups["Supplier"]), 1)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import select
@@ -40,6 +41,18 @@ _UPLOAD_PATTERNS = re.compile(
     r"\b(upload|attach|missing\s+file|add\s+file|send\s+file)\b",
     re.I,
 )
+_LINK_VALUE_ANSWER = re.compile(
+    r"\b(use|means?|should\s+be|call\s+it|it'?s?|map\s+(?:to|as))\s+(?:the\s+)?([A-Za-z][\w\s./-]{0,40})",
+    re.I,
+)
+_CONTINUE_PATTERNS = re.compile(
+    r"\b(continue|proceed|yes|skip|confirm|go\s+ahead|use\s+defaults?)\b",
+    re.I,
+)
+_MAPPING_RULES = re.compile(
+    r"(?:^\s*\d+\.|treat\s+(?:this|rows|as)|map\s+\w+\s+to\s+\w+|translation\s+rules|strict\s+.*\s+rules)",
+    re.I | re.M,
+)
 
 CHAT_INTENT_PROMPT = """You are the Implementation Assistant for an ERP data import pipeline.
 
@@ -56,7 +69,7 @@ Classify the user's intent and respond appropriately.
 
 Return JSON only:
 {{
-  "intent": "remap" | "upload_intent" | "answer_supervisor" | "general_question",
+  "intent": "remap" | "upload_intent" | "answer_supervisor" | "general_question" | "mapping_rules",
   "reply": "assistant reply text (required for general_question and upload_intent; for remap leave empty)",
   "confidence": 0.0 to 1.0
 }}
@@ -65,7 +78,7 @@ Rules:
 - "remap": user wants to change how a spreadsheet column maps to an ERP field (e.g. "map party_name to supplier_name").
 - "upload_intent": user wants to upload or add files.
 - "answer_supervisor": user is answering an open supervisor question (continue, upload, confirm, or free-text note).
-- "general_question": explain validation errors, assumed defaults, doctypes, or next steps.
+- "mapping_rules": user provides structured file→doctype translation rules for a re-run (numbered list, Tally rules, etc.).
 - Be concise, honest, and refer to actual context — do not invent row counts or doctype names not in context.
 """
 
@@ -187,11 +200,37 @@ async def build_session_context(
 
 
 def _heuristic_intent(message: str) -> Optional[str]:
+    if _looks_like_mapping_rules(message):
+        return "mapping_rules"
     if _REMAP_PATTERNS.search(message):
         return "remap"
     if _UPLOAD_PATTERNS.search(message):
         return "upload_intent"
     return None
+
+
+def _looks_like_mapping_rules(message: str) -> bool:
+    """Multi-line mapping instructions (e.g. Gemini Tally translation rules)."""
+    text = (message or "").strip()
+    if len(text) < 120:
+        return False
+    hits = len(_MAPPING_RULES.findall(text))
+    return hits >= 2 or (hits >= 1 and len(text) > 400)
+
+
+def _looks_like_link_value_answer(message: str, context: Dict[str, Any]) -> bool:
+    """Free-text answers like 'use litre' while validation/LER prompts are open."""
+    if not (context.get("open_supervisor_prompts") or context.get("validation")):
+        return False
+    if _LINK_VALUE_ANSWER.search(message):
+        return True
+    stripped = message.strip()
+    if len(stripped) <= 32 and not _REMAP_PATTERNS.search(message):
+        validation = context.get("validation") or []
+        blob = json.dumps(validation, default=str).lower()
+        if any(token in blob for token in ("uom", "link", "unresolvable", "not found")):
+            return True
+    return False
 
 
 async def _classify_intent(
@@ -216,7 +255,7 @@ async def _classify_intent(
         )
         intent = str(result.get("intent") or "general_question")
         reply = str(result.get("reply") or "")
-        if intent not in ("remap", "upload_intent", "answer_supervisor", "general_question"):
+        if intent not in ("remap", "upload_intent", "answer_supervisor", "general_question", "mapping_rules"):
             intent = "general_question"
         return intent, reply
     except Exception as e:
@@ -269,6 +308,13 @@ async def _handle_supervisor_answer(
     options = [str(o) for o in (action.get("options") or []) if o]
     selected = _match_supervisor_option(message, options) if options else None
 
+    link_match = _LINK_VALUE_ANSWER.search(message)
+    if not selected and link_match and options:
+        for opt in options:
+            if "default" in opt.lower() or "continue" in opt.lower():
+                selected = opt
+                break
+
     from app.services.is_launcher import ImplementationLauncher
 
     launcher = ImplementationLauncher()
@@ -301,6 +347,78 @@ async def _handle_supervisor_answer(
         "content": content,
         "message_type": "chat",
         "metadata": {"supervisor_answer": True},
+    }
+
+
+async def _handle_mapping_rules(
+    is_session: ISSession,
+    message: str,
+    step: str,
+    context: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Persist structured mapping rules for the next mapping pass."""
+    from sqlalchemy import update
+
+    workflow_status = str(context.get("workflow_status") or "")
+    async with AsyncSessionLocal() as session:
+        row = (
+            await session.execute(select(ISSession).where(ISSession.id == is_session.id))
+        ).scalar_one_or_none()
+        if row:
+            notes = list(row.user_notes or [])
+            notes.append({
+                "type": "mapping_rules",
+                "step": step,
+                "note": message[:8000],
+                "answered_at": datetime.utcnow().isoformat() + "Z",
+            })
+            await session.execute(
+                update(ISSession)
+                .where(ISSession.id == is_session.id)
+                .values(
+                    user_import_note=message[:8000],
+                    user_notes=notes,
+                    updated_at=datetime.utcnow(),
+                )
+            )
+            await session.commit()
+
+    if workflow_status == "awaiting_validation_submission":
+        content = (
+            "I've saved your mapping rules for this session.\n\n"
+            "Mapping has **already completed** for this run — the worker is waiting for you to "
+            "**review and submit on the Validate page** (not chat).\n\n"
+            "Your rules will apply on the **next upload or fresh implementation run**. "
+            "For this run, use the Validate view to confirm or edit what was mapped."
+        )
+    elif workflow_status.startswith("awaiting_"):
+        content = (
+            "I've saved your mapping rules. They'll be applied when the pipeline reaches "
+            "file mapping in this session.\n\n"
+            "If mapping already failed for specific files, you may still need to fix column "
+            "headers or re-upload after this run completes."
+        )
+    else:
+        content = (
+            "I've saved your mapping rules to this session.\n\n"
+            "They'll be used during the next **mapping** step. "
+            "If you need them applied immediately, start a new implementation run with the same files."
+        )
+
+    msg_id = await save_chat_message(
+        str(is_session.id),
+        step,
+        "assistant",
+        content,
+        message_type="chat",
+        message_metadata={"mapping_rules_saved": True},
+    )
+    return {
+        "id": msg_id,
+        "role": "assistant",
+        "content": content,
+        "message_type": "chat",
+        "metadata": {"mapping_rules_saved": True},
     }
 
 
@@ -373,8 +491,8 @@ async def dispatch_chat_message(
     message = (message or "").strip()
     if not message:
         raise ValueError("Message cannot be empty")
-    if len(message) > 4000:
-        raise ValueError("Message too long (max 4000 characters)")
+    if len(message) > 8000:
+        raise ValueError("Message too long (max 8000 characters)")
 
     step = step if step in ("upload", "analyze", "validate", "import") else "analyze"
 
@@ -391,10 +509,11 @@ async def dispatch_chat_message(
     intent, llm_reply = await _classify_intent(message, context)
     company_slug = await _get_company_slug(str(is_session.project_id))
 
-    if open_prompts and (
+    if open_prompts and not _looks_like_mapping_rules(message) and (
         intent == "answer_supervisor"
+        or _looks_like_link_value_answer(message, context)
         or (intent == "upload_intent" and _UPLOAD_PATTERNS.search(message))
-        or re.search(r"\b(continue|proceed|yes|skip|confirm)\b", message, re.I)
+        or (intent != "mapping_rules" and _CONTINUE_PATTERNS.search(message))
     ):
         supervisor_reply = await _handle_supervisor_answer(
             is_session, message, step, open_prompts
@@ -402,7 +521,10 @@ async def dispatch_chat_message(
         if supervisor_reply:
             return supervisor_reply
 
-    if intent == "remap":
+    if intent == "mapping_rules":
+        return await _handle_mapping_rules(is_session, message, step, context)
+
+    if intent == "remap" and not _looks_like_link_value_answer(message, context):
         return await _handle_remap(is_session, message, step, company_slug)
 
     if intent == "upload_intent":

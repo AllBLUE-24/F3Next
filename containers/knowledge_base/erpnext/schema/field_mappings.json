@@ -9,9 +9,15 @@
     "buyer": "Customer",
     "end user": "Customer",
     "purchaser": "Customer",
+    "sundry debtors": "Customer",
+    "sundry debtor": "Customer",
+    "debtors": "Customer",
     "vendor": "Supplier",
     "seller": "Supplier",
     "subcontractor": "Supplier",
+    "sundry creditors": "Supplier",
+    "sundry creditor": "Supplier",
+    "creditors": "Supplier",
     "employee": "Employee"
   },
   "doctype_keyword_hints": {
@@ -262,7 +268,9 @@
             "name",
             "client_name",
             "buyer_name",
-            "party_name"
+            "party_name",
+            "ledger_name",
+            "Ledger_Name"
           ]
         },
         "customer_type": {
@@ -443,7 +451,9 @@
             "item_id",
             "product_code",
             "sku",
-            "code"
+            "code",
+            "name_of_item",
+            "Name_of_Item"
           ],
           "note": "Auto-generated if item_naming_by = Naming Series in Stock Settings"
         },
@@ -456,7 +466,9 @@
             "product_name",
             "product name",
             "description",
-            "material_name"
+            "material_name",
+            "name_of_item",
+            "Name_of_Item"
           ]
         },
         "item_group": {
@@ -464,6 +476,12 @@
           "fieldtype": "Link",
           "options": "Item Group",
           "mandatory": true,
+          "user_input_synonyms": [
+            "under_group",
+            "Under_Group",
+            "group",
+            "category"
+          ],
           "common_values": [
             "Raw Material",
             "Finished Goods",
@@ -489,7 +507,9 @@
             "uom",
             "unit",
             "unit of measure",
-            "measure"
+            "measure",
+            "base_units",
+            "Base_Units"
           ],
           "default_value": "Nos"
         },
@@ -1426,7 +1446,9 @@
             "entity name",
             "company name",
             "name",
-            "party_name"
+            "party_name",
+            "ledger_name",
+            "Ledger_Name"
           ]
         },
         "supplier_group": {

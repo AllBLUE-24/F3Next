@@ -5,9 +5,15 @@
     "buyer": "Customer",
     "end user": "Customer",
     "purchaser": "Customer",
+    "sundry debtors": "Customer",
+    "sundry debtor": "Customer",
+    "debtors": "Customer",
     "vendor": "Supplier",
     "seller": "Supplier",
     "subcontractor": "Supplier",
+    "sundry creditors": "Supplier",
+    "sundry creditor": "Supplier",
+    "creditors": "Supplier",
     "employee": "Employee"
   },
   "split_column_synonyms": [
@@ -17,7 +23,9 @@
     "record type",
     "party type",
     "party_type",
-    "role"
+    "role",
+    "under group",
+    "under_group"
   ],
   "always_map_split_entities": true
 }

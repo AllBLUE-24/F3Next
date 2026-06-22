@@ -186,9 +186,13 @@ function buildValidationSummaryMessage(preview: ValidatePreviewData): string {
       lines.push(`• ${gap.message}`);
     }
   }
-  if ((preview.unmapped_seeds?.length ?? 0) > 0) {
+  if ((preview.blocking_unmapped_seeds?.length ?? 0) > 0) {
     lines.push(
-      `MVP seeds without mapped data: ${preview.unmapped_seeds!.join(", ")}.`
+      `**Upload required before import:** ${preview.blocking_unmapped_seeds!.join(", ")}.`
+    );
+  } else if ((preview.unmapped_seeds?.length ?? 0) > 0) {
+    lines.push(
+      `Optional data not uploaded (import can proceed): ${preview.unmapped_seeds!.join(", ")}.`
     );
   }
   if ((preview.open_critical_gaps ?? 0) > 0) {
@@ -633,7 +637,8 @@ export function SupervisorPanel() {
   const [validatePreview, setValidatePreview] = useState<ValidatePreviewData | null>(null);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary>(null);
   const [workflowStage, setWorkflowStage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [chatSending, setChatSending] = useState(false);
@@ -645,8 +650,10 @@ export function SupervisorPanel() {
   const totalFiles = sessionSummary?.total_files ?? 0;
   const batchCount = sessionSummary?.batch_count ?? 0;
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (silent) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     try {
       const base = getBaseApiUrl();
@@ -702,15 +709,18 @@ export function SupervisorPanel() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load supervisor data");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
+      setRefreshing(false);
     }
-  }, [projectId, isPostMappingRoute, chatStep]);
+  }, [projectId, isPostMappingRoute]);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 4000);
+    void refresh({ silent: false });
+    const interval = setInterval(() => {
+      void refresh({ silent: true });
+    }, 4000);
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [projectId, isPostMappingRoute, chatStep]);
 
   const sendChat = useCallback(
     async (message: string) => {
@@ -724,7 +734,7 @@ export function SupervisorPanel() {
           body: JSON.stringify({ message, step: chatStep }),
         });
         if (!res.ok) throw new Error(await res.text());
-        await refresh();
+        await refresh({ silent: true });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to send message");
       } finally {
@@ -753,7 +763,7 @@ export function SupervisorPanel() {
           }),
         });
         if (!res.ok) throw new Error(await res.text());
-        await refresh();
+        await refresh({ silent: true });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to respond");
       } finally {
@@ -780,6 +790,15 @@ export function SupervisorPanel() {
       ].filter((g) => g.criticality === "non_critical"),
     [readiness]
   );
+
+  const awaitingUser =
+    openPrompts.length > 0 ||
+    Boolean(sessionSummary?.status?.startsWith("awaiting_"));
+
+  const waitingForSystem =
+    !awaitingUser &&
+    Boolean(workflowStage) &&
+    !["complete", "complete_with_errors", "import_blocked"].includes(workflowStage ?? "");
 
   const displayMessages = useMemo(() => {
     const synth: ChatMessage[] = [];
@@ -851,42 +870,28 @@ export function SupervisorPanel() {
             <ValidationOverallBadge overall={validatePreview.validation_overall} />
           )}
           <button
-            onClick={refresh}
+            onClick={() => void refresh({ silent: false })}
             disabled={loading}
             className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
             title="Refresh"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading || refreshing ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
 
-      {/* ── Chat-first body ───────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col min-h-0">
+      {/* ── Scrollable conversation ───────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {error && (
-          <div className="text-[11px] text-red-300 border border-red-500/20 bg-red-500/10 rounded-lg px-3 py-2 mb-3 shrink-0">
+          <div className="text-[11px] text-red-300 border border-red-500/20 bg-red-500/10 rounded-lg px-3 py-2 mb-3">
             {error}
           </div>
         )}
 
-        <div className="flex-1 min-h-0">
-          <ChatMessageList
-            messages={displayMessages}
-            loading={loading && displayMessages.length === 0}
-          />
-        </div>
-
-        {openPrompts.map((p) => (
-          <div key={p.id} className="mt-4 shrink-0">
-            <PromptCard
-              prompt={p}
-              onRespond={respond}
-              responding={respondingId === p.id}
-              projectId={projectId}
-              companySlug={session.companySlug}
-            />
-          </div>
-        ))}
+        <ChatMessageList
+          messages={displayMessages}
+          loading={loading && displayMessages.length === 0}
+        />
 
         {openPrompts.length === 0 &&
           !readiness &&
@@ -902,7 +907,32 @@ export function SupervisorPanel() {
         )}
       </div>
 
-      <ChatBar onSend={sendChat} sending={chatSending} disabled={loading} />
+      {/* ── Sticky action deck (most recent prompt first) ─── */}
+      {openPrompts.length > 0 && (
+        <div className="shrink-0 max-h-[min(42vh,360px)] overflow-y-auto border-t border-white/[0.06] bg-[var(--bg-card)]/95 px-4 py-3 space-y-3">
+          {openPrompts.length > 1 && (
+            <p className="text-[10px] text-zinc-500">
+              Showing {openPrompts.length} open items — address the latest first, then scroll for earlier ones.
+            </p>
+          )}
+          {[...openPrompts].reverse().map((p) => (
+            <PromptCard
+              key={p.id}
+              prompt={p}
+              onRespond={respond}
+              responding={respondingId === p.id}
+              projectId={projectId}
+              companySlug={session.companySlug}
+            />
+          ))}
+        </div>
+      )}
+
+      <ChatBar
+        onSend={sendChat}
+        sending={chatSending}
+        waitingForSystem={waitingForSystem}
+      />
     </div>
   );
 }
