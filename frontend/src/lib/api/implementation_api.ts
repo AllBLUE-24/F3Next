@@ -242,6 +242,12 @@ export interface ValidatePreviewMappingGap {
   message: string;
 }
 
+export interface ValidatePreviewUnmappedFile {
+  filename: string;
+  status: string;
+  message: string;
+}
+
 export interface ValidatePreviewData {
   profile: Record<string, unknown>;
   doctypes: ValidatePreviewDoctype[];
@@ -249,7 +255,12 @@ export interface ValidatePreviewData {
   validation_overall: string;
   open_critical_gaps?: number;
   unmapped_seeds?: string[];
+  blocking_unmapped_seeds?: string[];
+  import_ready?: boolean;
+  mvp_seed_doctypes?: string[];
   mapping_gaps?: ValidatePreviewMappingGap[];
+  tracked_files?: string[];
+  unmapped_files?: ValidatePreviewUnmappedFile[];
   post_mapping_readiness_score?: number | null;
 }
 

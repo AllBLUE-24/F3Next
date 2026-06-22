@@ -843,12 +843,159 @@ class AssignCorpusDoctypesInput:
     r2_manifest_url: str
     company_slug: str = "unknown"
 
+def _norm_filename(fname: Optional[str]) -> str:
+    return str(fname or "").strip().lower()
+
+
+def _corpus_likely_doctype(
+    corpus_hints: Optional[Dict[str, Any]],
+    candidates: List[str],
+) -> Optional[str]:
+    """Single unambiguous doctype from Step 8a per-file corpus understanding."""
+    if not corpus_hints or not isinstance(corpus_hints, dict):
+        return None
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+    candidate_set = {resolve_doctype(c) for c in candidates}
+    in_scope = [
+        resolve_doctype(str(d))
+        for d in (corpus_hints.get("likely_erpnext_doctypes") or [])
+        if str(d or "").strip() and resolve_doctype(str(d)) in candidate_set
+    ]
+    if len(in_scope) == 1:
+        return in_scope[0]
+    return None
+
+
+def _assignment_includes_doctype(
+    corpus_assignment: Optional[Dict[str, Any]],
+    doctype: str,
+) -> bool:
+    """True when Step 8e assigned this file to the target doctype."""
+    if not corpus_assignment or not isinstance(corpus_assignment, dict):
+        return False
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+    target = resolve_doctype(doctype)
+    for raw in corpus_assignment.get("doctypes") or []:
+        if resolve_doctype(str(raw)) == target:
+            return True
+    for split_info in (corpus_assignment.get("split") or {}).values():
+        if isinstance(split_info, dict) and resolve_doctype(str(split_info.get("doctype") or "")) == target:
+            return True
+    return False
+
+
+def _readiness_file_doctype_evidence(
+    readiness: Any,
+    filename: str,
+    doctype: str,
+) -> bool:
+    """True when readiness/matrix shows evidence for this specific (file, doctype) pair."""
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+    target = resolve_doctype(doctype)
+    norm_file = _norm_filename(filename)
+    gap_report = readiness.gap_report or {}
+
+    for bucket in ("ready_doctypes", "partial_doctypes", "missing_doctypes"):
+        for item in gap_report.get(bucket) or []:
+            if not isinstance(item, dict):
+                continue
+            if _norm_filename(item.get("source_file")) != norm_file:
+                continue
+            if resolve_doctype(str(item.get("doctype") or "")) == target:
+                return True
+
+    matrix = gap_report.get("file_doctype_matrix") or {}
+    for row in matrix.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        if _norm_filename(row.get("filename")) != norm_file:
+            continue
+        if resolve_doctype(str(row.get("doctype") or "")) != target:
+            continue
+        if row.get("evidenced") or row.get("field_provable") or row.get("ready") or row.get("corpus_claims"):
+            return True
+
+    return False
+
+
+async def _resolve_structured_file_doctype(
+    *,
+    filename: str,
+    columns: List[str],
+    candidates: List[str],
+    user_note: str,
+    corpus_hints: Optional[Dict[str, Any]],
+    corpus_assignment: Optional[Dict[str, Any]],
+    doctype_hint: Optional[str],
+) -> Optional[str]:
+    """Classification priority: hint → Step 8e → corpus → filename → LLM."""
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype
+    from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
+
+    if doctype_hint and doctype_hint in candidates:
+        return doctype_hint
+
+    assignment_doctypes = list((corpus_assignment or {}).get("doctypes") or [])
+    if assignment_doctypes:
+        scoped = [
+            resolve_doctype(str(d))
+            for d in assignment_doctypes
+            if resolve_doctype(str(d)) in {resolve_doctype(c) for c in candidates}
+        ]
+        if len(scoped) == 1:
+            activity.logger.info(
+                "  📋 Step 8e assignment: %s → %s",
+                filename,
+                scoped[0],
+            )
+            return scoped[0]
+
+    corpus_doctype = _corpus_likely_doctype(corpus_hints, candidates)
+    if corpus_doctype:
+        activity.logger.info(
+            "  📋 Corpus understanding: %s → %s (Step 8a)",
+            filename,
+            corpus_doctype,
+        )
+        return corpus_doctype
+
+    implied_dt = filename_implied_doctype(filename)
+    if implied_dt and implied_dt in candidates:
+        activity.logger.info("  📎 Filename prior: %s → %s", filename, implied_dt)
+        return implied_dt
+
+    cls = await classify_doctype(
+        filename=filename,
+        content_snippet="",
+        columns=columns,
+        candidates=candidates,
+        user_import_note=user_note,
+        model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+        corpus_file_hints=corpus_hints,
+    )
+    doctype = cls.get("doctype")
+    if doctype:
+        return resolve_doctype(doctype)
+
+    if assignment_doctypes:
+        for raw in assignment_doctypes:
+            resolved = resolve_doctype(str(raw))
+            if resolved in {resolve_doctype(c) for c in candidates}:
+                return resolved
+    return None
+
+
 async def _should_map_doctype(
     session_id: str,
     doctype: str,
     *,
     from_party_split: bool = False,
     filename: Optional[str] = None,
+    corpus_assignment: Optional[Dict[str, Any]] = None,
+    corpus_hints: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Check whether mapping should proceed for this doctype.
 
@@ -881,6 +1028,27 @@ async def _should_map_doctype(
         if implied and resolve_doctype(implied) == doctype:
             return True
 
+        if _assignment_includes_doctype(corpus_assignment, doctype):
+            activity.logger.info(
+                "  ✅ Step 8e assignment for %s → %s — bypassing plan gate",
+                filename,
+                doctype,
+            )
+            return True
+
+        likely = [
+            resolve_doctype(str(d))
+            for d in (corpus_hints.get("likely_erpnext_doctypes") or [])
+            if str(d or "").strip()
+        ]
+        if resolve_doctype(doctype) in likely:
+            activity.logger.info(
+                "  ✅ Corpus understanding for %s → %s — bypassing plan gate",
+                filename,
+                doctype,
+            )
+            return True
+
     from shared.database.db import AsyncSessionLocal
     from shared.models.is_models import ISImportPlan, ISTargetStructure, ISDataReadinessAssessment
     from sqlalchemy import select
@@ -901,18 +1069,35 @@ async def _should_map_doctype(
             )
             readiness_res = await session.execute(readiness_stmt)
             readiness = readiness_res.scalar_one_or_none()
+            if readiness and filename:
+                if _readiness_file_doctype_evidence(readiness, filename, doctype):
+                    activity.logger.info(
+                        "  ✅ File-level readiness for %s → %s — bypassing plan gate",
+                        filename,
+                        doctype,
+                    )
+                    return True
+
             if readiness:
                 for item in (readiness.ready_doctypes or []) + (readiness.partial_doctypes or []):
                     dt_name = item.get("doctype") if isinstance(item, dict) else (item.doctype if hasattr(item, "doctype") else item)
-                    if resolve_doctype(str(dt_name or "")) == doctype:
-                        activity.logger.info("  ✅ Readiness evidence for %s — bypassing plan gate", doctype)
-                        return True
+                    if resolve_doctype(str(dt_name or "")) != doctype:
+                        continue
+                    item_file = item.get("source_file") if isinstance(item, dict) else None
+                    if filename and item_file and _norm_filename(item_file) != _norm_filename(filename):
+                        continue
+                    activity.logger.info("  ✅ Readiness evidence for %s — bypassing plan gate", doctype)
+                    return True
                 gap_report = readiness.gap_report or {}
                 for bucket in ("ready_doctypes", "partial_doctypes"):
                     for item in gap_report.get(bucket, []) or []:
-                        if isinstance(item, dict) and resolve_doctype(item.get("doctype") or "") == doctype:
-                            activity.logger.info("  ✅ Readiness evidence for %s — bypassing plan gate", doctype)
-                            return True
+                        if not isinstance(item, dict) or resolve_doctype(item.get("doctype") or "") != doctype:
+                            continue
+                        item_file = item.get("source_file")
+                        if filename and item_file and _norm_filename(item_file) != _norm_filename(filename):
+                            continue
+                        activity.logger.info("  ✅ Readiness evidence for %s — bypassing plan gate", doctype)
+                        return True
 
             # PRIORITY 2: Check import plan
             plan_action: Optional[str] = None
@@ -1005,6 +1190,7 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
     candidates = await _get_candidate_doctypes(inp.session_id)
     user_note = session_context.get("user_import_note", "")
     assignments: List[Dict[str, Any]] = []
+    from containers.implementation.file_io.manifest_utils import corpus_file_understanding
 
     for filename, content in (manifest.get("files") or {}).items():
         if not content:
@@ -1030,6 +1216,12 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
         clean_rows = [{k: v for k, v in r.items() if k is not None} for r in rows]
         columns = [c for c in list(clean_rows[0].keys()) if c is not None] if clean_rows else []
         split_groups = engine._split_by_entity_type(clean_rows, columns) if clean_rows else None
+        if not split_groups and clean_rows and len(clean_rows) >= 2:
+            split_groups = await engine._detect_semantic_party_split(
+                clean_rows,
+                columns,
+                classification_model=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+            )
 
         if split_groups:
             group_assignments: Dict[str, Any] = {}
@@ -1071,6 +1263,9 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
             candidates=candidates,
             user_import_note=user_note,
             model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+            corpus_file_hints=corpus_file_understanding(
+                manifest.get("corpus_understanding"), filename,
+            ),
         )
         assignments.append({
             "file": filename,
@@ -1171,7 +1366,13 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unmapped_irrelevant"}
             )
 
-        if not await _should_map_doctype(inp.session_id, doctype, filename=inp.filename):
+        if not await _should_map_doctype(
+            inp.session_id,
+            doctype,
+            filename=inp.filename,
+            corpus_assignment=inp.corpus_assignment,
+            corpus_hints=corpus_hints,
+        ):
             activity.logger.info("  ⏭️ Skipping unstructured mapping for %s → %s (not scheduled as 'create' in plan)", inp.filename, doctype)
             return NodeStatusEnvelope.success(
                 primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}
@@ -1267,6 +1468,8 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                     group_doctype,
                     from_party_split=True,
                     filename=inp.filename,
+                    corpus_assignment=inp.corpus_assignment,
+                    corpus_hints=corpus_hints,
                 ):
                     activity.logger.info("  ⏭️ Skipping split group %s → %s (not scheduled as 'create' in plan)", entity_type, group_doctype)
                     continue
@@ -1287,52 +1490,22 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 })
         else:
             # Single doctype
-            if inp.doctype_hint and inp.doctype_hint in candidates:
-                doctype = inp.doctype_hint
-            else:
-                # Check corpus understanding first (Step 8a full-context analysis)
-                corpus_doctype = None
-                if corpus_hints and isinstance(corpus_hints, dict):
-                    for file_entry in corpus_hints.get("files", []):
-                        if not isinstance(file_entry, dict):
-                            continue
-                        if file_entry.get("filename") == inp.filename:
-                            suggested = file_entry.get("likely_erpnext_doctypes", [])
-                            if suggested and len(suggested) == 1 and suggested[0] in candidates:
-                                corpus_doctype = suggested[0]
-                                activity.logger.info(
-                                    "  📋 Corpus understanding: %s → %s (confidence from Step 8a)",
-                                    inp.filename,
-                                    corpus_doctype,
-                                )
-                                break
-                
-                if corpus_doctype:
-                    doctype = corpus_doctype
-                else:
-                    # Fall back to filename prior
-                    implied_dt = filename_implied_doctype(inp.filename)
-                    if implied_dt and implied_dt in candidates:
-                        doctype = implied_dt
-                        activity.logger.info(
-                            "  📎 Filename prior: %s → %s",
-                            inp.filename,
-                            doctype,
-                        )
-                    else:
-                        # Last resort: LLM classification
-                        cls = await classify_doctype(
-                            filename=inp.filename,
-                            content_snippet="",
-                            columns=columns,
-                            candidates=candidates,
-                            user_import_note=user_note,
-                            model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
-                            corpus_file_hints=corpus_hints,
-                        )
-                        doctype = cls.get("doctype")
-                        if not doctype and assignment_doctypes:
-                            doctype = assignment_doctypes[0]
+            doctype = await _resolve_structured_file_doctype(
+                filename=inp.filename,
+                columns=columns,
+                candidates=candidates,
+                user_note=user_note,
+                corpus_hints=corpus_hints,
+                corpus_assignment=inp.corpus_assignment,
+                doctype_hint=inp.doctype_hint,
+            )
+
+            if not doctype:
+                activity.logger.info("  ⚠️ No doctype resolved for %s", inp.filename)
+                return NodeStatusEnvelope.partial(
+                    primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "unclassified"},
+                    warnings=[{"code": "NO_DOCTYPE", "message": f"Could not classify '{inp.filename}' to an ERPNext doctype"}],
+                )
 
             if doctype == "Unmapped_Irrelevant":
                 activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping mapping.", inp.filename)
@@ -1355,7 +1528,13 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
 
             doctype = resolve_doctype(doctype or "")
 
-            if not await _should_map_doctype(inp.session_id, doctype, filename=inp.filename):
+            if not await _should_map_doctype(
+                inp.session_id,
+                doctype,
+                filename=inp.filename,
+                corpus_assignment=inp.corpus_assignment,
+                corpus_hints=corpus_hints,
+            ):
                 activity.logger.info("  ⏭️ Skipping structured mapping for %s → %s (not scheduled as 'create' in plan)", inp.filename, doctype)
                 return NodeStatusEnvelope.success(
                     primary_result={"file": inp.filename, "doctypes_mapped": [], "status": "skipped_by_plan"}

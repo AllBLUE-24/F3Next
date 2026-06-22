@@ -825,7 +825,8 @@ class ImplementationLauncher:
         # 1. Company profile
         profile = await self.get_profile(project_id)
 
-        # 2. All mapped data rows
+        # 2. All mapped data rows + per-column mapping methods for preview classification
+        mapping_methods_by_doctype: Dict[str, Dict[str, Any]] = {}
         async with AsyncSessionLocal() as session:
             mapped_stmt = (
                 select(ISMappedData)
@@ -834,6 +835,21 @@ class ImplementationLauncher:
                 .limit(100)
             )
             mapped_rows = (await session.execute(mapped_stmt)).scalars().all()
+
+            field_mapping_rows = (
+                await session.execute(
+                    select(ISFieldMapping)
+                    .where(ISFieldMapping.session_id == is_session.id)
+                    .limit(2000)
+                )
+            ).scalars().all()
+            for fm in field_mapping_rows:
+                dt = fm.target_doctype
+                entry = mapping_methods_by_doctype.setdefault(dt, {"methods": {}, "counts": {}})
+                method = fm.mapping_method or "exact_match"
+                if fm.source_column:
+                    entry["methods"][fm.source_column] = method
+                entry["counts"][method] = entry["counts"].get(method, 0) + 1
 
             # 3. Validation results + errors per doctype
             val_rows = (
@@ -989,11 +1005,19 @@ class ImplementationLauncher:
             and str(g.get("severity", "blocking")).lower() in ("blocking", "")
         ]
 
+        from containers.implementation.import_agent.mvp_import_scope import (
+            blocking_unmapped_seeds,
+            parse_mvp_scope_from_target,
+        )
+
         seed_doctypes: List[str] = []
+        deferred_set: set = set()
         if target_row and target_row.r2_path:
             try:
                 target_r2 = load_r2_json(s3, "clean-data", target_row.r2_path)
-                seed_doctypes = list(target_r2.get("seed_doctypes") or [])
+                if isinstance(target_r2, dict):
+                    seed_doctypes = list(target_r2.get("seed_doctypes") or [])
+                    _, deferred_set = parse_mvp_scope_from_target(target_r2)
             except Exception:
                 pass
         if not seed_doctypes and target_row:
@@ -1008,6 +1032,17 @@ class ImplementationLauncher:
             if s not in mapped_set
             and s not in ("Company", "Warehouse", "UOM")
         ]
+        blocking_unmapped = blocking_unmapped_seeds(
+            seed_doctypes,
+            mapped_set,
+            deferred_set,
+        )
+        import_ready = (
+            not open_critical
+            and not mapping_preflight
+            and validation_overall != "fail"
+            and not blocking_unmapped
+        )
 
         if open_critical or mapping_preflight:
             validation_overall = "fail"
@@ -1039,6 +1074,37 @@ class ImplementationLauncher:
             if isinstance(b, dict)
         ]
 
+        mapped_source_files: set = set()
+        for dt_row in doctypes:
+            for sf in dt_row.get("source_files") or []:
+                if sf:
+                    mapped_source_files.add(str(sf))
+            raw_sf = dt_row.get("source_file")
+            if raw_sf:
+                for part in str(raw_sf).split(","):
+                    part = part.strip()
+                    if part:
+                        mapped_source_files.add(part)
+
+        tracked_files: set = set()
+        for row in (gap_report.get("file_doctype_matrix") or {}).get("rows") or []:
+            if isinstance(row, dict) and row.get("filename"):
+                tracked_files.add(str(row["filename"]))
+        if readiness_row:
+            for bucket in ("ready_doctypes", "partial_doctypes", "missing_doctypes"):
+                for item in (gap_report.get(bucket) or []):
+                    if isinstance(item, dict) and item.get("source_file"):
+                        tracked_files.add(str(item["source_file"]))
+
+        unmapped_files = [
+            {
+                "filename": fname,
+                "status": "not_mapped",
+                "message": f"{fname} was uploaded but did not produce a mapped payload.",
+            }
+            for fname in sorted(tracked_files - mapped_source_files)
+        ]
+
         return {
             "profile": profile,
             "doctypes": doctypes,
@@ -1046,7 +1112,12 @@ class ImplementationLauncher:
             "validation_overall": validation_overall,
             "open_critical_gaps": len(open_critical),
             "unmapped_seeds": unmapped_seeds,
+            "blocking_unmapped_seeds": blocking_unmapped,
+            "import_ready": import_ready,
+            "mvp_seed_doctypes": seed_doctypes,
             "mapping_gaps": mapping_gaps,
+            "tracked_files": sorted(tracked_files),
+            "unmapped_files": unmapped_files,
             "post_mapping_readiness_score": (
                 (gap_report.get("summary") or {}).get("n_dry_run_ready")
                 if gap_report.get("summary")

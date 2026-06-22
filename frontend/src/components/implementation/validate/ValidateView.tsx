@@ -37,10 +37,11 @@ const PHASE_LABELS: Record<string, { label: string; icon: typeof Package }> = {
 
 export function ValidateView({ jobId, preview, submitValidation, importHref, companySlug }: Props) {
   const [alreadyConfirmed, setAlreadyConfirmed] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  // Sync with workflow stage — only show "already confirmed" when past validation gate
+  // Sync with workflow stage — confirm state, errors, import progress
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -50,9 +51,17 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        const step = stageToStep(data.stage);
+        const stage = data.stage as string | null;
+        const step = stageToStep(stage);
         if (step === 'import') {
           setAlreadyConfirmed(true);
+        }
+        if (stage === 'error' || stage === 'import_blocked') {
+          setSubmitError(
+            stage === 'import_blocked'
+              ? 'Import is blocked — upload missing MVP files or fix validation errors, then try again.'
+              : 'The workflow hit an error after validation. Check worker logs or start a fresh session.',
+          );
         }
       } catch {
         // keep default
@@ -73,6 +82,12 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
   ).length;
   const hasErrors = preview.validation_overall === 'fail' || failedDoctypes > 0;
   const hasWarnings = preview.validation_overall === 'partial' || warningCount > 0;
+  const blockingUnmapped = preview.blocking_unmapped_seeds ?? [];
+  const importBlocked =
+    !preview.import_ready ||
+    (preview.open_critical_gaps ?? 0) > 0 ||
+    blockingUnmapped.length > 0;
+  const canConfirm = !hasErrors && !importBlocked;
 
   const dataQualityLabel = (() => {
     const raw = profile.data_quality_score;
@@ -83,6 +98,7 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
   })();
 
   const handleConfirmImport = () => {
+    setSubmitError(null);
     startTransition(async () => {
       if (!alreadyConfirmed) {
         const formData = new FormData();
@@ -91,7 +107,12 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         formData.append('responses', JSON.stringify({}));
         formData.append('profileEdits', JSON.stringify({}));
         formData.append('note', '');
-        await submitValidation(formData);
+        try {
+          await submitValidation(formData);
+        } catch (e) {
+          setSubmitError(e instanceof Error ? e.message : 'Validation submit failed');
+          return;
+        }
       }
       router.push(importHref);
     });
@@ -202,6 +223,32 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         {preview.doctypes.map((dt, idx) => (
           <DataPreviewTable key={`${dt.doctype}-${dt.source_file ?? idx}`} data={dt} defaultOpen={idx === 0} />
         ))}
+
+        {(preview.unmapped_files?.length ?? 0) > 0 && (
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5 space-y-3">
+            <h3 className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Uploaded but not mapped — {(preview.tracked_files?.length ?? 0) || preview.unmapped_files!.length + totalDoctypes} files tracked
+            </h3>
+            <ul className="space-y-2">
+              {preview.unmapped_files!.map((f) => (
+                <li key={f.filename} className="text-xs text-amber-200/80 font-mono">
+                  {f.filename}
+                  <span className="text-amber-400/60 font-sans ml-2">— mapping skipped or failed preflight</span>
+                </li>
+              ))}
+            </ul>
+            {(preview.mapping_gaps?.length ?? 0) > 0 && (
+              <ul className="space-y-1 pt-2 border-t border-amber-500/10">
+                {preview.mapping_gaps!.map((gap, i) => (
+                  <li key={`${gap.source_file}-${gap.doctype}-${i}`} className="text-[11px] text-amber-300/70">
+                    {gap.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Import Plan Summary ──────────────────────────────────────────────── */}
@@ -253,16 +300,42 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
             Fix errors below before starting import.
           </p>
         )}
-        {!alreadyConfirmed && hasWarnings && !hasErrors && (
+        {!alreadyConfirmed && hasWarnings && !hasErrors && !importBlocked && (
           <p className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5" />
             Some doctypes passed with warnings. Review amber sections before import.
           </p>
         )}
 
+        {!alreadyConfirmed && importBlocked && !hasErrors && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 space-y-1">
+            <p className="text-xs text-red-400 font-medium flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Import is not ready yet.
+            </p>
+            {blockingUnmapped.length > 0 && (
+              <p className="text-xs text-red-300/80">
+                Upload data for: {blockingUnmapped.join(', ')}.
+              </p>
+            )}
+            {(preview.unmapped_seeds?.length ?? 0) > 0 && blockingUnmapped.length === 0 && (
+              <p className="text-xs text-zinc-400">
+                Optional seeds not uploaded: {preview.unmapped_seeds!.join(', ')} (import can proceed).
+              </p>
+            )}
+          </div>
+        )}
+
+        {submitError && (
+          <p className="text-xs text-red-400 font-medium flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            {submitError}
+          </p>
+        )}
+
         <button
           onClick={handleConfirmImport}
-          disabled={isPending || (hasErrors && !alreadyConfirmed)}
+          disabled={isPending || (!alreadyConfirmed && !canConfirm)}
           className="w-full py-4 rounded-xl bg-amber-500 text-black font-black text-base hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 group shadow-xl shadow-amber-500/10"
         >
           {isPending ? (
