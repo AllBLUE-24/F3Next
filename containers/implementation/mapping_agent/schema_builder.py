@@ -157,6 +157,17 @@ def build_doctype_record_model(doctype: str) -> Type[BaseModel]:
     fields: Dict[str, tuple[Any, Any]] = {}
     table_fields: Dict[str, Dict[str, Any]] = {}
 
+    # Merge graph required_fields into schema to prevent Pydantic stripping system fields
+    g = doctype_graph() or {}
+    graph_required_raw = (g.get("doctypes", {}).get(doctype, {}).get("required_fields", [])) or []
+    graph_system_fields = set()
+    for field_spec in graph_required_raw:
+        # Parse "naming_series" or "items (item_code, qty)" → extract field name
+        field_name = str(field_spec).split("(")[0].strip()
+        if field_name and field_name not in fmap:
+            # System field in graph but not in KB field_mappings
+            graph_system_fields.add(field_name)
+
     # First pass: classify table vs scalar fields
     for _, cfg in fmap.items():
         fname = cfg.get("fieldname") or ""
@@ -173,6 +184,11 @@ def build_doctype_record_model(doctype: str) -> Type[BaseModel]:
                 fields[fname] = (ftype, ...)
             else:
                 fields[fname] = (Optional[ftype], None)
+    
+    # Add graph system fields as optional to preserve them through Pydantic validation
+    for sys_field in graph_system_fields:
+        if sys_field not in fields:
+            fields[sys_field] = (Optional[str], None)
 
     # Second pass: add child tables
     for table_fname, table_cfg in table_fields.items():

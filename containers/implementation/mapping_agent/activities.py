@@ -263,6 +263,94 @@ class _MappingEngine:
 
         return None
 
+    async def _detect_semantic_party_split(
+        self,
+        rows: List[Dict],
+        columns: List[str],
+        classification_model: Optional[str] = None,
+    ) -> Optional[Dict[str, List[Dict]]]:
+        """
+        LLM-based party-split detection for non-standard formats (e.g., Tally Indian accounting).
+        
+        Detects multi-entity files by asking LLM to identify:
+        1. Whether file contains both customers and suppliers
+        2. Which column distinguishes them
+        3. Value mappings (e.g., "Sundry Debtors" → Customer)
+        
+        Generalizes beyond hardcoded "role"/"type" columns and "Customer"/"Vendor" values.
+        """
+        if not rows or len(rows) < 2:
+            return None
+        
+        sample = rows[:10]
+        
+        from containers.implementation.utils.llm_helper import generate_json
+        
+        prompt = f"""You are analyzing a CSV file to detect if it contains multiple party types.
+
+Columns: {columns}
+
+Sample rows (first 10):
+{json.dumps(sample, indent=2)}
+
+Question: Does this file contain BOTH customers and suppliers in different rows?
+
+Common patterns:
+- Indian Tally: "Under_Group" column with "Sundry Debtors" (customers) and "Sundry Creditors" (suppliers)
+- Multi-entity: "Type" or "Role" column with party type indicators
+- Other accounting exports with similar split patterns
+
+Respond ONLY with valid JSON:
+{{
+  "has_split": true or false,
+  "split_column": "column_name" or null,
+  "customer_values": ["value1", "value2"],
+  "supplier_values": ["value3", "value4"],
+  "confidence": 0.0 to 1.0
+}}"""
+
+        try:
+            model = classification_model or os.getenv("MAPPING_CLASSIFIER_MODEL", "gpt-4o-mini")
+            response = await generate_json(prompt, model_name=model)
+            
+            if not response or not isinstance(response, dict):
+                return None
+            
+            if not response.get("has_split") or response.get("confidence", 0) < 0.6:
+                return None
+            
+            split_col = response.get("split_column")
+            customer_vals = set(str(v).strip() for v in (response.get("customer_values") or []))
+            supplier_vals = set(str(v).strip() for v in (response.get("supplier_values") or []))
+            
+            if not split_col or not (customer_vals and supplier_vals):
+                return None
+            
+            activity.logger.info(
+                "  🧠 Semantic party-split detected: column=%s, customer_values=%s, supplier_values=%s",
+                split_col,
+                list(customer_vals)[:3],
+                list(supplier_vals)[:3],
+            )
+            
+            groups: Dict[str, List[Dict]] = {}
+            for row in rows:
+                val = str(row.get(split_col, "")).strip()
+                if val in customer_vals:
+                    groups.setdefault("Customer", []).append(row)
+                elif val in supplier_vals:
+                    groups.setdefault("Supplier", []).append(row)
+            
+            if len(groups) >= 2:
+                activity.logger.info("  ✅ Semantic split resulted in: %s", {k: len(v) for k, v in groups.items()})
+                return groups
+            
+            return None
+            
+        except Exception as e:
+            activity.logger.warning("  ⚠️ Semantic party-split detection failed: %s", e)
+            return None
+
     def map_columns(self, columns: List[str], doctype: Optional[str] = None, sample_row: Optional[Dict] = None) -> Dict[str, str]:
         if not doctype:
             doctype = self.infer_doctype(columns)
@@ -764,9 +852,11 @@ async def _should_map_doctype(
 ) -> bool:
     """Check whether mapping should proceed for this doctype.
 
-    Prefer import-plan actions of create/pending_mapping. When the blueprint plan
-    still shows data_gap (built before mapping), fall back to target structure and
-    readiness assessment so uploaded files can be mapped on first pass.
+    Priority order (fix for plan blocking uploads):
+    1. Readiness (ready/partial) → uploaded file evidence trumps plan
+    2. Plan create/pending_mapping → explicit schedule to map
+    3. Plan skip/seed/optional → explicit directive not to map
+    4. Target structure required → fallback for unplanned doctypes
 
     Party-split groups always map when corpus rules require it.
     Strong filename priors can bypass a negative plan decision.
@@ -802,6 +892,29 @@ async def _should_map_doctype(
 
     try:
         async with AsyncSessionLocal() as session:
+            # PRIORITY 1: Check readiness first — uploaded file evidence trumps plan
+            readiness_stmt = (
+                select(ISDataReadinessAssessment)
+                .where(ISDataReadinessAssessment.session_id == uuid.UUID(session_id))
+                .order_by(ISDataReadinessAssessment.created_at.desc())
+                .limit(1)
+            )
+            readiness_res = await session.execute(readiness_stmt)
+            readiness = readiness_res.scalar_one_or_none()
+            if readiness:
+                for item in (readiness.ready_doctypes or []) + (readiness.partial_doctypes or []):
+                    dt_name = item.get("doctype") if isinstance(item, dict) else (item.doctype if hasattr(item, "doctype") else item)
+                    if resolve_doctype(str(dt_name or "")) == doctype:
+                        activity.logger.info("  ✅ Readiness evidence for %s — bypassing plan gate", doctype)
+                        return True
+                gap_report = readiness.gap_report or {}
+                for bucket in ("ready_doctypes", "partial_doctypes"):
+                    for item in gap_report.get(bucket, []) or []:
+                        if isinstance(item, dict) and resolve_doctype(item.get("doctype") or "") == doctype:
+                            activity.logger.info("  ✅ Readiness evidence for %s — bypassing plan gate", doctype)
+                            return True
+
+            # PRIORITY 2: Check import plan
             plan_action: Optional[str] = None
             stmt = (
                 select(ISImportPlan)
@@ -821,9 +934,11 @@ async def _should_map_doctype(
                         break
                 if plan_action in ("create", "pending_mapping"):
                     return True
-                if plan_action not in (None, "data_gap"):
+                # PRIORITY 3: Explicit skip directives
+                if plan_action in ("skip", "seed_from_baseline", "optional_skip"):
                     return False
 
+            # PRIORITY 4: Target structure fallback
             target_stmt = (
                 select(ISTargetStructure)
                 .where(ISTargetStructure.session_id == uuid.UUID(session_id))
@@ -861,24 +976,6 @@ async def _should_map_doctype(
                         if contains_doctype(required_raw, doctype):
                             return True
 
-            readiness_stmt = (
-                select(ISDataReadinessAssessment)
-                .where(ISDataReadinessAssessment.session_id == uuid.UUID(session_id))
-                .order_by(ISDataReadinessAssessment.created_at.desc())
-                .limit(1)
-            )
-            readiness_res = await session.execute(readiness_stmt)
-            readiness = readiness_res.scalar_one_or_none()
-            if readiness:
-                for item in (readiness.ready_doctypes or []) + (readiness.partial_doctypes or []):
-                    dt_name = item.get("doctype") if isinstance(item, dict) else (item.doctype if hasattr(item, "doctype") else item)
-                    if resolve_doctype(str(dt_name or "")) == doctype:
-                        return True
-                gap_report = readiness.gap_report or {}
-                for bucket in ("ready_doctypes", "partial_doctypes"):
-                    for item in gap_report.get(bucket, []) or []:
-                        if isinstance(item, dict) and resolve_doctype(item.get("doctype") or "") == doctype:
-                            return True
             return False
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not check import plan: %s", e)
@@ -1124,6 +1221,15 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
 
         # Multi-entity split (preserve existing behavior)
         split_groups = engine._split_by_entity_type(clean_rows, columns) if clean_rows else None
+        
+        # If pattern-based split failed, try semantic LLM detection
+        if not split_groups and clean_rows and len(clean_rows) >= 2:
+            split_groups = await engine._detect_semantic_party_split(
+                clean_rows,
+                columns,
+                classification_model=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+            )
+        
         if split_groups:
             for entity_type, group_rows in split_groups.items():
                 # Prefer exact doctype name match for entity types
@@ -1184,27 +1290,49 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
             if inp.doctype_hint and inp.doctype_hint in candidates:
                 doctype = inp.doctype_hint
             else:
-                implied_dt = filename_implied_doctype(inp.filename)
-                if implied_dt and implied_dt in candidates:
-                    doctype = implied_dt
-                    activity.logger.info(
-                        "  📎 Filename prior: %s → %s",
-                        inp.filename,
-                        doctype,
-                    )
+                # Check corpus understanding first (Step 8a full-context analysis)
+                corpus_doctype = None
+                if corpus_hints and isinstance(corpus_hints, dict):
+                    for file_entry in corpus_hints.get("files", []):
+                        if not isinstance(file_entry, dict):
+                            continue
+                        if file_entry.get("filename") == inp.filename:
+                            suggested = file_entry.get("likely_erpnext_doctypes", [])
+                            if suggested and len(suggested) == 1 and suggested[0] in candidates:
+                                corpus_doctype = suggested[0]
+                                activity.logger.info(
+                                    "  📋 Corpus understanding: %s → %s (confidence from Step 8a)",
+                                    inp.filename,
+                                    corpus_doctype,
+                                )
+                                break
+                
+                if corpus_doctype:
+                    doctype = corpus_doctype
                 else:
-                    cls = await classify_doctype(
-                        filename=inp.filename,
-                        content_snippet="",
-                        columns=columns,
-                        candidates=candidates,
-                        user_import_note=user_note,
-                        model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
-                        corpus_file_hints=corpus_hints,
-                    )
-                    doctype = cls.get("doctype")
-                    if not doctype and assignment_doctypes:
-                        doctype = assignment_doctypes[0]
+                    # Fall back to filename prior
+                    implied_dt = filename_implied_doctype(inp.filename)
+                    if implied_dt and implied_dt in candidates:
+                        doctype = implied_dt
+                        activity.logger.info(
+                            "  📎 Filename prior: %s → %s",
+                            inp.filename,
+                            doctype,
+                        )
+                    else:
+                        # Last resort: LLM classification
+                        cls = await classify_doctype(
+                            filename=inp.filename,
+                            content_snippet="",
+                            columns=columns,
+                            candidates=candidates,
+                            user_import_note=user_note,
+                            model_name=os.getenv("MAPPING_CLASSIFIER_MODEL"),
+                            corpus_file_hints=corpus_hints,
+                        )
+                        doctype = cls.get("doctype")
+                        if not doctype and assignment_doctypes:
+                            doctype = assignment_doctypes[0]
 
             if doctype == "Unmapped_Irrelevant":
                 activity.logger.info("  ⏭️ File %s classified as Unmapped_Irrelevant, skipping mapping.", inp.filename)
