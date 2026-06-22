@@ -54,7 +54,9 @@
         "party_name",
         "customer_name",
         "Customer Name",
-        "customer name"
+        "customer name",
+        "ledger_name",
+        "Ledger_Name"
       ]
     },
     "customer_type": {

@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from containers.implementation.is_common.required_fields import get_required_fields
+from containers.implementation.mapping_agent.column_header_aliases import apply_header_aliases
 from containers.implementation.mapping_agent.column_map_llm import llm_map_columns
 
 
@@ -83,13 +84,20 @@ async def map_columns_tiered(
     kb = kb or engine._load_field_mappings()
     samples = sample_rows or []
 
+    # Tier 0 — export-specific header aliases (Tally, etc.)
+    tier0 = apply_header_aliases(columns, doctype)
+    audit: Dict[str, Any] = {"methods": {src: "header_alias" for src in tier0}}
+
     # Tier 1
     tier1 = engine.map_columns(columns, doctype, sample_row=samples[0] if samples else None)
-    audit: Dict[str, Any] = {"methods": {src: "kb_local" for src in tier1}}
+    for src, tgt in tier1.items():
+        if src not in tier0:
+            audit["methods"][src] = "kb_local"
 
-    unmapped = [c for c in columns if c not in tier1]
+    merged = {**tier0, **{k: v for k, v in tier1.items() if k not in tier0}}
+    unmapped = [c for c in columns if c not in merged]
     required = get_required_fields(doctype)
-    mapped_targets = set(tier1.values())
+    mapped_targets = set(merged.values())
     missing_required = [f for f in required if f not in mapped_targets]
 
     # Tier 2 — LLM for unmapped cols or required fields still without a source column
@@ -109,10 +117,10 @@ async def map_columns_tiered(
             corpus_hints=corpus_hints,
         )
         for src, tgt in tier2.items():
-            if src not in tier1:
+            if src not in merged:
                 audit["methods"][src] = "llm_column_map"
 
-    merged = {**tier1, **{k: v for k, v in tier2.items() if k not in tier1}}
+    merged = {**merged, **{k: v for k, v in tier2.items() if k not in merged}}
 
     # Tier 3 fuzzy for anything still unmapped
     before_fuzzy = set(merged.keys())

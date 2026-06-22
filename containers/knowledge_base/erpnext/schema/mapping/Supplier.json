@@ -43,7 +43,9 @@
         "party_name",
         "Supplier Name",
         "supplier_name",
-        "supplier name"
+        "supplier name",
+        "ledger_name",
+        "Ledger_Name"
       ]
     },
     "country": {

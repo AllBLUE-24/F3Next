@@ -9,6 +9,9 @@
     {"column": "child_item_code", "doctype": "BOM", "weight": 4.0},
     {"column": "fg_item", "doctype": "BOM", "weight": 4.0},
     {"column": "production_item", "doctype": "Work Order", "weight": 4.0},
-    {"column": "batch_wo", "doctype": "Work Order", "weight": 4.0}
+    {"column": "batch_wo", "doctype": "Work Order", "weight": 4.0},
+    {"column": "name_of_item", "doctype": "Item", "weight": 5.0},
+    {"column": "ledger_name", "doctype": "Customer", "weight": 3.0},
+    {"column": "under_group", "doctype": "Item", "weight": 2.0}
   ]
 }

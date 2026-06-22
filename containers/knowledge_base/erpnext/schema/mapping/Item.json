@@ -41,7 +41,9 @@
         "sku",
         "code",
         "Item Code",
-        "item_code"
+        "item_code",
+        "name_of_item",
+        "Name_of_Item"
       ],
       "note": "Auto-generated if item_naming_by = Naming Series in Stock Settings"
     },
@@ -59,7 +61,9 @@
         "description",
         "material_name",
         "item_name",
-        "Item Name"
+        "Item Name",
+        "name_of_item",
+        "Name_of_Item"
       ]
     },
     "item_group": {
@@ -72,7 +76,9 @@
       "user_input_synonyms": [
         "Item Group",
         "item_group",
-        "item group"
+        "item group",
+        "under_group",
+        "Under_Group"
       ],
       "common_values": [
         "Raw Material",
@@ -98,7 +104,9 @@
         "Default Unit of Measure",
         "default_unit_of_measure",
         "stock_uom",
-        "default unit of measure"
+        "default unit of measure",
+        "base_units",
+        "Base_Units"
       ],
       "common_values": [
         "Nos",

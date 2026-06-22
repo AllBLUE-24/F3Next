@@ -251,6 +251,10 @@ def _resolve_default_value(
                     return (base_d + timedelta(days=int(m.group(1)))).isoformat()
 
     if isinstance(dval, (str, int, float, bool)) and dval not in ("today", None):
+        if isinstance(dval, str) and dval.startswith("{") and dval.endswith("}") and record:
+            field_ref = dval[1:-1].strip()
+            if field_ref in record and record[field_ref] not in (None, ""):
+                return record[field_ref]
         if isinstance(dval, str) and any(tok in dval for tok in ("fetch_from", "user_default")):
             return None
         if isinstance(dval, str) and "+" in dval:
@@ -349,6 +353,14 @@ def apply_defaults_and_normalize(
     out: List[Dict[str, Any]] = []
     for rec in records or []:
         r = dict(rec)
+
+        # Mirror primary identity fields when export maps one column to code only.
+        if doctype == "Item":
+            code, name = r.get("item_code"), r.get("item_name")
+            if code and not name:
+                r["item_name"] = code
+            elif name and not code:
+                r["item_code"] = name
 
         # Ensure child tables exist
         for tname in table_fields.keys():
