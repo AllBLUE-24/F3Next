@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 _MASTER_DOCTYPES = frozenset({"Customer", "Supplier", "Item", "Company", "Warehouse", "Project"})
+_CONFIG_DOCTYPES = frozenset({"Item Group", "Customer Group", "Supplier Group", "Territory", "UOM"})
 
 # ERP field name (lowercase) → link target doctype
 _FIELD_TO_DOCTYPE: Dict[str, str] = {
@@ -182,11 +183,26 @@ def classify_ler_unresolvable(
         return (
             "info",
             (
-                f"{link_target} '{value}' is not on your live ERP site yet — it is in your "
-                f"uploaded data and will be created during master import before "
-                f"{source_doctype} records are imported."
+                f"{link_target} '{value}' will be created from your uploaded data during "
+                f"master import, before {source_doctype} records are imported."
             ),
         )
+
+    if link_target in _CONFIG_DOCTYPES:
+        from containers.implementation.is_common.site_config_bootstrap import (
+            values_covered_by_bootstrap,
+        )
+
+        if values_covered_by_bootstrap(
+            mapped_data, config_doctype=link_target, value=value,
+        ):
+            return (
+                "info",
+                (
+                    f"{link_target} '{value}' will be created in site config phase "
+                    f"before {source_doctype} records are imported."
+                ),
+            )
 
     display = link_target or str(entry.get("field") or "link")
     return (

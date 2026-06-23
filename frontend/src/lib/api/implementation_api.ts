@@ -262,6 +262,23 @@ export interface ValidatePreviewData {
   tracked_files?: string[];
   unmapped_files?: ValidatePreviewUnmappedFile[];
   post_mapping_readiness_score?: number | null;
+  import_preview?: {
+    will_create_on_erp?: Array<{
+      doctype?: string;
+      value?: string;
+      row_count?: number;
+      message?: string;
+      source_files?: string[];
+    }>;
+    needs_your_ok?: Array<{
+      doctype?: string;
+      field?: string;
+      value?: string;
+      row_count?: number;
+      message?: string;
+      candidates?: string[];
+    }>;
+  };
 }
 
 export async function getValidatePreview(projectId: string): Promise<ValidatePreviewData> {

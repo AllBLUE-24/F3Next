@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import boto3
 from botocore.config import Config
@@ -999,15 +999,21 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
     activity.logger.info("▶ finalize_import_plan started | session=%s", inp.session_id)
 
     from shared.database.db import AsyncSessionLocal
-    from shared.models.is_models import ISImportPlan, ISMappedData, ISValidationResult, ISDataReadinessAssessment
-    from sqlalchemy import select, update
-    from containers.implementation.import_agent.gap_criticality import (
-        build_doctype_criticality_map,
-        gap_criticality,
-        is_blocking_gap,
+    from shared.models.is_models import (
+        ISImportPlan,
+        ISMappedData,
+        ISValidationResult,
+        ISDataReadinessAssessment,
+        ISTargetStructure,
     )
-    import uuid
-    import json
+    from sqlalchemy import select, update
+    from containers.implementation.import_agent.gap_criticality import build_doctype_criticality_map
+    from containers.implementation.import_agent.mvp_import_scope import (
+        blocks_import_when_unmapped,
+        is_out_of_mvp_scope,
+        parse_mvp_scope_from_target,
+    )
+    from containers.implementation.mapping_agent.corpus_merge import load_r2_json
 
     async with AsyncSessionLocal() as session:
         # 1. Fetch latest import plan
@@ -1064,9 +1070,46 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         criticality_map = build_doctype_criticality_map(readiness_row)
         baseline_data = _load_baseline_data()
 
+        target_stmt = (
+            select(ISTargetStructure)
+            .where(ISTargetStructure.session_id == uuid.UUID(inp.session_id))
+            .order_by(ISTargetStructure.created_at.desc())
+            .limit(1)
+        )
+        target_row = (await session.execute(target_stmt)).scalar_one_or_none()
+        mvp_seeds: Set[str] = set()
+        deferred: Set[str] = set()
+        if target_row and target_row.r2_path:
+            try:
+                target_data = load_r2_json(s3, "clean-data", target_row.r2_path)
+                if isinstance(target_data, dict):
+                    mvp_seeds, deferred = parse_mvp_scope_from_target(target_data)
+            except Exception as exc:
+                activity.logger.warning("  ⚠️ Could not load MVP scope from target R2: %s", exc)
+
         # 4. Update the steps in the plan (+ inject mapped doctypes missing from blueprint)
+        slug = inp.company_slug or "unknown"
         phases = plan_row.phases or {}
         phases = inject_missing_mapped_steps(phases, mapped_dict)
+
+        bootstrap_key = f"{slug}/{inp.project_id}/_bootstrap/site_config.json"
+        bootstrap_summary: Dict[str, Any] = {}
+        try:
+            bootstrap_summary = load_r2_json(s3, "clean-data", bootstrap_key)
+            if not isinstance(bootstrap_summary, dict):
+                bootstrap_summary = {}
+        except Exception:
+            bootstrap_summary = {}
+
+        from containers.implementation.is_common.site_config_bootstrap import phase_0_steps_from_bootstrap
+
+        derived_config = bootstrap_summary.get("derived_config") or {}
+        phase_0_steps = phase_0_steps_from_bootstrap(derived_config)
+        for step in phase_0_steps:
+            dt = step.get("doctype")
+            if dt and dt in mapped_dict:
+                step["data_source"] = mapped_dict[dt].get("r2_path", step.get("data_source"))
+
         plan_status = "ready"
         has_critical_gap = False
         has_noncritical_gap = False
@@ -1108,28 +1151,30 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
                         updated_steps.append(step)
                         continue
 
-                    if action == "optional_skip":
-                        crit = step.get("criticality") or gap_criticality(
-                            dt or "", phase_id, criticality_map,
-                        )
+                    if action == "optional_skip" or is_out_of_mvp_scope(
+                        dt_resolved, mvp_seeds, deferred,
+                    ):
                         has_noncritical_gap = True
                         optional_gaps.append(dt or "")
-                        updated_steps.append(step)
-                        continue
-
-                    crit = gap_criticality(dt or "", phase_id, criticality_map)
-                    if not is_blocking_gap(crit):
                         step["action"] = "optional_skip"
                         step["data_source"] = "none"
                         step["records"] = 0
-                        step["criticality"] = crit
+                        updated_steps.append(step)
+                        continue
+
+                    if not blocks_import_when_unmapped(
+                        dt or "", mvp_seeds, deferred, criticality_map, phase_id,
+                    ):
+                        step["action"] = "optional_skip"
+                        step["data_source"] = "none"
+                        step["records"] = 0
                         has_noncritical_gap = True
                         optional_gaps.append(dt or "")
                     else:
                         step["action"] = "data_gap"
                         step["data_source"] = "none"
                         step["records"] = 0
-                        step["criticality"] = crit
+                        step["criticality"] = "critical"
                         has_critical_gap = True
                 elif needs_file and dt in mapped_dict:
                     step["data_source"] = mapped_dict[dt]["r2_path"]
@@ -1143,6 +1188,15 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
             updated_phases[phase_id] = {
                 "name": phase_data.get("name"),
                 "steps": updated_steps
+            }
+
+        if phase_0_steps:
+            updated_phases = {
+                "phase_0_site_config": {
+                    "name": "Site Config Bootstrap",
+                    "steps": phase_0_steps,
+                },
+                **updated_phases,
             }
 
         if has_validation_failures or has_critical_gap:

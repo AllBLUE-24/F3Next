@@ -37,7 +37,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.derive_agent.activities     import derive_required_records, DeriveRequiredRecordsInput
     from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput, assign_corpus_doctypes, AssignCorpusDoctypesInput
-    from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput
+    from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput, bootstrap_site_config, BootstrapSiteConfigInput
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput, PreflightImportInput
     from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
     from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
@@ -1408,6 +1408,33 @@ class ImplementationWorkflow:
                     _step_fail(L, 10, "Conversational Mapping Refinement", str(e))
                     # Fallback out of loop if it crashes, or keep waiting
                     pass
+
+        # ══════════════════════════════════════════════════════════════════════
+        # STEP 10b / 14  —  Site Config Bootstrap (SCB)
+        # ══════════════════════════════════════════════════════════════════════
+        _step_start(L, "10b", "Site Config Bootstrap",
+                    "VTL + live ERP fuzzy match; derive missing config masters")
+
+        try:
+            scb_env = await workflow.execute_activity(
+                bootstrap_site_config,
+                BootstrapSiteConfigInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            if isinstance(scb_env, dict):
+                scb_env = NodeStatusEnvelope(**scb_env) if "status" in scb_env else NodeStatusEnvelope.success(primary_result=scb_env)
+            scb_primary = scb_env.primary_result if hasattr(scb_env, "primary_result") else {}
+            if isinstance(scb_primary, dict):
+                _kv(L, "derived_doctypes", scb_primary.get("derived_doctypes"))
+                _kv(L, "patch_count", scb_primary.get("patch_count"))
+            _step_ok(L, "10b", "Site Config Bootstrap", "config masters derived where needed")
+        except Exception as e:
+            _step_fail(L, "10b", "Site Config Bootstrap", str(e))
+            L.warning("  ⚠️ SCB failed (non-fatal) — continuing to validation")
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 11 / 14  —  Pre-Import Validation

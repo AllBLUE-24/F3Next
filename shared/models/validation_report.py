@@ -60,6 +60,8 @@ def normalize_validation_report(raw: Optional[Dict[str, Any]]) -> Optional[Dict[
         "checks": checks_out,
         "errors": list(raw.get("errors") or []),
         "warnings": list(raw.get("warnings") or []),
+        "ler_gaps": list(raw.get("ler_gaps") or []),
+        "import_preview": raw.get("import_preview") or {},
     }
 
 

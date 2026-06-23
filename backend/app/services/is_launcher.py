@@ -1105,10 +1105,14 @@ class ImplementationLauncher:
             for fname in sorted(tracked_files - mapped_source_files)
         ]
 
+        validation_report = await self.get_validation_report(project_id)
+        import_preview = (validation_report or {}).get("import_preview") or {}
+
         return {
             "profile": profile,
             "doctypes": doctypes,
             "import_summary": import_summary,
+            "import_preview": import_preview,
             "validation_overall": validation_overall,
             "open_critical_gaps": len(open_critical),
             "unmapped_seeds": unmapped_seeds,

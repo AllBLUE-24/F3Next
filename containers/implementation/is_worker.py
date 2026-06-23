@@ -51,7 +51,7 @@ from containers.implementation.mapping_agent.activities    import (
     refine_mapping_with_llm,
     assign_corpus_doctypes,
 )
-from containers.implementation.validation_agent.activities import validate_mapped_data
+from containers.implementation.validation_agent.activities import validate_mapped_data, bootstrap_site_config
 from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import
 from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
 from containers.implementation.supervisor_agent.activities import supervise_step, apply_supervisor_actions
@@ -110,6 +110,7 @@ async def main() -> None:
                         refine_mapping_with_llm,
                         assign_corpus_doctypes,
                         # validation_agent
+                        bootstrap_site_config,
                         validate_mapped_data,
                         # supervisor_agent
                         supervise_step,

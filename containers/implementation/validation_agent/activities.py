@@ -272,10 +272,7 @@ class _ValidationEngine:
                 by_doctype[dt] = check
 
             if disposition == "info":
-                check["warnings"].append(msg)
-                if check["status"] == "pass":
-                    check["status"] = "partial"
-                report.setdefault("warnings", []).append(msg)
+                # Greenfield covered masters — hint only; do not downgrade validate UI.
                 ler_gaps.append(
                     gap_from_ler_info(
                         link_target=str(target),
@@ -284,8 +281,6 @@ class _ValidationEngine:
                         field=str(field),
                     ).to_dict()
                 )
-                if report.get("overall") == "pass":
-                    report["overall"] = "partial"
                 continue
 
             check["errors"].append(msg)
@@ -442,7 +437,171 @@ class ValidateInput:
     retry_feedback: Optional[str] = None
 
 
+@dataclass
+class BootstrapSiteConfigInput:
+    session_id: str
+    project_id: str
+    company_slug: str = "unknown"
+
+
 # ── Activity definitions ─────────────────────────────────────────────────────
+
+@activity.defn(name="bootstrap_site_config")
+async def bootstrap_site_config(inp: BootstrapSiteConfigInput) -> Any:
+    """
+    Step 10b: Site Config Bootstrap — VTL + live fuzzy match + derive config masters.
+    """
+    activity.logger.info("▶ bootstrap_site_config started | session=%s", inp.session_id)
+
+    from shared.database.db import AsyncSessionLocal
+    from shared.models.is_models import ISMappedData
+    from sqlalchemy import select
+
+    from containers.implementation.mapping_agent.corpus_merge import (
+        aggregate_mapped_data_rows,
+        load_r2_json,
+    )
+    from containers.implementation.is_common.site_config_bootstrap import bootstrap_site_config as run_bootstrap
+
+    slug = inp.company_slug or "unknown"
+    s3 = _get_s3_client()
+
+    async with AsyncSessionLocal() as session:
+        mapped_rows = (
+            await session.execute(
+                select(ISMappedData)
+                .where(ISMappedData.session_id == uuid.UUID(inp.session_id))
+                .limit(100)
+            )
+        ).scalars().all()
+
+    aggregated = aggregate_mapped_data_rows(mapped_rows)
+    mapped_data: Dict[str, Any] = {}
+    r2_keys: Dict[str, str] = {}
+
+    for doctype, agg in aggregated.items():
+        r2_key = agg.get("r2_path")
+        if not r2_key:
+            continue
+        try:
+            payload = load_r2_json(s3, "clean-data", r2_key)
+            if isinstance(payload, dict):
+                mapped_data[doctype] = payload
+                r2_keys[doctype] = r2_key
+        except Exception as e:
+            activity.logger.warning("  ⚠️ SCB: failed to load %s: %s", doctype, e)
+
+    if not mapped_data:
+        activity.logger.info("  SCB: no mapped payloads — skipping")
+        return NodeStatusEnvelope.success(primary_result={"skipped": True, "reason": "no_mapped_data"})
+
+    link_cache: Dict[str, List[str]] = {}
+    try:
+        from shared.entity_resolution.is_adapter import resolve_is_erp_adapter
+        from shared.entity_resolution.ler import fetch_link_cache_for_doctypes
+
+        _base_url, adapter = await resolve_is_erp_adapter(inp.project_id, log=activity.logger)
+        if adapter:
+            config_dts = ["Item Group", "Customer Group", "Supplier Group", "Territory", "UOM"]
+            link_cache = await fetch_link_cache_for_doctypes(adapter, config_dts, log=activity.logger)
+    except Exception as e:
+        activity.logger.warning("  ⚠️ SCB: live ERP link cache unavailable: %s", e)
+
+    summary = run_bootstrap(mapped_data, link_cache=link_cache)
+    merged = summary.get("mapped_data") or mapped_data
+
+    for doctype, payload in merged.items():
+        if not isinstance(payload, dict):
+            continue
+        r2_key = r2_keys.get(doctype) or (
+            f"{slug}/{inp.project_id}/mappings/mapped_payloads/{doctype}.json"
+        )
+        try:
+            s3.put_object(
+                Bucket="clean-data",
+                Key=r2_key,
+                Body=json.dumps(payload, indent=2, default=str).encode("utf-8"),
+                ContentType="application/json",
+            )
+            r2_keys[doctype] = r2_key
+            activity.logger.info(
+                "  SCB: wrote %s (%d records) → %s",
+                doctype,
+                len(payload.get("records") or []),
+                r2_key,
+            )
+        except Exception as e:
+            activity.logger.warning("  ⚠️ SCB: R2 write failed for %s: %s", doctype, e)
+
+    derived = summary.get("derived_config") or {}
+    if derived:
+        try:
+            async with AsyncSessionLocal() as session:
+                existing = {
+                    r.target_doctype
+                    for r in (
+                        await session.execute(
+                            select(ISMappedData.target_doctype).where(
+                                ISMappedData.session_id == uuid.UUID(inp.session_id)
+                            )
+                        )
+                    ).scalars().all()
+                }
+                for config_dt in derived:
+                    if config_dt in existing:
+                        continue
+                    r2_key = r2_keys.get(config_dt) or (
+                        f"{slug}/{inp.project_id}/mappings/mapped_payloads/{config_dt}.json"
+                    )
+                    payload = merged.get(config_dt) or derived.get(config_dt) or {}
+                    session.add(ISMappedData(
+                        id=uuid.uuid4(),
+                        session_id=uuid.UUID(inp.session_id),
+                        target_doctype=config_dt,
+                        source_filename="site_config_bootstrap",
+                        mapped_payload_r2_path=r2_key,
+                        total_rows=len(payload.get("records") or []),
+                        total_mapped_fields=1,
+                        validation_status="pending",
+                    ))
+                await session.commit()
+        except Exception as e:
+            activity.logger.warning("  ⚠️ SCB: ISMappedData upsert failed: %s", e)
+
+    summary_key = f"{slug}/{inp.project_id}/_bootstrap/site_config.json"
+    summary_doc = {
+        "session_id": inp.session_id,
+        "derived_doctypes": summary.get("derived_doctypes") or [],
+        "derived_config": derived,
+        "patch_audit": summary.get("patch_audit") or [],
+        "derive_audit": summary.get("derive_audit") or [],
+    }
+    try:
+        s3.put_object(
+            Bucket="clean-data",
+            Key=summary_key,
+            Body=json.dumps(summary_doc, indent=2, default=str).encode("utf-8"),
+            ContentType="application/json",
+        )
+    except Exception as e:
+        activity.logger.warning("  ⚠️ SCB: summary R2 write failed: %s", e)
+
+    activity.logger.info(
+        "✅ bootstrap_site_config done | derived=%s patches=%d",
+        summary.get("derived_doctypes") or [],
+        len(summary.get("patch_audit") or []),
+    )
+    return NodeStatusEnvelope.success(
+        primary_result={
+            "skipped": False,
+            "derived_doctypes": summary.get("derived_doctypes") or [],
+            "patch_count": len(summary.get("patch_audit") or []),
+            "derive_count": len(summary.get("derive_audit") or []),
+            "summary_r2_path": summary_key,
+            "derived_config": derived,
+        }
+    )
+
 
 @activity.defn(name="validate_mapped_data")
 async def validate_mapped_data(inp: ValidateInput) -> Any:
@@ -652,6 +811,24 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
     n_warnings = len(report.get("warnings", []))
     activity.logger.info("  Validation result: %s | %d errors, %d warnings", v_status, n_errors, n_warnings)
 
+    bootstrap_summary: Dict[str, Any] = {}
+    try:
+        bootstrap_key = f"{slug}/{inp.project_id}/_bootstrap/site_config.json"
+        bootstrap_summary = load_r2_json(s3, "clean-data", bootstrap_key)
+        if not isinstance(bootstrap_summary, dict):
+            bootstrap_summary = {}
+    except Exception:
+        bootstrap_summary = {}
+
+    from containers.implementation.is_common.import_preview import build_import_preview
+
+    import_preview = build_import_preview(
+        ler_gaps=report.get("ler_gaps") or [],
+        mapped_data=mapped_data,
+        bootstrap_summary=bootstrap_summary,
+    )
+    report["import_preview"] = import_preview
+
     # ── 4. Upload validation report to R2 ────────────────────────────────────
     report_key = f"{slug}/{inp.project_id}/_validation/report.json"
     try:
@@ -790,6 +967,40 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                     }
                 )
 
+    blocking_unmapped_seeds: List[str] = []
+    try:
+        from shared.models.is_models import ISTargetStructure
+        from containers.implementation.import_agent.mvp_import_scope import (
+            blocking_unmapped_seeds as compute_blocking_unmapped,
+            parse_mvp_scope_from_target,
+        )
+
+        async with AsyncSessionLocal() as session:
+            target_row = (
+                await session.execute(
+                    select(ISTargetStructure)
+                    .where(ISTargetStructure.session_id == uuid.UUID(inp.session_id))
+                    .order_by(ISTargetStructure.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        seed_list: List[str] = []
+        deferred_set: set = set()
+        if target_row and target_row.r2_path:
+            target_data = load_r2_json(s3, "clean-data", target_row.r2_path)
+            if isinstance(target_data, dict):
+                seed_list = list(target_data.get("seed_doctypes") or [])
+                _, deferred_set = parse_mvp_scope_from_target(target_data)
+        mapped_dt_set = {
+            dt for dt, payload in mapped_data.items()
+            if isinstance(payload, dict) and (payload.get("records") or [])
+        }
+        blocking_unmapped_seeds = compute_blocking_unmapped(
+            seed_list, mapped_dt_set, deferred_set,
+        )
+    except Exception as e:
+        activity.logger.warning("  ⚠️ MVP blocking unmapped check failed: %s", e)
+
     primary = {
         "overall": v_status,
         "error_count": n_errors,
@@ -799,6 +1010,8 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
         "checks": report.get("checks", []) or [],
         "source_file_conflicts": source_file_conflicts,
         "ler_gaps": report.get("ler_gaps") or [],
+        "import_preview": import_preview,
+        "blocking_unmapped_seeds": blocking_unmapped_seeds,
     }
 
     if v_status == "fail" or errors:

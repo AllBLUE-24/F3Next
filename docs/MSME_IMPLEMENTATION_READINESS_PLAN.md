@@ -328,8 +328,8 @@ Features MSMEs will ask for once the pipeline doesn’t loop on them:
 | P0 | Party-field semantics (`Under_Group` ≠ `customer_group`) | L3 / mapping | A | **Shipped** |
 | P0 | VTL module + hook in defaults/supervisor | L3 (new) | B | **Shipped (Phase 0)** |
 | P0 | Continue → `auto_fix` value translation | L1 / supervisor | A | **Shipped** |
-| P1 | SCB activity + import plan Phase 0 | L2 / L4 | C | Pending |
-| P1 | Validate gap cards + import preview from `ler_gaps` | L5 | A | Pending |
+| P1 | SCB activity + import plan Phase 0 | L2 / L4 | C | **Shipped (Phase 1)** |
+| P1 | Validate gap cards + import preview from `ler_gaps` | L5 | A | **Shipped (Phase 1)** |
 
 Branch: `feature/msme-vtl-phase-0`
 
@@ -375,9 +375,22 @@ Extend plural/singular maps (`Raw Materials` → `Raw Material` already done). A
 
 Extend `party_ledger_class_values` for Busy/Zoho spelling variants if needed.
 
-### Phase 1 (code, not JSON)
+### Phase 1 (code, not JSON) — **Shipped**
 
 Live ERP fuzzy match + Site Config Bootstrap (SCB) — see P1 rows above.
+
+| Component | Path |
+| --------- | ---- |
+| SCB runtime | `containers/implementation/is_common/site_config_bootstrap.py` |
+| SCB activity | `bootstrap_site_config` in `validation_agent/activities.py` |
+| Import preview | `containers/implementation/is_common/import_preview.py` |
+| Live fuzzy VTL | `fuzzy_match_live_erp()` in `mapping_agent/value_translation.py` |
+| Config greenfield deferral | `ler_greenfield.py` + bootstrap coverage check |
+| Workflow step 10b | `is_workflow/workflow.py` |
+| Import plan Phase 0 | `finalize_import_plan` → `phase_0_site_config` |
+| Validate UI | `ValidateView.tsx` import preview section |
+
+**Tests:** `test_site_config_bootstrap.py`
 
 After KB edits: `clear_cache()` then `pytest containers/implementation/tests/test_value_translation.py`.
 

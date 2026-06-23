@@ -166,6 +166,50 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         </div>
       </div>
 
+      {(preview.import_preview?.will_create_on_erp?.length || preview.import_preview?.needs_your_ok?.length) ? (
+        <div className="bg-white/[0.02] border border-white/[0.07] rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-bold text-white uppercase tracking-widest">
+            Import preview
+          </h2>
+          {preview.import_preview?.will_create_on_erp?.length ? (
+            <div>
+              <p className="text-xs font-semibold text-emerald-400 mb-2">Will create on your ERP</p>
+              <ul className="space-y-2">
+                {preview.import_preview.will_create_on_erp.map((item, idx) => (
+                  <li key={`will-${idx}`} className="text-sm text-gray-300">
+                    {item.message || (
+                      <>
+                        {item.row_count ? `${item.row_count} ` : ''}
+                        {item.doctype}
+                        {item.value ? ` — ${item.value}` : ''}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {preview.import_preview?.needs_your_ok?.length ? (
+            <div>
+              <p className="text-xs font-semibold text-amber-400 mb-2">Needs your OK (or auto-fix)</p>
+              <ul className="space-y-2">
+                {preview.import_preview.needs_your_ok.map((item, idx) => (
+                  <li key={`block-${idx}`} className="text-sm text-gray-300">
+                    {item.message || (
+                      <>
+                        {item.doctype}
+                        {item.value ? `: ${item.value}` : ''}
+                        {item.row_count ? ` (${item.row_count} rows)` : ''}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* ── Company Profile Card ──────────────────────────────────────────────── */}
       <div className="bg-white/[0.02] border border-white/[0.07] rounded-2xl p-6 space-y-5">
         <h2 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">

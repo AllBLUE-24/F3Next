@@ -5,6 +5,16 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from containers.knowledge_base.erpnext.schema.compose import compose_value_translation
+from shared.entity_resolution.gaps import _fuzzy_candidates
+
+_LINK_FIELD_TO_CONFIG_DOCTYPE: Dict[str, str] = {
+    "item_group": "Item Group",
+    "customer_group": "Customer Group",
+    "supplier_group": "Supplier Group",
+    "territory": "Territory",
+    "stock_uom": "UOM",
+    "uom": "UOM",
+}
 
 
 def _norm(s: Any) -> str:
@@ -77,12 +87,41 @@ def _is_party_ledger_value(value: Any, ledger_values: Set[str]) -> bool:
     return _norm(value) in ledger_values
 
 
+def fuzzy_match_live_erp(value: str, known_names: List[str]) -> Optional[str]:
+    """Best single fuzzy match against live ERP link targets (singular/plural tolerant)."""
+    raw = str(value or "").strip()
+    if not raw or not known_names:
+        return None
+
+    q = _norm(raw)
+    for name in known_names:
+        if _norm(name) == q:
+            return name
+
+    # Plural/singular: "Raw Materials" vs "Raw Material"
+    if q.endswith("s") and q[:-1]:
+        stem = q[:-1]
+        for name in known_names:
+            n = _norm(name)
+            if n == stem or n.startswith(stem):
+                return name
+    elif q:
+        for name in known_names:
+            n = _norm(name)
+            if n == q + "s" or n.startswith(q):
+                return name
+
+    candidates = _fuzzy_candidates(raw, known_names, limit=1)
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def apply_value_translations(
     doctype: str,
     records: List[Dict[str, Any]],
     *,
     context: Optional[Dict[str, Any]] = None,
     overwrite: bool = False,
+    link_cache: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Apply VTL policies to mapped records.
@@ -132,15 +171,28 @@ def apply_value_translations(
             if current in (None, ""):
                 continue
             translated = _resolve_mapped_value(field, current, field_maps)
-            if not translated or translated == current:
-                continue
-            audit.append({
-                "field": field,
-                "from": current,
-                "to": translated,
-                "rule_id": "vtl_field_value_map",
-            })
-            r[field] = translated
+            if translated and translated != current:
+                audit.append({
+                    "field": field,
+                    "from": current,
+                    "to": translated,
+                    "rule_id": "vtl_field_value_map",
+                })
+                r[field] = translated
+                current = translated
+
+            config_dt = _LINK_FIELD_TO_CONFIG_DOCTYPE.get(field)
+            if config_dt and link_cache and current not in (None, ""):
+                known = link_cache.get(config_dt) or []
+                live_match = fuzzy_match_live_erp(str(current), known)
+                if live_match and live_match != current:
+                    audit.append({
+                        "field": field,
+                        "from": current,
+                        "to": live_match,
+                        "rule_id": "vtl_live_erp_fuzzy",
+                    })
+                    r[field] = live_match
 
         out.append(r)
 
@@ -153,6 +205,7 @@ def normalize_mapped_payload(
     *,
     context: Optional[Dict[str, Any]] = None,
     overwrite: bool = False,
+    link_cache: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     if not isinstance(payload, dict):
         return payload, []
@@ -160,7 +213,11 @@ def normalize_mapped_payload(
     if not isinstance(records, list):
         return payload, []
     translated, audit = apply_value_translations(
-        doctype, records, context=context, overwrite=overwrite
+        doctype,
+        records,
+        context=context,
+        overwrite=overwrite,
+        link_cache=link_cache,
     )
     out = dict(payload)
     out["records"] = translated
