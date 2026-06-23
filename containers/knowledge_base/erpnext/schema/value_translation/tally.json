@@ -1,0 +1,22 @@
+{
+  "_research_status": "SCAFFOLD — fill after Tally export research. See docs/MSME_IMPLEMENTATION_READINESS_PLAN.md § Remaining KB research.",
+  "description": "Tally-specific cell-value translations (ledger groups, stock groups, UOM variants).",
+  "source_system": "tally",
+  "field_value_maps": {
+    "Item": {
+      "item_group": {}
+    },
+    "Customer": {
+      "customer_group": {}
+    },
+    "Supplier": {
+      "supplier_group": {}
+    }
+  },
+  "notes_for_researcher": [
+    "Map Tally stock group names (Under_Group column) to ERPNext Item Group names on a typical Indian manufacturing site.",
+    "Do NOT map Sundry Debtors/Creditors to customer_group/supplier_group — use link_field_policies.json instead.",
+    "Add regional UOM variants beyond Ltr/Litre if found in exports.",
+    "Example entry: \"Consumables\": \"Consumable\""
+  ]
+}

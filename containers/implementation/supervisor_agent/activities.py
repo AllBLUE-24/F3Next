@@ -807,6 +807,65 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
     return SupervisorResult(actions=actions, summary_for_ui=summary, final_status=final_status)  # type: ignore[arg-type]
 
 
+
+async def _list_session_mapped_doctypes(session_id: Optional[str]) -> List[str]:
+    if not session_id:
+        return []
+    try:
+        import uuid
+
+        from shared.database.db import AsyncSessionLocal
+        from shared.models.is_models import ISMappedData
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            rows = (
+                await session.execute(
+                    select(ISMappedData.target_doctype).where(
+                        ISMappedData.session_id == uuid.UUID(session_id),
+                        ISMappedData.total_rows > 0,
+                    )
+                )
+            ).scalars().all()
+        return sorted({str(d) for d in rows if d})
+    except Exception as e:
+        activity.logger.warning("  ⚠ Could not list session mapped doctypes: %s", e)
+        return []
+
+
+async def _apply_vtl_to_payload(
+    *,
+    act_id: str,
+    doctype: str,
+    key: str,
+    payload: Dict[str, Any],
+    overwrite: bool,
+) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    from containers.implementation.mapping_agent.value_translation import apply_value_translations
+    from shared.r2_client import r2_write_json
+
+    records = payload.get("records")
+    if not isinstance(records, list):
+        return None, {"id": act_id, "doctype": doctype, "reason": "no_records_array", "key": key}
+
+    before = [dict(r) for r in records if isinstance(r, dict)]
+    translated, audit = apply_value_translations(doctype, before, overwrite=overwrite)
+    if translated == before and not audit:
+        return None, {"id": act_id, "doctype": doctype, "reason": "no_vtl_changes", "key": key}
+
+    payload = dict(payload)
+    payload["records"] = translated
+    await r2_write_json(key, payload, bucket="clean-data")
+    return {
+        "id": act_id,
+        "doctype": doctype,
+        "op": "apply_value_translation",
+        "updated": len(translated),
+        "translations": len(audit),
+        "key": key,
+    }, None
+
+
 @activity.defn(name="apply_supervisor_actions")
 async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyActionsResult:
     """
@@ -837,6 +896,31 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
                 skipped.append({"id": act.id, "change": ch, "reason": "unsupported_target"})
                 continue
 
+            op = ch.get("op")
+            overwrite = bool(ch.get("overwrite", True))
+
+            if op == "apply_value_translation" and not ch.get("doctype"):
+                from shared.r2_client import r2_read_json
+
+                for dt in await _list_session_mapped_doctypes(inp.session_id):
+                    key = f"{company_slug}/{inp.project_id}/mappings/mapped_payloads/{dt}.json"
+                    try:
+                        payload = await r2_read_json(key, bucket="clean-data") or {}
+                        result, skip = await _apply_vtl_to_payload(
+                            act_id=act.id,
+                            doctype=dt,
+                            key=key,
+                            payload=payload,
+                            overwrite=overwrite,
+                        )
+                        if result:
+                            applied.append(result)
+                        elif skip:
+                            skipped.append(skip)
+                    except Exception as e:
+                        errors.append({"id": act.id, "doctype": dt, "error": str(e), "key": key})
+                continue
+
             doctype = ch.get("doctype")
             if not doctype:
                 skipped.append({"id": act.id, "change": ch, "reason": "missing_doctype"})
@@ -852,7 +936,20 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
                     skipped.append({"id": act.id, "doctype": doctype, "reason": "no_records_array"})
                     continue
 
-                op = ch.get("op")
+                if op == "apply_value_translation":
+                    result, skip = await _apply_vtl_to_payload(
+                        act_id=act.id,
+                        doctype=doctype,
+                        key=key,
+                        payload=payload,
+                        overwrite=overwrite,
+                    )
+                    if result:
+                        applied.append(result)
+                    elif skip:
+                        skipped.append(skip)
+                    continue
+
                 if op == "map_enum":
                     field_name = ch.get("field")
                     mapping = ch.get("map") or {}

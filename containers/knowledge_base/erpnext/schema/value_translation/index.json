@@ -1,0 +1,12 @@
+{
+  "knowledge_base_id": "value_translation_layer",
+  "version": "1.0.0",
+  "erp_system": "erpnext",
+  "last_updated": "2026-06-23",
+  "description": "Value Translation Layer (VTL) — cell-value policies loaded after column mapping. Composed from modular files in this directory.",
+  "modules": [
+    "erpnext_baseline.json",
+    "link_field_policies.json",
+    "tally.json"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "description": "Policies for link fields when source-system values must not be imported literally (e.g. Tally ledger classes on party masters).",
+  "party_ledger_class_values": [
+    "Sundry Debtors",
+    "sundry debtors",
+    "Sundry Debtor",
+    "Sundry Creditors",
+    "Sundry Creditor",
+    "sundry creditors",
+    "Debtors",
+    "Creditors"
+  ],
+  "field_policies": {
+    "Customer": {
+      "customer_group": {
+        "policy": "drop_party_ledger_use_default",
+        "default_field": "customer_group",
+        "baseline_default": "All Customer Groups"
+      }
+    },
+    "Supplier": {
+      "supplier_group": {
+        "policy": "drop_party_ledger_use_default",
+        "default_field": "supplier_group",
+        "baseline_default": "All Supplier Groups"
+      }
+    }
+  }
+}

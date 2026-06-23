@@ -1645,6 +1645,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
         map_audit = result.get("column_map_audit") or {}
         audit_methods: Dict[str, str] = map_audit.get("methods") or {}
 
+        from containers.implementation.is_common.party_rules import strip_split_column_from_field_mapping
+
+        cols_for_strip = source_columns or (list(rows[0].keys()) if rows else [])
+        field_mapping = strip_split_column_from_field_mapping(field_mapping, cols_for_strip, doctype)
+
         # Cross-file guard: filename strongly implies a different doctype (e.g. active_projects → Project).
         implied_dt = filename_implied_doctype(inp.filename)
         if implied_dt and filename_conflicts_with_doctype(inp.filename, doctype):

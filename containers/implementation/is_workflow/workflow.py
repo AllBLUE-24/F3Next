@@ -45,7 +45,7 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
     from containers.implementation.supervisor_agent.activities import supervise_step, SuperviseStepInput
     from containers.implementation.supervisor_agent.activities import apply_supervisor_actions
-    from shared.models.is_status import ApplySupervisorActionsInput, NodeStatusEnvelope
+    from shared.models.is_status import ApplySupervisorActionsInput, NodeStatusEnvelope, SupervisorAction
     from containers.implementation.file_io.persist_supervisor_prompt import (
         persist_supervisor_prompt,
         PersistSupervisorPromptInput,
@@ -1594,6 +1594,35 @@ class ImplementationWorkflow:
                                 ),
                                 **_ACT,
                             )
+                        elif chosen_action and getattr(chosen_action, "type", "") == "ask_user":
+                            extra = (ssig.extra_data or {}) if ssig else {}
+                            selected = str(extra.get("selected_option", "")).lower()
+                            if "continue" in selected or "default" in selected:
+                                await workflow.execute_activity(
+                                    apply_supervisor_actions,
+                                    ApplySupervisorActionsInput(
+                                        project_id=project_id,
+                                        session_id=self._session_id,
+                                        step="validation",
+                                        company_slug=self._company_slug,
+                                        actions=[
+                                            SupervisorAction(
+                                                id="auto_fix_vtl_defaults",
+                                                type="auto_fix",
+                                                scope="validation",
+                                                changes=[
+                                                    {
+                                                        "target": "r2",
+                                                        "op": "apply_value_translation",
+                                                        "overwrite": True,
+                                                    }
+                                                ],
+                                                metadata={"origin": "continue_with_defaults"},
+                                            )
+                                        ],
+                                    ),
+                                    **_ACT,
+                                )
 
                     # Re-run validation after user response (or no-op)
                     v_env = await workflow.execute_activity(

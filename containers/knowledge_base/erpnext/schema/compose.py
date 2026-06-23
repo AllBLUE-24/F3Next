@@ -110,8 +110,38 @@ def doctype_mapping(doctype: str) -> Dict[str, Any]:
     return ((compose_field_mappings().get("doctypes") or {}).get(doctype) or {})
 
 
+def _load_value_translation_modules() -> Dict[str, Any]:
+    vtl_dir = _SCHEMA_DIR / "value_translation"
+    index = _read_json(vtl_dir / "index.json")
+    if not index:
+        return {}
+    modules = index.get("modules") or []
+    loaded: Dict[str, Any] = {"index": index}
+    for name in modules:
+        if not isinstance(name, str) or not name.endswith(".json"):
+            continue
+        key = name.replace(".json", "")
+        loaded[key] = _read_json(vtl_dir / name)
+    return loaded
+
+
+@lru_cache(maxsize=1)
+def compose_value_translation() -> Dict[str, Any]:
+    """Load Value Translation Layer (VTL) modular KB."""
+    modules = _load_value_translation_modules()
+    if not modules:
+        return {}
+    return {
+        "index": modules.get("index") or {},
+        "erpnext_baseline": modules.get("erpnext_baseline") or {},
+        "link_field_policies": modules.get("link_field_policies") or {},
+        "tally": modules.get("tally") or {},
+    }
+
+
 def clear_cache() -> None:
     compose_field_mappings.cache_clear()
+    compose_value_translation.cache_clear()
     corpus_rules.cache_clear()
     merge_policies.cache_clear()
     filename_priors.cache_clear()

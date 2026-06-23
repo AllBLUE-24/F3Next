@@ -1,0 +1,25 @@
+{
+  "description": "Cross-source normalizations toward standard ERPNext naming (singular/plural, spacing). Safe defaults — extend via research.",
+  "field_value_maps": {
+    "Item": {
+      "item_group": {
+        "Raw Materials": "Raw Material",
+        "raw materials": "Raw Material",
+        "RAW MATERIALS": "Raw Material",
+        "Finished Good": "Finished Goods",
+        "finished good": "Finished Goods"
+      },
+      "stock_uom": {
+        "Ltr": "Litre",
+        "ltr": "Litre",
+        "LTR": "Litre"
+      }
+    }
+  },
+  "link_target_maps": {
+    "Item Group": {
+      "Raw Materials": "Raw Material",
+      "raw materials": "Raw Material"
+    }
+  }
+}

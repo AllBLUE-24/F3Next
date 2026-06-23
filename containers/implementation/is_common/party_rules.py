@@ -94,3 +94,29 @@ def alias_to_canonical_party() -> Dict[str, str]:
         for canonical, aliases in syns.items()
         for alias in aliases
     }
+
+
+def strip_split_column_from_field_mapping(
+    field_mapping: Dict[str, str],
+    columns: List[str],
+    doctype: str,
+) -> Dict[str, str]:
+    """
+    Remove party-split discriminator columns (e.g. Tally Under_Group) from field
+    mapping on Customer/Supplier so ledger class is not copied to customer_group.
+    """
+    if doctype not in ("Customer", "Supplier"):
+        return dict(field_mapping or {})
+    split_syns = split_column_synonyms()
+    excluded = {
+        col
+        for col in (columns or [])
+        if _norm_col(col) in split_syns
+    }
+    if not excluded:
+        return dict(field_mapping or {})
+    return {
+        src: tgt
+        for src, tgt in (field_mapping or {}).items()
+        if src not in excluded
+    }

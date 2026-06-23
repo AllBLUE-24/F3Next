@@ -485,6 +485,9 @@ def apply_defaults_and_normalize(
 
         out.append(r)
 
+    from containers.implementation.mapping_agent.value_translation import apply_value_translations
+
+    out, _vtl_audit = apply_value_translations(doctype, out, context=context)
     return out
 
 
