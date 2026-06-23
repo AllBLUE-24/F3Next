@@ -3,7 +3,7 @@
 // src/components/implementation/validate/ValidateView.tsx
 // Full data review + confirm before import
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -16,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { DataPreviewTable } from './DataPreviewTable';
+import { ValidationGapUploadCard } from './ValidationGapUploadCard';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 import { getBaseApiUrl } from '@/lib/config';
 import { stageToStep } from '@/lib/implementation-routes';
@@ -39,7 +40,22 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
   const [alreadyConfirmed, setAlreadyConfirmed] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [workflowStage, setWorkflowStage] = useState<string | null>(null);
+  const [livePreview, setLivePreview] = useState(preview);
   const router = useRouter();
+
+  const refreshPreview = useCallback(async () => {
+    try {
+      const res = await fetch(`${getBaseApiUrl()}/api/implementation/validate-preview/${jobId}`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        setLivePreview(await res.json());
+      }
+    } catch {
+      // keep current preview
+    }
+  }, [jobId]);
 
   // Sync with workflow stage — confirm state, errors, import progress
   useEffect(() => {
@@ -52,6 +68,7 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         if (!res.ok || cancelled) return;
         const data = await res.json();
         const stage = data.stage as string | null;
+        setWorkflowStage(stage);
         const step = stageToStep(stage);
         if (step === 'import') {
           setAlreadyConfirmed(true);
@@ -67,27 +84,45 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         // keep default
       }
     })();
+    const interval = setInterval(() => {
+      void (async () => {
+        if (cancelled) return;
+        try {
+          const res = await fetch(`${getBaseApiUrl()}/api/implementation/stage/${jobId}`, {
+            cache: 'no-store',
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          setWorkflowStage(data.stage as string | null);
+        } catch {
+          // ignore
+        }
+      })();
+    }, 4000);
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [jobId]);
 
-  const profile = preview.profile;
-  const totalRecords = preview.doctypes.reduce((s, d) => s + d.total_rows, 0);
-  const totalDoctypes = preview.doctypes.length;
-  const errorCount = preview.doctypes.reduce((s, d) => s + (d.errors?.length || 0), 0);
-  const warningCount = preview.doctypes.reduce((s, d) => s + (d.warnings?.length || 0), 0);
-  const failedDoctypes = preview.doctypes.filter((d) =>
+  const profile = livePreview.profile;
+  const totalRecords = livePreview.doctypes.reduce((s, d) => s + d.total_rows, 0);
+  const totalDoctypes = livePreview.doctypes.length;
+  const errorCount = livePreview.doctypes.reduce((s, d) => s + (d.errors?.length || 0), 0);
+  const warningCount = livePreview.doctypes.reduce((s, d) => s + (d.warnings?.length || 0), 0);
+  const failedDoctypes = livePreview.doctypes.filter((d) =>
     ['fail', 'failed'].includes(d.validation_status),
   ).length;
-  const hasErrors = preview.validation_overall === 'fail' || failedDoctypes > 0;
-  const hasWarnings = preview.validation_overall === 'partial' || warningCount > 0;
-  const blockingUnmapped = preview.blocking_unmapped_seeds ?? [];
+  const hasErrors = livePreview.validation_overall === 'fail' || failedDoctypes > 0;
+  const hasWarnings = livePreview.validation_overall === 'partial' || warningCount > 0;
+  const blockingUnmapped = livePreview.blocking_unmapped_seeds ?? [];
   const importBlocked =
-    !preview.import_ready ||
-    (preview.open_critical_gaps ?? 0) > 0 ||
+    !livePreview.import_ready ||
+    (livePreview.open_critical_gaps ?? 0) > 0 ||
     blockingUnmapped.length > 0;
   const canConfirm = !hasErrors && !importBlocked;
+  const awaitingGapUpload =
+    workflowStage === 'awaiting_validation_gap_upload' || blockingUnmapped.length > 0;
 
   const dataQualityLabel = (() => {
     const raw = profile.data_quality_score;
@@ -166,16 +201,16 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         </div>
       </div>
 
-      {(preview.import_preview?.will_create_on_erp?.length || preview.import_preview?.needs_your_ok?.length) ? (
+      {(livePreview.import_preview?.will_create_on_erp?.length || livePreview.import_preview?.needs_your_ok?.length) ? (
         <div className="bg-white/[0.02] border border-white/[0.07] rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-bold text-white uppercase tracking-widest">
             Import preview
           </h2>
-          {preview.import_preview?.will_create_on_erp?.length ? (
+          {livePreview.import_preview?.will_create_on_erp?.length ? (
             <div>
               <p className="text-xs font-semibold text-emerald-400 mb-2">Will create on your ERP</p>
               <ul className="space-y-2">
-                {preview.import_preview.will_create_on_erp.map((item, idx) => (
+                {livePreview.import_preview.will_create_on_erp.map((item, idx) => (
                   <li key={`will-${idx}`} className="text-sm text-gray-300">
                     {item.message || (
                       <>
@@ -189,11 +224,11 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
               </ul>
             </div>
           ) : null}
-          {preview.import_preview?.needs_your_ok?.length ? (
+          {livePreview.import_preview?.needs_your_ok?.length ? (
             <div>
               <p className="text-xs font-semibold text-amber-400 mb-2">Needs your OK (or auto-fix)</p>
               <ul className="space-y-2">
-                {preview.import_preview.needs_your_ok.map((item, idx) => (
+                {livePreview.import_preview.needs_your_ok.map((item, idx) => (
                   <li key={`block-${idx}`} className="text-sm text-gray-300">
                     {item.message || (
                       <>
@@ -264,27 +299,27 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
         <h2 className="text-sm font-bold text-white uppercase tracking-widest">
           Data Preview — {totalDoctypes} Doctypes
         </h2>
-        {preview.doctypes.map((dt, idx) => (
+        {livePreview.doctypes.map((dt, idx) => (
           <DataPreviewTable key={`${dt.doctype}-${dt.source_file ?? idx}`} data={dt} defaultOpen={idx === 0} />
         ))}
 
-        {(preview.unmapped_files?.length ?? 0) > 0 && (
+        {(livePreview.unmapped_files?.length ?? 0) > 0 && (
           <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5 space-y-3">
             <h3 className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
               <AlertTriangle className="w-3.5 h-3.5" />
-              Uploaded but not mapped — {(preview.tracked_files?.length ?? 0) || preview.unmapped_files!.length + totalDoctypes} files tracked
+              Uploaded but not mapped — {(livePreview.tracked_files?.length ?? 0) || livePreview.unmapped_files!.length + totalDoctypes} files tracked
             </h3>
             <ul className="space-y-2">
-              {preview.unmapped_files!.map((f) => (
+              {livePreview.unmapped_files!.map((f) => (
                 <li key={f.filename} className="text-xs text-amber-200/80 font-mono">
                   {f.filename}
                   <span className="text-amber-400/60 font-sans ml-2">— mapping skipped or failed preflight</span>
                 </li>
               ))}
             </ul>
-            {(preview.mapping_gaps?.length ?? 0) > 0 && (
+            {(livePreview.mapping_gaps?.length ?? 0) > 0 && (
               <ul className="space-y-1 pt-2 border-t border-amber-500/10">
-                {preview.mapping_gaps!.map((gap, i) => (
+                {livePreview.mapping_gaps!.map((gap, i) => (
                   <li key={`${gap.source_file}-${gap.doctype}-${i}`} className="text-[11px] text-amber-300/70">
                     {gap.message}
                   </li>
@@ -296,13 +331,13 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
       </div>
 
       {/* ── Import Plan Summary ──────────────────────────────────────────────── */}
-      {Object.keys(preview.import_summary).length > 0 && (
+      {Object.keys(livePreview.import_summary).length > 0 && (
         <div className="bg-white/[0.02] border border-white/[0.07] rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-bold text-white uppercase tracking-widest">
             Import Plan — 3 Phases
           </h2>
           <div className="space-y-3">
-            {Object.entries(preview.import_summary).map(([phaseKey, doctypes]) => {
+            {Object.entries(livePreview.import_summary).map(([phaseKey, doctypes]) => {
               const cfg = PHASE_LABELS[phaseKey] || { label: phaseKey, icon: Package };
               const Icon = cfg.icon;
               return (
@@ -321,6 +356,16 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
             })}
           </div>
         </div>
+      )}
+
+      {/* ── MVP gap upload (Stock Entry etc.) ─────────────────────────────── */}
+      {awaitingGapUpload && !alreadyConfirmed && (
+        <ValidationGapUploadCard
+          jobId={jobId}
+          companySlug={companySlug}
+          blockingSeeds={blockingUnmapped}
+          onDone={() => void refreshPreview()}
+        />
       )}
 
       {/* ── Action ─────────────────────────────────────────────────────────── */}
@@ -362,9 +407,9 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
                 Upload data for: {blockingUnmapped.join(', ')}.
               </p>
             )}
-            {(preview.unmapped_seeds?.length ?? 0) > 0 && blockingUnmapped.length === 0 && (
+            {(livePreview.unmapped_seeds?.length ?? 0) > 0 && blockingUnmapped.length === 0 && (
               <p className="text-xs text-zinc-400">
-                Optional seeds not uploaded: {preview.unmapped_seeds!.join(', ')} (import can proceed).
+                Optional seeds not uploaded: {livePreview.unmapped_seeds!.join(', ')} (import can proceed).
               </p>
             )}
           </div>

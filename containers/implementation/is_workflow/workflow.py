@@ -184,6 +184,8 @@ class ImplementationWorkflow:
         self._f3iche_confirmation: Optional[Dict[str, Any]] = None
         self._infer_result: Optional[Dict[str, Any]] = None
         self._corpus_understanding: Optional[Dict[str, Any]] = None
+        self._r2_manifest_url: str = ""
+        self._parsed_files: List[str] = []
 
         # Signal gates
         self._files_uploaded_event     = asyncio.Event()
@@ -321,6 +323,107 @@ class ImplementationWorkflow:
         count = self._gate_retry_counts.get(step_name, 0)
         return count < max_r
 
+    async def _process_gap_file_upload(
+        self,
+        project_id: str,
+        newly_uploaded: List[Dict[str, Any]],
+        L: Any,
+    ) -> None:
+        """Merge newly uploaded files, refresh corpus, and map only the new batch."""
+        L.info("      ▶ Processing %d gap-upload file(s) ...", len(newly_uploaded))
+        scan_res = await workflow.execute_activity(
+            virus_scan_quarantine,
+            args=[newly_uploaded, self._session_id],
+            **_ACT,
+        )
+        if not scan_res.get("safe", False):
+            _step_fail(L, "gap_scan", "Virus Scan", "INFECTED FILES DETECTED — halting workflow")
+            self._stage = "infected_halt"
+            raise ApplicationError("Implementation halted due to malicious payload.")
+
+        all_files_map = {f["file_name"]: f for f in self._all_uploaded_files}
+        for f in newly_uploaded:
+            all_files_map[f["file_name"]] = f
+        self._all_uploaded_files = list(all_files_map.values())
+
+        fetch_results = await workflow.execute_activity(
+            fetch_clean_files,
+            FetchCleanFilesInput(
+                uploaded_files=self._all_uploaded_files,
+                project_id=project_id,
+                company_slug=self._company_slug,
+            ),
+            **_ACT,
+        )
+        r2_manifest_url = fetch_results.get("manifest_url", self._r2_manifest_url)
+        self._r2_manifest_url = r2_manifest_url
+        self._parsed_files = fetch_results.get("parsed_files", self._parsed_files)
+
+        if r2_manifest_url and not str(r2_manifest_url).startswith("error"):
+            try:
+                from containers.implementation.supervisor_agent.activities import fetch_discovery_context
+                re_discovery = await fetch_discovery_context(project_id)
+                enrich_result = await workflow.execute_activity(
+                    enrich_corpus_understanding,
+                    EnrichCorpusUnderstandingInput(
+                        manifest_url=r2_manifest_url,
+                        user_import_note=getattr(self, "_latest_upload_note", None),
+                        discovery_chat_history=re_discovery.get("chat_history"),
+                        discovery_metadata=re_discovery.get("discovery_metadata"),
+                    ),
+                    **_LONG,
+                )
+                self._corpus_understanding = enrich_result
+            except Exception as enrich_err:
+                L.info("      ⚠️  Corpus re-enrichment after gap upload failed: %s", enrich_err)
+
+        try:
+            corpus_env = await workflow.execute_activity(
+                assign_corpus_doctypes,
+                AssignCorpusDoctypesInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    r2_manifest_url=r2_manifest_url,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            if isinstance(corpus_env, dict):
+                corpus_env = (
+                    NodeStatusEnvelope(**corpus_env)
+                    if "status" in corpus_env
+                    else NodeStatusEnvelope.success(primary_result=corpus_env)
+                )
+            assignments = (corpus_env.primary_result or {}).get("assignments", []) if hasattr(corpus_env, "primary_result") else []
+            for a in assignments:
+                if isinstance(a, dict) and a.get("file"):
+                    self._corpus_assignments[a["file"]] = a
+        except Exception as corpus_err:
+            L.info("      ⚠️  Corpus assignment after gap upload failed: %s", corpus_err)
+
+        new_names = {f["file_name"] for f in newly_uploaded}
+        files_to_map = [f for f in self._parsed_files if f in new_names]
+        L.info("      ▶ Mapping %d new file(s) after gap upload ...", len(files_to_map))
+        for fname in files_to_map:
+            try:
+                mapped_env = await workflow.execute_activity(
+                    map_file_to_erpnext,
+                    MapFileInput(
+                        r2_manifest_url=r2_manifest_url,
+                        filename=fname,
+                        project_id=project_id,
+                        company_slug=self._company_slug,
+                        session_id=self._session_id,
+                        corpus_assignment=self._corpus_assignments.get(fname),
+                    ),
+                    **_ACT,
+                )
+                pr = mapped_env.primary_result if hasattr(mapped_env, "primary_result") else {}
+                mapped_dts = (pr or {}).get("doctypes_mapped", []) if isinstance(pr, dict) else []
+                L.info("             → %s mapped to %s", fname, ",".join(mapped_dts) or "unmapped")
+            except Exception as map_err:
+                L.info("             → ❌ %s mapping failed: %s", fname, map_err)
+
     # ── Main run ─────────────────────────────────────────────────────────────
 
     @workflow.run
@@ -435,6 +538,7 @@ class ImplementationWorkflow:
                 **_ACT,
             )
             r2_manifest_url = fetch_results.get("manifest_url", "error")
+            self._r2_manifest_url = r2_manifest_url
             self._parsed_files = fetch_results.get("parsed_files", [])
             _kv(L, "manifest_url", r2_manifest_url)
             _kv(L, "parsed_files", self._parsed_files)
@@ -444,6 +548,7 @@ class ImplementationWorkflow:
             _step_fail(L, 2, "Fetch & Parse", str(e))
             L.info("      ⚠️  Continuing with empty manifest — signals inference will be limited")
             r2_manifest_url = "error"
+            self._r2_manifest_url = r2_manifest_url
             self._parsed_files = []
 
         # ── Step 2b: LLM corpus understanding (semantic file descriptions) ──
@@ -995,6 +1100,7 @@ class ImplementationWorkflow:
                                 **_ACT,
                             )
                             r2_manifest_url = fetch_results.get("manifest_url", r2_manifest_url)
+                            self._r2_manifest_url = r2_manifest_url
                             self._parsed_files = fetch_results.get("parsed_files", self._parsed_files)
 
                             # Re-enrich corpus understanding on merged manifest (Step 2b loop)
@@ -1624,7 +1730,14 @@ class ImplementationWorkflow:
                         elif chosen_action and getattr(chosen_action, "type", "") == "ask_user":
                             extra = (ssig.extra_data or {}) if ssig else {}
                             selected = str(extra.get("selected_option", "")).lower()
-                            if "continue" in selected or "default" in selected:
+                            if selected.startswith("upload"):
+                                self._files_uploaded_event.clear()
+                                L.info("  ⏳ Waiting for files_uploaded after validation supervisor upload ...")
+                                await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
+                                gap_files = self._sig_files.uploaded_files if self._sig_files else []
+                                if gap_files:
+                                    await self._process_gap_file_upload(project_id, gap_files, L)
+                            elif "continue" in selected or "default" in selected:
                                 await workflow.execute_activity(
                                     apply_supervisor_actions,
                                     ApplySupervisorActionsInput(
@@ -1668,6 +1781,123 @@ class ImplementationWorkflow:
                 ObsoleteSupervisorPromptsInput(session_id=self._session_id),
                 **_ACT,
             )
+
+        def _blocking_mvp_seeds(env: Any) -> List[str]:
+            pr = env.primary_result if hasattr(env, "primary_result") else {}
+            if not isinstance(pr, dict):
+                return []
+            return list(pr.get("blocking_unmapped_seeds") or [])
+
+        # ── MVP gap upload loop (deterministic — re-upload → map → re-validate) ──
+        while _blocking_mvp_seeds(v_env):
+            blocking = _blocking_mvp_seeds(v_env)
+            names = ", ".join(blocking)
+            L.info("      ⏸  Unmapped MVP seeds: %s — awaiting gap upload", names)
+
+            self._stage = "awaiting_validation_gap_upload"
+            await workflow.execute_activity(
+                persist_session,
+                PersistSessionInput(
+                    project_id=project_id,
+                    workflow_id=workflow_id,
+                    status=self._stage,
+                ),
+                **_ACT,
+            )
+
+            await workflow.execute_activity(
+                obsolete_supervisor_prompts,
+                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                **_ACT,
+            )
+
+            gap_prompt_id = await workflow.execute_activity(
+                persist_supervisor_prompt,
+                PersistSupervisorPromptInput(
+                    session_id=self._session_id,
+                    step="validation_gap",
+                    status="open",
+                    node_status=asdict(v_env),
+                    actions=[
+                        asdict(
+                            SupervisorAction(
+                                id="ask_user_missing_mvp_files",
+                                type="ask_user",
+                                scope="validation",
+                                question=(
+                                    f"Your MVP scope still needs uploaded data for: {names}. "
+                                    "Upload a file for each before we can import to ERPNext."
+                                ),
+                                options=["Upload the missing files"],
+                                metadata={
+                                    "tier": "critical",
+                                    "blocking_unmapped_seeds": blocking,
+                                    "gap_class": "user_gap",
+                                },
+                            )
+                        )
+                    ],
+                    summary_for_ui=f"Upload required before import: {names}.",
+                ),
+                **_ACT,
+            )
+
+            self._supervisor_response_event.clear()
+            L.info("  ⏳ Waiting for validation gap upload response ...")
+            await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
+
+            ssig = self._sig_supervisor
+            if ssig:
+                await workflow.execute_activity(
+                    mark_supervisor_prompt_answered,
+                    MarkSupervisorPromptAnsweredInput(
+                        prompt_id=str(gap_prompt_id),
+                        answer_payload={
+                            "chosen_action_id": ssig.chosen_action_id,
+                            "extra_data": ssig.extra_data,
+                        },
+                        status="answered",
+                    ),
+                    **_ACT,
+                )
+
+            selected = str((ssig.extra_data or {}).get("selected_option", "")).lower() if ssig else ""
+            if not selected.startswith("upload"):
+                L.info("      ⚠️  Gap upload not chosen yet — re-prompting.")
+                continue
+
+            self._files_uploaded_event.clear()
+            L.info("  ⏳ Waiting for additional files_uploaded signal (validation gap) ...")
+            await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
+
+            newly_uploaded = self._sig_files.uploaded_files if self._sig_files else []
+            if newly_uploaded:
+                await self._process_gap_file_upload(project_id, newly_uploaded, L)
+
+            await workflow.execute_activity(
+                obsolete_supervisor_prompts,
+                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                **_ACT,
+            )
+
+            v_env = await workflow.execute_activity(
+                validate_mapped_data,
+                ValidateInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            if isinstance(v_env, dict):
+                v_env = (
+                    NodeStatusEnvelope(**v_env)
+                    if "status" in v_env
+                    else NodeStatusEnvelope.success(primary_result=v_env)
+                )
+            v_primary = v_env.primary_result if hasattr(v_env, "primary_result") else {}
+            v_status = v_primary.get("overall") if isinstance(v_primary, dict) else None
+            L.info("      ✅ Re-validation after gap upload | overall=%s blocking=%s", v_status, _blocking_mvp_seeds(v_env))
 
         self._set_task("t7", "done", f"Status: {v_status or getattr(v_env, 'status', 'unknown')}")
         self._stage = "awaiting_validation_submission"

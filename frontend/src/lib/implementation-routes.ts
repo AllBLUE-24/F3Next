@@ -4,7 +4,7 @@
 
 export type ImplementationStep = 'upload' | 'analyze' | 'validate' | 'import';
 
-const VALIDATE_STAGES = new Set(['awaiting_validation_submission']);
+const VALIDATE_STAGES = new Set(['awaiting_validation_submission', 'awaiting_validation_gap_upload']);
 
 const IMPORT_STAGES = new Set([
   'awaiting_sandbox_approval',

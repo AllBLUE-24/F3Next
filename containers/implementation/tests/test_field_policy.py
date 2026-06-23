@@ -40,7 +40,7 @@ def test_phase_d_projects_is_non_critical():
     assert _criticality_from_phase("phase_d_projects") == "non_critical"
 
 
-def test_bottleneck_tags_stock_entry_deferrable():
+def test_bottleneck_tags_stock_entry_deferrable_when_not_mvp_seed():
     pre = {
         "missing_doctypes": [{"doctype": "Stock Entry", "phase": "phase_c_transactional"}],
         "partial_doctypes": [],
@@ -49,10 +49,27 @@ def test_bottleneck_tags_stock_entry_deferrable():
     _tag_bottleneck_gaps(
         pre,
         {"primary_bottleneck": "Lack of real-time tracking for material consumption against projects."},
+        {"seed_doctypes": ["Customer", "Sales Order"]},
     )
     summary = _recompute_viability_summary(pre)
     assert pre["missing_doctypes"][0].get("can_proceed_without") is True
     assert summary["minimum_viable_possible"] is True
+
+
+def test_bottleneck_does_not_soften_mvp_seed_stock_entry():
+    pre = {
+        "missing_doctypes": [{"doctype": "Stock Entry", "phase": "phase_c_transactional"}],
+        "partial_doctypes": [],
+        "summary": {"n_blocking_missing": 1},
+    }
+    _tag_bottleneck_gaps(
+        pre,
+        {"primary_bottleneck": "Lack of real-time tracking for material consumption against projects."},
+        {"seed_doctypes": ["Customer", "Sales Order", "Stock Entry"]},
+    )
+    summary = _recompute_viability_summary(pre)
+    assert pre["missing_doctypes"][0].get("can_proceed_without") is not True
+    assert summary["minimum_viable_possible"] is False
 
 
 def test_preflight_blocking_fields_classification():

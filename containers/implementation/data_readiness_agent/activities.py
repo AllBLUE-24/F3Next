@@ -201,6 +201,7 @@ def _criticality_from_phase(phase: Optional[str]) -> str:
 def _tag_bottleneck_gaps(
     pre_analysis: Dict[str, Any],
     mvp_focus: Optional[Dict[str, Any]],
+    target_structure: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Flag gaps that matter for the stated MVP bottleneck (e.g. Stock Entry for material tracking)."""
     bottleneck = str((mvp_focus or {}).get("primary_bottleneck") or "").lower()
@@ -209,10 +210,27 @@ def _tag_bottleneck_gaps(
     material_keywords = ("material", "inventory", "stock", "consumption", "tracking")
     if not any(kw in bottleneck for kw in material_keywords):
         return
+
+    from containers.implementation.is_common.doctype_resolver import resolve_doctype
+
+    mvp_seeds = {
+        resolve_doctype(str(s))
+        for s in ((target_structure or {}).get("seed_doctypes") or [])
+        if str(s or "").strip()
+    }
+
     for bucket in ("missing_doctypes", "partial_doctypes"):
         for entry in pre_analysis.get(bucket) or []:
             if entry.get("doctype") == "Stock Entry":
                 entry["bottleneck_relevant"] = True
+                canonical = resolve_doctype("Stock Entry")
+                if canonical in mvp_seeds:
+                    # MVP seed — must upload before import; do not soften at readiness.
+                    entry.setdefault(
+                        "coverage_note",
+                        "Stock Entry is required for your MVP scope — upload a stock movement file before import.",
+                    )
+                    continue
                 entry["can_proceed_without"] = True
                 entry.setdefault(
                     "coverage_note",
@@ -519,7 +537,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
         field_mappings_kb=kb,
         f3iche_id=f3iche_id or None,
     )
-    _tag_bottleneck_gaps(pre_analysis, mvp_focus)
+    _tag_bottleneck_gaps(pre_analysis, mvp_focus, target_structure)
     summary = _recompute_viability_summary(pre_analysis)
     activity.logger.info(
         "  Gap scan: ready=%d partial=%d missing=%d unmappable=%d score=%.0f%%",
