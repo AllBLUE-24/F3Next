@@ -14,8 +14,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from temporalio.client import Client, WorkflowHandle
+from temporalio.client import Client, WorkflowHandle, WorkflowQueryFailedError
 from temporalio.exceptions import WorkflowAlreadyStartedError
+from temporalio.common import WorkflowIDReusePolicy
+from temporalio.service import RPCError
 from sqlalchemy import select, update
 
 from shared.database.db import AsyncSessionLocal
@@ -107,6 +109,7 @@ class ImplementationLauncher:
                 args=[str(resolved_project_id), discovery_meta],
                 id=wf_id,
                 task_queue=TASK_QUEUE,
+                id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY,
             )
             return {"workflow_id": wf_id, "run_id": handle.first_execution_run_id, "started": True}
         except WorkflowAlreadyStartedError:
@@ -114,7 +117,30 @@ class ImplementationLauncher:
 
     async def terminate(self, project_id: str | UUID, reason: str = "cancelled") -> None:
         handle = await self._handle(project_id)
-        await handle.terminate(reason=reason)
+        try:
+            await handle.terminate(reason=reason)
+        except RPCError as e:
+            logger.warning("Terminate workflow failed (may already be gone): %s", e)
+
+    async def reset_implementation(
+        self,
+        project_id: str | UUID,
+        reason: str = "reset_after_nondeterminism",
+    ) -> Dict[str, Any]:
+        """Terminate a broken/stuck workflow and start a fresh run (same project_id)."""
+        await self.terminate(project_id, reason=reason)
+
+        is_session = await self._get_session(project_id)
+        if is_session:
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    update(ISSession)
+                    .where(ISSession.id == is_session.id)
+                    .values(status="error", updated_at=datetime.utcnow())
+                )
+                await session.commit()
+
+        return await self.start(project_id)
 
     # ── Signals ───────────────────────────────────────────────────────────────
 
@@ -405,12 +431,26 @@ class ImplementationLauncher:
     # ── Queries ───────────────────────────────────────────────────────────────
 
     async def get_stage(self, project_id: str | UUID) -> str:
-        handle = await self._handle(project_id)
-        return await handle.query(ImplementationWorkflow.get_stage)
+        is_session = await self._get_session(project_id)
+        db_stage = is_session.status if is_session else None
+        try:
+            handle = await self._handle(project_id)
+            return await handle.query(ImplementationWorkflow.get_stage)
+        except (WorkflowQueryFailedError, RPCError) as exc:
+            logger.warning(
+                "Workflow stage query failed for %s (%s) — using DB status=%s",
+                project_id,
+                exc,
+                db_stage,
+            )
+            return db_stage or "error"
 
     async def get_analysis_tasks(self, project_id: str | UUID) -> List[Dict]:
-        handle = await self._handle(project_id)
-        return await handle.query(ImplementationWorkflow.get_analysis_tasks)
+        try:
+            handle = await self._handle(project_id)
+            return await handle.query(ImplementationWorkflow.get_analysis_tasks)
+        except (WorkflowQueryFailedError, RPCError):
+            return []
 
     # ── Supabase State Reading (v2 schema) ────────────────────────────────────
 
@@ -1158,20 +1198,34 @@ class ImplementationLauncher:
     async def get_full_state(self, project_id: str | UUID) -> Dict[str, Any]:
         """Convenience: returns everything in one round-trip batch."""
         import asyncio
-        h = await self._handle(project_id)
-        stage, tasks, f3iche_confirmation = await asyncio.gather(
-            h.query(ImplementationWorkflow.get_stage),
-            h.query(ImplementationWorkflow.get_analysis_tasks),
-            h.query(ImplementationWorkflow.get_f3iche_confirmation),
-        )
+
         session = await self._get_session(project_id)
+        db_stage = session.status if session else None
+        stage = db_stage or "error"
+        tasks: List[Dict] = []
+        f3iche_confirmation: Dict[str, Any] = {}
+
+        try:
+            h = await self._handle(project_id)
+            stage, tasks, f3iche_confirmation = await asyncio.gather(
+                h.query(ImplementationWorkflow.get_stage),
+                h.query(ImplementationWorkflow.get_analysis_tasks),
+                h.query(ImplementationWorkflow.get_f3iche_confirmation),
+            )
+        except (WorkflowQueryFailedError, RPCError) as exc:
+            logger.warning(
+                "Workflow state query failed for %s (%s) — using DB fallback",
+                project_id,
+                exc,
+            )
+
         file_batches = list(session.file_batches or []) if session else []
         total_files = sum(len((batch or {}).get("files") or []) for batch in file_batches)
         if not f3iche_confirmation:
             f3iche_confirmation = await self.get_f3iche_confirmation(project_id)
         return {
-            "stage": stage, 
-            "profile": await self.get_profile(project_id), 
+            "stage": stage,
+            "profile": await self.get_profile(project_id),
             "analysis_tasks": tasks,
             "f3iche_confirmation": f3iche_confirmation or None,
             "session": {

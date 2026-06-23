@@ -89,6 +89,18 @@ async def start_workflow(
     return impl_result
 
 
+@router.post("/reset/{project_id}", summary="Terminate broken workflow and start fresh")
+async def reset_implementation(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        result = await launcher.reset_implementation(project_id)
+        return {"ok": True, **result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Signals  (one endpoint per human action in the UI)
 # ══════════════════════════════════════════════════════════════════════════════
