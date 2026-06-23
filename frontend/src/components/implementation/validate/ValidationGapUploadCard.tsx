@@ -69,19 +69,6 @@ export function ValidationGapUploadCard({
     try {
       const base = getBaseApiUrl();
 
-      setUploadStep('Notifying workflow…');
-      const intentRes = await fetch(`${base}/api/implementation/signal/validation-gap-upload-intent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: jobId,
-          selected_option: 'Upload the missing files',
-        }),
-      });
-      if (!intentRes.ok) {
-        throw new Error(`Failed to register upload intent: ${await intentRes.text()}`);
-      }
-
       setUploadStep('Preparing secure upload channels…');
       const fileNames = entries.map((e) => e.name);
       const presignedRes = await fetch(`${base}/api/implementation/presigned-urls`, {
@@ -118,7 +105,7 @@ export function ValidationGapUploadCard({
         }),
       );
 
-      setUploadStep('Signalling background workflow…');
+      setUploadStep('Notifying workflow…');
       const signalRes = await fetch(`${base}/api/implementation/signal/files-uploaded`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,7 +121,9 @@ export function ValidationGapUploadCard({
 
       setUploadStep('Processing — mapping and re-validating…');
       setEntries([]);
-      setTimeout(() => onDone(), 1500);
+      setIsUploading(false);
+      setUploadStep(null);
+      onDone();
     } catch (err: unknown) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');

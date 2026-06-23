@@ -159,14 +159,20 @@ class ImplementationLauncher:
                 await session.commit()
 
         handle = await self._handle(project_id)
-        await handle.signal(
-            ImplementationWorkflow.files_uploaded,
-            FilesUploadedSignal(
-                uploaded_files=uploaded_files,
-                company_slug=company_slug,
-                user_note=user_note,
-            ),
-        )
+        from temporalio.service import RPCError
+
+        try:
+            await handle.signal(
+                ImplementationWorkflow.files_uploaded,
+                FilesUploadedSignal(
+                    uploaded_files=uploaded_files,
+                    company_slug=company_slug,
+                    user_note=user_note,
+                ),
+            )
+        except RPCError as e:
+            logger.warning("Failed to signal files_uploaded: %s", e)
+            raise
 
     async def get_f3iche_confirmation(self, project_id: str | UUID) -> Dict[str, Any]:
         """Return synthesis proposal for the f3iche confirmation gate."""
@@ -366,15 +372,21 @@ class ImplementationLauncher:
         chosen_action_id: str,
         extra_data: Optional[Dict[str, Any]] = None,
     ) -> None:
+        from temporalio.service import RPCError
+
         handle = await self._handle(project_id)
-        await handle.signal(
-            ImplementationWorkflow.supervisor_response,
-            SupervisorResponseSignal(
-                prompt_id=prompt_id,
-                chosen_action_id=chosen_action_id,
-                extra_data=extra_data or {},
-            ),
-        )
+        try:
+            await handle.signal(
+                ImplementationWorkflow.supervisor_response,
+                SupervisorResponseSignal(
+                    prompt_id=prompt_id,
+                    chosen_action_id=chosen_action_id,
+                    extra_data=extra_data or {},
+                ),
+            )
+        except RPCError as e:
+            logger.warning("Failed to signal supervisor_response: %s", e)
+            raise
 
     async def signal_validation_gap_upload_intent(
         self,

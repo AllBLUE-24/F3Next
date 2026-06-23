@@ -1805,86 +1805,28 @@ class ImplementationWorkflow:
                 **_ACT,
             )
 
-            await workflow.execute_activity(
-                obsolete_supervisor_prompts,
-                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
-                **_ACT,
-            )
-
-            v_primary_gap = v_env.primary_result if hasattr(v_env, "primary_result") else {}
-            gap_prompt_id = await workflow.execute_activity(
-                persist_supervisor_prompt,
-                PersistSupervisorPromptInput(
-                    session_id=self._session_id,
-                    step="validation_gap",
-                    status="open",
-                    node_status={
-                        "blocking_unmapped_seeds": blocking,
-                        "overall": (v_primary_gap or {}).get("overall") if isinstance(v_primary_gap, dict) else None,
-                    },
-                    actions=[
-                        asdict(
-                            SupervisorAction(
-                                id="ask_user_missing_mvp_files",
-                                type="ask_user",
-                                scope="validation",
-                                question=(
-                                    f"Your MVP scope still needs uploaded data for: {names}. "
-                                    "Upload a file for each before we can import to ERPNext."
-                                ),
-                                options=["Upload the missing files"],
-                                metadata={
-                                    "tier": "critical",
-                                    "blocking_unmapped_seeds": blocking,
-                                    "gap_class": "user_gap",
-                                },
-                            )
-                        )
-                    ],
-                    summary_for_ui=f"Upload required before import: {names}.",
-                ),
-                **_ACT,
-            )
-            if str(gap_prompt_id) == "error":
-                L.warning("      ⚠️  persist_supervisor_prompt failed — UI will use direct gap upload signal")
-
-            self._supervisor_response_event.clear()
-            L.info("  ⏳ Waiting for validation gap upload response ...")
-            await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
-
-            ssig = self._sig_supervisor
-            if ssig and str(gap_prompt_id) not in ("", "error"):
-                await workflow.execute_activity(
-                    mark_supervisor_prompt_answered,
-                    MarkSupervisorPromptAnsweredInput(
-                        prompt_id=str(gap_prompt_id),
-                        answer_payload={
-                            "chosen_action_id": ssig.chosen_action_id,
-                            "extra_data": ssig.extra_data,
-                        },
-                        status="answered",
-                    ),
-                    **_ACT,
-                )
-
-            selected = str((ssig.extra_data or {}).get("selected_option", "")).lower() if ssig else ""
-            if not selected.startswith("upload"):
-                L.info("      ⚠️  Gap upload not chosen yet — re-prompting.")
-                continue
-
-            self._files_uploaded_event.clear()
-            L.info("  ⏳ Waiting for additional files_uploaded signal (validation gap) ...")
-            await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
+            L.info("  ⏳ Waiting for files_uploaded signal (validation gap) ...")
+            if not self._files_uploaded_event.is_set():
+                await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())
 
             newly_uploaded = self._sig_files.uploaded_files if self._sig_files else []
             if newly_uploaded:
                 await self._process_gap_file_upload(project_id, newly_uploaded, L)
+            else:
+                L.info("      ⚠️  files_uploaded received with no payload — waiting again")
+                self._files_uploaded_event.clear()
+                continue
 
-            await workflow.execute_activity(
-                obsolete_supervisor_prompts,
-                ObsoleteSupervisorPromptsInput(session_id=self._session_id),
-                **_ACT,
-            )
+            self._files_uploaded_event.clear()
+
+            try:
+                await workflow.execute_activity(
+                    obsolete_supervisor_prompts,
+                    ObsoleteSupervisorPromptsInput(session_id=self._session_id),
+                    **_ACT,
+                )
+            except Exception as obs_err:
+                L.info("      ⚠️  obsolete_supervisor_prompts after gap upload failed: %s", obs_err)
 
             v_env = await workflow.execute_activity(
                 validate_mapped_data,
