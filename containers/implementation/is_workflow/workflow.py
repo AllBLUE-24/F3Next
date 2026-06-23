@@ -1811,13 +1811,17 @@ class ImplementationWorkflow:
                 **_ACT,
             )
 
+            v_primary_gap = v_env.primary_result if hasattr(v_env, "primary_result") else {}
             gap_prompt_id = await workflow.execute_activity(
                 persist_supervisor_prompt,
                 PersistSupervisorPromptInput(
                     session_id=self._session_id,
                     step="validation_gap",
                     status="open",
-                    node_status=asdict(v_env),
+                    node_status={
+                        "blocking_unmapped_seeds": blocking,
+                        "overall": (v_primary_gap or {}).get("overall") if isinstance(v_primary_gap, dict) else None,
+                    },
                     actions=[
                         asdict(
                             SupervisorAction(
@@ -1841,13 +1845,15 @@ class ImplementationWorkflow:
                 ),
                 **_ACT,
             )
+            if str(gap_prompt_id) == "error":
+                L.warning("      ⚠️  persist_supervisor_prompt failed — UI will use direct gap upload signal")
 
             self._supervisor_response_event.clear()
             L.info("  ⏳ Waiting for validation gap upload response ...")
             await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
 
             ssig = self._sig_supervisor
-            if ssig:
+            if ssig and str(gap_prompt_id) not in ("", "error"):
                 await workflow.execute_activity(
                     mark_supervisor_prompt_answered,
                     MarkSupervisorPromptAnsweredInput(

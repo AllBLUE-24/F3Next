@@ -364,7 +364,12 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
           jobId={jobId}
           companySlug={companySlug}
           blockingSeeds={blockingUnmapped}
-          onDone={() => void refreshPreview()}
+          onDone={() => {
+            void refreshPreview();
+            // Keep polling while workflow re-maps and re-validates
+            const poll = setInterval(() => void refreshPreview(), 3000);
+            setTimeout(() => clearInterval(poll), 120000);
+          }}
         />
       )}
 

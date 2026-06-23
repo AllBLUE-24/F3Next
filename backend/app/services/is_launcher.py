@@ -376,6 +376,20 @@ class ImplementationLauncher:
             ),
         )
 
+    async def signal_validation_gap_upload_intent(
+        self,
+        project_id: str | UUID,
+        *,
+        selected_option: str = "Upload the missing files",
+    ) -> None:
+        """Tell the workflow the user is uploading missing MVP files (no DB prompt required)."""
+        await self.signal_supervisor_response(
+            project_id,
+            prompt_id="validation_gap",
+            chosen_action_id="ask_user_missing_mvp_files",
+            extra_data={"selected_option": selected_option},
+        )
+
     # ── Queries ───────────────────────────────────────────────────────────────
 
     async def get_stage(self, project_id: str | UUID) -> str:

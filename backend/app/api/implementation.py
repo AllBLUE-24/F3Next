@@ -237,6 +237,26 @@ async def signal_validation_submitted(
     return {"ok": True, "signal": "validation_submitted"}
 
 
+class ValidationGapUploadIntentRequest(BaseModel):
+    project_id: UUID
+    selected_option: str = "Upload the missing files"
+
+
+@router.post(
+    "/signal/validation-gap-upload-intent",
+    summary="User chose to upload missing MVP files at validation gap",
+)
+async def signal_validation_gap_upload_intent(
+    req: ValidationGapUploadIntentRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    await launcher.signal_validation_gap_upload_intent(
+        req.project_id,
+        selected_option=req.selected_option,
+    )
+    return {"ok": True, "signal": "supervisor_response"}
+
+
 class SandboxApprovedRequest(BaseModel):
     project_id: UUID
     erpnext_base_url: str = ""      # Optional — auto-resolved from Project.deployment_details
