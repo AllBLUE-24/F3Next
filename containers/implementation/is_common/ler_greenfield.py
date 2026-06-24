@@ -119,6 +119,37 @@ def batch_identity_values(mapped_data: Dict[str, Any], link_target: str) -> Set[
     return values
 
 
+# Link-field names that may appear on any mapped doctype row (party-split, multi-map files)
+_CORPUS_REF_FIELDS: Dict[str, List[str]] = {
+    "Customer": ["customer", "customer_name", "party", "party_name"],
+    "Supplier": ["supplier", "supplier_name", "party", "party_name", "vendor", "vendor_name"],
+    "Project": ["project", "project_name"],
+    "Item": ["item_code", "item_name"],
+}
+
+
+def corpus_reference_values(
+    mapped_data: Dict[str, Any],
+    link_target: str,
+) -> Set[str]:
+    """Scan all mapped payloads for values that reference a master link target."""
+    fields = _CORPUS_REF_FIELDS.get(link_target, [])
+    if not fields:
+        return set()
+
+    values: Set[str] = set()
+    for payload in mapped_data.values():
+        if not isinstance(payload, dict):
+            continue
+        records = payload.get("records") or payload.get("rows") or []
+        if not isinstance(records, list):
+            continue
+        if link_target == "Item":
+            values |= _item_codes_from_child_table(records)
+        values |= _collect_identity_values(records, fields)
+    return values
+
+
 def transactional_reference_values(
     mapped_data: Dict[str, Any],
     link_target: str,
@@ -157,6 +188,7 @@ def session_covers_link_value(
 
     identities = batch_identity_values(mapped_data, link_target)
     identities |= transactional_reference_values(mapped_data, link_target)
+    identities |= corpus_reference_values(mapped_data, link_target)
 
     if needle in identities:
         return True

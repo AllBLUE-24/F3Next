@@ -11,9 +11,12 @@
 
 **Related docs**
 
-- `[PRODUCT_BACKLOG.md](./PRODUCT_BACKLOG.md)` — product-wide master backlog & weekly priorities
-- `[ARCH_IMPLEMENTATION.md](./ARCH_IMPLEMENTATION.md)` — current pipeline architecture
-- `[ARCH_V2_VISION.md](./ARCH_V2_VISION.md)` — long-term “reasoning agent” direction (not this queue)
+- [`NORTH_STAR.md`](./NORTH_STAR.md) — **product north star** (agent shell + golden truth)
+- [`GOLDEN_MATRIX_MANIFEST.md`](./GOLDEN_MATRIX_MANIFEST.md) — Green Surface `3rd_run` acceptance rows
+- [`NORTH_STAR_AGENT_SHELL.md`](./NORTH_STAR_AGENT_SHELL.md) · [`PRESENTATION_AGENT_CONTRACT.md`](./PRESENTATION_AGENT_CONTRACT.md)
+- [`PRODUCT_BACKLOG.md`](./PRODUCT_BACKLOG.md) — product-wide master backlog & weekly priorities
+- [`ARCH_IMPLEMENTATION.md`](./ARCH_IMPLEMENTATION.md) — current pipeline architecture
+- [`ARCH_V2_VISION.md`](./ARCH_V2_VISION.md) — long-term “reasoning agent” direction (not this queue)
 
 ---
 
@@ -31,11 +34,13 @@
 
 ## North star
 
-### Near-term (v1.5 — Green Surface beta)
+> **Canonical:** [`NORTH_STAR.md`](./NORTH_STAR.md)
 
-> **Any Green Surface–class upload → correct doctype map → honest validate UI → safe phased ERPNext import** — without manual JSON edits or re-classifying files by hand.
+### Near-term (v1.0.0 — Green Surface beta)
 
-Corpus in, trustworthy preview out, import only when row-level quality passes.
+> **One agent shell → golden matrix green for `3rd_run` → correct doctype map → honest validate → safe phased import** — without debug chat, duplicate gates, or manual JSON edits.
+
+Corpus in, **one clear gate** out, drawer for inspection, import only when row-level quality passes. Per-file proof: [`GOLDEN_MATRIX_MANIFEST.md`](./GOLDEN_MATRIX_MANIFEST.md).
 
 ### Long-term (universal IS)
 
@@ -101,6 +106,9 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 - [x] **Confirm-button UX (Analyze + Validate)** — optimistic confirm lock + Validate step from stage API / sessionStorage. *(2026-05-26)*
 - [x] **Tier 1 quality gate** — deterministic rules before any LLM: empty identity, wrong source mix, filename/doctype conflicts. *(2026-06-04 — `evaluate.py` + validate primary)*
 - [x] **Structured `ValidationReport` JSON** — R2 + launcher API with `source_files[]` per check. *(2026-06-04 — `shared/models/validation_report.py`)*
+- [x] **Supervisor chat-first convergence** — PromptCard deck removed; questions in chat stream; + upload in composer. *(2026-06-25 — L5 pillar 8, class A)*
+- [x] **LER greenfield supervisor filter** — Customer/Supplier/Item LER hits auto-stub via derive_transactional_party_stubs; corpus-wide party refs defer blocking. *(2026-06-25 — L3–L4 pillars 7–10, class A)*
+- [x] **Supervisor create-master intent** — chat detects "create customer/supplier"; workflow injects party stub. *(2026-06-25 — L5 pillar 8, class A)*
 - [ ] **Extend supervisor on validate** — enable `IS_SUPERVISOR_ENABLED=1`; feed quality report; ask targeted questions (“PR rows from `active_projects` — did you mean Project?”).
 - [ ] **Supervisor scope expansion** — empty values and cross-file sanity (today: missing field *keys* + WO enum auto-fix only).
 - [x] **Supervisor contract** — `ask_user` only for user-resolvable data gaps; cross-file + empty value paths. *(2026-06-04 — `supervisor_agent/contract.py`)*
@@ -213,6 +221,8 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-26 | Tier 1b validation sidebar + Tier 1e confirm UX            | `SupervisorPanel`, `AnalyzeView`, `ValidateView`                           |
 | 2026-05-26 | Foundations closure sprint                                 | `FOUNDATIONS.md`, baseline seed order, `complete_with_errors`, import-results UI, re-finalize API |
 | 2026-05-26 | Greenfield setup wizard in Phase A                         | `ERPNextAdapter.run_setup_wizard`, `site_prerequisites.run_greenfield_setup_wizard` |
+| 2026-06-10 | Validate page redirect loop (preview 500)                  | `is_launcher.get_validate_preview` — build `mapping_methods_by_doctype` from `ISFieldMapping` |
+| 2026-06-10 | MVP finalize blocking + validate import gate               | `mvp_import_scope.py`, `finalize_import_plan`, `import_ready` on preview, LER info not warnings |
 
 
 ---

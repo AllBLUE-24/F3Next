@@ -503,47 +503,76 @@ async def supervise_step(inp: SuperviseStepInput) -> SupervisorResult:
                 )
             )
 
-        # Blocking LER link misses → ask_user (chat can answer via supervisor_response)
+        # Blocking LER link misses — auto-create masters during implementation; ask only for true gaps
         ler_gaps = (st.primary_result or {}).get("ler_gaps") if isinstance(st.primary_result, dict) else []
         ler_blocking = [
             g for g in (ler_gaps or [])
             if isinstance(g, dict) and str(g.get("severity", "")).lower() == "blocking"
         ]
         if ler_blocking:
-            final_status = "needs_user_input"
-            sample_q = str(ler_blocking[0].get("question") or "")
-            if len(ler_blocking) == 1 and sample_q:
-                ler_question = sample_q
-            else:
-                targets = sorted({
-                    str((g.get("metadata") or {}).get("target_doctype") or g.get("field") or "")
-                    for g in ler_blocking
-                    if (g.get("metadata") or {}).get("target_doctype") or g.get("field")
-                })
-                ler_question = (
-                    "Some link fields could not be resolved on your live ERP site: "
-                    f"{', '.join(targets) or 'master records'}. "
-                    "Upload missing master data, create records in ERPNext, or tell us how to proceed."
+            from containers.implementation.is_common.ler_greenfield import resolve_link_target_doctype
+
+            _MASTER_AUTO = frozenset({"Customer", "Supplier", "Item"})
+            master_ler: List[Dict[str, Any]] = []
+            user_ler: List[Dict[str, Any]] = []
+
+            for g in ler_blocking:
+                meta = g.get("metadata") if isinstance(g.get("metadata"), dict) else {}
+                target = resolve_link_target_doctype(
+                    {"target_doctype": meta.get("target_doctype"), "field": g.get("field")}
                 )
-            actions.append(
-                SupervisorAction(
-                    id="ask_user_ler_blocking_links",
-                    type="ask_user",
-                    scope="validation",
-                    question=ler_question,
-                    options=[
-                        "Upload missing master data",
-                        "Continue with defaults where possible",
-                    ],
-                    metadata={
-                        "tier": "critical",
-                        "gap_class": "user_gap",
-                        "origin": "ler",
-                        "ler_blocking_count": len(ler_blocking),
-                        "sample_gaps": ler_blocking[:5],
-                    },
+                if target in _MASTER_AUTO:
+                    master_ler.append(g)
+                else:
+                    user_ler.append(g)
+
+            if master_ler:
+                actions.append(
+                    SupervisorAction(
+                        id="auto_fix_transactional_party_stubs",
+                        type="auto_fix",
+                        scope="validation",
+                        changes=[{"target": "r2", "op": "derive_transactional_party_stubs"}],
+                        metadata={
+                            "reason": "Create Customer/Supplier/Item masters from uploaded transactional refs",
+                            "ler_master_count": len(master_ler),
+                        },
+                    )
                 )
-            )
+
+            if user_ler:
+                final_status = "needs_user_input"
+                sample_q = str(user_ler[0].get("question") or "")
+                if len(user_ler) == 1 and sample_q:
+                    ler_question = sample_q
+                else:
+                    targets = sorted({
+                        str((g.get("metadata") or {}).get("target_doctype") or g.get("field") or "")
+                        for g in user_ler
+                        if (g.get("metadata") or {}).get("target_doctype") or g.get("field")
+                    })
+                    ler_question = (
+                        "Some link fields could not be resolved: "
+                        f"{', '.join(targets) or 'master records'}. "
+                        "Reply in chat with how to map or create them, or use + to upload master data."
+                    )
+                actions.append(
+                    SupervisorAction(
+                        id="ask_user_ler_blocking_links",
+                        type="ask_user",
+                        scope="validation",
+                        question=ler_question,
+                        options=[],
+                        metadata={
+                            "tier": "critical",
+                            "gap_class": "user_gap",
+                            "origin": "ler",
+                            "chat_only": True,
+                            "ler_blocking_count": len(user_ler),
+                            "sample_gaps": user_ler[:5],
+                        },
+                    )
+                )
 
         blocking_mvp = list((st.primary_result or {}).get("blocking_unmapped_seeds") or [])
         if blocking_mvp:
@@ -919,6 +948,94 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
                             skipped.append(skip)
                     except Exception as e:
                         errors.append({"id": act.id, "doctype": dt, "error": str(e), "key": key})
+                continue
+
+            if op == "derive_transactional_party_stubs":
+                from containers.implementation.is_common.transactional_party_stubs import (
+                    derive_transactional_party_masters,
+                )
+                from shared.r2_client import r2_read_json, r2_write_json
+
+                mapped_data: Dict[str, Any] = {}
+                for dt in await _list_session_mapped_doctypes(inp.session_id):
+                    key = f"{company_slug}/{inp.project_id}/mappings/mapped_payloads/{dt}.json"
+                    try:
+                        payload = await r2_read_json(key, bucket="clean-data") or {}
+                        if isinstance(payload, dict):
+                            mapped_data[dt] = payload
+                    except Exception as e:
+                        errors.append({"id": act.id, "doctype": dt, "error": str(e), "key": key})
+
+                if not mapped_data:
+                    skipped.append({"id": act.id, "reason": "no_mapped_payloads"})
+                    continue
+
+                enriched, audit = derive_transactional_party_masters(mapped_data)
+                for dt, payload in enriched.items():
+                    before = mapped_data.get(dt) or {}
+                    if payload.get("records") == before.get("records"):
+                        continue
+                    key = f"{company_slug}/{inp.project_id}/mappings/mapped_payloads/{dt}.json"
+                    try:
+                        await r2_write_json(key, payload, bucket="clean-data")
+                        applied.append({
+                            "id": act.id,
+                            "doctype": dt,
+                            "op": op,
+                            "updated": len(payload.get("records") or []),
+                            "key": key,
+                        })
+                    except Exception as e:
+                        errors.append({"id": act.id, "doctype": dt, "error": str(e), "key": key})
+                if audit and not any(a.get("op") == op for a in applied):
+                    applied.append({"id": act.id, "op": op, "stubs": audit})
+                elif not audit:
+                    skipped.append({"id": act.id, "reason": "no_party_stubs_added"})
+                continue
+
+            if op == "create_party_stub":
+                from containers.implementation.is_common.transactional_party_stubs import (
+                    inject_party_master_stub,
+                )
+                from shared.r2_client import r2_read_json, r2_write_json
+
+                party_name = ch.get("name") or (act.metadata or {}).get("name")
+                master_dt = str(ch.get("doctype") or act.scope or "Customer")
+                if not party_name:
+                    skipped.append({"id": act.id, "reason": "missing_party_name"})
+                    continue
+
+                mapped_data = {}
+                for dt in await _list_session_mapped_doctypes(inp.session_id):
+                    key = f"{company_slug}/{inp.project_id}/mappings/mapped_payloads/{dt}.json"
+                    try:
+                        payload = await r2_read_json(key, bucket="clean-data") or {}
+                        if isinstance(payload, dict):
+                            mapped_data[dt] = payload
+                    except Exception as e:
+                        errors.append({"id": act.id, "doctype": dt, "error": str(e), "key": key})
+
+                enriched, changed = inject_party_master_stub(
+                    mapped_data,
+                    master_doctype=master_dt,
+                    name=str(party_name),
+                )
+                if not changed:
+                    skipped.append({"id": act.id, "doctype": master_dt, "reason": "party_stub_unchanged"})
+                    continue
+                target_payload = enriched.get(master_dt)
+                if not isinstance(target_payload, dict):
+                    skipped.append({"id": act.id, "doctype": master_dt, "reason": "no_target_payload"})
+                    continue
+                target_key = f"{company_slug}/{inp.project_id}/mappings/mapped_payloads/{master_dt}.json"
+                await r2_write_json(target_key, target_payload, bucket="clean-data")
+                applied.append({
+                    "id": act.id,
+                    "doctype": master_dt,
+                    "op": op,
+                    "name": party_name,
+                    "key": target_key,
+                })
                 continue
 
             doctype = ch.get("doctype")

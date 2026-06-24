@@ -12,6 +12,11 @@ export type ChatMessage = {
   created_at?: string | null;
 };
 
+function isDebugPipelineSummary(content: string): boolean {
+  const trimmed = content.trim();
+  return /^(validate_mapped_data|assess_data_readiness|execute_import_phase):/i.test(trimmed);
+}
+
 function formatContent(text: string): ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return parts.map((part, i) => {
@@ -125,6 +130,12 @@ export function ChatMessageList({
   return (
     <div className="space-y-3">
       {messages.map((m) => {
+        if (
+          m.message_type === "supervisor_question" &&
+          isDebugPipelineSummary(m.content)
+        ) {
+          return null;
+        }
         if (m.role === "system" || m.message_type === "supervisor_question") {
           if (m.role === "user") {
             return <UserMessage key={m.id} message={m} />;

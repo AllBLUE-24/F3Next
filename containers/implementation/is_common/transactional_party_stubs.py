@@ -94,3 +94,42 @@ def derive_transactional_party_masters(
         })
 
     return updated, audit
+
+
+def inject_party_master_stub(
+    mapped_data: Dict[str, Any],
+    *,
+    master_doctype: str,
+    name: str,
+) -> Tuple[Dict[str, Any], bool]:
+    """
+    Add a single Customer/Supplier master stub when the user confirms creation in chat.
+    Returns (updated_mapped_data, changed).
+    """
+    master = str(master_doctype or "").strip()
+    party_name = str(name or "").strip()
+    if master not in ("Customer", "Supplier") or not party_name:
+        return mapped_data, False
+
+    identity_field = "customer_name" if master == "Customer" else "supplier_name"
+    needle = _norm(party_name)
+    if not needle:
+        return mapped_data, False
+
+    updated = dict(mapped_data)
+    master_payload = dict(updated.get(master) or {})
+    master_records = list(master_payload.get("records") or [])
+    known = {
+        _norm(r.get(identity_field))
+        for r in master_records
+        if isinstance(r, dict)
+    }
+    if needle in known or needle in batch_identity_values(updated, master):
+        return updated, False
+
+    stub = {identity_field: party_name, **_STUB_DEFAULTS.get(master, {})}
+    master_records.append(stub)
+    master_payload["records"] = master_records
+    master_payload.setdefault("doctype", master)
+    updated[master] = master_payload
+    return updated, True

@@ -1,26 +1,31 @@
 "use client";
 
-import { useState, useCallback, KeyboardEvent } from "react";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { useState, useCallback, KeyboardEvent, useRef } from "react";
+import { ArrowUp, Loader2, Plus } from "lucide-react";
 
 export function ChatBar({
   onSend,
+  onUploadFiles,
   disabled,
   sending,
+  uploading,
   waitingForSystem,
   placeholder = "Ask about mappings, errors, or missing data…",
 }: {
   onSend: (message: string) => Promise<void>;
+  onUploadFiles?: (files: FileList) => Promise<void>;
   /** Hard block — e.g. message in flight */
   disabled?: boolean;
   sending?: boolean;
+  uploading?: boolean;
   /** Pipeline running with no open prompt — show idle/waiting affordance */
   waitingForSystem?: boolean;
   placeholder?: string;
 }) {
   const [text, setText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const inputLocked = Boolean(disabled || sending || waitingForSystem);
+  const inputLocked = Boolean(disabled || sending || uploading);
 
   const submit = useCallback(async () => {
     const trimmed = text.trim();
@@ -37,12 +42,43 @@ export function ChatBar({
   };
 
   const resolvedPlaceholder = waitingForSystem
-    ? "Assistant is processing — you can reply when a question appears…"
+    ? "Reply in chat when the assistant asks a question…"
     : placeholder;
 
   return (
     <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
       <div className="flex gap-2 items-end">
+        {onUploadFiles && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept=".sql,.csv,.xlsx,.xls,.json,.xml"
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files?.length) {
+                  void onUploadFiles(files);
+                }
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={inputLocked}
+              className="shrink-0 h-10 w-10 flex items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-zinc-300 hover:bg-white/[0.1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Upload files"
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+            </button>
+          </>
+        )}
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -64,7 +100,7 @@ export function ChatBar({
           }`}
           title={
             waitingForSystem
-              ? "Waiting for the assistant"
+              ? "Send a reply"
               : sending
                 ? "Sending…"
                 : "Send message"
@@ -72,16 +108,14 @@ export function ChatBar({
         >
           {sending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
-          ) : inputLocked ? (
-            <span className="block h-2.5 w-2.5 rounded-full bg-white/90" />
           ) : (
             <ArrowUp className="w-4 h-4" />
           )}
         </button>
       </div>
       <p className="mt-1.5 text-[10px] text-zinc-600">
-        {waitingForSystem
-          ? "Reply when a card asks for your input, or use its action buttons"
+        {onUploadFiles
+          ? "+ to attach files · Enter to send · Shift+Enter for new line"
           : "Enter to send · Shift+Enter for new line"}
       </p>
     </div>

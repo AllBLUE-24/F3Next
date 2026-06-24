@@ -42,7 +42,15 @@ _UPLOAD_PATTERNS = re.compile(
     re.I,
 )
 _LINK_VALUE_ANSWER = re.compile(
-    r"\b(use|means?|should\s+be|call\s+it|it'?s?|map\s+(?:to|as))\s+(?:the\s+)?([A-Za-z][\w\s./-]{0,40})",
+    r"\b(?:use|means?|should\s+be|call\s+it|map\s+(?:to|as))\s+(?:the\s+)?([A-Za-z][\w\s./&-]{1,40})",
+    re.I,
+)
+_CREATE_MASTER = re.compile(
+    r"\b(?:create|add|make|register)\s+(?:a\s+|the\s+|new\s+)?(customer|supplier|item)\b",
+    re.I,
+)
+_CREATE_MASTER_NAME = re.compile(
+    r"(?:customer|supplier|item)\s*[-–—:]\s*([A-Za-z0-9][\w\s.&/-]{1,80})",
     re.I,
 )
 _CONTINUE_PATTERNS = re.compile(
@@ -271,6 +279,8 @@ async def _classify_intent(
 
 def _match_supervisor_option(message: str, options: List[str]) -> Optional[str]:
     msg = message.strip().lower()
+    if not options:
+        return None
     for opt in options:
         if msg == opt.strip().lower() or msg in opt.strip().lower():
             return opt
@@ -283,6 +293,49 @@ def _match_supervisor_option(message: str, options: List[str]) -> Optional[str]:
             if "upload" in opt.lower():
                 return opt
     return options[0] if len(options) == 1 else None
+
+
+def _extract_create_master(message: str, action: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """Parse chat intent to create a Customer/Supplier/Item master during implementation."""
+    if not _CREATE_MASTER.search(message):
+        return None
+
+    meta = action.get("metadata") if isinstance(action.get("metadata"), dict) else {}
+    sample_gaps = meta.get("sample_gaps") if isinstance(meta.get("sample_gaps"), list) else []
+    gap = sample_gaps[0] if sample_gaps and isinstance(sample_gaps[0], dict) else {}
+
+    gap_meta = gap.get("metadata") if isinstance(gap.get("metadata"), dict) else {}
+    name = str(gap_meta.get("value") or gap.get("value") or "").strip()
+    doctype = str(gap_meta.get("target_doctype") or gap.get("field") or "Customer").strip()
+    if doctype.lower() in ("customer", "supplier", "item"):
+        doctype = doctype.title() if doctype.lower() != "item" else "Item"
+    elif doctype.lower() == "customer":
+        doctype = "Customer"
+    elif doctype.lower() == "supplier":
+        doctype = "Supplier"
+
+    match = _CREATE_MASTER.search(message)
+    if match:
+        spoken = match.group(1).lower()
+        if spoken == "customer":
+            doctype = "Customer"
+        elif spoken == "supplier":
+            doctype = "Supplier"
+        elif spoken == "item":
+            doctype = "Item"
+
+    name_match = _CREATE_MASTER_NAME.search(message)
+    if name_match:
+        name = name_match.group(1).strip(" .!")
+
+    if not name:
+        quoted = re.search(r"['\"]([^'\"]{2,80})['\"]", message)
+        if quoted:
+            name = quoted.group(1).strip()
+
+    if not name or doctype not in ("Customer", "Supplier", "Item"):
+        return None
+    return {"doctype": doctype, "name": name}
 
 
 async def _handle_supervisor_answer(
@@ -308,11 +361,20 @@ async def _handle_supervisor_answer(
     options = [str(o) for o in (action.get("options") or []) if o]
     selected = _match_supervisor_option(message, options) if options else None
 
+    create_master = _extract_create_master(message, action)
+    extra_data: Dict[str, Any] = {"user_note": message}
+    if selected:
+        extra_data["selected_option"] = selected
+    if create_master:
+        extra_data["create_master"] = create_master
+        extra_data["create_master_intent"] = True
+
     link_match = _LINK_VALUE_ANSWER.search(message)
-    if not selected and link_match and options:
+    if not selected and not create_master and link_match and options:
         for opt in options:
             if "default" in opt.lower() or "continue" in opt.lower():
                 selected = opt
+                extra_data["selected_option"] = selected
                 break
 
     from app.services.is_launcher import ImplementationLauncher
@@ -322,17 +384,20 @@ async def _handle_supervisor_answer(
         is_session.project_id,
         str(prompt.get("id")),
         action_id,
-        extra_data={
-            "user_note": message,
-            **({"selected_option": selected} if selected else {}),
-        },
+        extra_data=extra_data,
     )
 
-    content = (
-        f"Got it — I've sent your response to the workflow"
-        + (f' (option: "{selected}")' if selected else "")
-        + ". The pipeline will continue shortly."
-    )
+    if create_master:
+        content = (
+            f"Understood — I'll add {create_master['doctype']} "
+            f"\"{create_master['name']}\" from your upload and re-run validation."
+        )
+    else:
+        content = (
+            "Got it — I've sent your response to the workflow"
+            + (f' (option: "{selected}")' if selected else "")
+            + ". The pipeline will continue shortly."
+        )
     msg_id = await save_chat_message(
         str(is_session.id),
         step,
@@ -511,6 +576,7 @@ async def dispatch_chat_message(
 
     if open_prompts and not _looks_like_mapping_rules(message) and (
         intent == "answer_supervisor"
+        or _CREATE_MASTER.search(message)
         or _looks_like_link_value_answer(message, context)
         or (intent == "upload_intent" and _UPLOAD_PATTERNS.search(message))
         or (intent != "mapping_rules" and _CONTINUE_PATTERNS.search(message))

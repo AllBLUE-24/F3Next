@@ -429,7 +429,7 @@ class ImplementationWorkflow:
     @workflow.run
     async def run(self, project_id: str, discovery_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         workflow_id = workflow.info().workflow_id
-        L = logging.getLogger("is_workflow")
+        L = workflow.logger
 
         L.info("")
         L.info("╔" + "═" * 70 + "╗")
@@ -1730,7 +1730,36 @@ class ImplementationWorkflow:
                         elif chosen_action and getattr(chosen_action, "type", "") == "ask_user":
                             extra = (ssig.extra_data or {}) if ssig else {}
                             selected = str(extra.get("selected_option", "")).lower()
-                            if selected.startswith("upload"):
+                            create_master = extra.get("create_master") if isinstance(extra.get("create_master"), dict) else None
+                            if create_master or extra.get("create_master_intent"):
+                                cm = create_master if isinstance(create_master, dict) else {}
+                                await workflow.execute_activity(
+                                    apply_supervisor_actions,
+                                    ApplySupervisorActionsInput(
+                                        project_id=project_id,
+                                        session_id=self._session_id,
+                                        step="validation",
+                                        company_slug=self._company_slug,
+                                        actions=[
+                                            SupervisorAction(
+                                                id="auto_fix_create_party_stub",
+                                                type="auto_fix",
+                                                scope=str(cm.get("doctype") or "Customer"),
+                                                changes=[
+                                                    {
+                                                        "target": "r2",
+                                                        "op": "create_party_stub",
+                                                        "doctype": str(cm.get("doctype") or "Customer"),
+                                                        "name": str(cm.get("name") or ""),
+                                                    }
+                                                ],
+                                                metadata=cm,
+                                            )
+                                        ],
+                                    ),
+                                    **_ACT,
+                                )
+                            elif selected.startswith("upload"):
                                 self._files_uploaded_event.clear()
                                 L.info("  ⏳ Waiting for files_uploaded after validation supervisor upload ...")
                                 await workflow.wait_condition(lambda: self._files_uploaded_event.is_set())

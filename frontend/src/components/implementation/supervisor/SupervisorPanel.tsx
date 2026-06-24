@@ -3,16 +3,10 @@
 /**
  * SupervisorPanel — right-side assistant panel for the Implementation shell.
  *
- * v2 — rich two-tier gap display:
- *   🔴 CRITICAL  — relational ERPNext dependency; pipeline blocked.
- *   🟡 IMPORTANT — industry best-practice gap; can continue but not recommended.
- *
- * Design philosophy:
- *   - Natural-language messages from the Supervisor LLM (no raw MCQ dump).
- *   - Critical items have ONE action: "Upload missing files". No skip option.
- *   - Important items offer "Upload recommended files" OR a clearly-warned "Continue".
- *   - Data readiness summary is always shown when available (score + tier counts).
- *   - Open prompts that need user input are visually emphasized at the top.
+ * v3 — chat-first assistant panel (north star shell):
+ *   - Supervisor questions live in the conversation stream only (no sticky MCQ cards).
+ *   - Chat bar accepts free-text replies and + file uploads.
+ *   - Critical/important gaps surface as assistant messages; user responds in chat.
  */
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -25,7 +19,6 @@ import { getBaseApiUrl } from "@/lib/config";
 import { useImplementation } from "@/contexts/ImplementationContext";
 import type { ValidatePreviewData } from "@/lib/api/implementation_api";
 
-import { SupervisorInlineUploader } from "./SupervisorInlineUploader";
 import { ChatMessageList, type ChatMessage } from "./ChatMessageList";
 import { ChatBar } from "./ChatBar";
 
@@ -383,244 +376,6 @@ function GapList({
   );
 }
 
-function PromptCard({
-  prompt,
-  onRespond,
-  responding,
-  projectId,
-  companySlug,
-}: {
-  prompt: SupervisorPrompt;
-  onRespond: (prompt: SupervisorPrompt, action: SupervisorAction, option?: string, userNote?: string) => void;
-  responding: boolean;
-  projectId: string;
-  companySlug: string;
-}) {
-  const [activeUpload, setActiveUpload] = useState<{ actionId: string; selectedOption: string; userNote?: string } | null>(null);
-  const [userNote, setUserNote] = useState("");
-
-  const criticalAction = (prompt.actions || []).find(
-    (a) => a.type === "ask_user" && a.metadata?.tier === "critical"
-  );
-  const importantAction = (prompt.actions || []).find(
-    (a) => a.type === "ask_user" && a.metadata?.tier === "important"
-  );
-  const genericAskAction = (prompt.actions || []).find(
-    (a) => a.type === "ask_user" && !a.metadata?.tier
-  );
-
-  // Prefer tiered actions; fall back to generic ask_user
-  const hasStructured = criticalAction || importantAction;
-
-  return (
-    <div className="rounded-xl border border-white/[0.07] bg-[var(--bg-card)] overflow-hidden">
-      {/* Header strip */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05] bg-white/[0.02]">
-        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-        <span className="text-xs font-semibold text-zinc-200">Implementation Assistant</span>
-        <span className="ml-auto text-[10px] text-zinc-600 font-mono">{prompt.step}</span>
-      </div>
-
-      <div className="p-4 space-y-4">
-        {/* ── CRITICAL block ─────────────────────────────── */}
-        {criticalAction && criticalAction.question && (
-          <div className="space-y-3">
-            <div className="flex items-start gap-2.5">
-              <div className="mt-0.5 w-7 h-7 rounded-lg bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-              </div>
-              <div className="min-w-0">
-                <TierBadge tier="critical" />
-                <p className="mt-1.5 text-[12px] text-zinc-200 leading-relaxed">
-                  {criticalAction.question}
-                </p>
-              </div>
-            </div>
-
-            {/* Affected doctypes detail */}
-            {criticalAction.metadata?.critical_gaps && criticalAction.metadata.critical_gaps.length > 0 && (
-              <div className="ml-9 space-y-1">
-                {criticalAction.metadata.critical_gaps.map((g) => (
-                  <div key={g.doctype} className="flex items-start gap-1.5">
-                    <span className="mt-1.5 w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0" />
-                    <span className="text-[11px] font-semibold text-red-300">{g.doctype}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Missing fields (validation node) */}
-            {criticalAction.metadata?.missing_required_fields && criticalAction.metadata.missing_required_fields.length > 0 && (
-              <div className="ml-9 bg-red-500/[0.07] rounded-lg px-3 py-2">
-                <p className="text-[10px] text-red-400/70 uppercase tracking-wide font-medium mb-1.5">Missing fields</p>
-                <div className="flex flex-wrap gap-1">
-                  {criticalAction.metadata.missing_required_fields.map((f) => (
-                    <span key={f} className="text-[10px] font-mono bg-red-500/15 text-red-300 px-1.5 py-0.5 rounded">
-                      {f}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Action buttons — critical: only upload, no skip */}
-            <div className="ml-9 space-y-2">
-              {activeUpload?.actionId === criticalAction.id ? (
-                <SupervisorInlineUploader
-                  projectId={projectId}
-                  companySlug={companySlug}
-                  promptId={prompt.id}
-                  actionId={criticalAction.id}
-                  selectedOption={activeUpload.selectedOption}
-                  userNote={activeUpload.userNote || ""}
-                  onSuccess={() => {
-                    setActiveUpload(null);
-                    setUserNote("");
-                  }}
-                  onCancel={() => setActiveUpload(null)}
-                />
-              ) : (
-                (criticalAction.options || ["Upload the missing files"]).map((opt) => (
-                  <button
-                    key={opt}
-                    disabled={responding}
-                    onClick={() => {
-                      if (opt.toLowerCase().includes("upload")) {
-                        setActiveUpload({ actionId: criticalAction.id, selectedOption: opt, userNote: userNote.trim() });
-                      } else {
-                        onRespond(prompt, criticalAction, opt, userNote.trim());
-                      }
-                    }}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-200 text-xs font-medium transition-colors disabled:opacity-50"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Upload className="w-3.5 h-3.5" />
-                      {opt}
-                    </span>
-                    <ArrowRight className="w-3 h-3 opacity-60" />
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Divider when both tiers present */}
-        {criticalAction && importantAction && (
-          <div className="border-t border-white/[0.05]" />
-        )}
-
-        {/* ── IMPORTANT block ────────────────────────────── */}
-        {importantAction && importantAction.question && (
-          <div className="space-y-3">
-            <div className="flex items-start gap-2.5">
-              <div className="mt-0.5 w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
-                <Info className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-              <div className="min-w-0">
-                <TierBadge tier="important" />
-                <p className="mt-1.5 text-[12px] text-zinc-300 leading-relaxed">
-                  {importantAction.question}
-                </p>
-              </div>
-            </div>
-
-            {importantAction.metadata?.important_gaps && importantAction.metadata.important_gaps.length > 0 && (
-              <div className="ml-9 space-y-1">
-                {importantAction.metadata.important_gaps.map((g) => (
-                  <div key={g.doctype} className="flex items-start gap-1.5">
-                    <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400/60 flex-shrink-0" />
-                    <span className="text-[11px] font-semibold text-amber-300">{g.doctype}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Action buttons — important: upload OR continue with warning */}
-            <div className="ml-9 space-y-2">
-              {activeUpload?.actionId === importantAction.id ? (
-                <SupervisorInlineUploader
-                  projectId={projectId}
-                  companySlug={companySlug}
-                  promptId={prompt.id}
-                  actionId={importantAction.id}
-                  selectedOption={activeUpload.selectedOption}
-                  userNote={activeUpload.userNote || ""}
-                  onSuccess={() => {
-                    setActiveUpload(null);
-                    setUserNote("");
-                  }}
-                  onCancel={() => setActiveUpload(null)}
-                />
-              ) : (
-                (importantAction.options || []).map((opt) => {
-                  const isUpload = opt.toLowerCase().includes("upload");
-                  const isContinue = !isUpload;
-                  return (
-                    <button
-                      key={opt}
-                      disabled={responding}
-                      onClick={() => {
-                        if (isUpload) {
-                          setActiveUpload({ actionId: importantAction.id, selectedOption: opt, userNote: userNote.trim() });
-                        } else {
-                          onRespond(prompt, importantAction, opt, userNote.trim());
-                        }
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-50 ${
-                        isUpload
-                          ? "bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20 text-amber-200"
-                          : "bg-white/[0.03] border-white/[0.07] hover:bg-white/[0.06] text-zinc-400"
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        {isUpload ? <Upload className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
-                        {opt}
-                      </span>
-                      {isContinue && (
-                        <span className="text-[9px] text-zinc-600 ml-1 normal-case font-normal">not recommended</span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Generic fallback (no tiered actions) ──────── */}
-        {!hasStructured && genericAskAction && genericAskAction.question && (
-          <div className="space-y-3">
-            <p className="text-[12px] text-zinc-300 leading-relaxed">{genericAskAction.question}</p>
-            {(genericAskAction.options || []).map((opt) => (
-              <button
-                key={opt}
-                disabled={responding}
-                onClick={() => onRespond(prompt, genericAskAction, opt, userNote.trim())}
-                className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-[var(--border-subtle)] hover:bg-white/[0.04] text-zinc-200 disabled:opacity-50 transition-colors"
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="space-y-1.5">
-          <label className="block text-[10px] uppercase tracking-wider text-zinc-600">
-            Add a note for the assistant
-          </label>
-          <textarea
-            value={userNote}
-            onChange={(e) => setUserNote(e.target.value)}
-            placeholder="Optional clarification before you respond."
-            maxLength={800}
-            className="w-full min-h-[70px] rounded-lg bg-black/20 border border-white/[0.06] px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-amber-500/40 resize-y"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export function SupervisorPanel() {
@@ -640,8 +395,8 @@ export function SupervisorPanel() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [respondingId, setRespondingId] = useState<string | null>(null);
   const [chatSending, setChatSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const openPrompts = useMemo(
     () => prompts.filter((p) => p.status === "open"),
@@ -744,33 +499,58 @@ export function SupervisorPanel() {
     [projectId, chatStep, refresh]
   );
 
-  const respond = useCallback(
-    async (prompt: SupervisorPrompt, action: SupervisorAction, selectedOption?: string, userNote?: string) => {
-      setRespondingId(prompt.id);
+  const uploadFiles = useCallback(
+    async (files: FileList) => {
+      if (!files.length) return;
+      setUploading(true);
+      setError(null);
       try {
         const base = getBaseApiUrl();
-        const res = await fetch(`${base}/api/implementation/supervisor-prompts/respond`, {
+        const fileNames = Array.from(files).map((f) => f.name);
+        const presignedRes = await fetch(`${base}/api/implementation/presigned-urls`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: projectId, file_names: fileNames }),
+        });
+        if (!presignedRes.ok) throw new Error(await presignedRes.text());
+        const { urls } = await presignedRes.json();
+        const uploadedFilesData: { file_name: string; object_path: string }[] = [];
+
+        await Promise.all(
+          Array.from(files).map(async (file) => {
+            const fileUrlData = urls.find((u: { file_name: string }) => u.file_name === file.name);
+            if (!fileUrlData) throw new Error(`Missing upload URL for ${file.name}`);
+            const res = await fetch(fileUrlData.upload_url, {
+              method: "PUT",
+              body: file,
+              headers: { "Content-Type": file.type || "application/octet-stream" },
+            });
+            if (!res.ok) throw new Error(`Failed to upload ${file.name}`);
+            uploadedFilesData.push({
+              file_name: file.name,
+              object_path: fileUrlData.object_path,
+            });
+          })
+        );
+
+        const signalRes = await fetch(`${base}/api/implementation/signal/files-uploaded`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             project_id: projectId,
-            prompt_id: prompt.id,
-            chosen_action_id: action.id,
-            extra_data: {
-              ...(selectedOption ? { selected_option: selectedOption } : {}),
-              ...(userNote ? { user_note: userNote } : {}),
-            },
+            uploaded_files: uploadedFilesData,
+            company_slug: session.companySlug,
           }),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!signalRes.ok) throw new Error(await signalRes.text());
         await refresh({ silent: true });
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to respond");
+        setError(e instanceof Error ? e.message : "Upload failed");
       } finally {
-        setRespondingId(null);
+        setUploading(false);
       }
     },
-    [projectId, refresh]
+    [projectId, session.companySlug, refresh]
   );
 
   // Derived readiness stats
@@ -791,14 +571,13 @@ export function SupervisorPanel() {
     [readiness]
   );
 
-  const awaitingUser =
-    openPrompts.length > 0 ||
-    Boolean(sessionSummary?.status?.startsWith("awaiting_"));
-
   const waitingForSystem =
-    !awaitingUser &&
+    openPrompts.length === 0 &&
     Boolean(workflowStage) &&
     !["complete", "complete_with_errors", "import_blocked"].includes(workflowStage ?? "");
+
+  const isDebugPipelineSummary = (content: string) =>
+    /^(validate_mapped_data|assess_data_readiness|execute_import_phase):/i.test(content.trim());
 
   const displayMessages = useMemo(() => {
     const synth: ChatMessage[] = [];
@@ -817,10 +596,37 @@ export function SupervisorPanel() {
         message_type: "readiness_summary",
       });
     }
-    const seen = new Set(chatMessages.map((m) => m.id));
-    const merged = [...synth.filter((m) => !seen.has(m.id)), ...chatMessages];
+
+    const mirroredPromptIds = new Set(
+      chatMessages
+        .map((m) => m.metadata?.supervisor_prompt_id)
+        .filter((id): id is string => typeof id === "string")
+    );
+    const promptMessages: ChatMessage[] = openPrompts.flatMap((p) => {
+      if (mirroredPromptIds.has(p.id)) return [];
+      const ask = (p.actions || []).find((a) => a.type === "ask_user" && a.question);
+      if (!ask?.question || isDebugPipelineSummary(ask.question)) return [];
+      return [{
+        id: `prompt-${p.id}`,
+        role: "assistant" as const,
+        content: ask.question,
+        message_type: "supervisor_question",
+        metadata: { supervisor_prompt_id: p.id },
+      }];
+    });
+
+    const filteredChat = chatMessages.filter(
+      (m) => !(m.message_type === "supervisor_question" && isDebugPipelineSummary(m.content))
+    );
+
+    const seen = new Set(filteredChat.map((m) => m.id));
+    const merged = [
+      ...synth.filter((m) => !seen.has(m.id)),
+      ...filteredChat,
+      ...promptMessages.filter((m) => !seen.has(m.id)),
+    ];
     return merged;
-  }, [chatMessages, readiness, validatePreview, isPostMappingRoute]);
+  }, [chatMessages, readiness, validatePreview, isPostMappingRoute, openPrompts]);
 
   return (
     <div className="h-full flex flex-col text-sm">
@@ -907,31 +713,17 @@ export function SupervisorPanel() {
         )}
       </div>
 
-      {/* ── Sticky action deck (most recent prompt first) ─── */}
-      {openPrompts.length > 0 && (
-        <div className="shrink-0 max-h-[min(42vh,360px)] overflow-y-auto border-t border-white/[0.06] bg-[var(--bg-card)]/95 px-4 py-3 space-y-3">
-          {openPrompts.length > 1 && (
-            <p className="text-[10px] text-zinc-500">
-              Showing {openPrompts.length} open items — address the latest first, then scroll for earlier ones.
-            </p>
-          )}
-          {[...openPrompts].reverse().map((p) => (
-            <PromptCard
-              key={p.id}
-              prompt={p}
-              onRespond={respond}
-              responding={respondingId === p.id}
-              projectId={projectId}
-              companySlug={session.companySlug}
-            />
-          ))}
-        </div>
-      )}
-
       <ChatBar
         onSend={sendChat}
+        onUploadFiles={uploadFiles}
         sending={chatSending}
+        uploading={uploading}
         waitingForSystem={waitingForSystem}
+        placeholder={
+          openPrompts.length > 0
+            ? "Reply to the assistant question…"
+            : "Ask about mappings, validation errors, or missing data…"
+        }
       />
     </div>
   );
