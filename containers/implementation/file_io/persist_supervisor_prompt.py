@@ -55,7 +55,7 @@ async def persist_supervisor_prompt(inp: PersistSupervisorPromptInput) -> str:
             from containers.implementation.file_io.persist_chat_message import save_chat_message
             from shared.quality_gate.chat_bridge import step_to_chat_step
 
-                ask_actions = [a for a in inp.actions if isinstance(a, dict) and a.get("type") == "ask_user"]
+            ask_actions = [a for a in inp.actions if isinstance(a, dict) and a.get("type") == "ask_user"]
             if ask_actions:
                 questions = [a.get("question") for a in ask_actions if a.get("question")]
                 user_facing = (questions[0] if questions else "").strip()

@@ -537,16 +537,15 @@ async def bootstrap_site_config(inp: BootstrapSiteConfigInput) -> Any:
     if derived:
         try:
             async with AsyncSessionLocal() as session:
-                existing = {
-                    r.target_doctype
-                    for r in (
+                existing = set(
+                    (
                         await session.execute(
                             select(ISMappedData.target_doctype).where(
                                 ISMappedData.session_id == uuid.UUID(inp.session_id)
                             )
                         )
                     ).scalars().all()
-                }
+                )
                 for config_dt in derived:
                     if config_dt in existing:
                         continue

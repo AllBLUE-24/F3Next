@@ -8,13 +8,54 @@ from typing import Any, Dict, List, Optional
 
 from shared.models.is_status import NodeStatusEnvelope
 
+_ENVELOPE_FIELDS = frozenset({
+    "status",
+    "primary_result",
+    "errors",
+    "warnings",
+    "missing_information",
+    "conflicts",
+})
+_STATUS_ALIASES = {
+    "error": "failed",
+    "fail": "failed",
+    "failed": "failed",
+    "partial": "partial",
+    "success": "success",
+    "passed": "success",
+    "ready": "success",
+    "ready_with_gaps": "partial",
+    "blocked": "failed",
+}
+
+
+def _normalize_node_status(raw: Any) -> str:
+    key = str(raw or "success").strip().lower()
+    mapped = _STATUS_ALIASES.get(key, key)
+    if mapped in ("success", "partial", "failed"):
+        return mapped
+    return "success"
+
 
 def coerce_envelope(env: Any, *, fallback_primary: Optional[Dict] = None) -> NodeStatusEnvelope:
     if isinstance(env, NodeStatusEnvelope):
         return env
     if isinstance(env, dict):
         if "status" in env:
-            return NodeStatusEnvelope(**env)
+            primary = dict(env.get("primary_result") or {})
+            for key, value in env.items():
+                if key not in _ENVELOPE_FIELDS:
+                    primary[key] = value
+            if fallback_primary:
+                primary = {**fallback_primary, **primary}
+            return NodeStatusEnvelope(
+                status=_normalize_node_status(env.get("status")),  # type: ignore[arg-type]
+                primary_result=primary or None,
+                errors=list(env.get("errors") or []),
+                warnings=list(env.get("warnings") or []),
+                missing_information=list(env.get("missing_information") or []),
+                conflicts=list(env.get("conflicts") or []),
+            )
         return NodeStatusEnvelope.success(primary_result=env)
     if isinstance(env, str):
         if env in ("passed", "success", "ready", "ready_with_gaps"):

@@ -223,6 +223,7 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 | 2026-05-26 | Greenfield setup wizard in Phase A                         | `ERPNextAdapter.run_setup_wizard`, `site_prerequisites.run_greenfield_setup_wizard` |
 | 2026-06-10 | Validate page redirect loop (preview 500)                  | `is_launcher.get_validate_preview` — build `mapping_methods_by_doctype` from `ISFieldMapping` |
 | 2026-06-10 | MVP finalize blocking + validate import gate               | `mvp_import_scope.py`, `finalize_import_plan`, `import_ready` on preview, LER info not warnings |
+| 2026-06-25 | Import phase quality gate coerce_envelope fix              | `execution_logs` no longer passed as NodeStatusEnvelope kwarg; SCB ISMappedData upsert + phase_0 R2 paths |
 
 
 ---

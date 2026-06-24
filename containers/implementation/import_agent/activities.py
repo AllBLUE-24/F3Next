@@ -1109,6 +1109,10 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
             dt = step.get("doctype")
             if dt and dt in mapped_dict:
                 step["data_source"] = mapped_dict[dt].get("r2_path", step.get("data_source"))
+            elif dt and step.get("data_source") == "site_config_bootstrap":
+                step["data_source"] = (
+                    f"{slug}/{inp.project_id}/mappings/mapped_payloads/{dt}.json"
+                )
 
         plan_status = "ready"
         has_critical_gap = False
