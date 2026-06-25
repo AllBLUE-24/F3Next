@@ -30,6 +30,19 @@ def main() -> int:
         errors.append(f"openai: {exc}")
 
     try:
+        import langsmith  # noqa: F401
+    except ImportError as exc:
+        errors.append(f"langsmith: {exc}")
+
+    try:
+        from shared.llm_tracing import configure_llm_tracing, is_tracing_enabled, trace_llm
+        configure_llm_tracing()
+        assert callable(trace_llm)
+        _ = is_tracing_enabled()
+    except ImportError as exc:
+        errors.append(f"shared.llm_tracing: {exc}")
+
+    try:
         from langchain_openai import ChatOpenAI
         # Ensure httpx proxy kwarg mismatch does not break construction
         ChatOpenAI(

@@ -32,6 +32,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from llm_router import invoke_smart_llm_sync  # noqa: E402
+from shared.llm_tracing import trace_llm  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ def _is_truncated_json(text: str) -> bool:
 # Public API
 # ---------------------------------------------------------------------------
 
+@trace_llm(name="generate_json", run_type="llm")
 def generate_json(
     prompt: str,
     model_name: str = "gpt-4o-mini",

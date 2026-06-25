@@ -31,6 +31,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from shared.llm_tracing import configure_llm_tracing, trace_llm  # noqa: E402
+
+configure_llm_tracing()
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -311,6 +315,7 @@ def _normalise_response(response: Any) -> Any:
 # Public API
 # ---------------------------------------------------------------------------
 
+@trace_llm(name="invoke_smart_llm", run_type="llm")
 async def invoke_smart_llm(
     messages,
     model_name: str = "gpt-4o-mini",
@@ -339,6 +344,7 @@ async def invoke_smart_llm(
     )
 
 
+@trace_llm(name="invoke_smart_llm_sync", run_type="llm")
 def invoke_smart_llm_sync(
     messages,
     model_name: str = "gpt-4o-mini",
@@ -367,6 +373,7 @@ def invoke_smart_llm_sync(
     )
 
 
+@trace_llm(name="invoke_structured_llm", run_type="llm")
 async def invoke_structured_llm(
     prompt: str,
     schema: Type[BaseModel],
@@ -421,6 +428,7 @@ async def invoke_structured_llm(
     )
 
 
+@trace_llm(name="invoke_agentic_loop", run_type="chain")
 async def invoke_agentic_loop(
     prompt: str,
     tool_dispatcher: dict,

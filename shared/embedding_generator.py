@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from shared.llm_tracing import configure_llm_tracing, trace_llm  # noqa: E402
+
+configure_llm_tracing()
+
 logger = logging.getLogger(__name__)
 
 # OpenAI embedding configuration
@@ -30,6 +34,7 @@ def embedding_to_pgvector_str(values: Iterable[float]) -> str:
     vals = list(values)
     return "[" + ",".join(map(str, vals)) + "]"
 
+@trace_llm(name="generate_embedding", run_type="embedding")
 async def generate_embedding(text: str, *, timeout_s: float = 20.0) -> List[float]:
     """Generate an embedding for the given text using OpenAI's embedding endpoint.
 

@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Type
 from pydantic import BaseModel
 
 from shared.llm_providers.base import AgenticProvider
+from shared.llm_tracing import trace_llm
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,7 @@ class OpenAIProvider(AgenticProvider):
     def __init__(self, api_keys: List[str]):
         self.api_keys = api_keys
 
+    @trace_llm(name="openai_structured_output", run_type="llm")
     async def invoke_structured_output(
         self,
         prompt: str,
@@ -77,6 +79,7 @@ class OpenAIProvider(AgenticProvider):
                 await asyncio.sleep(10)
         raise ValueError(f"All keys exhausted or failed. Last error: {last_err}")
 
+    @trace_llm(name="openai_agentic_loop", run_type="chain")
     async def invoke_agentic_loop(
         self,
         prompt: str,

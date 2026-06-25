@@ -16,6 +16,8 @@ from typing import Any, Optional, Type, TypeVar
 
 from pydantic import BaseModel
 
+from shared.llm_tracing import trace_llm
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
@@ -28,6 +30,7 @@ _DEFAULT_STRUCTURED_MODEL = (
 )
 
 
+@trace_llm(name="generate_typed", run_type="llm")
 async def generate_typed(
     *,
     prompt: str,

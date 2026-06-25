@@ -6,6 +6,7 @@ import re
 from pydantic import BaseModel
 
 from shared.llm_providers.base import AgenticProvider
+from shared.llm_tracing import trace_llm
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class GeminiProvider(AgenticProvider):
     def __init__(self, api_keys: List[str]):
         self.api_keys = api_keys
 
+    @trace_llm(name="gemini_structured_output", run_type="llm")
     async def invoke_structured_output(
         self,
         prompt: str,
@@ -76,6 +78,7 @@ class GeminiProvider(AgenticProvider):
                 await asyncio.sleep(10)
         raise ValueError(f"All keys exhausted or failed. Last error: {last_err}")
 
+    @trace_llm(name="gemini_agentic_loop", run_type="chain")
     async def invoke_agentic_loop(
         self,
         prompt: str,
