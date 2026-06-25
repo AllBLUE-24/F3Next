@@ -81,6 +81,25 @@ def test_discovery_prior_boosts_niche():
     )
 
 
+def test_prefer_discovery_over_garment_false_positive():
+    from containers.implementation.signals_agent.signals_scorer import prefer_discovery_over_registry
+
+    score_result = {
+        "top_niche": "manufacturing_garment_variants",
+        "niche_scores": {
+            "manufacturing_garment_variants": 0.85,
+            "manufacturing_project_chemical": 0.55,
+        },
+    }
+    preferred = prefer_discovery_over_registry(
+        score_result,
+        discovery_f3iche="manufacturing",
+        discovery_industry="Epoxy floor coatings manufacturer",
+        chat_transcript="user: We manufacture coatings and do installation projects",
+    )
+    assert preferred == "manufacturing_project_chemical"
+
+
 def test_blend_registry_wins_when_confident():
     registry = {
         "top_niche": "manufacturing_project_chemical",

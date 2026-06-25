@@ -38,11 +38,19 @@ export async function signalUploadComplete(
     headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! }
   });
 
+  const startBody = startRes.ok ? await startRes.json().catch(() => ({})) : null;
   if (!startRes.ok) {
-    console.error("Warning: Failed to start workflow (it might already be running)");
+    const detail = typeof startBody === 'object' && startBody && 'detail' in startBody
+      ? String((startBody as { detail?: string }).detail)
+      : `HTTP ${startRes.status}`;
+    throw new Error(`Failed to start implementation workflow: ${detail}`);
   }
 
-  // 👇 2. YOUR EXISTING CODE: Now send the files to the running workflow 👇
+  // Brief pause so persist_session can create is_sessions before we signal.
+  if (startBody?.started) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
   const res = await fetch(`${base}/api/implementation/signal/files-uploaded`, {
     method: 'POST',
     headers: { 
@@ -57,7 +65,13 @@ export async function signalUploadComplete(
     }),
   });
 
-  if (!res.ok) throw new Error('Failed to signal Temporal workflow');
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    const detail = typeof errBody === 'object' && errBody && 'detail' in errBody
+      ? String((errBody as { detail?: string }).detail)
+      : `HTTP ${res.status}`;
+    throw new Error(detail || 'Failed to signal Temporal workflow');
+  }
   return res.json();
 }
 

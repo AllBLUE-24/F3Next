@@ -12,6 +12,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
+from temporalio.service import RPCError
 from shared.database.db import AsyncSessionLocal
 from sqlalchemy.future import select
 from shared.models.core import Project
@@ -117,7 +118,16 @@ async def signal_files_uploaded(
     req: FilesUploadedRequest,
     launcher: ImplementationLauncher = Depends(get_launcher),
 ):
+    import asyncio
+
     is_session = await launcher._get_session(req.project_id)
+    if not is_session:
+        # persist_session activity may still be running right after /start
+        for _ in range(12):
+            await asyncio.sleep(0.5)
+            is_session = await launcher._get_session(req.project_id)
+            if is_session:
+                break
     if not is_session:
         raise HTTPException(
             status_code=404,
@@ -138,12 +148,21 @@ async def signal_files_uploaded(
 
         await session.commit()
 
-    await launcher.signal_files_uploaded(
-        is_session.project_id,
-        req.uploaded_files,
-        req.company_slug,
-        req.user_note,
-    )
+    try:
+        await launcher.signal_files_uploaded(
+            is_session.project_id,
+            req.uploaded_files,
+            req.company_slug,
+            req.user_note,
+        )
+    except RPCError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "No running implementation workflow is listening for uploads. "
+                "Refresh the page and try again — the server will start a fresh run automatically."
+            ),
+        ) from exc
     return {"ok": True, "signal": "files_uploaded"}
 
 

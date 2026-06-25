@@ -4,12 +4,14 @@ from __future__ import annotations
 from containers.implementation.signals_agent.discovery_niche_resolver import (
     discovery_evidence_bullets,
     resolve_niche_from_discovery,
+    resolve_niche_from_text,
 )
 
 NICHE_IDS = [
     "trading_fmcg_distributor",
     "manufacturing_garment_variants",
     "manufacturing_project_chemical",
+    "manufacturing_fabrication_jobshop",
     "service_professional",
 ]
 
@@ -49,3 +51,19 @@ def test_discovery_evidence_bullets():
     )
     assert any("Chemical" in b for b in bullets)
     assert any("manufacturing" in b for b in bullets)
+
+
+def test_resolve_niche_from_text_wip_jobshop():
+    niche = resolve_niche_from_text(
+        "Lack of visibility into Work-In-Progress and production schedules",
+        NICHE_IDS,
+    )
+    assert niche == "manufacturing_fabrication_jobshop"
+
+
+def test_resolve_niche_from_text_chemical_message():
+    niche = resolve_niche_from_text(
+        "We manufacture epoxy floor coatings and run installation projects",
+        NICHE_IDS,
+    )
+    assert niche == "manufacturing_project_chemical"

@@ -19,6 +19,7 @@ from containers.implementation.signals_agent.discovery_context import load_disco
 from containers.implementation.signals_agent.discovery_niche_resolver import (
     discovery_evidence_bullets,
     resolve_niche_from_discovery,
+    resolve_niche_from_text,
 )
 from containers.implementation.signals_agent.f3iche_confirmation_models import (
     F3icheConfirmationSynthesis,
@@ -48,6 +49,68 @@ _DISPLAY_NAMES: Dict[str, str] = {
 
 def _display_name_for(f3iche: str) -> str:
     return _DISPLAY_NAMES.get(f3iche, f3iche.replace("_", " ").title())
+
+
+def _reconcile_proposal_with_sources(
+    synthesis: F3icheConfirmationSynthesis,
+    *,
+    discovery_ctx: Dict[str, Any],
+    infer_result: Dict[str, Any],
+    niche_ids: List[str],
+) -> F3icheConfirmationSynthesis:
+    """
+    Ensure proposed_f3iche matches discovery chat / confirmation message intent.
+
+    LLM synthesis can describe the user's business correctly in confirmation_message
+    while leaving proposed_f3iche as the file-inferred niche (e.g. garment variants).
+    """
+    inferred = infer_result.get("f3iche") or ""
+    user_facing = " ".join(filter(None, [
+        synthesis.confirmation_message,
+        synthesis.display_name,
+        *synthesis.evidence_from_discovery,
+        discovery_ctx.get("chat_transcript") or "",
+        discovery_ctx.get("discovery_industry") or "",
+    ]))
+
+    text_niche = resolve_niche_from_text(user_facing, niche_ids)
+    discovery_niche = resolve_niche_from_discovery(
+        discovery_f3iche=discovery_ctx.get("discovery_f3iche"),
+        discovery_industry=discovery_ctx.get("discovery_industry"),
+        chat_transcript=discovery_ctx.get("chat_transcript"),
+        niche_ids=niche_ids,
+    )
+
+    target: Optional[str] = None
+    if text_niche and text_niche != synthesis.proposed_f3iche:
+        target = text_niche
+    elif discovery_niche and discovery_niche != synthesis.proposed_f3iche:
+        if synthesis.alignment in ("conflict", "partial") or inferred == synthesis.proposed_f3iche:
+            target = discovery_niche
+    elif (
+        inferred == synthesis.proposed_f3iche == "manufacturing_garment_variants"
+        and discovery_niche
+        and discovery_niche != synthesis.proposed_f3iche
+    ):
+        target = discovery_niche
+
+    if not target or target == synthesis.proposed_f3iche:
+        return synthesis
+
+    conflict_note = (
+        f"Adjusted proposal from {synthesis.proposed_f3iche} to {target} "
+        "to match discovery conversation."
+    )
+    conflicts = list(synthesis.conflicts or [])
+    if conflict_note not in conflicts:
+        conflicts.append(conflict_note)
+
+    return synthesis.model_copy(update={
+        "proposed_f3iche": target,
+        "display_name": _display_name_for(target),
+        "conflicts": conflicts,
+        "alignment": "partial" if synthesis.alignment == "agree" else synthesis.alignment,
+    })
 
 
 @dataclass
@@ -199,6 +262,13 @@ async def synthesize_f3iche_confirmation_core(
         fallback = inp.infer_result.get("f3iche") or niche_ids[0]
         synthesis.proposed_f3iche = fallback if fallback in niche_ids else niche_ids[0]
         synthesis.display_name = _display_name_for(synthesis.proposed_f3iche)
+
+    synthesis = _reconcile_proposal_with_sources(
+        synthesis,
+        discovery_ctx=discovery_ctx,
+        infer_result=inp.infer_result,
+        niche_ids=niche_ids,
+    )
 
     result = synthesis.model_dump()
     result["inferred_f3iche"] = inp.infer_result.get("f3iche")

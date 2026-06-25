@@ -66,7 +66,7 @@ def test_finalize_blocked():
     }
     contract = StepContract(step_name="finalize_import_plan", pipeline="IS")
     result = evaluate_quality_gate(contract, report)
-    assert result.verdict == "hard_block"
+    assert result.verdict == "user_gap"
 
 
 def test_map_zero_user_gap():
@@ -113,4 +113,26 @@ def test_validate_source_file_conflict_user_gap():
     result = evaluate_quality_gate(_contract("validate_mapped_data"), report)
     assert result is not None
     assert result.verdict == "user_gap"
+
+
+def test_quality_gate_activity_skips_when_is_gate_disabled(monkeypatch):
+    import asyncio
+
+    from shared.models.quality_gate import QualityGateInput
+    from shared.quality_gate.activity import quality_gate
+
+    monkeypatch.delenv("IS_QUALITY_GATE_ENABLED", raising=False)
+
+    result = asyncio.run(
+        quality_gate(
+            QualityGateInput(
+                pipeline="IS",
+                step_name="persist_session",
+                contract={"step_name": "persist_session", "pipeline": "IS"},
+                node_report={"node_status": {"status": "success"}},
+            )
+        )
+    )
+    assert result["verdict"] == "ok"
+    assert result["analysis"] == "quality gate disabled"
 

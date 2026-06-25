@@ -4,10 +4,21 @@ from __future__ import annotations
 import pytest
 
 from containers.implementation.signals_agent.discovery_context import _transcript_from_chat_history
+from containers.implementation.signals_agent.f3iche_confirmation_activities import (
+    _reconcile_proposal_with_sources,
+)
 from containers.implementation.signals_agent.f3iche_confirmation_models import (
     F3icheConfirmationSynthesis,
     F3icheCorrectionResolution,
 )
+
+NICHE_IDS = [
+    "trading_fmcg_distributor",
+    "manufacturing_garment_variants",
+    "manufacturing_project_chemical",
+    "manufacturing_fabrication_jobshop",
+    "service_professional",
+]
 
 
 class TestDiscoveryTranscript:
@@ -54,3 +65,31 @@ class TestF3icheConfirmationModels:
             reasoning="User described batch food production",
         )
         assert model.f3iche == "manufacturing_food_batch"
+
+
+class TestReconcileProposal:
+    def test_message_describes_chemical_but_proposed_garment(self):
+        synthesis = F3icheConfirmationSynthesis(
+            confirmation_message=(
+                "Based on discovery, you manufacture epoxy coatings and run installation projects. "
+                "Is that correct?"
+            ),
+            proposed_f3iche="manufacturing_garment_variants",
+            proposed_industry="Manufacturing",
+            display_name="Garment Manufacturing",
+            confidence=0.8,
+            evidence_from_discovery=["user: epoxy coatings and site installs"],
+            alignment="agree",
+        )
+        reconciled = _reconcile_proposal_with_sources(
+            synthesis,
+            discovery_ctx={
+                "discovery_f3iche": "manufacturing",
+                "discovery_industry": "Manufacturing",
+                "chat_transcript": "user: We manufacture epoxy coatings",
+            },
+            infer_result={"f3iche": "manufacturing_garment_variants"},
+            niche_ids=NICHE_IDS,
+        )
+        assert reconciled.proposed_f3iche == "manufacturing_project_chemical"
+        assert reconciled.proposed_f3iche != "manufacturing_garment_variants"

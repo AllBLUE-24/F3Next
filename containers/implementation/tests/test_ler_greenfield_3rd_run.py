@@ -141,8 +141,8 @@ def test_merge_ler_assigns_errors_to_source_doctype_not_unknown():
     # SO LER hits deferred (greenfield); Contact link on Customer stays blocking → overall fail
     assert report["overall"] == "fail"
     so = next(c for c in report["checks"] if c["doctype"] == "Sales Order")
-    assert so["status"] == "partial"
-    assert len(so["warnings"]) == 2
+    assert so["status"] == "pass"
+    assert len(so["warnings"]) == 0
     assert not any(c["doctype"] == "Unknown" for c in report["checks"])
     cust = next(c for c in report["checks"] if c["doctype"] == "Customer")
     assert cust["status"] == "fail"

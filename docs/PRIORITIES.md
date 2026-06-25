@@ -1,7 +1,7 @@
 # F3Next — Sprint Priorities & Ship Plan
 
 > **Purpose:** Action-oriented priority stack for completing the product for launch.  
-> **Last updated:** 2026-05-26  
+> **Last updated:** 2026-06-06 — Track A complete  
 > **Status:** Active sprint plan — overrides weekly focus until next review.
 
 ## How to mark items done
@@ -52,6 +52,8 @@ A new company can:
 ## North star (this sprint)
 
 > **Companies onboard once, invite their team, upload messy data, and get a trustworthy ERP implementation** — without consultants or ERP training.
+
+**Program definition:** [`NORTH_STAR.md`](./NORTH_STAR.md) (agent shell + golden matrix + presentation agent). v1.0.0 exit = § Definition of Done in that doc.
 
 ---
 

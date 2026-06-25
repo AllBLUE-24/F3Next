@@ -33,6 +33,7 @@ class ERPNextAdapter(ERPAdapter):
         self._crud_cb = AsyncCircuitBreaker("erpnext_crud", 5, 60.0)
         self._schema_cache: dict[str, list[dict]] = {}
         self._link_names_cache: dict[str, list[str]] = {}
+        self._link_alias_cache: dict[str, dict[str, str]] = {}
 
     # ── Internal Helpers ──────────────────────────────────────────────────────
     
@@ -875,20 +876,39 @@ class ERPNextAdapter(ERPAdapter):
         cache[doctype] = schema_fields
         return schema_fields
 
-    async def _get_cached_link_names(self, target_doctype: str) -> list[str]:
-        if target_doctype in self._link_names_cache:
-            return self._link_names_cache[target_doctype]
+    async def _get_link_alias_map(self, target_doctype: str) -> dict[str, str]:
+        if target_doctype in self._link_alias_cache:
+            return self._link_alias_cache[target_doctype]
+
+        from shared.erp_adapters.link_resolver import (
+            _DOCTYPE_ALT_LOOKUP_FIELDS,
+            build_alias_lookup,
+        )
+
+        alt_field = _DOCTYPE_ALT_LOOKUP_FIELDS.get(target_doctype)
+        list_fields = ["name"]
+        if alt_field:
+            list_fields.append(alt_field)
 
         try:
             records = await self.list_records(
                 target_doctype,
-                ["name", "disabled"],
+                list_fields + ["disabled"],
                 filters=[["disabled", "=", 0]],
             )
         except Exception:
-            records = await self.list_records(target_doctype, ["name"], limit=2000)
+            records = await self.list_records(target_doctype, list_fields, limit=2000)
 
-        known_names = [r["name"] for r in records if r.get("name")]
+        alias_map = build_alias_lookup(records, alt_field=alt_field)
+        self._link_alias_cache[target_doctype] = alias_map
+        return alias_map
+
+    async def _get_cached_link_names(self, target_doctype: str) -> list[str]:
+        if target_doctype in self._link_names_cache:
+            return self._link_names_cache[target_doctype]
+
+        alias_map = await self._get_link_alias_map(target_doctype)
+        known_names = list(alias_map.keys())
         self._link_names_cache[target_doctype] = known_names
         return known_names
 
@@ -925,30 +945,47 @@ class ERPNextAdapter(ERPAdapter):
                 if not val or not isinstance(val, str):
                     continue
 
-                known_names = await self._get_cached_link_names(target_dt)
-                if val in known_names:
-                    continue
-
-                res = resolve_single(val, known_names)
-                if res.resolved and res.resolved != val:
-                    if res.ambiguous:
-                        logger.warning(
-                            "Ambiguous link reference for %s.%s: '%s' -> picked '%s' from %s",
-                            doctype,
-                            fieldname,
-                            val,
-                            res.resolved,
-                            res.ambiguous_candidates,
-                        )
-                    else:
+                alias_map = await self._get_link_alias_map(target_dt)
+                if val in alias_map:
+                    canonical = alias_map[val]
+                    if canonical != val:
                         logger.info(
                             "Dynamically resolved link reference for %s.%s: '%s' -> '%s'",
                             doctype,
                             fieldname,
                             val,
-                            res.resolved,
+                            canonical,
                         )
-                    data[fieldname] = res.resolved
+                    data[fieldname] = canonical
+                    continue
+
+                known_names = list(alias_map.keys())
+                if val in known_names:
+                    data[fieldname] = alias_map.get(val, val)
+                    continue
+
+                res = resolve_single(val, known_names)
+                if res.resolved:
+                    canonical = alias_map.get(res.resolved, res.resolved)
+                    if canonical != val:
+                        if res.ambiguous:
+                            logger.warning(
+                                "Ambiguous link reference for %s.%s: '%s' -> picked '%s' from %s",
+                                doctype,
+                                fieldname,
+                                val,
+                                canonical,
+                                res.ambiguous_candidates,
+                            )
+                        else:
+                            logger.info(
+                                "Dynamically resolved link reference for %s.%s: '%s' -> '%s'",
+                                doctype,
+                                fieldname,
+                                val,
+                                canonical,
+                            )
+                        data[fieldname] = canonical
 
             for fieldname, child_doctype in table_fields.items():
                 child_rows = data.get(fieldname)

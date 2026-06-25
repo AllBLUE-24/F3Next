@@ -609,7 +609,10 @@
       "default_value": null,
       "user_input_synonyms": [
         "project",
-        "Project"
+        "Project",
+        "Project_Ref",
+        "project_ref",
+        "project ref"
       ],
       "note": "Link to project for cost tracking (job shops)"
     },
@@ -755,7 +758,10 @@
       "user_input_synonyms": [
         "item",
         "material",
-        "product_code"
+        "product_code",
+        "Item_Consumed",
+        "item_consumed",
+        "material_consumed"
       ],
       "note": "Flat CSV import — folded into items child table"
     },
@@ -765,9 +771,25 @@
       "mandatory": false,
       "user_input_synonyms": [
         "quantity",
-        "amount"
+        "amount",
+        "Quantity",
+        "qty"
       ],
       "note": "Flat CSV import — folded into items child table"
+    },
+    "s_warehouse": {
+      "fieldname": "s_warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "mandatory": false,
+      "user_input_synonyms": [
+        "Source_Whse",
+        "source_whse",
+        "source_warehouse",
+        "source warehouse",
+        "from_warehouse"
+      ],
+      "note": "Flat CSV import — folded into items child table as source warehouse"
     },
     "items": {
       "fieldname": "items",

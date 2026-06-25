@@ -299,6 +299,40 @@ def apply_discovery_prior(
     return score_result
 
 
+def prefer_discovery_over_registry(
+    score_result: Dict[str, Any],
+    *,
+    discovery_f3iche: Optional[str] = None,
+    discovery_industry: Optional[str] = None,
+    chat_transcript: Optional[str] = None,
+) -> Optional[str]:
+    """
+    When discovery resolves a concrete niche that differs from registry top_niche,
+    always prefer the discovery niche as the ultimate source of truth.
+    """
+    from containers.implementation.signals_agent.discovery_niche_resolver import (
+        resolve_niche_from_discovery,
+    )
+
+    niche_scores = score_result.get("niche_scores") or {}
+    niche_ids = list(niche_scores.keys())
+    if not niche_ids:
+        return None
+
+    resolved = resolve_niche_from_discovery(
+        discovery_f3iche=discovery_f3iche,
+        discovery_industry=discovery_industry,
+        chat_transcript=chat_transcript,
+        niche_ids=niche_ids,
+    )
+    if resolved:
+        top = score_result.get("top_niche") or ""
+        if resolved != top:
+            return resolved
+
+    return None
+
+
 def blend_llm_with_registry(
     *,
     registry_result: Dict[str, Any],

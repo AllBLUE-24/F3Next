@@ -33,15 +33,20 @@ v1.0.0 does **not** throw away Temporal, activities, or KB. It installs **Compan
 
 ## 2. North star
 
+> **Canonical product definition:** [`../NORTH_STAR.md`](../NORTH_STAR.md)  
+> **UI:** [`../NORTH_STAR_AGENT_SHELL.md`](../NORTH_STAR_AGENT_SHELL.md) · **Truth:** [`../GOLDEN_MATRIX_MANIFEST.md`](../GOLDEN_MATRIX_MANIFEST.md) · **Voice:** [`../PRESENTATION_AGENT_CONTRACT.md`](../PRESENTATION_AGENT_CONTRACT.md)
+
 ```text
 Any company in our industry catalog can:
-  1. Onboard messy files → honest validate → live import (IS)
-  2. Operate ERP via natural language commands (OS)
-  3. See yes/no/skip and plain language — never a lying green UI
-  4. Trust that “exists in ERP” means live Frappe, not yesterday’s snapshot
+  1. Use ONE agent window (sidebar + stream + drawer) for IS and OS
+  2. Onboard messy files → honest validate → live import (IS branch)
+  3. Operate ERP via natural language commands (OS branch)
+  4. See one clear gate at a time — MCQ, upload, or confirm — never debug logs
+  5. Trust “ready” only when the Green Surface golden matrix is green in CI
+  6. Trust that “exists in ERP” means live Frappe (LER), not yesterday’s snapshot
 ```
 
-**Long horizon (same brain, more surfaces):** mic, daily briefing, proactive alerts — not a different architecture.
+**Long horizon (same brain, more surfaces):** mic, daily briefing, proactive alerts — not a different architecture. Live-schema agent: [`../ARCH_V2_VISION.md`](../ARCH_V2_VISION.md).
 
 ---
 

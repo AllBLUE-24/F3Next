@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from temporalio.client import Client, WorkflowHandle, WorkflowQueryFailedError
+from temporalio.client import Client, WorkflowExecutionStatus, WorkflowHandle, WorkflowQueryFailedError
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.common import WorkflowIDReusePolicy
 from temporalio.service import RPCError
@@ -47,6 +47,16 @@ _client: Optional[Client] = None
 def _wf_id(project_id: str | UUID) -> str:
     return f"impl-{project_id}"
 
+
+# Completed workflows must not be queried — replay with new code causes TMPRL1100.
+_TERMINAL_SESSION_STATUSES = frozenset({
+    "complete",
+    "complete_with_errors",
+    "error",
+    "infected_halt",
+    "import_blocked",
+})
+
 async def _get_client() -> Client:
     global _client
     if _client is None:
@@ -59,6 +69,14 @@ async def _get_client() -> Client:
 class ImplementationLauncher:
     def __init__(self):
         pass
+
+    @staticmethod
+    def _session_is_terminal(session: Optional[ISSession]) -> bool:
+        if session is None:
+            return False
+        if session.completed_at is not None:
+            return True
+        return (session.status or "") in _TERMINAL_SESSION_STATUSES
 
     async def _resolve_project_id(self, input_id: str | UUID) -> UUID:
         """
@@ -88,12 +106,47 @@ class ImplementationLauncher:
         client = await _get_client()
         return client.get_workflow_handle(_wf_id(resolved_project_id))
 
+    async def _describe_workflow(self, project_id: str | UUID):
+        """Return Temporal execution description, or None if the workflow never existed."""
+        client = await _get_client()
+        wf_id = _wf_id(await self._resolve_project_id(project_id))
+        handle = client.get_workflow_handle(wf_id)
+        try:
+            return await handle.describe()
+        except RPCError:
+            return None
+
+    async def _needs_fresh_implementation_run(self, project_id: str | UUID) -> bool:
+        """True when a new upload must start a new workflow (prior run finished or session terminal)."""
+        is_session = await self._get_session(project_id)
+        if self._session_is_terminal(is_session):
+            return True
+        desc = await self._describe_workflow(project_id)
+        if desc is None:
+            return False
+        return desc.status != WorkflowExecutionStatus.RUNNING
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    async def start(self, project_id: str | UUID) -> Dict[str, Any]:
+    async def start(
+        self,
+        project_id: str | UUID,
+        *,
+        allow_duplicate: bool = False,
+    ) -> Dict[str, Any]:
         resolved_project_id = await self._resolve_project_id(project_id)
         client = await _get_client()
         wf_id = _wf_id(resolved_project_id)
+
+        if not allow_duplicate and await self._needs_fresh_implementation_run(project_id):
+            logger.info(
+                "Prior implementation run finished for project %s — resetting for fresh upload",
+                resolved_project_id,
+            )
+            return await self.reset_implementation(
+                project_id,
+                reason="fresh_run_after_completion",
+            )
         
         discovery_meta = None
         async with AsyncSessionLocal() as session:
@@ -103,17 +156,36 @@ class ImplementationLauncher:
             if hook and hook.discovery_metadata:
                 discovery_meta = hook.discovery_metadata
 
+        reuse_policy = (
+            WorkflowIDReusePolicy.ALLOW_DUPLICATE
+            if allow_duplicate
+            else WorkflowIDReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY
+        )
+
         try:
             handle = await client.start_workflow(
                 ImplementationWorkflow.run,
                 args=[str(resolved_project_id), discovery_meta],
                 id=wf_id,
                 task_queue=TASK_QUEUE,
-                id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY,
+                id_reuse_policy=reuse_policy,
             )
             return {"workflow_id": wf_id, "run_id": handle.first_execution_run_id, "started": True}
         except WorkflowAlreadyStartedError:
-            return {"workflow_id": wf_id, "started": False, "detail": "Workflow already running"}
+            desc = await self._describe_workflow(resolved_project_id)
+            if desc and desc.status == WorkflowExecutionStatus.RUNNING:
+                return {"workflow_id": wf_id, "started": False, "detail": "Workflow already running"}
+            if not allow_duplicate:
+                logger.info(
+                    "Workflow ID %s is not running (status=%s) — resetting",
+                    wf_id,
+                    getattr(desc, "status", None),
+                )
+                return await self.reset_implementation(
+                    project_id,
+                    reason="fresh_run_after_id_collision",
+                )
+            return {"workflow_id": wf_id, "started": False, "detail": "Workflow ID already used"}
 
     async def terminate(self, project_id: str | UUID, reason: str = "cancelled") -> None:
         handle = await self._handle(project_id)
@@ -140,7 +212,7 @@ class ImplementationLauncher:
                 )
                 await session.commit()
 
-        return await self.start(project_id)
+        return await self.start(project_id, allow_duplicate=True)
 
     # ── Signals ───────────────────────────────────────────────────────────────
 
@@ -202,16 +274,17 @@ class ImplementationLauncher:
 
     async def get_f3iche_confirmation(self, project_id: str | UUID) -> Dict[str, Any]:
         """Return synthesis proposal for the f3iche confirmation gate."""
-        try:
-            handle = await self._handle(project_id)
-            confirmation = await handle.query(ImplementationWorkflow.get_f3iche_confirmation)
-            if confirmation:
-                return confirmation
-        except Exception as exc:
-            logger.debug("Workflow f3iche confirmation query failed: %s", exc)
+        is_session = await self._get_session(project_id)
+        if not self._session_is_terminal(is_session):
+            try:
+                handle = await self._handle(project_id)
+                confirmation = await handle.query(ImplementationWorkflow.get_f3iche_confirmation)
+                if confirmation:
+                    return confirmation
+            except Exception as exc:
+                logger.debug("Workflow f3iche confirmation query failed: %s", exc)
 
         # Fallback: latest audit trail entry
-        is_session = await self._get_session(project_id)
         if not is_session:
             return {}
         async with AsyncSessionLocal() as session:
@@ -433,6 +506,8 @@ class ImplementationLauncher:
     async def get_stage(self, project_id: str | UUID) -> str:
         is_session = await self._get_session(project_id)
         db_stage = is_session.status if is_session else None
+        if self._session_is_terminal(is_session):
+            return db_stage or "error"
         try:
             handle = await self._handle(project_id)
             return await handle.query(ImplementationWorkflow.get_stage)
@@ -446,6 +521,9 @@ class ImplementationLauncher:
             return db_stage or "error"
 
     async def get_analysis_tasks(self, project_id: str | UUID) -> List[Dict]:
+        is_session = await self._get_session(project_id)
+        if self._session_is_terminal(is_session):
+            return []
         try:
             handle = await self._handle(project_id)
             return await handle.query(ImplementationWorkflow.get_analysis_tasks)
@@ -1205,19 +1283,20 @@ class ImplementationLauncher:
         tasks: List[Dict] = []
         f3iche_confirmation: Dict[str, Any] = {}
 
-        try:
-            h = await self._handle(project_id)
-            stage, tasks, f3iche_confirmation = await asyncio.gather(
-                h.query(ImplementationWorkflow.get_stage),
-                h.query(ImplementationWorkflow.get_analysis_tasks),
-                h.query(ImplementationWorkflow.get_f3iche_confirmation),
-            )
-        except (WorkflowQueryFailedError, RPCError) as exc:
-            logger.warning(
-                "Workflow state query failed for %s (%s) — using DB fallback",
-                project_id,
-                exc,
-            )
+        if not self._session_is_terminal(session):
+            try:
+                h = await self._handle(project_id)
+                stage, tasks, f3iche_confirmation = await asyncio.gather(
+                    h.query(ImplementationWorkflow.get_stage),
+                    h.query(ImplementationWorkflow.get_analysis_tasks),
+                    h.query(ImplementationWorkflow.get_f3iche_confirmation),
+                )
+            except (WorkflowQueryFailedError, RPCError) as exc:
+                logger.warning(
+                    "Workflow state query failed for %s (%s) — using DB fallback",
+                    project_id,
+                    exc,
+                )
 
         file_batches = list(session.file_batches or []) if session else []
         total_files = sum(len((batch or {}).get("files") or []) for batch in file_batches)

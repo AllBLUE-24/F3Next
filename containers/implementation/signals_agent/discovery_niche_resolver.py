@@ -19,8 +19,18 @@ _INDUSTRY_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
 
 _CHAT_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
     (("installation", "project", "site work", "coating", "epoxy", "floor"), "manufacturing_project_chemical"),
-    (("purchase order", "raw material", "rm-", "vendor"), "manufacturing_project_chemical"),
+    (("work in progress", "wip", "production schedule", "job order", "job shop", "fabrication"), "manufacturing_fabrication_jobshop"),
 ]
+
+
+def resolve_niche_from_text(text: str, niche_ids: List[str]) -> Optional[str]:
+    """Match free text (confirmation message, chat, industry) to a registry niche."""
+    if not text or not text.strip():
+        return None
+    for keywords, niche in _INDUSTRY_NICHE_HINTS + _CHAT_NICHE_HINTS:
+        if niche in niche_ids and _hint_match(text, keywords):
+            return niche
+    return None
 
 
 def niche_broad_category(niche_id: str) -> str:
@@ -54,13 +64,9 @@ def resolve_niche_from_discovery(
     chat = (chat_transcript or "").strip()
     combined = f"{industry} {chat}"
 
-    for keywords, niche in _INDUSTRY_NICHE_HINTS:
-        if niche in niche_ids and _hint_match(combined, keywords):
-            return niche
-
-    for keywords, niche in _CHAT_NICHE_HINTS:
-        if niche in niche_ids and _hint_match(chat, keywords):
-            return niche
+    resolved = resolve_niche_from_text(combined, niche_ids)
+    if resolved:
+        return resolved
 
     f3 = (discovery_f3iche or "").strip()
     if f3 in niche_ids:

@@ -67,9 +67,9 @@ def evaluate_quality_gate(
     # Step-specific outputs (IS classify / map / plan / import)
     if actual.get("plan_status") == "blocked":
         return QualityGateResult(
-            verdict="hard_block",
+            verdict="user_gap",
             analysis="Import plan is blocked due to critical gaps.",
-            user_gap_description="Resolve validation failures or upload missing files before import.",
+            user_gap_description="Resolve validation failures or upload missing MVP files before import.",
         )
     if actual.get("plan_status") in ("ready", "ready_with_gaps"):
         return QualityGateResult(

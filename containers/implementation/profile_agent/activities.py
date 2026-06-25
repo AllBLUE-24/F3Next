@@ -23,6 +23,45 @@ from shared.models.is_status import NodeStatusEnvelope
 KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "common" / "f3iches"
 
 
+def _format_business_reality(value: Any) -> str:
+    """Coerce V2 dict or V1 string business_reality for prompt blocks."""
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        parts: List[str] = []
+        profile = value.get("typical_company_profile")
+        if isinstance(profile, dict):
+            parts.append(json.dumps(profile, indent=2))
+        workflow = value.get("actual_workflow")
+        if isinstance(workflow, dict):
+            for step_name, step_data in list(workflow.items())[:3]:
+                if isinstance(step_data, dict):
+                    parts.append(f"{step_name}: {json.dumps(step_data, indent=2)}")
+                elif isinstance(step_data, str):
+                    parts.append(step_data)
+        for key in ("key_pain_points", "compliance_requirements"):
+            if value.get(key):
+                parts.append(f"{key}: {json.dumps(value[key], indent=2)}")
+        return "\n\n".join(parts)
+    return str(value)
+
+
+def _format_critical_checks(checks: Any) -> List[str]:
+    if not checks:
+        return []
+    out: List[str] = []
+    for item in checks[:2]:
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            out.append(json.dumps(item))
+        else:
+            out.append(str(item))
+    return out
+
+
 def _get_s3_client():
     return boto3.client(
         "s3",
@@ -117,8 +156,8 @@ class _CompanyProfileService:
         if not f3_block:
             # Fallback: use JSON narrative fields directly
             f3_block = "\n".join(filter(None, [
-                f3iche_data.get("business_reality", ""),
-                *[str(c) for c in f3iche_data.get("critical_checks", [])[:2]],
+                _format_business_reality(f3iche_data.get("business_reality")),
+                *_format_critical_checks(f3iche_data.get("critical_checks")),
             ])) or "No F3iche narrative retrieved."
 
         company_label = kwargs.get("company_name") or "the company"

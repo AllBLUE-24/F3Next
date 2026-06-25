@@ -1,0 +1,4 @@
+{"sessionId":"198ea2","location":"middleware.ts:entry","message":"middleware decision","data":{"pathname":"/qfqf/fwf/home","status":200,"isRedirect":false,"redirectTo":null},"timestamp":1780679276371,"hypothesisId":"H1-H5"}
+{"sessionId":"198ea2","location":"middleware.ts:entry","message":"middleware decision","data":{"pathname":"/strahats/luffy/home","status":200,"isRedirect":false,"redirectTo":null},"timestamp":1780679279041,"hypothesisId":"H1-H5"}
+{"sessionId":"198ea2","location":"home/page.tsx:mount","message":"HomePage mounted","data":{"companySlug":"strahats","userSlug":"luffy","base":"/strahats/luffy"},"timestamp":1780679283633,"hypothesisId":"H1"}
+{"sessionId":"198ea2","location":"home/page.tsx:mount","message":"HomePage mounted","data":{"companySlug":"qfqf","userSlug":"fwf","base":"/qfqf/fwf"},"timestamp":1780679284136,"hypothesisId":"H1"}

@@ -126,7 +126,12 @@ class GoldenMatrix4thRunTest(unittest.TestCase):
         result = dry_run_map_file(content, "Production Plan", kb=self.kb)
         
         self.assertTrue(result.get("passed"), f"Production Plan mapping failed: {result.get('preflight')}")
-        self.assertEqual(result.get("record_count"), 2, "Expected 2 production plan rows")
+        self.assertEqual(result.get("record_count"), 1, "Expected 1 grouped production plan")
+        sample = (result.get("sample_records") or [{}])[0]
+        po_items = sample.get("po_items") or []
+        self.assertGreaterEqual(len(po_items), 2, "Expected po_items child rows")
+        self.assertTrue(all(row.get("item_code") for row in po_items))
+        self.assertTrue(all(row.get("planned_qty") for row in po_items))
 
     def test_tally_pending_sales_orders(self):
         """

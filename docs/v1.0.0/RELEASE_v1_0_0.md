@@ -90,12 +90,16 @@ Use tenants from production learnings plus Green Surface harness where applicabl
 
 ### 3.4 IS — Green Surface + industry rows
 
+> **Detailed per-file matrix:** [`../GOLDEN_MATRIX_MANIFEST.md`](../GOLDEN_MATRIX_MANIFEST.md) (`GM-FILE-*`, `GM-E2E-*`)
+
 | ID | Scenario | Expected |
 |----|----------|----------|
 | G-IS-VAL-01 | Harness validate step | Honest partial when rows fail rules |
 | G-IS-IMP-01 | Phased import | `steps_failed` reflected in API + UI |
 | G-IS-LER-01 | Mapped row with alias warehouse | BulkLinkResolver rewrites before POST |
 | G-IS-READ-01 | Readiness with empty live list | Blocker cites live ERP, not CVS-only |
+| G-IS-GM-01 | All required `GM-FILE-*` dry-run green | CI `test_dry_run_map_3rd_run` + Stock Entry row |
+| G-IS-GM-02 | 3rd_run E2E through validation submit | `GM-E2E-06` in golden manifest |
 
 ### 3.5 Freshness
 

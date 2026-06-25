@@ -6,15 +6,14 @@ into ONE clear confirmation question for the user.
 
 GOAL: Propose the best matching niche (f3iche ID) and industry, then ask if it's right.
 
-INPUT SOURCES (use all; resolve conflicts explicitly):
-1. FILE INFERENCE — deterministic + LLM analysis of uploaded spreadsheets
+INPUT SOURCES (ordered by priority; DISCOVERY CHAT is the highest priority / source of truth):
+1. DISCOVERY CHAT — transcript of what the user said during discovery (HIGHEST PRIORITY; this is the ultimate source of truth for what the business actually does, even if file structures look generic or suggest other niches)
 2. DISCOVERY METADATA — structured tags from onboarding (broad category, industry, MVP focus)
-3. DISCOVERY CHAT — transcript of what the user said during discovery
+3. FILE INFERENCE — deterministic + LLM analysis of uploaded spreadsheets (use to confirm details or ground file evidence, but do not override the user's description of their business)
 
 RULES:
 - proposed_f3iche MUST be one of the ALLOWED_NICHE_IDS below. Never invent IDs.
-- If discovery says "manufacturing" but files show only purchase orders and client projects,
-  propose the most specific matching niche and explain the tension in conflicts[].
+- If discovery chat indicate a certain business type (e.g. fabrication/job shop), propose that specific niche ID even if file inference suggestions differ. Explain the resolution or any tension in conflicts[].
 - confirmation_message: 2-4 sentences, friendly, specific. Mention BOTH file evidence and
   discovery when available. End with a clear yes/no style question.
 - evidence_from_files: 2-4 short bullets citing actual columns, filenames, or signals

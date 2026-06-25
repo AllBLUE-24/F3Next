@@ -68,6 +68,67 @@
         "posting date"
       ]
     },
+    "plan_name": {
+      "fieldname": "plan_name",
+      "fieldtype": "Data",
+      "mandatory": false,
+      "label": "Plan Name",
+      "options": null,
+      "default_value": null,
+      "user_input_synonyms": [
+        "plan_name",
+        "plan name",
+        "Plan Name",
+        "schedule_name",
+        "schedule name"
+      ]
+    },
+    "po_items": {
+      "fieldname": "po_items",
+      "fieldtype": "Table",
+      "child_doctype": "Production Plan Item",
+      "mandatory": true,
+      "minimum_rows": 1,
+      "child_fields": {
+        "item_code": {
+          "fieldname": "item_code",
+          "fieldtype": "Link",
+          "options": "Item",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "item code",
+            "Item Code",
+            "item_code",
+            "product",
+            "sku"
+          ]
+        },
+        "planned_qty": {
+          "fieldname": "planned_qty",
+          "fieldtype": "Float",
+          "mandatory": true,
+          "user_input_synonyms": [
+            "planned_qty",
+            "planned qty",
+            "Planned Qty",
+            "quantity",
+            "qty"
+          ]
+        },
+        "planned_end_date": {
+          "fieldname": "planned_end_date",
+          "fieldtype": "Date",
+          "mandatory": false,
+          "user_input_synonyms": [
+            "expected_delivery_date",
+            "expected delivery date",
+            "delivery_date",
+            "delivery date",
+            "planned_end_date"
+          ]
+        }
+      }
+    },
     "item_code": {
       "fieldname": "item_code",
       "fieldtype": "Link",
@@ -75,11 +136,7 @@
       "label": "Item Code",
       "options": "Item",
       "default_value": null,
-      "user_input_synonyms": [
-        "item code",
-        "Item Code",
-        "item_code"
-      ]
+      "user_input_synonyms": []
     },
     "customer": {
       "fieldname": "customer",

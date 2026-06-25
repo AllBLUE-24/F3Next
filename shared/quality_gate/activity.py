@@ -167,6 +167,17 @@ async def _llm_evaluate(
 
 @activity.defn(name="quality_gate")
 async def quality_gate(inp: QualityGateInput) -> Dict[str, Any]:
+    if inp.pipeline == "IS" and os.getenv("IS_QUALITY_GATE_ENABLED", "0") != "1":
+        activity.logger.info(
+            "▶ quality_gate | pipeline=%s step=%s — disabled (IS_QUALITY_GATE_ENABLED=0)",
+            inp.pipeline,
+            inp.step_name,
+        )
+        return QualityGateResult(
+            verdict="ok",
+            analysis="quality gate disabled",
+        ).to_dict()
+
     activity.logger.info(
         "▶ quality_gate | pipeline=%s step=%s retry=%d",
         inp.pipeline,

@@ -1,10 +1,22 @@
-# F3Next v1.0.0 — Foundation Architecture Program
+# F3Next v1.0.0 — North Star Program
 
-> **Status:** Planning / execution on foundation branches  
-> **Audience:** Engineering, product, agents implementing the program  
-> **Preserved baseline:** `main` (and current production deploys) until merge gates pass  
+> **Status:** Active — foundation branches largely in repo; **product exit** defined by north star artifacts  
+> **Audience:** Engineering, product, agents  
+> **Start here (product):** [**`../NORTH_STAR.md`**](../NORTH_STAR.md)  
+> **Start here (brain/infra):** [**PLATFORM_OVERVIEW.md**](./PLATFORM_OVERVIEW.md)
 
-This directory is the **single program guide** for product **v1.0.0** — our first broadly usable release for companies in F3Next’s **listed industries**, not internal labels like “v1.5” or “v2 agent.”
+The v1.0.0 **program** is now framed by the **Agent Shell + Golden Truth** north star. Foundation branches (shared platform, os-brain, is-brain, kb-validation, frontend-contracts) deliver plumbing; **readiness for beta** is defined by the three artifacts below.
+
+---
+
+## North star artifacts (canonical)
+
+| Document | Purpose |
+|----------|---------|
+| [**`../NORTH_STAR.md`**](../NORTH_STAR.md) | Program index, Definition of Done, IS/OS tree |
+| [**`../NORTH_STAR_AGENT_SHELL.md`**](../NORTH_STAR_AGENT_SHELL.md) | Cursor-like 3-pane UI, gate renderer, deprecations |
+| [**`../GOLDEN_MATRIX_MANIFEST.md`**](../GOLDEN_MATRIX_MANIFEST.md) | Green Surface `3rd_run` — KB vs code proof matrix |
+| [**`../PRESENTATION_AGENT_CONTRACT.md`**](../PRESENTATION_AGENT_CONTRACT.md) | User-facing copy layer — no debug leakage |
 
 ---
 
@@ -12,26 +24,27 @@ This directory is the **single program guide** for product **v1.0.0** — our fi
 
 | In scope | Out of scope (later) |
 |----------|----------------------|
-| One **Company Brain** shared by IS and OS | Full single-agent rewrite ([`ARCH_V2_VISION.md`](../ARCH_V2_VISION.md)) |
-| Live ERP truth for master links (LER) | Every ERPNext doctype on day one |
-| Honest validate / import / command outcomes | Odoo / SAP adapters |
-| Listed **F3iche** industries + KB coverage | “Any industry” with zero playbook |
-| ERPNext tenant per `project_id` | Mic / all-day operator surface (same brain, new UI later) |
+| **One agent shell** for IS (OS follows) | Full v2 single-workflow rewrite |
+| **Golden matrix green** for MVP doctypes | Every ERPNext doctype |
+| **Presentation agent** — clear gates only | Internal supervisor debug in chat |
+| One **Company Brain** shared by IS and OS | Odoo / SAP adapters |
+| Live ERP truth (LER) + four gates | Mic / daily briefing UI |
+| Listed **F3iche** + chemical GS corpus | “Any industry” with zero playbook |
 
-**North star:** A company uploads messy data or speaks in natural language; F3Next **sets up** the ERP (IS) and **runs** it day-to-day (OS) with the same intelligence, gates, and honesty.
+**North star sentence:** A company uses **one agent window** to upload messy data or run ERP commands; F3Next sets up and operates the ERP with the same brain, gates, and honesty — and **we only call it ready when the golden matrix says so**.
 
 ---
 
-## How to read this folder
+## Foundation docs (infrastructure)
 
 | Document | Purpose |
 |----------|---------|
-| [**PLATFORM_OVERVIEW.md**](./PLATFORM_OVERVIEW.md) | **Start here** — whole system, brain, surfaces, diagrams, principles |
-| [**OPERATING_MODEL.md**](./OPERATING_MODEL.md) | Universal gates, contracts, LLM tiers, CVS vs live ERP |
-| [**BRANCH_STRATEGY.md**](./BRANCH_STRATEGY.md) | Branch graph, merge order, dependencies, risk |
-| [**RELEASE_v1_0_0.md**](./RELEASE_v1_0_0.md) | Exit criteria, golden matrix, deploy checklist |
-| [**FOUNDATION_VERIFICATION.md**](./FOUNDATION_VERIFICATION.md) | Automated + manual sign-off before `v1.0.0-rc` |
-| **Per-branch plans** | Detailed ideation and file-level change lists |
+| [**PLATFORM_OVERVIEW.md**](./PLATFORM_OVERVIEW.md) | Company Brain, surfaces, diagrams |
+| [**OPERATING_MODEL.md**](./OPERATING_MODEL.md) | Gates, contracts, LLM tiers, CVS vs LER |
+| [**BRANCH_STRATEGY.md**](./BRANCH_STRATEGY.md) | Branch graph, merge order |
+| [**RELEASE_v1_0_0.md**](./RELEASE_v1_0_0.md) | Pre-tag checklist (OS rows + IS honesty) |
+| [**FOUNDATION_VERIFICATION.md**](./FOUNDATION_VERIFICATION.md) | Manual sign-off |
+| **branch-00 … branch-05** | Per-branch execution plans |
 
 ### Per-branch documents
 
@@ -44,82 +57,71 @@ This directory is the **single program guide** for product **v1.0.0** — our fi
 | `foundation/kb-validation` | [branch-04-foundation-kb-validation.md](./branch-04-foundation-kb-validation.md) |
 | `foundation/frontend-contracts` | [branch-05-foundation-frontend-contracts.md](./branch-05-foundation-frontend-contracts.md) |
 
+**Note:** [branch-05](./branch-05-foundation-frontend-contracts.md) is superseded for layout by [`NORTH_STAR_AGENT_SHELL.md`](../NORTH_STAR_AGENT_SHELL.md); keep branch-05 for honesty types and API mapping until shell lands.
+
 ---
 
 ## Relationship to existing docs
 
-| Legacy doc | v1.0.0 role |
-|------------|-------------|
-| [`FOUNDATIONS.md`](../FOUNDATIONS.md) | L0–L5 layers and triage — **still law** |
-| [`PRIORITIES.md`](../PRIORITIES.md) | Sprint cap (≤5 items); add v1.0 rows from this program |
-| [`ARCH_OS.md`](../ARCH_OS.md) | Updated after `os-brain` merge to 4-phase diagram |
-| [`ARCH_IMPLEMENTATION.md`](../ARCH_IMPLEMENTATION.md) | Updated after `is-brain` merge to gate model |
-| [`ARCH_CONTEXT_ENGINE.md`](../ARCH_CONTEXT_ENGINE.md) | Brain Tier 1–3; LER documented as live overlay |
-| [`ARCH_CVS.md`](../ARCH_CVS.md) | Cache layer; webhooks + post-import sync |
+| Legacy doc | v1.0.0 / north star role |
+|------------|--------------------------|
+| [`../FOUNDATIONS.md`](../FOUNDATIONS.md) | L0–L5 triage — still law |
+| [`../PRIORITIES.md`](../PRIORITIES.md) | Sprint cap; tracks north star tracks A–E |
+| [`../IS_V2_BACKLOG.md`](../IS_V2_BACKLOG.md) | Pillar status; golden rows update pillar 4/7/9 |
+| [`../ARCH_IMPLEMENTATION.md`](../ARCH_IMPLEMENTATION.md) | Pipeline activities — UI migrates to shell |
+| [`../ARCH_V2_VISION.md`](../ARCH_V2_VISION.md) | Post-beta live schema |
 
 ---
 
-## Program phases (summary)
+## Program phases
 
 ```mermaid
 flowchart LR
-  B0[branch_00_main]
-  B1[branch_01_shared_platform]
-  B2[branch_02_os_brain]
-  B3[branch_03_is_brain]
-  B4[branch_04_kb_validation]
-  B5[branch_05_frontend]
+  NS[NORTH_STAR_artifacts]
+  B1[shared_platform]
+  B2[os_brain]
+  B3[is_brain]
+  B4[kb_validation]
+  SH[agent_shell]
+  GM[golden_matrix_green]
   REL[v1.0.0-rc_tag]
 
-  B0 --> B1
+  NS --> SH
+  NS --> GM
   B1 --> B2
   B2 --> B3
   B1 --> B3
-  B2 --> B4
   B3 --> B4
-  B4 --> B5
-  B5 --> REL
+  B4 --> SH
+  SH --> GM
+  GM --> REL
 ```
 
-**Rule:** Do not merge `is-brain` before `shared-platform` + `os-brain` prove the LER contract.
+**Rule:** Do not tag `v1.0.0-rc` until [`../NORTH_STAR.md`](../NORTH_STAR.md) § Definition of Done passes (shell + golden + presentation + brain).
 
 ---
 
-## Quick triage for any v1.0 work item
+## Quick triage
 
 1. Restate symptom in user terms.  
-2. Layer L0–L5 ([`FOUNDATIONS.md`](../FOUNDATIONS.md)).  
-3. Surface: IS ingest | IS commit | OS command | platform.  
-4. Gate: RESOLVE | COMPLETE | CLARIFY | COMMIT.  
-5. Class A/B/C/D.  
-6. Assign branch from table above.  
+2. Check [`../GOLDEN_MATRIX_MANIFEST.md`](../GOLDEN_MATRIX_MANIFEST.md) row — KB or code?  
+3. Check [`../NORTH_STAR_AGENT_SHELL.md`](../NORTH_STAR_AGENT_SHELL.md) — UI contract violation?  
+4. Layer L0–L5 · Gate · Class A/B/C/D.  
+5. Assign branch or north star track.
 
 ---
 
-## Document status
+## Status (2026-06-05)
 
-| File | Status |
+| Item | Status |
 |------|--------|
-| `PLATFORM_OVERVIEW.md` | Complete |
-| `OPERATING_MODEL.md` | Complete |
-| `BRANCH_STRATEGY.md` | Complete |
-| `RELEASE_v1_0_0.md` | Complete |
-| `FOUNDATION_VERIFICATION.md` | Complete — manual golden checklist |
-| `branch-00` … `branch-05` | Code complete; manual golden pending |
-| **Automated verify** | `python scripts/verify_foundation.py` (65+ unit tests) |
+| North star docs | **Published** |
+| Foundation branches 01–05 code | Largely in repo |
+| Golden matrix GM-FILE-04 Stock Entry | **Red** — KB synonyms |
+| Agent shell | **RFC** — not implemented |
+| Presentation agent | **Contract** — not implemented |
+| `v1.0.0-rc` tag | Blocked on north star DoD |
 
 ---
 
-## Foundation program status (2026-05-30)
-
-| Phase | Status |
-|-------|--------|
-| Branches 01–05 code | **Complete in repo** |
-| Automated regression | **Pass** — `verify_foundation.py` |
-| Worker deploy (P6) | **Manual** — `docker compose build …` |
-| Golden matrix E2E | **Manual** — `FOUNDATION_VERIFICATION.md` |
-| `v1.0.0-rc` tag | **Blocked on** manual golden + merge to `main` |
-
----
-
-*Last updated: 2026-05-30*
+*Last updated: 2026-06-05*

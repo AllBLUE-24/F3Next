@@ -2,13 +2,17 @@
 
 > **Base:** `foundation/kb-validation`  
 > **Layer focus:** L1, L5  
-> **Class:** **A** (UI lies), **C** (gate result UI)
+> **Class:** **A** (UI lies), **C** (gate result UI)  
+> **Superseded for layout by:** [`../NORTH_STAR_AGENT_SHELL.md`](../NORTH_STAR_AGENT_SHELL.md)  
+> **Copy layer by:** [`../PRESENTATION_AGENT_CONTRACT.md`](../PRESENTATION_AGENT_CONTRACT.md)
 
 ---
 
 ## 1. Branch thesis
 
 Users judge F3Next by **what the UI says**. This branch aligns frontend types, states, and copy to **GateResult** honesty — no green completion on partial backend failure, clear CLARIFY prompts with candidates, OS confirm that actually reaches Temporal.
+
+**North star migration:** honesty types and API mappers from this branch feed the agent shell; full 3-pane layout is defined in `NORTH_STAR_AGENT_SHELL.md`, not here.
 
 Backend gates must exist before this branch (os-brain + is-brain + kb).
 

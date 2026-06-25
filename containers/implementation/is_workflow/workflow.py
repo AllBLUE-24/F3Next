@@ -273,11 +273,12 @@ class ImplementationWorkflow:
         actual_outputs: Optional[Dict[str, Any]] = None,
         hard_block_raises: bool = False,
     ) -> Dict[str, Any]:
-        """Run quality_gate activity when IS_QUALITY_GATE_ENABLED=1. Returns gate result dict."""
-        with workflow.unsafe.sandbox_unrestricted():
-            qg_enabled = os.getenv("IS_QUALITY_GATE_ENABLED", "0") == "1"
-        if not qg_enabled:
-            return {"verdict": "ok", "analysis": "quality gate disabled"}
+        """Schedule quality_gate; pre-patch runs honor IS_QUALITY_GATE_ENABLED in workflow."""
+        if not workflow.patched("is-quality-gate-always-scheduled"):
+            with workflow.unsafe.sandbox_unrestricted():
+                qg_enabled = os.getenv("IS_QUALITY_GATE_ENABLED", "0") == "1"
+            if not qg_enabled:
+                return {"verdict": "ok", "analysis": "quality gate disabled"}
 
         retry_count = self._gate_retry_counts.get(step_name, 0)
         env_obj = coerce_envelope(env, fallback_primary=actual_outputs)
@@ -2124,17 +2125,18 @@ class ImplementationWorkflow:
                         import_phase_failures.append(
                             f"{phase_label}: {result.get('steps_failed')} step(s) failed"
                         )
-                await self._run_is_quality_gate(
-                    "execute_import_phase",
-                    result if isinstance(result, dict) else {"status": str(result)},
-                    project_id,
-                    L,
-                    actual_outputs={
-                        "phase_id": phase_id,
-                        "phase_label": phase_label,
-                        "result": result if isinstance(result, dict) else {"raw": str(result)},
-                    },
-                )
+                if workflow.patched("is-quality-gate-always-scheduled"):
+                    await self._run_is_quality_gate(
+                        "execute_import_phase",
+                        result if isinstance(result, dict) else {"status": str(result)},
+                        project_id,
+                        L,
+                        actual_outputs={
+                            "phase_id": phase_id,
+                            "phase_label": phase_label,
+                            "result": result if isinstance(result, dict) else {"raw": str(result)},
+                        },
+                    )
                 L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)

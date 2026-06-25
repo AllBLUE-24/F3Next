@@ -14,9 +14,23 @@ logger = logging.getLogger(__name__)
 # Doctypes where ERPNext rejects disabled in list API queries.
 _DOCTYPES_WITHOUT_DISABLED: frozenset[str] = frozenset({
     "BOM",
+    "Company",
+    "Customer Group",
     "Item Group",
+    "Project",
+    "Stock Entry Type",
+    "Supplier Group",
+    "Territory",
     "UOM",
 })
+
+# Link targets keyed by business id; ERPNext Link fields store document `name`.
+_DOCTYPE_ALT_LOOKUP_FIELDS: dict[str, str] = {
+    "Project": "project_name",
+    "Customer": "customer_name",
+    "Supplier": "supplier_name",
+    "Item": "item_code",
+}
 
 # Common ERPNext warehouse abbreviations vs full names (Green Surface uses full names).
 _BASE_ALIASES: dict[str, list[str]] = {
@@ -147,6 +161,28 @@ def resolve_single(
     return ResolutionResult(original=val, resolved=None)
 
 
+def build_alias_lookup(
+    records: list[dict[str, Any]],
+    *,
+    alt_field: Optional[str] = None,
+) -> dict[str, str]:
+    """Map lookup aliases (project_name, item_code, …) to canonical ERPNext `name`."""
+    alias_to_name: dict[str, str] = {}
+    for row in records:
+        name = row.get("name")
+        if not name:
+            continue
+        canonical = str(name).strip()
+        if not canonical:
+            continue
+        alias_to_name[canonical] = canonical
+        if alt_field:
+            alt = row.get(alt_field)
+            if alt:
+                alias_to_name[str(alt).strip()] = canonical
+    return alias_to_name
+
+
 class BulkLinkResolver:
     """Fetches live ERP master names once per doctype and builds a resolution map."""
 
@@ -164,17 +200,24 @@ class BulkLinkResolver:
             if not values:
                 continue
 
-            known_names: list[str] = []
+            alt_field = _DOCTYPE_ALT_LOOKUP_FIELDS.get(target_doctype)
+            list_fields = ["name"]
+            if alt_field:
+                list_fields.append(alt_field)
+
+            alias_to_name: dict[str, str] = {}
             try:
                 if target_doctype in _DOCTYPES_WITHOUT_DISABLED:
-                    records = await adapter.list_records(target_doctype, ["name"], limit=2000)
+                    records = await adapter.list_records(
+                        target_doctype, list_fields, limit=2000
+                    )
                 else:
                     records = await adapter.list_records(
                         target_doctype,
-                        ["name", "disabled"],
+                        list_fields + ["disabled"],
                         filters=[["disabled", "=", 0]],
                     )
-                known_names = [r["name"] for r in records if r.get("name")]
+                alias_to_name = build_alias_lookup(records, alt_field=alt_field)
             except Exception as e:
                 log.warning(
                     "BulkLinkResolver: disabled-filter fetch failed for %s: %s",
@@ -182,8 +225,10 @@ class BulkLinkResolver:
                     e,
                 )
                 try:
-                    records = await adapter.list_records(target_doctype, ["name"], limit=2000)
-                    known_names = [r["name"] for r in records if r.get("name")]
+                    records = await adapter.list_records(
+                        target_doctype, list_fields, limit=2000
+                    )
+                    alias_to_name = build_alias_lookup(records, alt_field=alt_field)
                 except Exception as e2:
                     log.warning(
                         "BulkLinkResolver: fallback fetch failed for %s: %s",
@@ -192,6 +237,8 @@ class BulkLinkResolver:
                     )
                     result.unresolvable[target_doctype] = sorted(values)
                     continue
+
+            known_names = list(alias_to_name.keys())
 
             for val in sorted(values):
                 if not val:
@@ -214,18 +261,24 @@ class BulkLinkResolver:
                             ambiguous_candidates=attempt.ambiguous_candidates,
                         )
                         break
-                if res.resolved and res.resolved != val:
-                    result.resolved.setdefault(target_doctype, {})[val] = res.resolved
+                canonical = (
+                    alias_to_name.get(res.resolved, res.resolved)
+                    if res.resolved
+                    else alias_to_name.get(val)
+                )
+                if canonical and canonical != val:
+                    result.resolved.setdefault(target_doctype, {})[val] = canonical
                     log.info(
                         "BulkLinkResolver: %s '%s' -> '%s'",
                         target_doctype,
                         val,
-                        res.resolved,
+                        canonical,
                     )
-                elif res.resolved == val:
+                elif canonical == val or (res.resolved == val and val in alias_to_name):
                     pass
                 elif res.ambiguous and res.resolved:
-                    result.resolved.setdefault(target_doctype, {})[val] = res.resolved
+                    picked = alias_to_name.get(res.resolved, res.resolved)
+                    result.resolved.setdefault(target_doctype, {})[val] = picked
                     result.ambiguous.setdefault(target_doctype, []).append(
                         (val, res.resolved, res.ambiguous_candidates)
                     )

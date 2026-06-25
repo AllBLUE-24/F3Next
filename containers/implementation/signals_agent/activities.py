@@ -88,6 +88,7 @@ class _SignalsInferenceService:
         from containers.implementation.signals_agent.signals_scorer import (
             apply_discovery_prior,
             blend_llm_with_registry,
+            prefer_discovery_over_registry,
             score_manifest,
         )
         from containers.implementation.utils.llm_helper import generate_json
@@ -121,7 +122,28 @@ class _SignalsInferenceService:
         ]
 
         # If registry is confident, use it directly (no LLM call)
+        # unless discovery resolves a different concrete niche (garment false-positive guard)
         if registry_result.get("confident"):
+            discovery_override = prefer_discovery_over_registry(
+                registry_result,
+                discovery_f3iche=discovery_f3iche,
+                discovery_industry=discovery_industry,
+                chat_transcript=chat_transcript,
+            )
+            if discovery_override:
+                reg_conf = float(registry_result["niche_scores"].get(discovery_override, registry_result["confidence"]))
+                signals = hit_summaries[:5] + [
+                    f"[registry] {registry_result['signal_count']} signals, margin={registry_result['margin']}",
+                    f"[discovery_override] registry top={registry_result['top_niche']} → using {discovery_override}",
+                ]
+                if discovery_f3iche:
+                    signals.append(f"[discovery_prior] user stated: {discovery_f3iche}")
+                activity.logger.info(
+                    "  Discovery override → %s (registry had %s)",
+                    discovery_override, registry_result["top_niche"],
+                )
+                return discovery_override, reg_conf, signals, "discovery_override", registry_result
+
             reg_top = registry_result["top_niche"]
             reg_conf = float(registry_result["confidence"])
             signals = hit_summaries[:5] + [

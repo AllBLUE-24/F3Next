@@ -1287,11 +1287,12 @@ async def get_import_plan_phases(inp: GetImportPlanPhasesInput) -> List[tuple[st
             ("phase_c_transactional", "Transactional Data"),
         ]
 
-    # Convert the JSON dict into an ordered list.
-    # We sort by the phase_id string so phase_a comes before phase_b, etc.
-    phase_list = []
-    for phase_id, phase_data in sorted(plan.phases.items()):
-        phase_list.append((phase_id, phase_data.get("name", phase_id)))
+    from containers.implementation.import_agent.phase_order import sort_phases
+
+    phase_list = [
+        (phase_id, phase_data.get("name", phase_id))
+        for phase_id, phase_data in sort_phases(plan.phases)
+    ]
     return phase_list
 
 

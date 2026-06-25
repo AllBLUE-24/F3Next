@@ -15,6 +15,10 @@ from typing import Any, Dict, List, Optional
 
 from containers.implementation.mapping_agent.kb import baseline_defaults, doctype_graph, field_mappings
 
+_STRIP_BEFORE_IMPORT: dict[str, frozenset[str]] = {
+    "Production Plan": frozenset({"plan_name", "item_code"}),
+}
+
 
 def _normalize_required_fieldnames(fields: List[str]) -> List[str]:
     """Match validation graph normalization — 'items (a, b)' -> 'items'."""
@@ -169,6 +173,13 @@ def fold_child_tables(doctype: str, records: List[Dict[str, Any]]) -> List[Dict[
             # If KB doesn't define child fields, do a minimal heuristic for common tables.
             if not child_fieldnames and table_name == "items":
                 child_fieldnames = ["item_code", "qty", "rate", "warehouse", "uom"]
+            if not child_fieldnames and table_name == "po_items":
+                child_fieldnames = [
+                    "item_code",
+                    "planned_qty",
+                    "planned_end_date",
+                    "uom",
+                ]
 
             child_row: Dict[str, Any] = {}
 
@@ -424,6 +435,25 @@ def apply_defaults_and_normalize(
                 new_items.append(it2)
             r[tname] = new_items
 
+        # Opening stock Material Receipts often lack valuation in source files.
+        if doctype == "Stock Entry":
+            entry_type = str(r.get("stock_entry_type") or r.get("purpose") or "").strip()
+            if entry_type == "Material Receipt":
+                items = r.get("items") or []
+                patched: List[Dict[str, Any]] = []
+                for it in items:
+                    if not isinstance(it, dict):
+                        patched.append(it)
+                        continue
+                    it2 = dict(it)
+                    has_rate = it2.get("basic_rate") not in (None, "", 0) or it2.get(
+                        "valuation_rate"
+                    ) not in (None, "", 0)
+                    if not has_rate and not it2.get("allow_zero_valuation_rate"):
+                        it2["allow_zero_valuation_rate"] = 1
+                    patched.append(it2)
+                r["items"] = patched
+
         # Doctype-level naming_series — coerce to valid Select option
         _apply_naming_series_defaults(doctype, r, fmap, dt_cfg)
 
@@ -483,6 +513,9 @@ def apply_defaults_and_normalize(
         # Child table minimum rows: enforce empty list presence; do not invent rows.
         # Validation will still fail if business requires rows; extraction should handle that.
 
+        for drop in _STRIP_BEFORE_IMPORT.get(doctype, frozenset()):
+            r.pop(drop, None)
+
         out.append(r)
 
     from containers.implementation.mapping_agent.value_translation import apply_value_translations
@@ -497,13 +530,14 @@ def normalize_mapped_payload(
     *,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Apply KB defaults to an mapped R2 payload (`records` list). Returns a new dict."""
+    """Fold child tables, apply KB defaults to mapped R2 payload (`records`). Returns a new dict."""
     if not isinstance(payload, dict):
         return payload
     records = payload.get("records")
     if not isinstance(records, list):
         return payload
     out = dict(payload)
-    out["records"] = apply_defaults_and_normalize(doctype, records, context=context)
+    folded = fold_child_tables(doctype, records)
+    out["records"] = apply_defaults_and_normalize(doctype, folded, context=context)
     return out
 
