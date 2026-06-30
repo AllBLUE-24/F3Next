@@ -1,7 +1,7 @@
 'use client';
 // PATH: src/components/implementation/upload/UploadView.tsx
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Upload, File, X, AlertCircle, ArrowRight } from 'lucide-react';
 import { getBaseApiUrl } from '@/lib/config';
@@ -17,6 +17,7 @@ interface Props {
   projectId: string; // We need this to tell R2 and Temporal which project this is!
   getPresignedUrls: (projectId: string, fileNames: string[]) => Promise<{ urls: { file_name: string, upload_url: string, object_path: string }[] }>;
   verifyUploads: (projectId: string, uploadedFiles: { file_name: string, object_path: string }[]) => Promise<{ verified: any[], missing: any[], all_verified: boolean }>;
+  ensureTargetStructure: (projectId: string) => Promise<any>;
   signalUploadComplete: (
     projectId: string,
     companySlug: string,
@@ -26,7 +27,7 @@ interface Props {
   analyzeHref: string;
 }
 
-export function UploadView({ projectId, getPresignedUrls, verifyUploads, signalUploadComplete, analyzeHref }: Props) {
+export function UploadView({ projectId, getPresignedUrls, verifyUploads, ensureTargetStructure, signalUploadComplete, analyzeHref }: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false); // Swapped useTransition for reliable client-side async loading
@@ -47,6 +48,31 @@ export function UploadView({ projectId, getPresignedUrls, verifyUploads, signalU
 
   const removeEntry = (id: string) =>
     setEntries((prev) => prev.filter((e) => e.id !== id));
+
+  // P2: Ensure target structure is generated (post-discovery, before file upload)
+  useEffect(() => {
+    let mounted = true;
+    
+    (async () => {
+      try {
+        console.log('🎯 Checking target structure status...');
+        const result = await ensureTargetStructure(projectId);
+        
+        if (mounted) {
+          if (result.status === 'ready') {
+            console.log('✅ Target structure ready:', result.total_doctypes, 'doctypes');
+          } else if (result.status === 'generating') {
+            console.log('⏳ Target structure generation started...');
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Target structure check failed (non-fatal):', err);
+        // Non-fatal - backward compat will handle in IS workflow
+      }
+    })();
+    
+    return () => { mounted = false; };
+  }, [projectId, ensureTargetStructure]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {

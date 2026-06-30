@@ -407,7 +407,13 @@ class BuildTargetInput:
 async def build_target_structure(inp: BuildTargetInput) -> Any:
     """
     Step 8: Generates the Target Structure (Blueprint) for ERPNext mapping.
-
+    
+    ⚠️ LEGACY ACTIVITY - Kept for backward compatibility only.
+    New sessions use post-discovery generation (build_post_discovery_target).
+    This activity runs ONLY when:
+    - Old sessions without pre-generated target structure
+    - Target generation failed during discovery (fallback)
+    
     Now graph-driven:
       1. Loads seed doctypes from company profile or f3iche template
       2. Walks erpnext_doctype_graph.json — resolves ALL transitive prerequisites
@@ -416,7 +422,7 @@ async def build_target_structure(inp: BuildTargetInput) -> Any:
       5. Produces setup_steps / import_phases ordered by graph layer — not LLM
       6. LLM is still called for reasoning notes only
     """
-    activity.logger.info("▶ build_target_structure started | session=%s f3iche=%s", inp.session_id, inp.f3iche)
+    activity.logger.info("▶ build_target_structure (LEGACY) started | session=%s f3iche=%s", inp.session_id, inp.f3iche)
 
     from containers.implementation.target_agent.mvp_boundary import (
         build_mvp_boundary,

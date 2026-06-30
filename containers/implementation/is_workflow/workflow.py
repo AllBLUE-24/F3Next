@@ -722,56 +722,81 @@ class ImplementationWorkflow:
             raise ApplicationError(f"Profile build failed: {e}")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 8 / 14  —  Build Target Structure
+        # STEP 8 / 9  —  Load/Build Target Structure
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 8, "Build Target Structure",
+        _step_start(L, 8, "Load Target Structure",
                     f"f3iche={conf.f3iche_user} | industry={conf.industry}")
 
         try:
-            target_env = await workflow.execute_activity(
-                build_target_structure,
-                BuildTargetInput(
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    f3iche=conf.f3iche_user,
-                    company_slug=self._company_slug,
-                    r2_manifest_url=r2_manifest_url,
-                    corpus_understanding=self._corpus_understanding,
-                    corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
-                    mvp_focus=alignment_result.get("mvp_focus"),
-                    synthesis_proposal=self._f3iche_confirmation,
-                    discovery_alignment={
-                        "alignment_score": alignment_result.get("alignment_score"),
-                        "mismatches": alignment_result.get("mismatches"),
-                        "reasoning": alignment_result.get("reasoning"),
-                    } if alignment_result else None,
-                ),
-                **_ACT,
+            # P2 OPTIMIZATION: Try to load pre-generated target structure from post-discovery
+            from containers.implementation.data_readiness_agent.activities import _load_target_structure
+            target = await workflow.execute_local_activity(
+                _load_target_structure,
+                args=[self._session_id],
+                start_to_close_timeout=timedelta(seconds=10),
             )
-            if isinstance(target_env, dict):
-                if "status" in target_env:
-                    target_env = NodeStatusEnvelope(**target_env)
-                else:
-                    target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target_env})
-            elif isinstance(target_env, str):
-                target_env = NodeStatusEnvelope.success(primary_result={"target_structure": {}})
+            
+            if target and target.get("required_doctypes"):
+                # ✅ Target structure exists from post-discovery generation
+                _kv(L, "source", "post_discovery (pre-generated)")
+                _kv(L, "corpus_independent", "true")
+                target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target})
+                n_doctypes = len(target.get("required_doctypes", []))
+                n_steps = len(target.get("setup_steps", []))
+                _kv(L, "required_doctypes", n_doctypes)
+                _kv(L, "setup_steps", n_steps)
+                _step_ok(L, 8, "Load Target Structure", f"{n_doctypes} doctypes, {n_steps} steps (pre-generated)")
+            else:
+                # ⚠️ Backward compatibility: Generate now (legacy path for old sessions)
+                _kv(L, "source", "legacy_generation_in_is")
+                _kv(L, "corpus_dependent", "true (legacy)")
+                L.info("      ⚠️  No pre-generated target found, falling back to legacy generation")
                 
-            target = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
-            n_doctypes = len(target.get("required_doctypes", [])) if isinstance(target, dict) else 0
-            n_steps = len(target.get("setup_steps", [])) if isinstance(target, dict) else 0
-            _kv(L, "required_doctypes", n_doctypes)
-            _kv(L, "setup_steps", n_steps)
+                target_env = await workflow.execute_activity(
+                    build_target_structure,
+                    BuildTargetInput(
+                        session_id=self._session_id,
+                        project_id=project_id,
+                        f3iche=conf.f3iche_user,
+                        company_slug=self._company_slug,
+                        r2_manifest_url=r2_manifest_url,
+                        corpus_understanding=self._corpus_understanding,
+                        corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
+                        mvp_focus=alignment_result.get("mvp_focus"),
+                        synthesis_proposal=self._f3iche_confirmation,
+                        discovery_alignment={
+                            "alignment_score": alignment_result.get("alignment_score"),
+                            "mismatches": alignment_result.get("mismatches"),
+                            "reasoning": alignment_result.get("reasoning"),
+                        } if alignment_result else None,
+                    ),
+                    **_ACT,
+                )
+                if isinstance(target_env, dict):
+                    if "status" in target_env:
+                        target_env = NodeStatusEnvelope(**target_env)
+                    else:
+                        target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target_env})
+                elif isinstance(target_env, str):
+                    target_env = NodeStatusEnvelope.success(primary_result={"target_structure": {}})
+                    
+                target = (target_env.primary_result or {}).get("target_structure") if hasattr(target_env, "primary_result") else {}
+                n_doctypes = len(target.get("required_doctypes", [])) if isinstance(target, dict) else 0
+                n_steps = len(target.get("setup_steps", [])) if isinstance(target, dict) else 0
+                _kv(L, "required_doctypes", n_doctypes)
+                _kv(L, "setup_steps", n_steps)
+                _step_ok(L, 8, "Build Target Structure (Legacy)", f"{n_doctypes} doctypes, {n_steps} steps")
+            
             _kv(L, "table", "is_target_structures")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_target/target_structure.json")
             _kv(L, "mvp_boundary", f"clean-data/{self._company_slug}/{project_id}/_target/mvp_boundary.json")
-            _kv(L, "audit", "is_audit_trail → target_generated")
-            _step_ok(L, 8, "Build Target Structure", f"{n_doctypes} doctypes, {n_steps} steps")
+            
         except Exception as e:
-            _step_fail(L, 7, "Build Target Structure", str(e))
+            _step_fail(L, 8, "Target Structure", str(e))
             self._stage = "error"
             raise ApplicationError(f"Target structure failed: {e}")
 
-        # Supervisor hook (non-blocking): persist prompt if target build not OK
+        # Supervisor hook (non-blocking): persist prompt if target load/build not OK
         with workflow.unsafe.sandbox_unrestricted():
             supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
         if supervisor_enabled and not getattr(target_env, "ok", False):
@@ -781,7 +806,7 @@ class ImplementationWorkflow:
                     SuperviseStepInput(
                         project_id=project_id,
                         session_id=self._session_id,
-                        node_name="build_target_structure",
+                        node_name="target_structure",
                         step="8",
                         f3iche_id=conf.f3iche_user,
                         phase="phase_a_config",
@@ -810,9 +835,9 @@ class ImplementationWorkflow:
         # P1: Step 8b (Derive Required Records) REMOVED - rarely used, adds complexity
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 6 / 9  —  Data Readiness Assessment
+        # STEP 5 / 9  —  Data Readiness Assessment
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 6, "Data Readiness Assessment", "Comparing uploaded data against target structure")
+        _step_start(L, 5, "Data Readiness Assessment", "Comparing uploaded data against target structure")
 
         readiness_env: Optional[NodeStatusEnvelope] = None
         readiness: Dict[str, Any] = {}
@@ -847,12 +872,12 @@ class ImplementationWorkflow:
             _kv(L, "user_action_required", readiness.get("user_action_required"))
             _step_ok(
                 L,
-                "8c",
+                5,
                 "Data Readiness Assessment",
                 f"score={score*100:.0f}% | viable={readiness.get('minimum_viable_import_possible')}",
             )
         except Exception as e:
-            _step_fail(L, "8c", "Data Readiness Assessment", str(e))
+            _step_fail(L, 5, "Data Readiness Assessment", str(e))
             readiness_env = NodeStatusEnvelope.failed(
                 errors=[{"code": "READINESS_FAILED", "message": str(e)}],
                 primary_result={"assessment": {}},

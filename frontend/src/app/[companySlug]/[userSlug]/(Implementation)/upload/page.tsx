@@ -45,6 +45,41 @@ export async function verifyUploads(
   return res.json();
 }
 
+// Action 2.5: Ensure target structure is generated (post-discovery)
+export async function ensureTargetStructure(projectId: string) {
+  'use server';
+  const base = getBaseApiUrl();
+  
+  // 1. Check if target structure exists
+  const statusRes = await fetch(`${base}/api/target/status/${projectId}`, {
+    headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! }
+  });
+  
+  if (statusRes.ok) {
+    const status = await statusRes.json();
+    if (status.status === 'ready') {
+      return { status: 'ready', ...status };
+    }
+  }
+  
+  // 2. Target doesn't exist, trigger generation
+  const generateRes = await fetch(`${base}/api/target/generate`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-internal-secret': process.env.INTERNAL_SECRET! 
+    },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  
+  if (!generateRes.ok) {
+    const err = await generateRes.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to generate target structure');
+  }
+  
+  return generateRes.json();
+}
+
 // Action 3: Tell FastAPI/Temporal the files are in R2
 export async function signalUploadComplete(
   projectId: string,
@@ -119,6 +154,7 @@ export default async function UploadPage({ params }: Props) {
       projectId={context.project_id}
       getPresignedUrls={getPresignedUrls}
       verifyUploads={verifyUploads}
+      ensureTargetStructure={ensureTargetStructure}
       signalUploadComplete={signalUploadComplete}
       analyzeHref={`/${companySlug}/${userSlug}/analyze`}
     />
