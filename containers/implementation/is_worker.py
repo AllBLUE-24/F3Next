@@ -69,6 +69,8 @@ from containers.implementation.file_io.persist_supervisor_prompt import (
     obsolete_supervisor_prompts,
 )
 from containers.implementation.file_io.persist_chat_message import persist_chat_message
+from containers.implementation.file_io.load_discovery_context import load_discovery_context
+from containers.implementation.file_io.load_target_structure import load_target_structure
 from shared.quality_gate.activity import quality_gate
 
 logger = logging.getLogger(__name__)
@@ -138,6 +140,8 @@ async def main() -> None:
                         mark_supervisor_prompt_answered,
                         obsolete_supervisor_prompts,
                         persist_chat_message,
+                        load_discovery_context,
+                        load_target_structure,
                         quality_gate,
                        ],
             activity_executor=activity_executor,

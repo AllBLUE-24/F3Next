@@ -587,44 +587,33 @@ class ImplementationWorkflow:
                 L.info("      ⚠️  Corpus understanding failed (non-fatal): %s", e)
 
         # ══════════════════════════════════════════════════════════════════════════════
-        # P1 OPTIMIZATION: Steps 3-6a REMOVED — Read f3iche + target structure from discovery
+        # P1 OPTIMIZATION: Steps 3-6a REMOVED — Read f3iche + MVP focus from discovery
         # ══════════════════════════════════════════════════════════════════════════════
         _step_start(L, 3, "Load Discovery Context", "Reading f3iche, industry, and MVP focus from discovery")
         
-        discovery_context = {}
+        # HOTFIX: Use activity instead of direct DB access (Temporal sandbox restriction)
+        from containers.implementation.file_io.load_discovery_context import (
+            load_discovery_context,
+            LoadDiscoveryContextInput,
+        )
+        
         try:
-            # Read discovery_metadata from hooks table
-            from shared.database.db import AsyncSessionLocal
-            from shared.models.hooks import Hook
-            from sqlalchemy import select
+            discovery_context = await workflow.execute_activity(
+                load_discovery_context,
+                LoadDiscoveryContextInput(project_id=project_id),
+                **_ACT,
+            )
             
-            async with AsyncSessionLocal() as db_session:
-                hook_row = (
-                    await db_session.execute(
-                        select(Hook).where(Hook.project_id == self._project_id)
-                    )
-                ).scalar_one_or_none()
-                
-                if hook_row and hook_row.discovery_metadata:
-                    discovery_context = hook_row.discovery_metadata
-                    self._discovery_f3iche = discovery_context.get("f3iche", "trading")
-                    self._discovery_industry = discovery_context.get("industry", "")
-                    
-                    _kv(L, "f3iche", self._discovery_f3iche)
-                    _kv(L, "industry", self._discovery_industry)
-                    _kv(L, "mvp_focus", discovery_context.get("mvp_focus", {}).get("primary_bottleneck", "N/A"))
-                    _kv(L, "source", "discovery_metadata (pre-computed)")
-                    _step_ok(L, 3, "Load Discovery Context", f"f3iche={self._discovery_f3iche}")
-                else:
-                    L.info("      ⚠️  No discovery_metadata found — using defaults")
-                    self._discovery_f3iche = "trading"
-                    self._discovery_industry = "general"
-                    discovery_context = {
-                        "f3iche": "trading",
-                        "industry": "general",
-                        "mvp_focus": {},
-                    }
-                    _step_ok(L, 3, "Load Discovery Context", "using defaults (no discovery data)")
+            self._discovery_f3iche = discovery_context.get("f3iche", "trading")
+            self._discovery_industry = discovery_context.get("industry", "general")
+            
+            _kv(L, "f3iche", self._discovery_f3iche)
+            _kv(L, "industry", self._discovery_industry)
+            mvp_bottleneck = discovery_context.get("mvp_focus", {}).get("primary_bottleneck", "N/A")
+            _kv(L, "mvp_focus", mvp_bottleneck if mvp_bottleneck != "N/A" else "not specified")
+            _kv(L, "source", discovery_context.get("source", "unknown"))
+            _step_ok(L, 3, "Load Discovery Context", f"f3iche={self._discovery_f3iche}")
+            
         except Exception as e:
             _step_fail(L, 3, "Load Discovery Context", str(e))
             L.info("      ⚠️  Failed to load discovery context — using defaults")
@@ -634,6 +623,7 @@ class ImplementationWorkflow:
                 "f3iche": "trading",
                 "industry": "general",
                 "mvp_focus": {},
+                "source": "error_fallback",
             }
 
         # Create a synthetic "confirmation" object for compatibility with downstream code
@@ -729,14 +719,18 @@ class ImplementationWorkflow:
 
         try:
             # P2 OPTIMIZATION: Try to load pre-generated target structure from post-discovery
-            from containers.implementation.data_readiness_agent.activities import _load_target_structure
-            target = await workflow.execute_local_activity(
-                _load_target_structure,
-                args=[self._session_id],
-                start_to_close_timeout=timedelta(seconds=10),
+            from containers.implementation.file_io.load_target_structure import (
+                load_target_structure,
+                LoadTargetStructureInput,
             )
             
-            if target and target.get("required_doctypes"):
+            target = await workflow.execute_activity(
+                load_target_structure,
+                LoadTargetStructureInput(session_id=self._session_id),
+                **_ACT,
+            )
+            
+            if target.get("exists") and target.get("required_doctypes"):
                 # ✅ Target structure exists from post-discovery generation
                 _kv(L, "source", "post_discovery (pre-generated)")
                 _kv(L, "corpus_independent", "true")
