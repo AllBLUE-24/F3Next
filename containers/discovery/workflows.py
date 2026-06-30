@@ -26,6 +26,11 @@ class DiscoveryChatWorkflow:
     def receive_user_reply(self, message: str):
         """Gateway for the backend to talk to this workflow."""
         self._user_reply = message
+    
+    @workflow.signal
+    def force_complete_discovery(self):
+        """Force discovery to complete (triggered by 'Get Recommendation' button)."""
+        self._is_complete = True
 
     @workflow.run
     async def run(self, data: dict) -> dict:

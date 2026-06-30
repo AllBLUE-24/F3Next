@@ -153,6 +153,23 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         raise ValueError("Need at least one exchange before generating a recommendation.")
 
     result = await complete_discovery(messages)
+    
+    # P1 FIX: Add confirmation message to chat history
+    f3iche = result["discovery_metadata"].get("f3iche", "trading")
+    industry = result["discovery_metadata"].get("industry", "your business")
+    headline = result["discovery_metadata"].get("headline", "")
+    
+    confirmation_message = (
+        f"Perfect! Based on our conversation, I can see you're a **{_format_f3iche(f3iche)}** business "
+        f"in the {industry} industry. {headline}\n\n"
+        "I've put together your full ERP recommendation — redirecting you now!"
+    )
+    
+    messages.append({
+        "role": "assistant",
+        "content": confirmation_message,
+        "ts": _utc_now_iso(),
+    })
 
     hook.chat_history = messages
     hook.discovery_coverage = result["coverage"]
@@ -160,7 +177,7 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     hook.discovery_metadata = result["discovery_metadata"]
     hook.discovery_status = "COMPLETE"
     hook.discovery_turn_count = count_user_turns(messages)
-    hook.last_bot_response = messages[-1]["content"] if messages else hook.last_bot_response
+    hook.last_bot_response = confirmation_message
     await db.commit()
 
     return {
@@ -168,4 +185,18 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "data": hook.discovery_metadata,
         "coverage": hook.discovery_coverage,
         "extracted_tags": hook.extracted_tags,
+        "confirmation_message": confirmation_message,
     }
+
+
+def _format_f3iche(f3iche: str) -> str:
+    """Convert f3iche to user-friendly name."""
+    mapping = {
+        "manufacturing": "Manufacturing",
+        "process_mfg_batch": "Process Manufacturing (Batch)",
+        "discrete_mfg": "Discrete Manufacturing",
+        "trading": "Trading & Distribution",
+        "service": "Service",
+        "retail": "Retail",
+    }
+    return mapping.get(f3iche, f3iche.replace("_", " ").title())
