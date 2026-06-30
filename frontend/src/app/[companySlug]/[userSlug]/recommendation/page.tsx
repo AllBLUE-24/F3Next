@@ -13,7 +13,10 @@ interface RecommendationData {
   fit_score?: number;
   headline?: string;
   reasoning?: string;
-  mvp_focus?: string;
+  mvp_focus?: {
+    primary_bottleneck: string;
+    functional_requirements: string[];
+  };
 }
 
 export default function RecommendationPage() {
@@ -166,8 +169,23 @@ export default function RecommendationPage() {
                 {recommendation.reasoning || `Tailored configuration for ${formatF3iche(recommendation.f3iche)} businesses in ${recommendation.industry}.`}
               </p>
               {recommendation.mvp_focus && (
-                <div className="text-zinc-500 text-xs leading-relaxed pt-2 border-t border-zinc-800">
-                  <span className="font-semibold text-zinc-400">MVP Focus:</span> {recommendation.mvp_focus}
+                <div className="text-zinc-500 text-xs leading-relaxed pt-3 border-t border-zinc-800 space-y-2">
+                  {recommendation.mvp_focus.primary_bottleneck && (
+                    <div>
+                      <span className="font-semibold text-zinc-400">Primary Focus:</span>{" "}
+                      {recommendation.mvp_focus.primary_bottleneck}
+                    </div>
+                  )}
+                  {recommendation.mvp_focus.functional_requirements?.length > 0 && (
+                    <div>
+                      <span className="font-semibold text-zinc-400">Key Requirements:</span>
+                      <ul className="list-disc list-inside mt-1 space-y-0.5 pl-2">
+                        {recommendation.mvp_focus.functional_requirements.map((req, idx) => (
+                          <li key={idx}>{req}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-2">
