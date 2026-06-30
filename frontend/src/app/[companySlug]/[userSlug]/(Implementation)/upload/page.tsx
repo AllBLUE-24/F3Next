@@ -21,8 +21,31 @@ export async function getPresignedUrls(projectId: string, fileNames: string[]) {
   return res.json(); 
 }
 
-// Action 2: Tell FastAPI/Temporal the files are in R2
-// Action 2: Tell FastAPI/Temporal the files are in R2
+// Action 2: Verify files in R2 before signaling workflow
+export async function verifyUploads(
+  projectId: string,
+  uploadedFiles: { file_name: string, object_path: string }[]
+) {
+  'use server';
+  const base = getBaseApiUrl();
+  
+  const res = await fetch(`${base}/api/implementation/verify-uploads`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-internal-secret': process.env.INTERNAL_SECRET! 
+    },
+    body: JSON.stringify({
+      project_id: projectId,
+      uploaded_files: uploadedFiles,
+    }),
+  });
+
+  if (!res.ok) throw new Error('Failed to verify uploads');
+  return res.json();
+}
+
+// Action 3: Tell FastAPI/Temporal the files are in R2
 export async function signalUploadComplete(
   projectId: string,
   companySlug: string,
@@ -32,7 +55,7 @@ export async function signalUploadComplete(
   'use server';
   const base = getBaseApiUrl();
   
-  // 👇 1. WE ADDED THIS: Tell FastAPI to start the Temporal workflow first! 👇
+  // 1. Start the Temporal workflow
   const startRes = await fetch(`${base}/api/implementation/start/${projectId}`, {
     method: 'POST',
     headers: { 'x-internal-secret': process.env.INTERNAL_SECRET! }
@@ -95,6 +118,7 @@ export default async function UploadPage({ params }: Props) {
     <UploadView
       projectId={context.project_id}
       getPresignedUrls={getPresignedUrls}
+      verifyUploads={verifyUploads}
       signalUploadComplete={signalUploadComplete}
       analyzeHref={`/${companySlug}/${userSlug}/analyze`}
     />

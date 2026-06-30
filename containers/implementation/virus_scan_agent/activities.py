@@ -48,10 +48,25 @@ async def virus_scan_quarantine(files: List[Dict[str, Any]], session_id: str) ->
                     scan_results.append({"file_name": fname, "object_path": obj_key, "status": "clean"})
 
                 s3.delete_object(Bucket="quarantine", Key=obj_key)
+            except s3.exceptions.NoSuchKey:
+                # P0 FIX: File was never uploaded to R2 - this is a critical upload failure
+                activity.logger.error("  ❌ FILE NOT FOUND in R2: %s - upload verification should have caught this!", obj_key)
+                infected_count += 1
+                scan_results.append({
+                    "file_name": fname, 
+                    "object_path": obj_key, 
+                    "status": "missing_file",
+                    "error": "File not found in R2 bucket - upload may have failed"
+                })
             except Exception as e:
                 activity.logger.error("  ❌ S3 Failure on %s: %s", obj_key, str(e))
                 infected_count += 1
-                scan_results.append({"file_name": fname, "object_path": obj_key, "status": "scan_failed"})
+                scan_results.append({
+                    "file_name": fname, 
+                    "object_path": obj_key, 
+                    "status": "scan_failed",
+                    "error": str(e)
+                })
 
         return clean_count, infected_count, scan_results
 

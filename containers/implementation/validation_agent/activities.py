@@ -967,8 +967,9 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                 )
 
     blocking_unmapped_seeds: List[str] = []
+    missing_expected_files: List[str] = []
     try:
-        from shared.models.is_models import ISTargetStructure
+        from shared.models.is_models import ISTargetStructure, ISDataReadinessAssessment
         from containers.implementation.import_agent.mvp_import_scope import (
             blocking_unmapped_seeds as compute_blocking_unmapped,
             parse_mvp_scope_from_target,
@@ -983,6 +984,17 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                     .limit(1)
                 )
             ).scalar_one_or_none()
+            
+            # P0 FIX: Also load data readiness to get ALL missing files
+            readiness_row = (
+                await session.execute(
+                    select(ISDataReadinessAssessment)
+                    .where(ISDataReadinessAssessment.session_id == uuid.UUID(inp.session_id))
+                    .order_by(ISDataReadinessAssessment.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            
         seed_list: List[str] = []
         deferred_set: set = set()
         if target_row and target_row.r2_path:
@@ -990,13 +1002,33 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
             if isinstance(target_data, dict):
                 seed_list = list(target_data.get("seed_doctypes") or [])
                 _, deferred_set = parse_mvp_scope_from_target(target_data)
+        
         mapped_dt_set = {
             dt for dt, payload in mapped_data.items()
             if isinstance(payload, dict) and (payload.get("records") or [])
         }
+        
         blocking_unmapped_seeds = compute_blocking_unmapped(
             seed_list, mapped_dt_set, deferred_set,
         )
+        
+        # P0 FIX: Include missing doctypes from data readiness assessment
+        if readiness_row:
+            missing_dt = readiness_row.missing_doctypes or []
+            partial_dt = readiness_row.partial_doctypes or []
+            
+            # Add missing doctypes that are in seed_list and not already in blocking_unmapped_seeds
+            for dt in missing_dt:
+                canonical_dt = dt.strip()
+                if canonical_dt in seed_list and canonical_dt not in blocking_unmapped_seeds:
+                    blocking_unmapped_seeds.append(canonical_dt)
+            
+            # For partial doctypes, flag if they have < 50% of required fields
+            # (this indicates missing files that would have those fields)
+            activity.logger.info(
+                "  📊 Readiness check: missing=%d partial=%d total_blocking=%d",
+                len(missing_dt), len(partial_dt), len(blocking_unmapped_seeds)
+            )
     except Exception as e:
         activity.logger.warning("  ⚠️ MVP blocking unmapped check failed: %s", e)
 

@@ -16,6 +16,7 @@ interface FileEntry {
 interface Props {
   projectId: string; // We need this to tell R2 and Temporal which project this is!
   getPresignedUrls: (projectId: string, fileNames: string[]) => Promise<{ urls: { file_name: string, upload_url: string, object_path: string }[] }>;
+  verifyUploads: (projectId: string, uploadedFiles: { file_name: string, object_path: string }[]) => Promise<{ verified: any[], missing: any[], all_verified: boolean }>;
   signalUploadComplete: (
     projectId: string,
     companySlug: string,
@@ -25,7 +26,7 @@ interface Props {
   analyzeHref: string;
 }
 
-export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, analyzeHref }: Props) {
+export function UploadView({ projectId, getPresignedUrls, verifyUploads, signalUploadComplete, analyzeHref }: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false); // Swapped useTransition for reliable client-side async loading
@@ -91,14 +92,22 @@ export function UploadView({ projectId, getPresignedUrls, signalUploadComplete, 
         })
       );
 
-      // 3. Tell FastAPI/Temporal that the files are safe in the quarantine bucket
-      await signalUploadComplete(projectId, params?.companySlug || 'unknown', uploadedFilesData, importNote.trim());
+      // 3. P0 FIX: Verify files actually exist in R2 before signaling workflow
+      const verification = await verifyUploads(projectId, uploadedFilesData);
+      
+      if (!verification.all_verified) {
+        const missingNames = verification.missing.map((m: any) => m.file_name).join(', ');
+        throw new Error(`Upload verification failed. Missing files in R2: ${missingNames}. Please try again.`);
+      }
 
-      // 4. Move to the next stage
+      // 4. Tell FastAPI/Temporal that the files are safe in the quarantine bucket
+      await signalUploadComplete(projectId, params?.companySlug || 'unknown', verification.verified, importNote.trim());
+
+      // 5. Move to the next stage
       router.push(`${analyzeHref}?jobId=${projectId}`);
     } catch (err) {
       console.error(err);
-      setError('Upload failed. Please try again.');
+      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }

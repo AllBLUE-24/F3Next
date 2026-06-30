@@ -70,6 +70,57 @@ async def generate_presigned_urls(req: PresignedUrlRequest):
 
     return {"urls": urls}
 
+
+class VerifyUploadsRequest(BaseModel):
+    project_id: UUID
+    uploaded_files: List[Dict[str, str]]  # [{file_name, object_path}]
+
+@router.post("/verify-uploads", summary="Verify files exist in R2 before signaling workflow")
+async def verify_uploads(req: VerifyUploadsRequest):
+    """
+    P0 Fix: Verify files actually exist in R2 before allowing workflow signal.
+    Returns list of verified files and list of missing files.
+    """
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=os.getenv("R2_ENDPOINT"),
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="auto"
+    )
+
+    bucket_name = "quarantine"
+    verified = []
+    missing = []
+
+    for file_info in req.uploaded_files:
+        object_path = file_info["object_path"]
+        file_name = file_info["file_name"]
+        
+        try:
+            # Use HeadObject to verify file exists without downloading it
+            s3_client.head_object(Bucket=bucket_name, Key=object_path)
+            verified.append(file_info)
+        except s3_client.exceptions.NoSuchKey:
+            missing.append({
+                "file_name": file_name,
+                "object_path": object_path,
+                "error": "File not found in R2"
+            })
+        except Exception as e:
+            missing.append({
+                "file_name": file_name,
+                "object_path": object_path,
+                "error": str(e)
+            })
+
+    return {
+        "verified": verified,
+        "missing": missing,
+        "all_verified": len(missing) == 0
+    }
+
     
 # ══════════════════════════════════════════════════════════════════════════════
 # Workflow lifecycle
