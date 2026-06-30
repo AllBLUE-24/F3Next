@@ -69,7 +69,11 @@ export const sendMessageToDiscoveryAgent = async (
 
 export const completeDiscovery = async (
   projectId: string
-): Promise<{ status: string; data: Record<string, unknown> }> => {
+): Promise<{ 
+  status: string; 
+  data: Record<string, unknown>;
+  confirmation_message?: string;
+}> => {
   const res = await fetch(`${API_BASE_URL}/api/discovery/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getBaseApiUrl } from "@/lib/config";
 
-// Define the shape of the data based on your Temporal workflow output
+// Define the shape of discovery_metadata from backend
 interface RecommendationData {
-  recommended_erp: string;
-  fit_score: number;
+  f3iche: string;
+  industry: string;
+  price_plan: string;
+  recommended_erp?: string;
+  fit_score?: number;
   headline?: string;
   reasoning?: string;
-  price_plan: string;
-  industry: string;
-  f3iche: string;
+  mvp_focus?: string;
 }
 
 export default function RecommendationPage() {
@@ -115,9 +116,22 @@ export default function RecommendationPage() {
   // ---------------------------------------------------------------------------
   // Fit Score Ring
   // ---------------------------------------------------------------------------
-  const score = recommendation.fit_score;
+  const score = recommendation.fit_score || 85; // Default if not yet computed
   const circumference = 2 * Math.PI * 52;
   const strokeDashoffset = circumference - (score / 100) * circumference;
+
+  // Format F3iche for display
+  const formatF3iche = (f3iche: string) => {
+    const mapping: Record<string, string> = {
+      "manufacturing": "Manufacturing",
+      "process_mfg_batch": "Process Manufacturing (Batch)",
+      "discrete_mfg": "Discrete Manufacturing",
+      "trading": "Trading & Distribution",
+      "service": "Service",
+      "retail": "Retail",
+    };
+    return mapping[f3iche] || f3iche.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   // ---------------------------------------------------------------------------
   // VIEW: READY STATE (The Big Reveal)
@@ -146,13 +160,21 @@ export default function RecommendationPage() {
             {/* Left Column: Details */}
             <div className="flex-1 space-y-4 text-center md:text-left">
               <h3 className="text-2xl font-bold text-white">
-                {recommendation.recommended_erp}
+                {recommendation.recommended_erp || `ERPNext for ${formatF3iche(recommendation.f3iche)}`}
               </h3>
               <p className="text-zinc-400 text-sm leading-relaxed">
-                {recommendation.reasoning || "Based on your unique requirements, this configuration provides the best balance of features and scalability."}
+                {recommendation.reasoning || `Tailored configuration for ${formatF3iche(recommendation.f3iche)} businesses in ${recommendation.industry}.`}
               </p>
+              {recommendation.mvp_focus && (
+                <div className="text-zinc-500 text-xs leading-relaxed pt-2 border-t border-zinc-800">
+                  <span className="font-semibold text-zinc-400">MVP Focus:</span> {recommendation.mvp_focus}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-2">
                 <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                  {formatF3iche(recommendation.f3iche)}
+                </span>
+                <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-blue-500/10 border border-blue-500/20 text-blue-400">
                   {recommendation.industry}
                 </span>
                 <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-green-500/10 border border-green-500/20 text-green-400">
