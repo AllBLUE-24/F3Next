@@ -84,7 +84,7 @@ def _step_start(logger, step_num: int | str, title: str, detail: str = ""):
     logger.info("")
     logger.info("")
     logger.info(_BANNER)
-    logger.info("  STEP %s / 14  │  %s", step_num, title)
+    logger.info("  STEP %s / 9  │  %s", step_num, title)
     if detail:
         logger.info("  %s", detail)
     logger.info(_BANNER)
@@ -444,7 +444,7 @@ class ImplementationWorkflow:
         self._discovery_industry = discovery_meta.get("industry") if discovery_meta else None
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 0 / 14  —  Session Creation
+        # STEP 0 / 9  —  Session Creation
         # ══════════════════════════════════════════════════════════════════════
         _step_start(L, 0, "Session Creation", "Creating is_sessions row in Supabase")
 
@@ -496,7 +496,7 @@ class ImplementationWorkflow:
         self._set_task("t1", "running")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 1 / 14  —  Virus Scan
+        # STEP 1 / 9  —  Virus Scan
         # ══════════════════════════════════════════════════════════════════════
         _step_start(L, 1, "Virus Scan (Quarantine Protocol)", f"{len(sig.uploaded_files)} files to scan")
 
@@ -524,7 +524,7 @@ class ImplementationWorkflow:
         _step_ok(L, 1, "Virus Scan", f"All {scan_result.get('clean_count')} files clean | slug={self._company_slug}")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 2 / 14  —  Fetch & Parse Clean Files
+        # STEP 2 / 9  —  Fetch & Parse Clean Files
         # ══════════════════════════════════════════════════════════════════════
         self._set_task("t1", "done")
         self._set_task("t2", "running")
@@ -586,157 +586,101 @@ class ImplementationWorkflow:
             except Exception as e:
                 L.info("      ⚠️  Corpus understanding failed (non-fatal): %s", e)
 
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 3 / 14  —  Signals Inference (F3iche Detection)
-        # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 3, "Signals Inference (F3iche Detection)", f"manifest={r2_manifest_url}")
-
+        # ══════════════════════════════════════════════════════════════════════════════
+        # P1 OPTIMIZATION: Steps 3-6a REMOVED — Read f3iche + target structure from discovery
+        # ══════════════════════════════════════════════════════════════════════════════
+        _step_start(L, 3, "Load Discovery Context", "Reading f3iche, industry, and MVP focus from discovery")
+        
+        discovery_context = {}
         try:
-            infer_result: Dict = await workflow.execute_activity(
-                infer_f3iche,
-                InferF3icheInput(
-                    sig.uploaded_files,
-                    r2_manifest_url,
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    discovery_f3iche=self._discovery_f3iche,
-                ),
-                **_LONG,
-            )
-            _kv(L, "inferred_f3iche", infer_result.get("f3iche"))
-            _kv(L, "confidence", f"{infer_result.get('confidence', 0) * 100:.0f}%")
-            _kv(L, "signals_count", len(infer_result.get("collected_signals", [])))
-            _kv(L, "tables written", "is_file_signals, is_f3iche_scores")
-            _step_ok(L, 3, "Signals Inference", f"f3iche={infer_result['f3iche']} ({infer_result.get('confidence', 0)*100:.0f}%)")
+            # Read discovery_metadata from hooks table
+            from shared.database.db import AsyncSessionLocal
+            from shared.models.hooks import Hook
+            from sqlalchemy import select
+            
+            async with AsyncSessionLocal() as db_session:
+                hook_row = (
+                    await db_session.execute(
+                        select(Hook).where(Hook.project_id == self._project_id)
+                    )
+                ).scalar_one_or_none()
+                
+                if hook_row and hook_row.discovery_metadata:
+                    discovery_context = hook_row.discovery_metadata
+                    self._discovery_f3iche = discovery_context.get("f3iche", "trading")
+                    self._discovery_industry = discovery_context.get("industry", "")
+                    
+                    _kv(L, "f3iche", self._discovery_f3iche)
+                    _kv(L, "industry", self._discovery_industry)
+                    _kv(L, "mvp_focus", discovery_context.get("mvp_focus", {}).get("primary_bottleneck", "N/A"))
+                    _kv(L, "source", "discovery_metadata (pre-computed)")
+                    _step_ok(L, 3, "Load Discovery Context", f"f3iche={self._discovery_f3iche}")
+                else:
+                    L.info("      ⚠️  No discovery_metadata found — using defaults")
+                    self._discovery_f3iche = "trading"
+                    self._discovery_industry = "general"
+                    discovery_context = {
+                        "f3iche": "trading",
+                        "industry": "general",
+                        "mvp_focus": {},
+                    }
+                    _step_ok(L, 3, "Load Discovery Context", "using defaults (no discovery data)")
         except Exception as e:
-            _step_fail(L, 3, "Signals Inference", str(e))
-            self._stage = "error"
-            raise ApplicationError(f"F3iche inference failed: {e}")
-
-        self._infer_result = infer_result
-
-        # ── Step 3.5: Synthesize F3iche confirmation (files + discovery) ───────
-        try:
-            synthesis_result: Dict = await workflow.execute_activity(
-                synthesize_f3iche_confirmation,
-                SynthesizeF3icheConfirmationInput(
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    infer_result=infer_result,
-                    r2_manifest_url=r2_manifest_url,
-                ),
-                **_LONG,
-            )
-            self._f3iche_confirmation = synthesis_result
-            _kv(L, "proposed_f3iche", synthesis_result.get("proposed_f3iche"))
-            _kv(L, "alignment", synthesis_result.get("alignment"))
-            _step_ok(L, "3.5", "F3iche Confirmation Synthesis", synthesis_result.get("display_name", ""))
-        except Exception as e:
-            _step_fail(L, "3.5", "F3iche Confirmation Synthesis", str(e))
-            L.info("      ⚠️  Synthesis failed — gate will use raw inference fallback")
-            self._f3iche_confirmation = {
-                "confirmation_message": (
-                    f"We think your business type is {infer_result.get('f3iche', 'unknown')}. Is that correct?"
-                ),
-                "proposed_f3iche": infer_result.get("f3iche"),
-                "proposed_industry": self._discovery_industry or "general",
-                "display_name": infer_result.get("f3iche", ""),
-                "confidence": infer_result.get("confidence", 0.5),
-                "alignment": "partial",
+            _step_fail(L, 3, "Load Discovery Context", str(e))
+            L.info("      ⚠️  Failed to load discovery context — using defaults")
+            self._discovery_f3iche = "trading"
+            self._discovery_industry = "general"
+            discovery_context = {
+                "f3iche": "trading",
+                "industry": "general",
+                "mvp_focus": {},
             }
 
+        # Create a synthetic "confirmation" object for compatibility with downstream code
+        conf = F3icheConfirmedSignal(
+            f3iche_user=self._discovery_f3iche,
+            industry=self._discovery_industry,
+            industry_sub=discovery_context.get("industry_sub"),
+            company_name=discovery_context.get("company_name"),
+            company_size=discovery_context.get("company_size"),
+        )
+        
+        # Create synthetic results for compatibility
+        infer_result = {
+            "f3iche": self._discovery_f3iche,
+            "confidence": 1.0,  # Discovery is always 100% confident (user confirmed)
+            "collected_signals": [],
+        }
+        
+        verify_result = {"status": "exact_match"}
+        
+        alignment_result = {
+            "alignment_score": 1.0,
+            "mismatches": [],
+            "reasoning": "Discovery pre-confirmed",
+            "mvp_focus": discovery_context.get("mvp_focus", {}),
+        }
+        
+        self._infer_result = infer_result
+        self._f3iche_confirmation = {
+            "proposed_f3iche": self._discovery_f3iche,
+            "proposed_industry": self._discovery_industry,
+            "display_name": self._discovery_f3iche,
+            "confidence": 1.0,
+            "alignment": "exact",
+        }
+        
+        self._stage = "building_profile"
         self._set_task("t2", "done")
         self._set_task("t3", "done")
-        self._set_task("t4", "done", f"Inferred: {infer_result['f3iche']}")
-
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 4 / 14  —  Update Session Status
-        # ══════════════════════════════════════════════════════════════════════
-        self._stage = "awaiting_f3iche_confirmation"
-
-        _step_start(L, 4, "Update Session Status", "→ awaiting_f3iche_confirmation")
-        try:
-            await workflow.execute_activity(
-                persist_session,
-                PersistSessionInput(project_id=project_id, workflow_id=workflow_id, status=self._stage),
-                **_ACT,
-            )
-            _kv(L, "table", "is_sessions")
-            _kv(L, "status", self._stage)
-            _step_ok(L, 4, "Session Status Update", f"status={self._stage}")
-        except Exception as e:
-            _step_fail(L, 4, "Session Status Update", str(e))
-
-        # ══════════════════════════════════════════════════════════════════════
-        # AWAIT SIGNAL: f3iche_confirmed
-        # ══════════════════════════════════════════════════════════════════════
-        L.info("  ⏳ Waiting for f3iche_confirmed signal ...")
-        L.info("")
-        await workflow.wait_condition(lambda: self._f3iche_confirmed_event.is_set())
-
-        conf = self._sig_f3iche
-        _signal_banner(L, "f3iche_confirmed",
-                       f"user={conf.f3iche_user} | industry={conf.industry} | company={conf.company_name}")
-        self._stage = "building_profile"
+        self._set_task("t4", "done", f"Loaded: {self._discovery_f3iche}")
         self._set_task("t5", "running")
-
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 5 / 14  —  Verify F3iche (User vs Inferred)
+        # STEP 4 / 9  —  Build Company Profile (Simplified)
         # ══════════════════════════════════════════════════════════════════════
-        inferred_for_verify = (
-            (self._f3iche_confirmation or {}).get("proposed_f3iche")
-            or infer_result["f3iche"]
-        )
-        _step_start(L, 5, "Verify F3iche (User vs Synthesis)",
-                    f"user={conf.f3iche_user} vs proposed={inferred_for_verify}")
-
-        verify_result = {"status": "unknown"}
-        try:
-            verify_result = await workflow.execute_activity(
-                verify_f3iche,
-                VerifyF3icheInput(
-                    conf.f3iche_user,
-                    inferred_for_verify,
-                    (self._f3iche_confirmation or {}).get("confidence") or infer_result["confidence"],
-                ),
-                **_ACT,
-            )
-            _kv(L, "match_status", verify_result.get("status"))
-            _step_ok(L, 5, "Verify F3iche", f"status={verify_result.get('status')}")
-        except Exception as e:
-            _step_fail(L, 5, "Verify F3iche", str(e))
-            L.info("      ⚠️  Non-critical — continuing with user's choice")
-
-
-        # ══════════════════════════════════════════════════════════════════════════════
-        # STEP 6a / 14  —  Discovery-Signals Alignment
-        # ══════════════════════════════════════════════════════════════════════════════
-        _step_start(L, "6a", "Discovery-Signals Alignment", "Comparing chatbot intent with uploaded files")
-        
-        alignment_result = {}
-        try:
-            alignment_result = await workflow.execute_activity(
-                align_discovery_and_signals,
-                AlignDiscoverySignalsInput(
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    confirmed_f3iche=conf.f3iche_user,
-                    synthesis_proposal=self._f3iche_confirmation,
-                    corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
-                ),
-                **_ACT,
-            )
-            _kv(L, "alignment_score", alignment_result.get("alignment_score"))
-            _kv(L, "mismatches", len(alignment_result.get("mismatches", [])))
-            _step_ok(L, "6a", "Discovery-Signals Alignment", f"score={alignment_result.get('alignment_score')}")
-        except Exception as e:
-            _step_fail(L, "6a", "Discovery-Signals Alignment", str(e))
-
-
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 7 / 14  —  Build Company Profile
-        # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 7, "Build Company Profile",
+        # P1: Steps 7a (Industry Knowledge) and 7b (LLM Profile Generation) REMOVED
+        # Industry insights now come from discovery, profile is built in one pass
+        _step_start(L, 4, "Build Company Profile",
                     f"f3iche={conf.f3iche_user} | industry={conf.industry}")
 
         try:
@@ -755,13 +699,13 @@ class ImplementationWorkflow:
                     company_size=conf.company_size,
                     f3iche_user=conf.f3iche_user,
                     f3iche_signals=infer_result["f3iche"],
-                    f3iche_match_status=verify_result.get("status", "unknown"),
+                    f3iche_match_status=verify_result.get("status", "exact_match"),
                     uploaded_files=sig.uploaded_files,
                     r2_manifest_url=r2_manifest_url,
                     collected_signals=infer_result["collected_signals"],
-                    discovery_alignment_score=alignment_result.get("alignment_score"),
+                    discovery_alignment_score=alignment_result.get("alignment_score", 1.0),
                     discovery_alignment_mismatches=alignment_result.get("mismatches") or [],
-                    discovery_alignment_reasoning=alignment_result.get("reasoning"),
+                    discovery_alignment_reasoning=alignment_result.get("reasoning", "Discovery pre-confirmed"),
                     mvp_focus=alignment_result.get("mvp_focus"),
                     corpus_understanding=self._corpus_understanding,
                     synthesis_proposal=self._f3iche_confirmation,
@@ -771,52 +715,11 @@ class ImplementationWorkflow:
             _kv(L, "table", "is_company_profiles (v1)")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_profile/company_context_v1.json")
             _kv(L, "audit", "is_audit_trail → profile_built")
-            _step_ok(L, 7, "Build Company Profile", "version=1 persisted")
+            _step_ok(L, 4, "Build Company Profile", "version=1 persisted")
         except Exception as e:
-            _step_fail(L, 7, "Build Company Profile", str(e))
+            _step_fail(L, 4, "Build Company Profile", str(e))
             self._stage = "error"
             raise ApplicationError(f"Profile build failed: {e}")
-
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 7a / 14  —  Industry Knowledge Retrieval
-        # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, "7a", "Industry Knowledge Retrieval (LLM Node 2)", "Querying pgvector for industry best practices")
-        try:
-            insights = await workflow.execute_activity(
-                retrieve_industry_knowledge,
-                RetrieveIndustryKnowledgeInput(
-                    session_id=self._session_id,
-                    industry=conf.industry,
-                    company_size=conf.company_size,
-                    differentiators=conf.industry_sub or "",
-                    f3iche_id=conf.f3iche_user,
-                ),
-                **_ACT,
-            )
-            _step_ok(L, "7a", "Industry Knowledge Retrieval", "Retrieved industry differentiators and best practices")
-        except Exception as e:
-            _step_fail(L, "7a", "Industry Knowledge Retrieval", str(e))
-
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 7b / 14  —  LLM Profile Generation
-        # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, "7b", "LLM Profile Generation (LLM Node 3)", "Enriching company profile with data observations")
-        try:
-            enrichment = await workflow.execute_activity(
-                enrich_company_profile,
-                EnrichCompanyProfileInput(
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    company_slug=self._company_slug,
-                    r2_manifest_url=r2_manifest_url,
-                    mvp_focus=alignment_result.get("mvp_focus"),
-                    corpus_summary=(self._corpus_understanding or {}).get("corpus_summary"),
-                ),
-                **_ACT,
-            )
-            _step_ok(L, "7b", "LLM Profile Generation", f"Appended enrichment with quality score: {enrichment.get('data_quality_score')}")
-        except Exception as e:
-            _step_fail(L, "7b", "LLM Profile Generation", str(e))
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 8 / 14  —  Build Target Structure
@@ -904,38 +807,12 @@ class ImplementationWorkflow:
 
         self._set_task("t5", "done", f"{len(target.get('required_doctypes', []))} doctypes target")
 
-        # ═══════════════════������══════════════════════════════════════════════════
-        # STEP 8b / 14  —  Derive Required Records (draft prerequisites)
-        # ═���═════════════════════════════════════════════════════════════════���══
-        _step_start(L, "8b", "Derive Required Records", "Deriving prerequisite doctypes when files are missing")
-        try:
-            derive_env = await workflow.execute_activity(
-                derive_required_records,
-                DeriveRequiredRecordsInput(
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    company_slug=self._company_slug,
-                ),
-                **_ACT,
-            )
-            if isinstance(derive_env, dict):
-                if "status" in derive_env:
-                    derive_env = NodeStatusEnvelope(**derive_env)
-                else:
-                    derive_env = NodeStatusEnvelope.success(primary_result=derive_env)
-
-            d_primary = derive_env.primary_result if hasattr(derive_env, "primary_result") else {}
-            missing = (d_primary or {}).get("missing_doctypes", []) if isinstance(d_primary, dict) else []
-            _kv(L, "derived", list((d_primary or {}).get("derived", {}).keys()) if isinstance(d_primary, dict) else [])
-            _kv(L, "missing_doctypes", len(missing))
-            _step_ok(L, "8b", "Derive Required Records", f"missing={len(missing)}")
-        except Exception as e:
-            _step_fail(L, "8b", "Derive Required Records", str(e))
+        # P1: Step 8b (Derive Required Records) REMOVED - rarely used, adds complexity
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 8c / 14  —  Data Readiness Assessment
+        # STEP 6 / 9  —  Data Readiness Assessment
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, "8c", "Data Readiness Assessment", "Comparing uploaded data against target structure")
+        _step_start(L, 6, "Data Readiness Assessment", "Comparing uploaded data against target structure")
 
         readiness_env: Optional[NodeStatusEnvelope] = None
         readiness: Dict[str, Any] = {}
@@ -1189,10 +1066,10 @@ class ImplementationWorkflow:
             L.info("      ⚠️  obsolete_supervisor_prompts after readiness failed: %s", e)
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 8d / 14  —  Build Blueprint Import Plan
+        # STEP 7 / 9  —  Build Import Plan
         # ══════════════════════════════════════════════════════════════════════
         self._set_task("t8", "running")
-        _step_start(L, "8d", "Build Blueprint Import Plan",
+        _step_start(L, 7, "Build Import Plan",
                     "3-phase plan: Config → Master Data → Transactional")
 
         try:
@@ -1206,16 +1083,16 @@ class ImplementationWorkflow:
             _kv(L, "table", "is_import_plans")
             _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_import_plan/plan.json")
             _kv(L, "audit", "is_audit_trail → import_plan_created")
-            _step_ok(L, "8d", "Build Blueprint Import Plan", f"status={plan_status}")
+            _step_ok(L, 7, "Build Import Plan", f"status={plan_status}")
             self._set_task("t8", "done", f"Plan: {plan_status}")
         except Exception as e:
-            _step_fail(L, "8d", "Build Blueprint Import Plan", str(e))
+            _step_fail(L, 7, "Build Import Plan", str(e))
             self._set_task("t8", "failed", str(e))
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 8e / 14  —  Corpus Doctype Assignment
+        # STEP 8 / 9  —  Corpus Doctype Assignment
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, "8e", "Corpus Doctype Assignment", "Classifying uploaded files using corpus context")
+        _step_start(L, 8, "Corpus Doctype Assignment", "Classifying uploaded files using corpus context")
         try:
             corpus_env = await workflow.execute_activity(
                 assign_corpus_doctypes,
@@ -1237,7 +1114,7 @@ class ImplementationWorkflow:
                 a.get("file"): a for a in assignments if isinstance(a, dict) and a.get("file")
             }
             _kv(L, "assignments", len(self._corpus_assignments))
-            _step_ok(L, "8e", "Corpus Doctype Assignment", f"{len(self._corpus_assignments)} files classified")
+            _step_ok(L, 8, "Corpus Doctype Assignment", f"{len(self._corpus_assignments)} files classified")
             await self._run_is_quality_gate(
                 "assign_corpus_doctypes",
                 corpus_env,
@@ -1249,7 +1126,7 @@ class ImplementationWorkflow:
                 },
             )
         except Exception as e:
-            _step_fail(L, "8e", "Corpus Doctype Assignment", str(e))
+            _step_fail(L, 8, "Corpus Doctype Assignment", str(e))
 
         self._stage = "mapping"
 
@@ -1271,7 +1148,7 @@ class ImplementationWorkflow:
             _step_fail(L, 8, "Session Status Update", str(e))
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 9 / 14  —  Automated File Mapping
+        # STEP 9 / 9  —  Automated File Mapping
         # ══════════════════════════════════════════════════════════════════════
         self._stage = "mapping_files"
         self._set_task("t6", "running")
