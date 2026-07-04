@@ -158,7 +158,16 @@ async def generate_project_target_structure(
         await db.flush()
 
     db.add(target_structure)
-    await db.flush()
+    try:
+        await db.flush()
+    except Exception as exc:
+        err = str(exc).lower()
+        if "target_structure_json" in err or "mvp_boundary_json" in err:
+            raise RuntimeError(
+                "Missing DB columns for discovery artifacts. "
+                "Run docs/sql/add_project_discovery_artifacts.sql in Supabase SQL Editor."
+            ) from exc
+        raise
 
     logger.debug("ProjectTargetStructure saved | id=%s", target_structure.id)
     

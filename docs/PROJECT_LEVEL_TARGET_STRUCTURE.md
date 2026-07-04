@@ -74,7 +74,9 @@ CREATE TABLE project_target_structures (
     import_phases JSONB,         -- Phase groupings
     validation_rules JSONB,      -- F3iche-specific rules
     mvp_focus JSONB,             -- From discovery
-    deferred_doctypes JSONB,     -- Empty for corpus-independent
+    deferred_doctypes JSONB,     -- Post-MVP modules
+    target_structure_json JSONB, -- Full target payload (canonical)
+    mvp_boundary_json JSONB,       -- Full MVP boundary (canonical)
     corpus_independent BOOLEAN DEFAULT true,
     graph_driven BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -230,13 +232,24 @@ Old projects will continue to work but won't get the benefits of corpus-independ
 
 ## Migration Guide
 
-### Run Migration
-```bash
-cd shared/alembic
-alembic upgrade head
-```
+### Run in Supabase SQL Editor (no Alembic)
 
-This creates the two new tables.
+Open **Supabase → SQL Editor** and run:
+
+[`docs/sql/add_project_discovery_artifacts.sql`](sql/add_project_discovery_artifacts.sql)
+
+This is safe to re-run (`IF NOT EXISTS`). It creates:
+
+- `project_target_structures` (+ `target_structure_json`, `mvp_boundary_json` columns)
+- `project_mvp_boundaries`
+
+Verify:
+
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'project_target_structures'
+  AND column_name IN ('target_structure_json', 'mvp_boundary_json');
+```
 
 ### Update Existing Projects (Optional)
 For existing projects with discovery complete but no project-level target:
