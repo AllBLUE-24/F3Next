@@ -26,6 +26,12 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
 
+# IMPORTANT: Activities with heavy I/O dependencies (SQLAlchemy, boto3, etc.) that access
+# os.environ during module initialization MUST be called via string name, not direct import.
+# These should NEVER be imported here, even inside imports_passed_through().
+# Examples: load_discovery_context, load_target_structure
+# Pattern: await workflow.execute_activity("activity_name", {"param": value}, **_ACT)
+
 with workflow.unsafe.imports_passed_through():
     from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche, InferF3icheInput, VerifyF3icheInput
     from containers.implementation.signals_agent.f3iche_confirmation_activities import (
@@ -591,16 +597,10 @@ class ImplementationWorkflow:
         # ══════════════════════════════════════════════════════════════════════════════
         _step_start(L, 3, "Load Discovery Context", "Reading f3iche, industry, and MVP focus from discovery")
         
-        # HOTFIX: Use activity instead of direct DB access (Temporal sandbox restriction)
-        from containers.implementation.file_io.load_discovery_context import (
-            load_discovery_context,
-            LoadDiscoveryContextInput,
-        )
-        
         try:
             discovery_context = await workflow.execute_activity(
-                load_discovery_context,
-                LoadDiscoveryContextInput(project_id=project_id),
+                "load_discovery_context",
+                {"project_id": project_id},
                 **_ACT,
             )
             
@@ -712,39 +712,38 @@ class ImplementationWorkflow:
             raise ApplicationError(f"Profile build failed: {e}")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 8 / 9  —  Load/Build Target Structure
+        # STEP 8 / 9  —  Load Target Structure (Project-Level, Corpus-Independent)
         # ══════════════════════════════════════════════════════════════════════
         _step_start(L, 8, "Load Target Structure",
                     f"f3iche={conf.f3iche_user} | industry={conf.industry}")
 
         try:
-            # P2 OPTIMIZATION: Try to load pre-generated target structure from post-discovery
-            from containers.implementation.file_io.load_target_structure import (
-                load_target_structure,
-                LoadTargetStructureInput,
-            )
-            
+            # Try to load project-level target structure (generated post-discovery)
             target = await workflow.execute_activity(
-                load_target_structure,
-                LoadTargetStructureInput(session_id=self._session_id),
+                "load_project_target_structure",
+                {"session_id": self._session_id},
                 **_ACT,
             )
             
             if target.get("exists") and target.get("required_doctypes"):
-                # ✅ Target structure exists from post-discovery generation
-                _kv(L, "source", "post_discovery (pre-generated)")
-                _kv(L, "corpus_independent", "true")
+                # ✅ Target structure exists at project level (corpus-independent)
+                _kv(L, "source", "project_level (corpus-independent)")
+                _kv(L, "generated_at", "post_discovery")
                 target_env = NodeStatusEnvelope.success(primary_result={"target_structure": target})
                 n_doctypes = len(target.get("required_doctypes", []))
+                n_seeds = len(target.get("seed_doctypes", []))
                 n_steps = len(target.get("setup_steps", []))
+                _kv(L, "seed_doctypes", n_seeds)
                 _kv(L, "required_doctypes", n_doctypes)
                 _kv(L, "setup_steps", n_steps)
-                _step_ok(L, 8, "Load Target Structure", f"{n_doctypes} doctypes, {n_steps} steps (pre-generated)")
+                _kv(L, "mvp_boundary", "loaded from project")
+                _step_ok(L, 8, "Load Target Structure", f"{n_seeds} seeds → {n_doctypes} total doctypes (project-level)")
             else:
-                # ⚠️ Backward compatibility: Generate now (legacy path for old sessions)
+                # ⚠️ FALLBACK: Legacy generation (should not happen for new flows)
                 _kv(L, "source", "legacy_generation_in_is")
                 _kv(L, "corpus_dependent", "true (legacy)")
-                L.info("      ⚠️  No pre-generated target found, falling back to legacy generation")
+                L.info("      ⚠️  No project-level target found, falling back to legacy generation")
+                L.info("      ⚠️  This should only happen for old projects created before project-level targets")
                 
                 target_env = await workflow.execute_activity(
                     build_target_structure,
@@ -781,9 +780,9 @@ class ImplementationWorkflow:
                 _kv(L, "setup_steps", n_steps)
                 _step_ok(L, 8, "Build Target Structure (Legacy)", f"{n_doctypes} doctypes, {n_steps} steps")
             
-            _kv(L, "table", "is_target_structures")
-            _kv(L, "R2", f"clean-data/{self._company_slug}/{project_id}/_target/target_structure.json")
-            _kv(L, "mvp_boundary", f"clean-data/{self._company_slug}/{project_id}/_target/mvp_boundary.json")
+            _kv(L, "table", "project_target_structures, project_mvp_boundaries")
+            _kv(L, "R2", target.get("r2_target_path", f"clean-data/{self._company_slug}/project_{project_id}/_discovery/target_structure.json"))
+            _kv(L, "mvp_boundary", target.get("r2_mvp_path", f"clean-data/{self._company_slug}/project_{project_id}/_discovery/mvp_boundary.json"))
             
         except Exception as e:
             _step_fail(L, 8, "Target Structure", str(e))

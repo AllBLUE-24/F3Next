@@ -9,6 +9,9 @@ from app.services.discovery_chat import finalize_discovery, load_session, send_c
 from shared.database.db import get_shared_db
 from shared.models.core import Project
 from shared.models.hooks import Hook
+from containers.implementation.target_agent.post_discovery_service import (
+    generate_project_target_structure,
+)
 
 router = APIRouter(prefix="/discovery", tags=["Discovery"])
 
@@ -128,4 +131,55 @@ async def get_recommendation_status(project_id: UUID, db: AsyncSession = Depends
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{project_id}/proceed-to-implementation")
+async def proceed_to_implementation(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
+    """
+    Generate project-level target structure and MVP boundary after discovery completion.
+    Called when user clicks "Proceed to Implementation" on recommendation page.
+    
+    This generates corpus-independent artifacts that will be reused across all IS runs.
+    """
+    try:
+        # Verify project exists
+        project_query = select(Project).where(Project.id == project_id)
+        result = await db.execute(project_query)
+        project = result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        if not project.company_slug:
+            raise HTTPException(status_code=400, detail="Project missing company_slug")
+        
+        # Verify discovery is complete
+        hook_query = select(Hook).where(Hook.project_id == project_id)
+        hook_result = await db.execute(hook_query)
+        hook = hook_result.scalar_one_or_none()
+        
+        if not hook or not hook.discovery_metadata:
+            raise HTTPException(
+                status_code=400,
+                detail="Discovery not complete. Please complete discovery first."
+            )
+        
+        # Generate and store target structure + MVP boundary
+        result_data = await generate_project_target_structure(
+            db=db,
+            project_id=project_id,
+            company_slug=project.company_slug,
+        )
+        
+        return {
+            "status": "success",
+            "message": "Target structure and MVP boundary generated successfully",
+            "data": result_data,
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"❌ Proceed to implementation error: {e!r}")
         raise HTTPException(status_code=500, detail=str(e))

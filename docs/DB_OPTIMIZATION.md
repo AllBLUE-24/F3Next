@@ -288,6 +288,46 @@ END $$;
 - [x] Set `CONTEXT_ENGINE_L1_TTL` default to `600` (10 min instead of 5) to reduce cache misses
 - [x] Document `REDIS_URL` in `.env.example`; wire into `cvs_poller` in `docker-compose.yml`
 
+### Phase 4 — CVS Data Lifecycle (Foundation L0 baseline)
+
+**Problem:** `context_snapshots` stores a full JSONB copy on every CVS sync trigger (webhook, poller, OS command). The app only reads `ORDER BY version DESC LIMIT 1`, but historical rows were never deleted — causing multi-GB Supabase bloat. Full payloads are already duplicated in **R2** (`r2_key` on each retained row).
+
+**Retention policy (Option 3):**
+
+| Table | Supabase retention | Long-term archive |
+|-------|-------------------|-------------------|
+| `context_snapshots` | Latest version per `(project_id, layer)` only | R2 versioned keys |
+| `context_events` | Last 30 days (audit / recovery) | None |
+
+**Automated enforcement:**
+
+| Mechanism | When | Scope |
+|-----------|------|-------|
+| `prune_old_snapshots` activity | After every successful `CVSUpdateWorkflow` write (Step 2c) | Per `project_id` |
+| `cvs_prune` worker (`prune_worker.py`) | Daily (`CVS_PRUNE_INTERVAL_SEC=86400`) | Global + `VACUUM FULL` |
+
+**Env vars:**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CVS_EVENTS_RETENTION_DAYS` | `30` | Delete `context_events` older than N days |
+| `CVS_PRUNE_INTERVAL_SEC` | `86400` | Daily prune worker interval |
+
+**Emergency one-shot cleanup** (Supabase SQL Editor or script):
+
+```bash
+python scripts/prune_cvs_storage.py
+```
+
+Or run [`docs/sql/prune_cvs_storage.sql`](sql/prune_cvs_storage.sql) manually, then verify row counts drop to ~`(projects × layers)` for snapshots.
+
+**Implementation checklist:**
+
+- [x] `prune_old_snapshots` + `prune_old_snapshots_core` in `context_store/activities.py`
+- [x] CVS workflow Step 2c — post-write per-project prune
+- [x] `prune_worker.py` + `cvs_prune` service in `docker-compose.yml`
+- [x] `scripts/prune_cvs_storage.py` + `docs/sql/prune_cvs_storage.sql`
+
 ---
 
 ## Estimated Impact
@@ -300,5 +340,7 @@ END $$;
 | `invalidate_session_cache` UPDATE | Eliminates JSONB blob read per invalidation |
 | Missing indexes | Prevents full-table scans on `hooks` + `projects` |
 | Doubling CVS poll interval | ~50% reduction in CVS background IO |
+| CVS snapshot retention (Option 3) | Caps `context_snapshots` at ~N rows (projects × layers); prevents GB-scale JSONB bloat |
+| Daily `VACUUM FULL` via `cvs_prune` | Reclaims physical disk after deletes on Supabase |
 
-These changes together should bring the project well within the **5 GB/month egress** and **Disk IO budget** limits of the Supabase Free Plan.
+These changes together should bring the project well within the **5 GB/month egress**, **0.5 GB disk**, and **Disk IO budget** limits of the Supabase Free Plan.

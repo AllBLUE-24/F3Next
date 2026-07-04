@@ -190,6 +190,234 @@ async def log_context_event(data: dict) -> dict:
         return {"event_id": ""}
 
 
+# ── Snapshot retention (Option 3: latest version only in Supabase) ───────────
+
+_SNAPSHOTS_PRUNE_PROJECT_SQL = """
+DELETE FROM context_snapshots AS cs
+USING context_snapshots AS newer
+WHERE cs.project_id = :pid
+  AND newer.project_id = :pid
+  AND cs.layer = newer.layer
+  AND cs.version < newer.version
+"""
+
+
+async def _connect_asyncpg():
+    """asyncpg connection tuned for Supabase / PgBouncer (no prepared statement cache)."""
+    import asyncpg
+
+    from shared.database.db import DATABASE_URL
+
+    sync_url = (DATABASE_URL or "").replace("postgresql+asyncpg://", "postgresql://")
+    if not sync_url or "sqlite" in sync_url:
+        raise RuntimeError("PostgreSQL DATABASE_URL required")
+    return await asyncpg.connect(sync_url, statement_cache_size=0)
+
+
+async def _prune_snapshots_global_swap(conn) -> int:
+    """
+    Keep latest row per (project_id, layer) via temp table + TRUNCATE.
+    Fast for large tables; avoids NOT IN over hundreds of thousands of ids.
+    """
+    before = await conn.fetchval("SELECT COUNT(*)::bigint FROM context_snapshots")
+    keep = await conn.fetchval(
+        """
+        SELECT COUNT(*)::bigint FROM (
+            SELECT DISTINCT ON (project_id, layer) id
+            FROM context_snapshots
+            ORDER BY project_id, layer, version DESC
+        ) t
+        """
+    )
+
+    async with conn.transaction():
+        await conn.execute("SET LOCAL statement_timeout = 0")
+        await conn.execute(
+            """
+            CREATE TEMP TABLE cvs_snapshots_keep AS
+            SELECT DISTINCT ON (project_id, layer) *
+            FROM context_snapshots
+            ORDER BY project_id, layer, version DESC
+            """
+        )
+        await conn.execute("TRUNCATE context_snapshots")
+        await conn.execute(
+            """
+            INSERT INTO context_snapshots (
+                id, project_id, layer, version, data, trigger_event,
+                trigger_doctype, r2_key, created_at
+            )
+            SELECT
+                id, project_id, layer, version, data, trigger_event,
+                trigger_doctype, r2_key, created_at
+            FROM cvs_snapshots_keep
+            """
+        )
+
+    deleted = int(before or 0) - int(keep or 0)
+    return max(deleted, 0)
+
+
+async def _prune_events_before(conn, cutoff, *, batch_size: int = 10000) -> int:
+    """Delete old context_events in batches to stay under statement timeout."""
+    await conn.execute("SET statement_timeout = 0")
+    total = 0
+    while True:
+        status = await conn.execute(
+            """
+            DELETE FROM context_events
+            WHERE id IN (
+                SELECT id
+                FROM context_events
+                WHERE received_at < $1
+                LIMIT $2
+            )
+            """,
+            cutoff,
+            batch_size,
+        )
+        try:
+            n = int(status.split()[-1])
+        except (ValueError, IndexError):
+            n = 0
+        if n <= 0:
+            break
+        total += n
+    return total
+
+
+async def prune_old_snapshots_core(data: dict | None = None) -> dict:
+    """
+    Retention policy for CVS telemetry tables (Foundation L0 baseline).
+
+    - context_snapshots: keep only the latest version per (project_id, layer).
+      Full history remains in R2 (see r2_key on the retained row).
+    - context_events: delete rows older than CVS_EVENTS_RETENTION_DAYS (default 30).
+
+    Optional input:
+      project_id — scope snapshot pruning to one project (used after a successful write)
+      events_retention_days — override env default
+      vacuum — run VACUUM FULL on both tables (emergency / daily job only)
+    """
+    import os
+    import uuid as _uuid
+
+    from datetime import timedelta
+
+    from sqlalchemy import text
+
+    data = data or {}
+    project_id = data.get("project_id")
+    events_retention_days = int(
+        data.get("events_retention_days")
+        or os.getenv("CVS_EVENTS_RETENTION_DAYS", "30")
+    )
+    run_vacuum = bool(data.get("vacuum", False))
+    use_global_swap = bool(data.get("global_swap", not project_id))
+
+    snapshots_deleted = 0
+    events_deleted = 0
+
+    try:
+        from shared.database.db import AsyncSessionLocal
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=events_retention_days)
+
+        if use_global_swap and not project_id:
+            conn = await _connect_asyncpg()
+            try:
+                snapshots_deleted = await _prune_snapshots_global_swap(conn)
+                events_deleted = await _prune_events_before(conn, cutoff)
+            finally:
+                await conn.close()
+        else:
+            async with AsyncSessionLocal() as session:
+                if project_id:
+                    pid = _uuid.UUID(str(project_id))
+                    result = await session.execute(
+                        text(_SNAPSHOTS_PRUNE_PROJECT_SQL),
+                        {"pid": pid},
+                    )
+                    snapshots_deleted = result.rowcount or 0
+
+                events_result = await session.execute(
+                    text(
+                        """
+                        DELETE FROM context_events
+                        WHERE id IN (
+                            SELECT id FROM context_events
+                            WHERE received_at < :cutoff
+                            LIMIT 10000
+                        )
+                        """
+                    ),
+                    {"cutoff": cutoff},
+                )
+                events_deleted = events_result.rowcount or 0
+                await session.commit()
+
+        vacuum_ran = False
+        if run_vacuum:
+            vacuum_ran = await _vacuum_cvs_tables()
+
+        logger.info(
+            "CVS prune: snapshots_deleted=%d events_deleted=%d project=%s vacuum=%s",
+            snapshots_deleted,
+            events_deleted,
+            project_id or "*",
+            vacuum_ran,
+        )
+        return {
+            "ok": True,
+            "snapshots_deleted": snapshots_deleted,
+            "events_deleted": events_deleted,
+            "vacuum_ran": vacuum_ran,
+        }
+
+    except Exception as e:
+        logger.exception("CVS prune_old_snapshots failed: %s", e)
+        return {
+            "ok": False,
+            "snapshots_deleted": snapshots_deleted,
+            "events_deleted": events_deleted,
+            "error": str(e),
+        }
+
+
+async def _vacuum_cvs_tables() -> bool:
+    """Run VACUUM FULL outside a transaction to reclaim disk on Supabase."""
+    from shared.database.db import DATABASE_URL
+
+    if not DATABASE_URL or "sqlite" in DATABASE_URL:
+        logger.warning("CVS vacuum skipped — no PostgreSQL DATABASE_URL")
+        return False
+
+    try:
+        conn = await _connect_asyncpg()
+        try:
+            await conn.execute("SET statement_timeout = 0")
+            await conn.execute("VACUUM FULL context_snapshots")
+            await conn.execute("VACUUM FULL context_events")
+        finally:
+            await conn.close()
+        return True
+    except Exception as e:
+        logger.exception("CVS vacuum failed: %s", e)
+        return False
+
+
+@activity.defn(name="prune_old_snapshots")
+async def prune_old_snapshots(data: dict) -> dict:
+    """
+    Temporal activity wrapper for prune_old_snapshots_core.
+
+    Input:
+      { "project_id": str (optional), "events_retention_days": int (optional) }
+    """
+    activity.heartbeat("Pruning old CVS snapshots and events")
+    return await prune_old_snapshots_core(data)
+
+
 @activity.defn(name="mark_event_processed")
 async def mark_event_processed(data: dict) -> dict:
     """

@@ -82,8 +82,9 @@ class CVSUpdateWorkflow:
     Steps:
       1. Log the incoming context event (audit trail)
       2. Fetch fresh data from ERPNext + write to Supabase + R2
+      2b. Mark the context event as processed
+      2c. Prune historical Supabase snapshot rows (R2 retains full history)
       3. Invalidate OS session caches so the next command picks up new context
-      4. Mark the context event as processed
     """
 
     @workflow.run
@@ -161,6 +162,21 @@ class CVSUpdateWorkflow:
 
         workflow.logger.info(
             "✅ CVS [2b] event marked processed id=%s", event_result.get("event_id", "?")
+        )
+
+        # ── Step 2c: Prune historical Supabase rows (R2 retains full history) ─
+        prune_result: dict = await workflow.execute_activity(
+            "prune_old_snapshots",
+            args=[{"project_id": inp.project_id}],
+            task_queue             = CVS_QUEUE,
+            start_to_close_timeout = timedelta(seconds=60),
+            retry_policy           = _NO_RETRY,
+        )
+
+        workflow.logger.info(
+            "✅ CVS [2c] pruned stale rows: snapshots=%d events=%d",
+            prune_result.get("snapshots_deleted", 0),
+            prune_result.get("events_deleted", 0),
         )
 
         # ── Step 3: Invalidate OS session caches ──────────────────────────────

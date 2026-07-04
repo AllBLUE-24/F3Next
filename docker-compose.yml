@@ -179,6 +179,25 @@ services:
       - 8.8.8.8
       - 1.1.1.1
 
+  cvs_prune:
+    build:
+      context: .
+      dockerfile: containers/context_versioning/Dockerfile
+    container_name: f3_cvs_prune
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    command: ["python", "-m", "containers.context_versioning.prune_worker"]
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+      - CVS_PRUNE_INTERVAL_SEC=86400
+      - CVS_EVENTS_RETENTION_DAYS=30
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
 ### isko hatana mangta mama - ye run ich nahi karta
  # knowledge_base_seeder:
  #   build:
