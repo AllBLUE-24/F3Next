@@ -69,8 +69,13 @@ async def generate_project_target_structure(
     result = await db.execute(stmt)
     hook = result.scalar_one_or_none()
     
-    if not hook or not hook.discovery_metadata:
-        raise ValueError(f"Discovery not complete for project {project_id}")
+    if not hook:
+        raise ValueError(f"No discovery session for project {project_id}")
+    if not hook.discovery_metadata:
+        raise ValueError(
+            f"Discovery metadata missing for project {project_id}. "
+            "Complete discovery chat before generating target structure."
+        )
     
     metadata = hook.discovery_metadata
     broad_f3iche = metadata.get("f3iche", "trading")

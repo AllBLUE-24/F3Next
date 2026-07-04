@@ -15,6 +15,7 @@ from app.services.discovery_chat import (
 from shared.database.db import get_shared_db
 from shared.models.core import Project
 from shared.models.hooks import Hook
+from shared.models.project_target import ProjectMVPBoundary, ProjectTargetStructure
 from containers.implementation.target_agent.post_discovery_service import (
     generate_project_target_structure,
 )
@@ -92,6 +93,50 @@ async def complete_discovery(request: CompleteRequest, db: AsyncSession = Depend
     except Exception as e:
         print(f"❌ Discovery complete error: {e!r}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{project_id}/blueprint-status")
+async def get_blueprint_status(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
+    """
+    Check stored MVP boundary + target structure for a project (Discovery Assistant Step 1).
+    Logs appear on the FastAPI backend process, not the IS Temporal worker.
+    """
+    hook_result = await db.execute(select(Hook).where(Hook.project_id == project_id))
+    hook = hook_result.scalar_one_or_none()
+
+    target_result = await db.execute(
+        select(ProjectTargetStructure).where(ProjectTargetStructure.project_id == project_id)
+    )
+    target = target_result.scalar_one_or_none()
+
+    mvp_result = await db.execute(
+        select(ProjectMVPBoundary).where(ProjectMVPBoundary.project_id == project_id)
+    )
+    mvp = mvp_result.scalar_one_or_none()
+
+    metadata = (hook.discovery_metadata if hook else None) or {}
+    phase = metadata.get("phase", "initial_chat")
+
+    return {
+        "discovery_status": hook.discovery_status if hook else None,
+        "phase": phase,
+        "target_structure": {
+            "stored": target is not None,
+            "id": str(target.id) if target else None,
+            "f3iche": target.f3iche if target else None,
+            "seed_doctypes": target.seed_doctypes if target else None,
+            "total_doctypes": target.total_doctypes if target else None,
+            "r2_path": target.r2_target_path if target else None,
+        },
+        "mvp_boundary": {
+            "stored": mvp is not None,
+            "id": str(mvp.id) if mvp else None,
+            "seed_doctypes": mvp.seed_doctypes if mvp else None,
+            "primary_bottleneck": mvp.primary_bottleneck if mvp else None,
+            "r2_path": mvp.r2_path if mvp else None,
+        },
+        "hooks_metadata_has_target": bool(metadata.get("target_structure")),
+    }
 
 
 @router.get("/{project_id}/workflow-preview")

@@ -242,11 +242,26 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "phase": DiscoveryPhase.WORKFLOW_DISPLAY.value,
     }
 
+    # Persist metadata before target generation (post_discovery_service reads hooks.discovery_metadata)
+    hook.discovery_coverage = result["coverage"]
+    hook.extracted_tags = result["extracted_tags"]
+    hook.discovery_metadata = discovery_metadata
+    await db.flush()
+
     project = await _get_project(db, project_id)
+    print(
+        f"[Discovery Assistant] Generating target | project={project_id} "
+        f"f3iche={niche_id} company={project.company_slug}"
+    )
     target_payload = await generate_project_target_structure(
         db=db,
         project_id=project_id,
         company_slug=project.company_slug,
+    )
+    print(
+        f"[Discovery Assistant] Target stored | seeds={target_payload.get('total_seeds')} "
+        f"doctypes={target_payload.get('total_doctypes')} "
+        f"target_id={target_payload.get('target_structure_id')}"
     )
 
     target_structure = target_payload.get("target_structure") or {}
@@ -267,6 +282,8 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     )
     discovery_metadata["workflow_explanation"] = workflow_explanation
     discovery_metadata["phase"] = DiscoveryPhase.MODULE_CONFIRMATION.value
+    hook.discovery_metadata = discovery_metadata
+    hook.discovery_status = "AWAITING_CONFIRMATION"
 
     headline = result["discovery_metadata"].get("headline", "")
     confirmation_message = (
@@ -283,10 +300,6 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     })
 
     hook.chat_history = messages
-    hook.discovery_coverage = result["coverage"]
-    hook.extracted_tags = result["extracted_tags"]
-    hook.discovery_metadata = discovery_metadata
-    hook.discovery_status = "AWAITING_CONFIRMATION"
     hook.discovery_turn_count = count_user_turns(messages)
     hook.last_bot_response = confirmation_message
     await db.commit()
