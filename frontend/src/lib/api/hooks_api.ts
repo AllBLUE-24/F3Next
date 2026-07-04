@@ -13,7 +13,10 @@ export interface ChatMessage {
 export interface DiscoverySessionResponse {
   messages: ChatMessage[];
   status: string;
+  phase?: string;
   is_complete: boolean;
+  is_finalized?: boolean;
+  awaiting_confirmation?: boolean;
   user_turns: number;
   ready_for_recommendation: boolean;
   discovery_metadata?: Record<string, unknown> | null;
@@ -69,10 +72,12 @@ export const sendMessageToDiscoveryAgent = async (
 
 export const completeDiscovery = async (
   projectId: string
-): Promise<{ 
-  status: string; 
+): Promise<{
+  status: string;
+  phase?: string;
   data: Record<string, unknown>;
   confirmation_message?: string;
+  workflow_preview?: Record<string, unknown>;
 }> => {
   const res = await fetch(`${API_BASE_URL}/api/discovery/complete`, {
     method: "POST",
@@ -82,6 +87,46 @@ export const completeDiscovery = async (
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Complete failed (${res.status})`);
+  }
+  return res.json();
+};
+
+export interface WorkflowPreviewResponse {
+  phase: string;
+  workflow_explanation: Record<string, unknown>;
+  seed_doctypes: string[];
+  required_doctypes: string[];
+  discovery_metadata?: Record<string, unknown>;
+}
+
+export const getWorkflowPreview = async (
+  projectId: string
+): Promise<WorkflowPreviewResponse> => {
+  const res = await fetch(`${API_BASE_URL}/api/discovery/${projectId}/workflow-preview`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Workflow preview failed (${res.status})`);
+  }
+  return res.json();
+};
+
+export const confirmDiscoveryModules = async (payload: {
+  project_id: string;
+  confirmed_doctypes: string[];
+  added_doctypes?: string[];
+  removed_doctypes?: string[];
+  notes?: string;
+}): Promise<{ status: string; phase: string; data: Record<string, unknown> }> => {
+  const res = await fetch(`${API_BASE_URL}/api/discovery/confirm-modules`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Confirm modules failed (${res.status})`);
   }
   return res.json();
 };

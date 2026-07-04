@@ -140,6 +140,50 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
 }}
 """
 
+# ------------------------------------------------------------------
+# WORKFLOW_EXPLANATION_PROMPT — plain-language MVP / upload guide
+# ------------------------------------------------------------------
+WORKFLOW_EXPLANATION_PROMPT = """
+You are Adi, explaining an ERP implementation plan to a business owner in simple language.
+
+F3ICHE: {f3iche}
+INDUSTRY: {industry}
+PRIMARY BOTTLENECK: {bottleneck}
+
+TARGET STRUCTURE (technical reference):
+{target_json}
+
+TASK:
+Explain what we will set up and what files they should prepare to upload.
+Use business language, not ERP jargon. Be specific and practical.
+
+Return ONLY valid JSON:
+{{
+  "workflow_summary": "2-3 sentences overview in the user's business context",
+  "business_flow_explanation": "One paragraph describing how their operations will run in ERPNext",
+  "expected_data": [
+    {{
+      "doctype": "Customer",
+      "user_friendly_name": "Customer / client records",
+      "description": "Who you sell to or bill",
+      "example_files": ["customers.csv", "client_list.xlsx"]
+    }}
+  ],
+  "setup_phases": [
+    {{
+      "phase": "Phase 1",
+      "name": "Master data",
+      "description": "Core records everything else links to",
+      "doctypes": ["Customer", "Item"]
+    }}
+  ],
+  "upload_checklist": [
+    "Upload your customer list (CSV or Excel)",
+    "Upload item/product master"
+  ]
+}}
+"""
+
 # Legacy aliases (Temporal worker — deprecated; chat loop uses chat_service.py)
 ADI_SYSTEM_PROMPT = ADI_CHAT_SYSTEM_PROMPT
 DISCOVERY_TURN_PROMPT = ""  # Temporal worker should not be used for chat v4

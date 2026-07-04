@@ -155,7 +155,7 @@ export default function DiscoveryClient({
         const session = await getDiscoverySession(projectId);
         if (cancelled) return;
 
-        if (session.is_complete) {
+        if (session.is_complete || session.awaiting_confirmation) {
           router.push(
             `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
           );
@@ -205,8 +205,7 @@ export default function DiscoveryClient({
     setIsCompleting(true);
     try {
       const result = await completeDiscovery(projectId);
-      
-      // P1 FIX: Show confirmation message in chat before redirecting
+
       if (result.confirmation_message) {
         const confirmationMsg: Message = {
           id: `msg-confirmation-${Date.now()}`,
@@ -215,19 +214,11 @@ export default function DiscoveryClient({
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, confirmationMsg]);
-        
-        // Auto-redirect after 2.5 seconds to let user read confirmation
-        setTimeout(() => {
-          router.push(
-            `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
-          );
-        }, 2500);
-      } else {
-        // Immediate redirect if no confirmation message
-        router.push(
-          `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
-        );
       }
+
+      router.push(
+        `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+      );
     } catch (err) {
       console.error("Complete discovery error:", err);
       alert(

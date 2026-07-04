@@ -5,7 +5,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.discovery_chat import finalize_discovery, load_session, send_chat_message
+from app.services.discovery_chat import (
+    confirm_discovery_modules,
+    finalize_discovery,
+    load_session,
+    load_workflow_preview,
+    send_chat_message,
+)
 from shared.database.db import get_shared_db
 from shared.models.core import Project
 from shared.models.hooks import Hook
@@ -24,6 +30,14 @@ class DiscoveryRequest(BaseModel):
 
 class CompleteRequest(BaseModel):
     project_id: UUID
+
+
+class ConfirmModulesRequest(BaseModel):
+    project_id: UUID
+    confirmed_doctypes: list[str]
+    added_doctypes: list[str] = []
+    removed_doctypes: list[str] = []
+    notes: str = ""
 
 
 @router.get("/session/{project_id}")
@@ -80,6 +94,48 @@ async def complete_discovery(request: CompleteRequest, db: AsyncSession = Depend
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{project_id}/workflow-preview")
+async def get_workflow_preview(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
+    """Structured workflow + upload checklist for Discovery Assistant Step 1."""
+    res = await db.execute(select(Project).where(Project.id == project_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        return await load_workflow_preview(db, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"❌ Workflow preview error: {e!r}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/confirm-modules")
+async def confirm_modules(request: ConfirmModulesRequest, db: AsyncSession = Depends(get_shared_db)):
+    """User confirms MVP modules and files — finalizes target before upload."""
+    res = await db.execute(select(Project).where(Project.id == request.project_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not request.confirmed_doctypes:
+        raise HTTPException(status_code=400, detail="Select at least one module to continue")
+
+    try:
+        return await confirm_discovery_modules(
+            db,
+            request.project_id,
+            confirmed_doctypes=request.confirmed_doctypes,
+            added_doctypes=request.added_doctypes,
+            removed_doctypes=request.removed_doctypes,
+            notes=request.notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"❌ Confirm modules error: {e!r}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/status/{project_id}")
 async def get_discovery_status(project_id: UUID, db: AsyncSession = Depends(get_shared_db)):
     """Backward-compatible status endpoint — delegates to session loader."""
@@ -124,8 +180,16 @@ async def get_recommendation_status(project_id: UUID, db: AsyncSession = Depends
         if not hook.discovery_metadata:
             return {"status": "processing"}
 
+        phase = (hook.discovery_metadata or {}).get("phase", "initial_chat")
+        finalized = phase == "finalized"
+
         return {
             "status": "ready",
+            "phase": phase,
+            "awaiting_confirmation": not finalized and phase in (
+                "workflow_display",
+                "module_confirmation",
+            ),
             "data": hook.discovery_metadata,
         }
     except HTTPException:
@@ -164,8 +228,15 @@ async def proceed_to_implementation(project_id: UUID, db: AsyncSession = Depends
                 status_code=400,
                 detail="Discovery not complete. Please complete discovery first."
             )
+
+        phase = (hook.discovery_metadata or {}).get("phase")
+        if phase != "finalized":
+            raise HTTPException(
+                status_code=400,
+                detail="Confirm your implementation workflow and modules before proceeding to upload."
+            )
         
-        # Generate and store target structure + MVP boundary
+        # Regenerate if needed (idempotent — target already stored at confirm)
         result_data = await generate_project_target_structure(
             db=db,
             project_id=project_id,

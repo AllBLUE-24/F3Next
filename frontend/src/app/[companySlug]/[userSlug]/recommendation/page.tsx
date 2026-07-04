@@ -2,9 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import WorkflowPreviewDisplay, {
+  type WorkflowExplanation,
+} from "@/components/discovery/WorkflowPreviewDisplay";
+import {
+  confirmDiscoveryModules,
+  getWorkflowPreview,
+} from "@/lib/api/hooks_api";
 import { getBaseApiUrl } from "@/lib/config";
 
-// Define the shape of discovery_metadata from backend
 interface RecommendationData {
   f3iche: string;
   industry: string;
@@ -13,6 +19,7 @@ interface RecommendationData {
   fit_score?: number;
   headline?: string;
   reasoning?: string;
+  phase?: string;
   mvp_focus?: {
     primary_bottleneck: string;
     functional_requirements: string[];
@@ -20,56 +27,76 @@ interface RecommendationData {
 }
 
 export default function RecommendationPage() {
-    const params = useParams();
-    const router = useRouter();
-    const searchParams = useSearchParams(); // Grab query parameters
-    
-    const companySlug = params.companySlug as string;
-    const userSlug = params.userSlug as string;
-    const projectId = searchParams.get("projectId"); // Extract the ID
-  
-    const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-    const [recommendation, setRecommendation] = useState<RecommendationData | null>(null);
-    const [isGenerating, setIsGenerating] = useState(false);
-  
-    useEffect(() => {
-      // Stop if we don't have a projectId
-      if (!projectId) {
-        console.error("No projectId provided in URL");
-        setStatus("error");
-        return;
-      }
-  
-      const checkStatus = async () => {
-        try {
-          const apiUrl = getBaseApiUrl();
-          // UPDATE THIS LINE: Pointing to your discovery.py endpoint
-          const res = await fetch(`${apiUrl}/api/discovery/${projectId}/recommendation`);
-          
-          if (!res.ok) throw new Error("Failed to fetch status");
-        
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const companySlug = params.companySlug as string;
+  const userSlug = params.userSlug as string;
+  const projectId = searchParams.get("projectId");
+
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [recommendation, setRecommendation] = useState<RecommendationData | null>(null);
+  const [phase, setPhase] = useState<string>("initial_chat");
+  const [workflowPreview, setWorkflowPreview] = useState<{
+    workflow_explanation: WorkflowExplanation;
+    seed_doctypes: string[];
+    required_doctypes: string[];
+  } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) {
+      console.error("No projectId provided in URL");
+      setStatus("error");
+      return;
+    }
+
+    const checkStatus = async () => {
+      try {
+        const apiUrl = getBaseApiUrl();
+        const res = await fetch(`${apiUrl}/api/discovery/${projectId}/recommendation`);
+
+        if (!res.ok) throw new Error("Failed to fetch status");
+
         const json = await res.json();
 
         if (json.status === "ready" && json.data) {
           setRecommendation(json.data);
+          setPhase(json.phase || json.data.phase || "initial_chat");
           setStatus("ready");
+
+          const awaiting =
+            json.awaiting_confirmation ||
+            (json.phase && json.phase !== "finalized" && json.data.workflow_explanation);
+
+          if (awaiting) {
+            try {
+              const preview = await getWorkflowPreview(projectId);
+              setWorkflowPreview({
+                workflow_explanation: preview.workflow_explanation as WorkflowExplanation,
+                seed_doctypes: preview.seed_doctypes,
+                required_doctypes: preview.required_doctypes,
+              });
+            } catch (previewErr) {
+              console.warn("Workflow preview load failed:", previewErr);
+            }
+          }
         }
       } catch (error) {
         console.error("Polling error:", error);
-        // Optional: setStatus("error") if you want to abort on first failure
       }
     };
 
-    // If we are still loading, poll every 3 seconds
     let interval: NodeJS.Timeout;
     if (status === "loading") {
-      checkStatus(); // Check immediately once
+      checkStatus();
       interval = setInterval(checkStatus, 3000);
     }
 
-    // Cleanup interval on unmount or when status changes
     return () => clearInterval(interval);
-  }, [status, companySlug, userSlug]);
+  }, [status, projectId, companySlug, userSlug]);
 
   // ---------------------------------------------------------------------------
   // VIEW: LOADING STATE
@@ -137,7 +164,29 @@ export default function RecommendationPage() {
     return mapping[f3iche] || f3iche.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  // Handle "Proceed to Implementation" click
+  const handleConfirmModules = async (adjustments: {
+    confirmed_doctypes: string[];
+    added_doctypes: string[];
+    removed_doctypes: string[];
+    notes: string;
+  }) => {
+    if (!projectId) return;
+    setIsConfirming(true);
+    try {
+      await confirmDiscoveryModules({
+        project_id: projectId,
+        ...adjustments,
+      });
+      setPhase("finalized");
+      setWorkflowPreview(null);
+    } catch (error) {
+      console.error("Confirm modules error:", error);
+      alert(error instanceof Error ? error.message : "Could not save workflow confirmation.");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   const handleProceedToImplementation = async () => {
     if (!projectId) return;
     
@@ -171,6 +220,34 @@ export default function RecommendationPage() {
     }
   };
 
+  const awaitingConfirmation =
+    phase !== "finalized" && workflowPreview !== null;
+
+  if (awaitingConfirmation && workflowPreview) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 fade-in-up">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/8 px-3 py-1">
+            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+              Step 1 — Discovery Assistant
+            </span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            Confirm your implementation plan
+          </h1>
+          <p className="text-zinc-500 text-sm max-w-lg mx-auto">
+            Review the workflow and data we need before you upload files.
+          </p>
+        </div>
+        <WorkflowPreviewDisplay
+          preview={workflowPreview}
+          onConfirm={handleConfirmModules}
+          isSubmitting={isConfirming}
+        />
+      </div>
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // VIEW: READY STATE (The Big Reveal)
   // ---------------------------------------------------------------------------
@@ -182,7 +259,7 @@ export default function RecommendationPage() {
         <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/8 px-3 py-1">
           <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
-            Discovery Complete
+            {phase === "finalized" ? "Blueprint Confirmed" : "Discovery Complete"}
           </span>
         </div>
         <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
@@ -270,11 +347,15 @@ export default function RecommendationPage() {
         {/* Bottom Action Bar */}
         <div className="px-8 py-5 border-t border-[var(--border-subtle)] bg-[var(--bg-shell)] sm:flex sm:items-center sm:justify-between">
           <p className="text-xs text-zinc-600 mb-4 sm:mb-0 text-center sm:text-left">
-            {isGenerating ? "Preparing your implementation blueprint..." : "Ready to modernize your operations?"}
+            {isGenerating
+              ? "Preparing upload..."
+              : phase !== "finalized"
+                ? "Confirm workflow above before uploading"
+                : "Ready to upload your data?"}
           </p>
           <button 
             onClick={handleProceedToImplementation}
-            disabled={isGenerating}
+            disabled={isGenerating || phase !== "finalized"}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 disabled:cursor-not-allowed text-black text-sm font-bold rounded-xl transition-colors shadow-lg shadow-amber-500/10"
           >
             {isGenerating ? (
@@ -287,7 +368,7 @@ export default function RecommendationPage() {
               </>
             ) : (
               <>
-                Proceed to Implementation
+                Proceed to Upload
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>

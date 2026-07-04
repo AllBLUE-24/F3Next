@@ -1,9 +1,12 @@
 """
 Synchronous discovery chat — DB orchestration (no Temporal).
+
+Step 1: Discovery Assistant — chat → MVP/target draft → workflow preview → confirm → upload.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
@@ -17,7 +20,15 @@ from containers.discovery.chat_service import (
     generate_chat_reply,
     normalize_messages,
     opening_messages,
+    transcript_text,
 )
+from containers.discovery.f3iche_resolver import resolve_discovery_f3iche_niche
+from containers.discovery.phases import DiscoveryPhase, get_phase, is_upload_ready
+from containers.discovery.workflow_explanation import generate_workflow_explanation
+from containers.implementation.target_agent.post_discovery_service import (
+    generate_project_target_structure,
+)
+from shared.models.core import Project
 from shared.models.hooks import Hook
 
 
@@ -53,6 +64,30 @@ def _ensure_opening(hook: Hook) -> list[dict]:
     return messages
 
 
+def _session_payload(hook: Hook, messages: list[dict]) -> dict:
+    user_turns = count_user_turns(messages)
+    metadata = hook.discovery_metadata or {}
+    phase = get_phase(metadata)
+    finalized = is_upload_ready(metadata)
+    awaiting_confirmation = phase in (
+        DiscoveryPhase.WORKFLOW_DISPLAY,
+        DiscoveryPhase.MODULE_CONFIRMATION,
+    )
+
+    return {
+        "messages": messages,
+        "status": hook.discovery_status or "ACTIVE",
+        "phase": phase.value,
+        "is_complete": finalized,
+        "is_finalized": finalized,
+        "awaiting_confirmation": awaiting_confirmation,
+        "user_turns": user_turns,
+        "ready_for_recommendation": user_turns >= 2 and hook.discovery_status != "COMPLETE",
+        "discovery_metadata": metadata if metadata else None,
+        "coverage": hook.discovery_coverage,
+    }
+
+
 async def load_session(db: AsyncSession, project_id: UUID) -> dict:
     hook = await get_or_create_hook(db, project_id)
     messages = _ensure_opening(hook)
@@ -63,18 +98,7 @@ async def load_session(db: AsyncSession, project_id: UUID) -> dict:
         hook.discovery_status = hook.discovery_status or "ACTIVE"
         await db.commit()
 
-    user_turns = count_user_turns(messages)
-    is_complete = hook.discovery_status == "COMPLETE"
-
-    return {
-        "messages": messages,
-        "status": hook.discovery_status or "ACTIVE",
-        "is_complete": is_complete,
-        "user_turns": user_turns,
-        "ready_for_recommendation": user_turns >= 2 and not is_complete,
-        "discovery_metadata": hook.discovery_metadata if is_complete else None,
-        "coverage": hook.discovery_coverage,
-    }
+    return _session_payload(hook, messages)
 
 
 async def send_chat_message(db: AsyncSession, project_id: UUID, user_message: str) -> dict:
@@ -85,7 +109,23 @@ async def send_chat_message(db: AsyncSession, project_id: UUID, user_message: st
             "reply": "Discovery is already complete. Head to your recommendation to continue.",
             "messages": normalize_messages(hook.chat_history),
             "status": "COMPLETE",
+            "phase": DiscoveryPhase.FINALIZED.value,
             "is_complete": True,
+            "is_finalized": True,
+            "ready_for_recommendation": False,
+        }
+
+    if hook.discovery_status == "AWAITING_CONFIRMATION":
+        return {
+            "reply": (
+                "Your recommendation is ready. Please review the implementation workflow "
+                "and confirm the modules on the recommendation page."
+            ),
+            "messages": normalize_messages(hook.chat_history),
+            "status": hook.discovery_status,
+            "phase": get_phase(hook.discovery_metadata).value,
+            "is_complete": False,
+            "is_finalized": False,
             "ready_for_recommendation": False,
         }
 
@@ -100,7 +140,9 @@ async def send_chat_message(db: AsyncSession, project_id: UUID, user_message: st
             ),
             "messages": messages,
             "status": hook.discovery_status,
+            "phase": DiscoveryPhase.INITIAL_CHAT.value,
             "is_complete": False,
+            "is_finalized": False,
             "ready_for_recommendation": True,
             "user_turns": user_turns,
         }
@@ -131,21 +173,50 @@ async def send_chat_message(db: AsyncSession, project_id: UUID, user_message: st
         "reply": reply,
         "messages": messages,
         "status": "ACTIVE",
+        "phase": DiscoveryPhase.INITIAL_CHAT.value,
         "is_complete": False,
+        "is_finalized": False,
         "user_turns": user_turns,
         "ready_for_recommendation": user_turns >= 2,
     }
 
 
-async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
-    hook = await get_or_create_hook(db, project_id)
+async def _get_project(db: AsyncSession, project_id: UUID) -> Project:
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise ValueError(f"Project not found: {project_id}")
+    if not project.company_slug:
+        raise ValueError("Project missing company_slug")
+    return project
 
-    if hook.discovery_status == "COMPLETE" and hook.discovery_metadata:
+
+async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
+    """End chat, generate MVP/target draft + workflow preview (not finalized yet)."""
+    hook = await get_or_create_hook(db, project_id)
+    metadata = hook.discovery_metadata or {}
+    phase = get_phase(metadata)
+
+    if phase == DiscoveryPhase.FINALIZED and hook.discovery_status == "COMPLETE":
         return {
             "status": "ready",
-            "data": hook.discovery_metadata,
+            "phase": phase.value,
+            "data": metadata,
             "coverage": hook.discovery_coverage,
             "extracted_tags": hook.extracted_tags or [],
+        }
+
+    if phase in (DiscoveryPhase.WORKFLOW_DISPLAY, DiscoveryPhase.MODULE_CONFIRMATION):
+        return {
+            "status": "awaiting_confirmation",
+            "phase": phase.value,
+            "data": metadata,
+            "coverage": hook.discovery_coverage,
+            "extracted_tags": hook.extracted_tags or [],
+            "confirmation_message": metadata.get("workflow_explanation", {}).get(
+                "workflow_summary",
+                "Review your implementation workflow on the next screen.",
+            ),
         }
 
     messages = normalize_messages(hook.chat_history)
@@ -153,18 +224,58 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         raise ValueError("Need at least one exchange before generating a recommendation.")
 
     result = await complete_discovery(messages)
-    
-    # P1 FIX: Add confirmation message to chat history
-    f3iche = result["discovery_metadata"].get("f3iche", "trading")
-    industry = result["discovery_metadata"].get("industry", "your business")
-    headline = result["discovery_metadata"].get("headline", "")
-    
-    confirmation_message = (
-        f"Perfect! Based on our conversation, I can see you're a **{_format_f3iche(f3iche)}** business "
-        f"in the {industry} industry. {headline}\n\n"
-        "I've put together your full ERP recommendation — redirecting you now!"
+
+    broad_f3iche = result["discovery_metadata"].get("f3iche", "trading")
+    industry = result["discovery_metadata"].get("industry", "")
+    mvp_focus = result["discovery_metadata"].get("mvp_focus") or {}
+    bottleneck = mvp_focus.get("primary_bottleneck", "")
+
+    niche_id = resolve_discovery_f3iche_niche(
+        discovery_f3iche=broad_f3iche,
+        industry=industry,
+        chat_transcript=transcript_text(messages),
     )
-    
+
+    discovery_metadata = {
+        **result["discovery_metadata"],
+        "f3iche_niche": niche_id,
+        "phase": DiscoveryPhase.WORKFLOW_DISPLAY.value,
+    }
+
+    project = await _get_project(db, project_id)
+    target_payload = await generate_project_target_structure(
+        db=db,
+        project_id=project_id,
+        company_slug=project.company_slug,
+    )
+
+    target_structure = target_payload.get("target_structure") or {}
+    discovery_metadata["target_structure"] = {
+        "seed_doctypes": target_payload.get("seed_doctypes", []),
+        "required_doctypes": target_payload.get("required_doctypes", []),
+        "setup_steps": target_structure.get("setup_steps", []),
+        "import_phases": target_structure.get("import_phases", {}),
+        "target_structure_id": target_payload.get("target_structure_id"),
+        "mvp_boundary_id": target_payload.get("mvp_boundary_id"),
+    }
+
+    workflow_explanation = await generate_workflow_explanation(
+        f3iche=niche_id,
+        industry=industry,
+        bottleneck=bottleneck,
+        target_structure=target_structure or discovery_metadata["target_structure"],
+    )
+    discovery_metadata["workflow_explanation"] = workflow_explanation
+    discovery_metadata["phase"] = DiscoveryPhase.MODULE_CONFIRMATION.value
+
+    headline = result["discovery_metadata"].get("headline", "")
+    confirmation_message = (
+        f"Perfect! Based on our conversation, you're a **{_format_f3iche(broad_f3iche)}** business "
+        f"in the {industry or 'your'} industry. {headline}\n\n"
+        f"{workflow_explanation.get('workflow_summary', '')}\n\n"
+        "Next: review the modules and files we'll need before you upload data."
+    )
+
     messages.append({
         "role": "assistant",
         "content": confirmation_message,
@@ -174,23 +285,92 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     hook.chat_history = messages
     hook.discovery_coverage = result["coverage"]
     hook.extracted_tags = result["extracted_tags"]
-    hook.discovery_metadata = result["discovery_metadata"]
-    hook.discovery_status = "COMPLETE"
+    hook.discovery_metadata = discovery_metadata
+    hook.discovery_status = "AWAITING_CONFIRMATION"
     hook.discovery_turn_count = count_user_turns(messages)
     hook.last_bot_response = confirmation_message
     await db.commit()
 
     return {
-        "status": "ready",
+        "status": "awaiting_confirmation",
+        "phase": DiscoveryPhase.MODULE_CONFIRMATION.value,
         "data": hook.discovery_metadata,
         "coverage": hook.discovery_coverage,
         "extracted_tags": hook.extracted_tags,
         "confirmation_message": confirmation_message,
+        "workflow_preview": workflow_explanation,
+    }
+
+
+async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
+    hook = await get_or_create_hook(db, project_id)
+    metadata = hook.discovery_metadata or {}
+
+    if not metadata.get("workflow_explanation"):
+        raise ValueError("Workflow preview not ready. Complete discovery first.")
+
+    return {
+        "phase": get_phase(metadata).value,
+        "workflow_explanation": metadata["workflow_explanation"],
+        "seed_doctypes": (metadata.get("target_structure") or {}).get("seed_doctypes", []),
+        "required_doctypes": (metadata.get("target_structure") or {}).get("required_doctypes", []),
+        "discovery_metadata": metadata,
+    }
+
+
+async def confirm_discovery_modules(
+    db: AsyncSession,
+    project_id: UUID,
+    *,
+    confirmed_doctypes: list[str],
+    added_doctypes: list[str] | None = None,
+    removed_doctypes: list[str] | None = None,
+    notes: str = "",
+) -> dict:
+    hook = await get_or_create_hook(db, project_id)
+    metadata = dict(hook.discovery_metadata or {})
+
+    if not metadata.get("target_structure"):
+        raise ValueError("No target structure draft found. Complete discovery first.")
+
+    project = await _get_project(db, project_id)
+
+    target_payload = await generate_project_target_structure(
+        db=db,
+        project_id=project_id,
+        company_slug=project.company_slug,
+        user_confirmed_seeds=confirmed_doctypes,
+        user_added_doctypes=added_doctypes or [],
+    )
+
+    metadata["user_module_adjustments"] = {
+        "confirmed": confirmed_doctypes,
+        "added": added_doctypes or [],
+        "removed": removed_doctypes or [],
+        "notes": notes,
+    }
+    metadata["target_structure"] = {
+        "seed_doctypes": target_payload.get("seed_doctypes", []),
+        "required_doctypes": target_payload.get("required_doctypes", []),
+        "target_structure_id": target_payload.get("target_structure_id"),
+        "mvp_boundary_id": target_payload.get("mvp_boundary_id"),
+    }
+    metadata["phase"] = DiscoveryPhase.FINALIZED.value
+    metadata["target_confirmed_at"] = datetime.now(timezone.utc).isoformat()
+
+    hook.discovery_metadata = metadata
+    hook.discovery_status = "COMPLETE"
+    await db.commit()
+
+    return {
+        "status": "finalized",
+        "phase": DiscoveryPhase.FINALIZED.value,
+        "data": metadata,
+        "target": target_payload,
     }
 
 
 def _format_f3iche(f3iche: str) -> str:
-    """Convert f3iche to user-friendly name."""
     mapping = {
         "manufacturing": "Manufacturing",
         "process_mfg_batch": "Process Manufacturing (Batch)",

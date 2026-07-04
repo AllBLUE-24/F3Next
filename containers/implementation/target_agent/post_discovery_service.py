@@ -21,6 +21,8 @@ from shared.models.hooks import Hook
 from containers.implementation.target_agent.build_post_discovery import (
     build_post_discovery_target,
 )
+from containers.discovery.f3iche_resolver import resolve_discovery_f3iche_niche
+from containers.discovery.chat_service import transcript_text, normalize_messages
 
 
 def _get_s3_client():
@@ -39,6 +41,9 @@ async def generate_project_target_structure(
     db: AsyncSession,
     project_id: UUID,
     company_slug: str,
+    *,
+    user_confirmed_seeds: list[str] | None = None,
+    user_added_doctypes: list[str] | None = None,
 ) -> Dict[str, Any]:
     """
     Generate and store project-level target structure and MVP boundary.
@@ -68,17 +73,33 @@ async def generate_project_target_structure(
         raise ValueError(f"Discovery not complete for project {project_id}")
     
     metadata = hook.discovery_metadata
-    f3iche = metadata.get("f3iche", "trading")
+    broad_f3iche = metadata.get("f3iche", "trading")
     mvp_focus = metadata.get("mvp_focus", {})
-    
+    industry = metadata.get("industry", "")
+
+    messages = normalize_messages(hook.chat_history)
+    chat_transcript = transcript_text(messages)
+
+    f3iche = metadata.get("f3iche_niche") or resolve_discovery_f3iche_niche(
+        discovery_f3iche=broad_f3iche,
+        industry=industry,
+        chat_transcript=chat_transcript,
+    )
+
+    seed_override: list[str] | None = None
+    if user_confirmed_seeds:
+        seed_override = list(dict.fromkeys(user_confirmed_seeds))
+        if user_added_doctypes:
+            seed_override = list(dict.fromkeys(seed_override + list(user_added_doctypes)))
+
     print(f"🎯 Generating project target structure | project={project_id} f3iche={f3iche}")
-    
-    # 2. Generate target structure using build_post_discovery_target
+
     target_result = await build_post_discovery_target(
         f3iche=f3iche,
         mvp_focus=mvp_focus,
-        discovery_chat=hook.chat_history if hasattr(hook, 'chat_history') else None,
-        enhance_with_llm=False,  # Future enhancement
+        discovery_chat=messages,
+        enhance_with_llm=False,
+        seed_doctypes_override=seed_override,
     )
     
     # 3. Store in R2
@@ -173,4 +194,5 @@ async def generate_project_target_structure(
         "r2_target_path": target_key,
         "r2_mvp_path": mvp_key,
         "f3iche": f3iche,
+        "target_structure": target_result,
     }

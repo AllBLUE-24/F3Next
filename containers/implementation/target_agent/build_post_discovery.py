@@ -28,9 +28,9 @@ from containers.implementation.target_agent.mvp_boundary import (
 
 # Knowledge base paths
 _KB_ROOT = Path(__file__).parent.parent.parent / "knowledge_base" / "erpnext"
-_KB_ERP = _KB_ROOT / "schema"
-_DOCTYPE_GRAPH_PATH = _KB_ERP / "erpnext_doctype_graph.json"
-_BASELINE_PATH = _KB_ERP / "erpnext_deafaults_baseline.json"
+_DOCTYPE_GRAPH_PATH = _KB_ROOT / "erpnext_doctype_graph.json"
+_BASELINE_PATH = _KB_ROOT / "erpnext_deafaults_baseline.json"
+_F3ICHE_DIR = Path(__file__).parent.parent.parent / "knowledge_base" / "common" / "f3iches"
 
 # Layer ordering for setup steps
 _LAYER_ORDER = [
@@ -51,27 +51,10 @@ _LAYER_TO_PHASE = {
 
 
 def _get_f3iche_template_path(f3iche: str) -> Path:
-    """Resolve f3iche ID to template JSON path."""
-    base_path = _KB_ROOT / "niches"
-    
-    # Map f3iche IDs to template files
-    mapping = {
-        "manufacturing": "manufacturing.json",
-        "process_mfg_batch": "process_manufacturing_batch.json",
-        "discrete_mfg": "discrete_manufacturing.json",
-        "trading": "trading_distribution.json",
-        "service": "service_business.json",
-        "retail": "retail_pos.json",
-    }
-    
-    filename = mapping.get(f3iche, f"{f3iche}.json")
-    path = base_path / filename
-    
-    if not path.exists():
-        # Fallback to trading if template not found
-        path = base_path / "trading_distribution.json"
-    
-    return path
+    """Resolve f3iche ID to template JSON under common/f3iches/."""
+    from containers.discovery.f3iche_resolver import f3iche_template_path
+
+    return f3iche_template_path(f3iche)
 
 
 def _load_graph_and_baseline() -> tuple[Dict[str, Any], Dict[str, List]]:
@@ -230,6 +213,7 @@ async def build_post_discovery_target(
     mvp_focus: Optional[Dict[str, Any]] = None,
     discovery_chat: Optional[List[Dict[str, str]]] = None,
     enhance_with_llm: bool = False,
+    seed_doctypes_override: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Generate target structure post-discovery, before file upload.
@@ -278,7 +262,11 @@ async def build_post_discovery_target(
             print(f"  ✓ LLM enhanced: +{len(llm_enhanced_seeds)} additional doctypes")
     
     # 3. Merge seed sources (f3iche template + LLM enhancements)
-    seed_doctypes = merge_seed_sources(f3iche_seeds, llm_enhanced_seeds)
+    if seed_doctypes_override:
+        seed_doctypes = list(dict.fromkeys(seed_doctypes_override))
+        print(f"  ✓ User-confirmed seeds: {len(seed_doctypes)} doctypes")
+    else:
+        seed_doctypes = merge_seed_sources(f3iche_seeds, llm_enhanced_seeds)
     
     # 4. Load graph and baseline
     graph, baseline = _load_graph_and_baseline()
