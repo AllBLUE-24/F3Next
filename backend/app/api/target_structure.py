@@ -146,9 +146,7 @@ async def _generate_target_async(
     This runs independently and saves to DB when complete.
     """
     import uuid
-    from containers.implementation.target_agent.build_post_discovery import (
-        build_post_discovery_target
-    )
+    from containers.discovery.target.build_target import build_post_discovery_target
     from containers.implementation.target_agent.mvp_boundary import build_mvp_boundary
     from containers.implementation.file_io.persist_audit import log_audit
     import boto3

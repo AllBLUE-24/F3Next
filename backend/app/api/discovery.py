@@ -16,9 +16,7 @@ from shared.database.db import get_shared_db
 from shared.models.core import Project
 from shared.models.hooks import Hook
 from shared.models.project_target import ProjectMVPBoundary, ProjectTargetStructure
-from containers.implementation.target_agent.post_discovery_service import (
-    generate_project_target_structure,
-)
+from containers.discovery.target.persist import generate_project_target_structure
 
 router = APIRouter(prefix="/discovery", tags=["Discovery"])
 

@@ -1,107 +1,16 @@
-"""Map broad discovery f3iche + industry/chat hints to specific registry niche IDs."""
-from __future__ import annotations
+"""Backward-compatible re-exports — canonical module is containers.discovery.niche_resolver."""
+from containers.discovery.niche_resolver import (
+    discovery_evidence_bullets,
+    niche_broad_category,
+    resolve_discovery_f3iche_niche,
+    resolve_niche_from_discovery,
+    resolve_niche_from_text,
+)
 
-import re
-from typing import List, Optional
-
-_BROAD_CATEGORIES = frozenset({"trading", "manufacturing", "service"})
-
-_INDUSTRY_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
-    (("chemical", "coating", "epoxy", "floor", "paint", "primer", "resin", "adhesive"), "manufacturing_project_chemical"),
-    (("garment", "apparel", "textile", "fabric", "stitching"), "manufacturing_garment_variants"),
-    (("food", "batch", "fmcg", "dairy", "bakery"), "manufacturing_food_batch"),
-    (("fabrication", "job shop", "jobshop", "welding", "metal"), "manufacturing_fabrication_jobshop"),
-    (("fmcg", "distribution", "distributor", "wholesale"), "trading_fmcg_distributor"),
-    (("hardware", "building material", "pipe", "steel"), "trading_hardware_variants"),
-    (("auto parts", "autoparts", "spare parts", "oem"), "trading_autoparts_highvolume"),
-    (("consulting", "professional", "services", "retainer"), "service_professional"),
+__all__ = [
+    "discovery_evidence_bullets",
+    "niche_broad_category",
+    "resolve_discovery_f3iche_niche",
+    "resolve_niche_from_discovery",
+    "resolve_niche_from_text",
 ]
-
-_CHAT_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
-    (("installation", "project", "site work", "coating", "epoxy", "floor"), "manufacturing_project_chemical"),
-    (("work in progress", "wip", "production schedule", "job order", "job shop", "fabrication"), "manufacturing_fabrication_jobshop"),
-]
-
-
-def resolve_niche_from_text(text: str, niche_ids: List[str]) -> Optional[str]:
-    """Match free text (confirmation message, chat, industry) to a registry niche."""
-    if not text or not text.strip():
-        return None
-    for keywords, niche in _INDUSTRY_NICHE_HINTS + _CHAT_NICHE_HINTS:
-        if niche in niche_ids and _hint_match(text, keywords):
-            return niche
-    return None
-
-
-def niche_broad_category(niche_id: str) -> str:
-    if niche_id.startswith("trading_"):
-        return "trading"
-    if niche_id.startswith("manufacturing_"):
-        return "manufacturing"
-    if niche_id.startswith("service_"):
-        return "service"
-    return niche_id
-
-
-def _hint_match(text: str, keywords: tuple[str, ...]) -> bool:
-    t = text.lower()
-    return any(kw in t for kw in keywords)
-
-
-def resolve_niche_from_discovery(
-    *,
-    discovery_f3iche: Optional[str],
-    discovery_industry: Optional[str] = None,
-    chat_transcript: Optional[str] = None,
-    niche_ids: List[str],
-) -> Optional[str]:
-    """
-    Resolve a specific registry niche from broad discovery f3iche + industry/chat.
-
-    Discovery stores trading|manufacturing|service — this maps to a concrete niche ID.
-    """
-    industry = (discovery_industry or "").strip()
-    chat = (chat_transcript or "").strip()
-    combined = f"{industry} {chat}"
-
-    resolved = resolve_niche_from_text(combined, niche_ids)
-    if resolved:
-        return resolved
-
-    f3 = (discovery_f3iche or "").strip()
-    if f3 in niche_ids:
-        return f3
-
-    if f3 in _BROAD_CATEGORIES:
-        prefix = f"{f3}_"
-        candidates = [n for n in niche_ids if n.startswith(prefix)]
-        if len(candidates) == 1:
-            return candidates[0]
-
-    return None
-
-
-def discovery_evidence_bullets(
-    *,
-    discovery_f3iche: Optional[str],
-    discovery_industry: Optional[str] = None,
-    headline: Optional[str] = None,
-    chat_transcript: Optional[str] = None,
-    max_bullets: int = 3,
-) -> List[str]:
-    """Build user-facing discovery evidence for synthesis fallback."""
-    bullets: List[str] = []
-    if discovery_industry:
-        bullets.append(f"Discovery industry: {discovery_industry}")
-    if discovery_f3iche:
-        bullets.append(f"Discovery business type: {discovery_f3iche}")
-    if headline:
-        bullets.append(headline)
-    if chat_transcript:
-        for line in chat_transcript.splitlines()[-6:]:
-            line = line.strip()
-            if line and len(line) > 12:
-                bullets.append(line if len(line) <= 120 else line[:117] + "...")
-            if len(bullets) >= max_bullets:
-                break
-    return bullets[:max_bullets]

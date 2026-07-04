@@ -26,9 +26,7 @@ from containers.discovery.chat_service import (
 from containers.discovery.f3iche_resolver import resolve_discovery_f3iche_niche
 from containers.discovery.phases import DiscoveryPhase, get_phase, is_upload_ready
 from containers.discovery.workflow_explanation import generate_workflow_explanation
-from containers.implementation.target_agent.post_discovery_service import (
-    generate_project_target_structure,
-)
+from containers.discovery.target.persist import generate_project_target_structure
 from shared.models.core import Project
 from shared.models.hooks import Hook
 from shared.models.project_target import ProjectTargetStructure

@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any
 
 from containers.discovery.prompts import (
     ADI_CHAT_SYSTEM_PROMPT,
@@ -18,6 +17,7 @@ from containers.discovery.prompts import (
     RECOMMENDATION_PROMPT,
     TRANSCRIPT_EXTRACTION_PROMPT,
 )
+from containers.discovery.utils import normalize_messages, transcript_text
 
 MAX_USER_TURNS = int(os.getenv("DISCOVERY_MAX_TURNS", "20"))
 DISCOVERY_CHAT_MODEL = os.getenv("DISCOVERY_CHAT_MODEL", "gpt-4o-mini")
@@ -46,19 +46,6 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def normalize_messages(chat_history: Any) -> list[dict]:
-    """Accept legacy shapes; always return [{role, content, ts?}, ...]."""
-    if not chat_history:
-        return []
-    if isinstance(chat_history, list):
-        return [m for m in chat_history if isinstance(m, dict) and m.get("role") and m.get("content")]
-    if isinstance(chat_history, dict):
-        msgs = chat_history.get("messages")
-        if isinstance(msgs, list):
-            return normalize_messages(msgs)
-    return []
-
-
 def opening_messages() -> list[dict]:
     return [
         {
@@ -71,16 +58,6 @@ def opening_messages() -> list[dict]:
 
 def count_user_turns(messages: list[dict]) -> int:
     return sum(1 for m in messages if m.get("role") == "user")
-
-
-def transcript_text(messages: list[dict]) -> str:
-    lines = []
-    for m in messages:
-        role = m.get("role", "unknown").capitalize()
-        content = (m.get("content") or "").strip()
-        if content:
-            lines.append(f"{role}: {content}")
-    return "\n".join(lines)
 
 
 def _build_coverage_summary(coverage: dict) -> str:

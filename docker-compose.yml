@@ -47,18 +47,19 @@ services:
       - "6379:6379"
 
   # 4. Workers
-  discovery_worker:
-    build:
-      context: .
-      dockerfile: containers/discovery/Dockerfile
-    container_name: f3_discovery_worker
-    env_file:
-      - .env
-    restart: unless-stopped
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_HOST=temporal:7233
+  # Discovery chat is sync in FastAPI — no Temporal worker needed (Step 1).
+  # discovery_worker:
+  #   build:
+  #     context: .
+  #     dockerfile: containers/discovery/Dockerfile
+  #   container_name: f3_discovery_worker
+  #   env_file:
+  #     - .env
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - temporal
+  #   environment:
+  #     - TEMPORAL_HOST=temporal:7233
 
   erpnext_infra_worker:
     build:
