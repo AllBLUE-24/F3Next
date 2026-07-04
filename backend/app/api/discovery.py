@@ -287,7 +287,8 @@ async def proceed_to_implementation(project_id: UUID, db: AsyncSession = Depends
             project_id=project_id,
             company_slug=project.company_slug,
         )
-        
+        await db.commit()
+
         return {
             "status": "success",
             "message": "Target structure and MVP boundary generated successfully",

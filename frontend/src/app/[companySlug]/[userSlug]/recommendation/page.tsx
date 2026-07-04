@@ -41,7 +41,10 @@ export default function RecommendationPage() {
   const [workflowPreview, setWorkflowPreview] = useState<{
     workflow_explanation: WorkflowExplanation;
     seed_doctypes: string[];
+    deferred_doctypes?: string[];
     required_doctypes: string[];
+    dual_system_note?: string;
+    scoping_reasoning?: string;
   } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -69,18 +72,37 @@ export default function RecommendationPage() {
 
           const awaiting =
             json.awaiting_confirmation ||
-            (json.phase && json.phase !== "finalized" && json.data.workflow_explanation);
+            (json.phase &&
+              json.phase !== "finalized" &&
+              (json.data.workflow_explanation || json.data.target_structure));
 
           if (awaiting) {
-            try {
-              const preview = await getWorkflowPreview(projectId);
+            const data = json.data;
+            const workflow = data.workflow_explanation;
+            const target = data.target_structure || {};
+            if (workflow && (target.seed_doctypes?.length || target.required_doctypes?.length)) {
               setWorkflowPreview({
-                workflow_explanation: preview.workflow_explanation as WorkflowExplanation,
-                seed_doctypes: preview.seed_doctypes,
-                required_doctypes: preview.required_doctypes,
+                workflow_explanation: workflow as WorkflowExplanation,
+                seed_doctypes: target.seed_doctypes || [],
+                deferred_doctypes: target.deferred_doctypes || [],
+                required_doctypes: target.required_doctypes || [],
+                dual_system_note: target.dual_system_note,
+                scoping_reasoning: target.scoping_reasoning,
               });
-            } catch (previewErr) {
-              console.warn("Workflow preview load failed:", previewErr);
+            } else {
+              try {
+                const preview = await getWorkflowPreview(projectId);
+                setWorkflowPreview({
+                  workflow_explanation: preview.workflow_explanation as WorkflowExplanation,
+                  seed_doctypes: preview.seed_doctypes,
+                  deferred_doctypes: preview.deferred_doctypes,
+                  required_doctypes: preview.required_doctypes,
+                  dual_system_note: preview.discovery_metadata?.target_structure?.dual_system_note,
+                  scoping_reasoning: preview.discovery_metadata?.target_structure?.scoping_reasoning,
+                });
+              } catch (previewErr) {
+                console.warn("Workflow preview load failed:", previewErr);
+              }
             }
           }
         }

@@ -11,6 +11,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from containers.discovery.chat_service import (
     MAX_USER_TURNS,
@@ -30,6 +31,7 @@ from containers.implementation.target_agent.post_discovery_service import (
 )
 from shared.models.core import Project
 from shared.models.hooks import Hook
+from shared.models.project_target import ProjectTargetStructure
 
 
 async def get_or_create_hook(db: AsyncSession, project_id: UUID) -> Hook:
@@ -249,41 +251,47 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     await db.flush()
 
     project = await _get_project(db, project_id)
-    print(
-        f"[Discovery Assistant] Generating target | project={project_id} "
-        f"f3iche={niche_id} company={project.company_slug}"
-    )
     target_payload = await generate_project_target_structure(
         db=db,
         project_id=project_id,
         company_slug=project.company_slug,
     )
-    print(
-        f"[Discovery Assistant] Target stored | seeds={target_payload.get('total_seeds')} "
-        f"doctypes={target_payload.get('total_doctypes')} "
-        f"target_id={target_payload.get('target_structure_id')}"
-    )
 
     target_structure = target_payload.get("target_structure") or {}
-    discovery_metadata["target_structure"] = {
-        "seed_doctypes": target_payload.get("seed_doctypes", []),
-        "required_doctypes": target_payload.get("required_doctypes", []),
-        "setup_steps": target_structure.get("setup_steps", []),
-        "import_phases": target_structure.get("import_phases", {}),
-        "target_structure_id": target_payload.get("target_structure_id"),
-        "mvp_boundary_id": target_payload.get("mvp_boundary_id"),
-    }
+    scoping = target_structure.get("scoping") or {}
+    deferred_seeds = target_payload.get("deferred_doctypes") or target_structure.get("deferred_doctypes") or []
 
     workflow_explanation = await generate_workflow_explanation(
         f3iche=niche_id,
         industry=industry,
         bottleneck=bottleneck,
-        target_structure=target_structure or discovery_metadata["target_structure"],
+        target_structure=target_structure or {},
+        coverage=result["coverage"],
+        chat_transcript=transcript_text(messages),
+        mvp_focus=mvp_focus,
+        deferred_seeds=deferred_seeds,
+        dual_system_note=scoping.get("dual_system_note", ""),
+        scoping_reasoning=scoping.get("scoping_reasoning", ""),
     )
-    discovery_metadata["workflow_explanation"] = workflow_explanation
-    discovery_metadata["phase"] = DiscoveryPhase.MODULE_CONFIRMATION.value
-    hook.discovery_metadata = discovery_metadata
-    hook.discovery_status = "AWAITING_CONFIRMATION"
+
+    # New dict + flag_modified — in-place JSON mutations are not persisted by SQLAlchemy
+    discovery_metadata = {
+        **discovery_metadata,
+        "target_structure": {
+            "seed_doctypes": target_payload.get("seed_doctypes", []),
+            "deferred_doctypes": deferred_seeds,
+            "required_doctypes": target_payload.get("required_doctypes", []),
+            "setup_steps": target_structure.get("setup_steps", []),
+            "import_phases": target_structure.get("import_phases", {}),
+            "target_structure_id": target_payload.get("target_structure_id"),
+            "mvp_boundary_id": target_payload.get("mvp_boundary_id"),
+            "scoping_mode": scoping.get("scoping_mode"),
+            "scoping_reasoning": scoping.get("scoping_reasoning"),
+            "dual_system_note": scoping.get("dual_system_note"),
+        },
+        "workflow_explanation": workflow_explanation,
+        "phase": DiscoveryPhase.MODULE_CONFIRMATION.value,
+    }
 
     headline = result["discovery_metadata"].get("headline", "")
     confirmation_message = (
@@ -300,6 +308,9 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     })
 
     hook.chat_history = messages
+    hook.discovery_metadata = discovery_metadata
+    flag_modified(hook, "discovery_metadata")
+    hook.discovery_status = "AWAITING_CONFIRMATION"
     hook.discovery_turn_count = count_user_turns(messages)
     hook.last_bot_response = confirmation_message
     await db.commit()
@@ -317,16 +328,64 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
 
 async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
     hook = await get_or_create_hook(db, project_id)
-    metadata = hook.discovery_metadata or {}
+    metadata = dict(hook.discovery_metadata or {})
 
-    if not metadata.get("workflow_explanation"):
+    workflow_explanation = metadata.get("workflow_explanation")
+    target_meta = metadata.get("target_structure") or {}
+    seed_doctypes = target_meta.get("seed_doctypes", [])
+    deferred_seeds = target_meta.get("deferred_doctypes", [])
+    required_doctypes = target_meta.get("required_doctypes", [])
+
+    # Fallback: read from project_target_structures if hooks JSON was not persisted
+    if not workflow_explanation or not seed_doctypes:
+        target_row = (
+            await db.execute(
+                select(ProjectTargetStructure).where(
+                    ProjectTargetStructure.project_id == project_id
+                )
+            )
+        ).scalar_one_or_none()
+        if target_row:
+            seed_doctypes = seed_doctypes or (target_row.seed_doctypes or [])
+            deferred_seeds = deferred_seeds or (target_row.deferred_doctypes or [])
+            required_doctypes = required_doctypes or (target_row.required_doctypes or [])
+            if not workflow_explanation:
+                workflow_explanation = await generate_workflow_explanation(
+                    f3iche=metadata.get("f3iche_niche") or target_row.f3iche,
+                    industry=metadata.get("industry", ""),
+                    bottleneck=(metadata.get("mvp_focus") or {}).get("primary_bottleneck", ""),
+                    target_structure={
+                        "seed_doctypes": seed_doctypes,
+                        "deferred_doctypes": deferred_seeds,
+                        "required_doctypes": required_doctypes,
+                        "setup_steps": target_row.setup_steps or [],
+                    },
+                    coverage=hook.discovery_coverage,
+                    chat_transcript=transcript_text(normalize_messages(hook.chat_history)),
+                    mvp_focus=metadata.get("mvp_focus"),
+                    deferred_seeds=deferred_seeds,
+                    dual_system_note=target_meta.get("dual_system_note", ""),
+                    scoping_reasoning=target_meta.get("scoping_reasoning", ""),
+                )
+                metadata["workflow_explanation"] = workflow_explanation
+                metadata["target_structure"] = metadata.get("target_structure") or {
+                    "seed_doctypes": seed_doctypes,
+                    "deferred_doctypes": deferred_seeds,
+                    "required_doctypes": required_doctypes,
+                }
+                hook.discovery_metadata = metadata
+                flag_modified(hook, "discovery_metadata")
+                await db.commit()
+
+    if not workflow_explanation:
         raise ValueError("Workflow preview not ready. Complete discovery first.")
 
     return {
         "phase": get_phase(metadata).value,
-        "workflow_explanation": metadata["workflow_explanation"],
-        "seed_doctypes": (metadata.get("target_structure") or {}).get("seed_doctypes", []),
-        "required_doctypes": (metadata.get("target_structure") or {}).get("required_doctypes", []),
+        "workflow_explanation": workflow_explanation,
+        "seed_doctypes": seed_doctypes,
+        "deferred_doctypes": deferred_seeds,
+        "required_doctypes": required_doctypes,
         "discovery_metadata": metadata,
     }
 
@@ -372,6 +431,7 @@ async def confirm_discovery_modules(
     metadata["target_confirmed_at"] = datetime.now(timezone.utc).isoformat()
 
     hook.discovery_metadata = metadata
+    flag_modified(hook, "discovery_metadata")
     hook.discovery_status = "COMPLETE"
     await db.commit()
 

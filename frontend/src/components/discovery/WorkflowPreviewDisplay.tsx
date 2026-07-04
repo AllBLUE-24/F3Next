@@ -26,7 +26,10 @@ interface WorkflowPreviewDisplayProps {
   preview: {
     workflow_explanation: WorkflowExplanation;
     seed_doctypes: string[];
+    deferred_doctypes?: string[];
     required_doctypes?: string[];
+    dual_system_note?: string;
+    scoping_reasoning?: string;
   };
   onConfirm: (adjustments: {
     confirmed_doctypes: string[];
@@ -49,15 +52,21 @@ export default function WorkflowPreviewDisplay({
   const [selected, setSelected] = useState<Set<string>>(initialSelected);
   const [notes, setNotes] = useState("");
 
-  const expectedData =
-    preview.workflow_explanation.expected_data?.length > 0
-      ? preview.workflow_explanation.expected_data
-      : preview.seed_doctypes.map((dt) => ({
+  const expectedData = useMemo(() => {
+    const fromLlm = preview.workflow_explanation.expected_data ?? [];
+    const byDoctype = new Map(fromLlm.map((item) => [item.doctype, item]));
+    return preview.seed_doctypes.map(
+      (dt) =>
+        byDoctype.get(dt) ?? {
           doctype: dt,
           user_friendly_name: dt,
-          description: `Data for ${dt}`,
-          example_files: [`${dt.toLowerCase().replace(/ /g, "_")}.csv`],
-        }));
+          description: `Spreadsheets or exports for ${dt}`,
+          example_files: [`${dt.toLowerCase().replace(/ /g, "_")}_master.xlsx`],
+        }
+    );
+  }, [preview.workflow_explanation.expected_data, preview.seed_doctypes]);
+
+  const deferred = preview.deferred_doctypes ?? [];
 
   const toggle = (doctype: string, checked: boolean) => {
     setSelected((prev) => {
@@ -82,7 +91,10 @@ export default function WorkflowPreviewDisplay({
   return (
     <div className="space-y-6 fade-in-up">
       <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
-        <h2 className="text-xl font-bold text-white mb-2">Your implementation workflow</h2>
+        <h2 className="text-xl font-bold text-white mb-2">Your Day-1 MVP plan</h2>
+        {preview.dual_system_note && (
+          <p className="text-amber-400/90 text-xs mb-3 leading-relaxed">{preview.dual_system_note}</p>
+        )}
         <p className="text-zinc-400 text-sm leading-relaxed mb-4">
           {preview.workflow_explanation.workflow_summary}
         </p>
@@ -92,12 +104,15 @@ export default function WorkflowPreviewDisplay({
       </div>
 
       <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
-        <h3 className="text-lg font-semibold text-white mb-4">Modules & files to upload</h3>
+        <h3 className="text-lg font-semibold text-white mb-1">Day-1 data we need</h3>
+        <p className="text-zinc-600 text-xs mb-4">
+          Checked modules are in scope for your MVP. We will ask for these files after you confirm.
+        </p>
         <div className="space-y-3">
           {expectedData.map((item) => (
             <label
               key={item.doctype}
-              className="flex gap-3 p-4 rounded-xl border border-[var(--border-subtle)] bg-white/[0.02] cursor-pointer hover:bg-white/[0.04] transition-colors"
+              className="flex gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 cursor-pointer hover:bg-amber-500/8 transition-colors"
             >
               <input
                 type="checkbox"
@@ -110,7 +125,7 @@ export default function WorkflowPreviewDisplay({
                 <div className="text-zinc-500 text-xs mt-1">{item.description}</div>
                 {item.example_files?.length > 0 && (
                   <div className="text-zinc-600 text-xs mt-2">
-                    Example files: {item.example_files.join(", ")}
+                    Likely files: {item.example_files.join(", ")}
                   </div>
                 )}
               </div>
@@ -119,10 +134,29 @@ export default function WorkflowPreviewDisplay({
         </div>
       </div>
 
+      {deferred.length > 0 && (
+        <div className="surface-card p-6 sm:p-8 opacity-80" style={{ borderRadius: "var(--radius-xl)" }}>
+          <h3 className="text-sm font-semibold text-zinc-500 mb-2">Later phases (not Day-1)</h3>
+          <p className="text-zinc-600 text-xs mb-3">
+            Deferred based on your bottleneck — we will not ask for these until after the first import.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {deferred.map((dt) => (
+              <span
+                key={dt}
+                className="px-2.5 py-1 rounded-lg text-xs text-zinc-500 border border-zinc-800 bg-zinc-900/50"
+              >
+                {dt}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {preview.workflow_explanation.upload_checklist &&
         preview.workflow_explanation.upload_checklist.length > 0 && (
           <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
-            <h3 className="text-lg font-semibold text-white mb-3">Upload checklist</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">Upload checklist (Day-1)</h3>
             <ul className="list-disc list-inside text-zinc-400 text-sm space-y-1">
               {preview.workflow_explanation.upload_checklist.map((line, idx) => (
                 <li key={idx}>{line}</li>
@@ -138,7 +172,7 @@ export default function WorkflowPreviewDisplay({
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="e.g. We also need delivery notes, quality inspections, or project costing..."
+          placeholder="e.g. We also need project costing for field crews..."
           className="w-full min-h-[100px] rounded-xl bg-black/30 border border-[var(--border-subtle)] text-sm text-zinc-300 p-3 focus:outline-none focus:border-amber-500/40"
         />
       </div>

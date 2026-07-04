@@ -1,40 +1,28 @@
 """
 Post-Discovery Target Structure Generation Service
 
-Called when user clicks "Proceed to Implementation" on recommendation page.
+Called when discovery completes (and again on module confirmation).
 Generates target structure and MVP boundary at PROJECT level.
 """
 from __future__ import annotations
 
-import json
-import os
-from typing import Any, Dict, Optional
+import logging
+from typing import Any, Dict
 from uuid import UUID
 
-import boto3
-from botocore.config import Config
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.models.project_target import ProjectTargetStructure, ProjectMVPBoundary
 from shared.models.hooks import Hook
+from shared.r2_client import r2_write_json
 from containers.implementation.target_agent.build_post_discovery import (
     build_post_discovery_target,
 )
 from containers.discovery.f3iche_resolver import resolve_discovery_f3iche_niche
 from containers.discovery.chat_service import transcript_text, normalize_messages
 
-
-def _get_s3_client():
-    """Get R2/S3 client for storing target structure and MVP boundary."""
-    return boto3.client(
-        "s3",
-        endpoint_url=os.getenv("R2_ENDPOINT"),
-        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-        config=Config(signature_version="s3v4"),
-        region_name="auto",
-    )
+logger = logging.getLogger(__name__)
 
 
 async def generate_project_target_structure(
@@ -97,33 +85,35 @@ async def generate_project_target_structure(
         if user_added_doctypes:
             seed_override = list(dict.fromkeys(seed_override + list(user_added_doctypes)))
 
-    print(f"🎯 Generating project target structure | project={project_id} f3iche={f3iche}")
+    logger.debug(
+        "Generating project target structure | project=%s f3iche=%s",
+        project_id,
+        f3iche,
+    )
 
     target_result = await build_post_discovery_target(
         f3iche=f3iche,
         mvp_focus=mvp_focus,
         discovery_chat=messages,
+        coverage=hook.discovery_coverage,
+        chat_transcript=chat_transcript,
         enhance_with_llm=False,
         seed_doctypes_override=seed_override,
     )
     
-    # 3. Store in R2
-    s3 = _get_s3_client()
+    # 3. Store in R2 (clean-data bucket — same as IS pipeline)
     bucket = "clean-data"
-    
-    # Target structure path
     target_key = f"{company_slug}/project_{project_id}/_discovery/target_structure.json"
-    target_json = json.dumps(target_result, indent=2)
-    s3.put_object(Bucket=bucket, Key=target_key, Body=target_json.encode("utf-8"))
-    
-    # MVP boundary path
     mvp_boundary_data = target_result.get("mvp_boundary", {})
     mvp_key = f"{company_slug}/project_{project_id}/_discovery/mvp_boundary.json"
-    mvp_json = json.dumps(mvp_boundary_data, indent=2)
-    s3.put_object(Bucket=bucket, Key=mvp_key, Body=mvp_json.encode("utf-8"))
-    
-    print(f"  ✅ Stored in R2: {target_key}")
-    print(f"  ✅ Stored in R2: {mvp_key}")
+
+    ok_target = await r2_write_json(target_key, target_result, bucket=bucket)
+    ok_mvp = await r2_write_json(mvp_key, mvp_boundary_data, bucket=bucket)
+    if not ok_target or not ok_mvp:
+        raise RuntimeError(
+            f"R2 upload failed for discovery artifacts | target_ok={ok_target} mvp_ok={ok_mvp}"
+        )
+    logger.debug("R2 stored discovery artifacts | target=%s mvp=%s", target_key, mvp_key)
     
     # 4. Store ProjectTargetStructure in DB
     target_structure = ProjectTargetStructure(
@@ -147,19 +137,20 @@ async def generate_project_target_structure(
         corpus_independent=True,
         graph_driven=True,
     )
-    
-    # Check if already exists and delete old one
+
+    # Replace existing row (flush delete before insert — unique on project_id)
     existing_stmt = select(ProjectTargetStructure).where(
         ProjectTargetStructure.project_id == project_id
     )
     existing = (await db.execute(existing_stmt)).scalar_one_or_none()
     if existing:
         await db.delete(existing)
-    
+        await db.flush()
+
     db.add(target_structure)
     await db.flush()
-    
-    print(f"  ✅ ProjectTargetStructure saved | id={target_structure.id}")
+
+    logger.debug("ProjectTargetStructure saved | id=%s", target_structure.id)
     
     # 5. Store ProjectMVPBoundary in DB
     mvp_boundary = ProjectMVPBoundary(
@@ -175,19 +166,22 @@ async def generate_project_target_structure(
         r2_path=mvp_key,
     )
     
-    # Check if already exists and delete old one
     existing_mvp_stmt = select(ProjectMVPBoundary).where(
         ProjectMVPBoundary.project_id == project_id
     )
     existing_mvp = (await db.execute(existing_mvp_stmt)).scalar_one_or_none()
     if existing_mvp:
         await db.delete(existing_mvp)
-    
+        await db.flush()
+
     db.add(mvp_boundary)
-    await db.commit()
-    
-    print(f"  ✅ ProjectMVPBoundary saved | id={mvp_boundary.id}")
-    print(f"  ✅ Complete! Seeds: {len(target_result.get('seed_doctypes', []))} → Total: {len(target_result.get('required_doctypes', []))}")
+    await db.flush()
+
+    logger.debug(
+        "Discovery target complete | seeds=%s total=%s",
+        len(target_result.get("seed_doctypes", [])),
+        len(target_result.get("required_doctypes", [])),
+    )
     
     return {
         "target_structure_id": str(target_structure.id),

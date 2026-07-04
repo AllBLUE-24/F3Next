@@ -20,6 +20,26 @@
     "primary_bottleneck": "Manual procurement and untracked supplier orders",
     "functional_requirements": ["purchase_orders", "supplier_management", "goods_receipt"]
   },
+  "factory_wip_bridge": {
+    "primary_bottleneck": "Zero visibility into Work-In-Progress, factory treated as a black box",
+    "functional_requirements": [
+      "wip_tracking",
+      "batch_wise_profitability",
+      "sales_to_production_bridge",
+      "bom_formulation_tracking",
+      "stock_movement_visibility"
+    ],
+    "suggested_seed_doctypes": ["Item", "BOM", "Sales Order", "Work Order", "Stock Entry", "Batch"]
+  },
+  "excel_bom_disconnect": {
+    "primary_bottleneck": "Production schedules and formulations managed in disconnected Excel sheets",
+    "functional_requirements": [
+      "centralize_bom_recipes",
+      "production_schedule_sync",
+      "order_fulfillment_bridge"
+    ],
+    "suggested_seed_doctypes": ["Item", "BOM", "Sales Order", "Work Order", "Stock Entry"]
+  },
   "_fallback": {
     "primary_bottleneck": "General operations",
     "functional_requirements": ["general_ledger", "inventory_tracking", "sales_order_management", "purchasing"]

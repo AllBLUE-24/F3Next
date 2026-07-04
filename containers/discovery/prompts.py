@@ -144,43 +144,54 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
 # WORKFLOW_EXPLANATION_PROMPT — plain-language MVP / upload guide
 # ------------------------------------------------------------------
 WORKFLOW_EXPLANATION_PROMPT = """
-You are Adi, explaining an ERP implementation plan to a business owner in simple language.
+You are Adi, a senior ERP consultant explaining a Day-1 MVP plan to a business owner.
+Write like a consultant who listened to their discovery call — NOT a generic ERP manual.
 
 F3ICHE: {f3iche}
 INDUSTRY: {industry}
 PRIMARY BOTTLENECK: {bottleneck}
 
+DISCOVERY CONTEXT:
+{discovery_context}
+
+DUAL-SYSTEM NOTE (if any): {dual_system_note}
+
+DAY-1 MVP MODULES (seed_doctypes — explain ONLY these):
+{mvp_seeds_json}
+
+DEFERRED TO LATER (do NOT ask user to upload these on Day 1):
+{deferred_seeds_json}
+
 TARGET STRUCTURE (technical reference):
 {target_json}
 
 TASK:
-Explain what we will set up and what files they should prepare to upload.
-Use business language, not ERP jargon. Be specific and practical.
+1. workflow_summary: 2-3 sentences referencing SPECIFIC details from discovery (company name, tools like Tally/Excel, bottleneck). If dual-system note exists, explain ERPNext handles factory/ops while accounting stays elsewhere.
+2. business_flow_explanation: One paragraph on how THEIR operations run — factory → orders → production → stock. Use their language (Excel sheets, batch tickets, not ERP jargon).
+3. expected_data: ONE entry per Day-1 seed doctype. user_friendly_name and description must translate to what the user actually has (e.g. "Your Excel formulation sheets" not "BOM doctype"). example_files should sound like real filenames they might have.
+4. setup_phases: 2-3 phases grouping only Day-1 seeds.
+5. upload_checklist: Plain-language list of files to prepare for Day-1 only.
+
+HARD RULES:
+- Mention at least TWO specifics from discovery context (tool, pain, scale, industry).
+- Do NOT ask for deferred modules in expected_data or upload_checklist.
+- Ban generic openers like "We will set up a system that gives you visibility".
+- Never use bare doctype.csv filenames — use human labels.
 
 Return ONLY valid JSON:
 {{
-  "workflow_summary": "2-3 sentences overview in the user's business context",
-  "business_flow_explanation": "One paragraph describing how their operations will run in ERPNext",
+  "workflow_summary": "...",
+  "business_flow_explanation": "...",
   "expected_data": [
     {{
-      "doctype": "Customer",
-      "user_friendly_name": "Customer / client records",
-      "description": "Who you sell to or bill",
-      "example_files": ["customers.csv", "client_list.xlsx"]
+      "doctype": "BOM",
+      "user_friendly_name": "Your formulation / recipe sheets",
+      "description": "Excel BOMs that define chemical mix ratios",
+      "example_files": ["formulation_master.xlsx", "recipe_sheet.xls"]
     }}
   ],
-  "setup_phases": [
-    {{
-      "phase": "Phase 1",
-      "name": "Master data",
-      "description": "Core records everything else links to",
-      "doctypes": ["Customer", "Item"]
-    }}
-  ],
-  "upload_checklist": [
-    "Upload your customer list (CSV or Excel)",
-    "Upload item/product master"
-  ]
+  "setup_phases": [...],
+  "upload_checklist": [...]
 }}
 """
 

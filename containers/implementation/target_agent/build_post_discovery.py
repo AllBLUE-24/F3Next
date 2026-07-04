@@ -15,6 +15,7 @@ Key Differences from legacy build_target_structure:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -25,6 +26,9 @@ from containers.implementation.target_agent.mvp_boundary import (
     merge_seed_sources,
     validation_rules_from_f3iche,
 )
+from containers.discovery.mvp_scoping import scope_mvp_seeds
+
+logger = logging.getLogger(__name__)
 
 # Knowledge base paths
 _KB_ROOT = Path(__file__).parent.parent.parent / "knowledge_base" / "erpnext"
@@ -212,6 +216,8 @@ async def build_post_discovery_target(
     f3iche: str,
     mvp_focus: Optional[Dict[str, Any]] = None,
     discovery_chat: Optional[List[Dict[str, str]]] = None,
+    coverage: Optional[Dict[str, Any]] = None,
+    chat_transcript: str = "",
     enhance_with_llm: bool = False,
     seed_doctypes_override: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
@@ -234,7 +240,7 @@ async def build_post_discovery_target(
             - mvp_boundary: MVP definition
             - deferred_doctypes: Empty list (no corpus-based deferral)
     """
-    print(f"🎯 Building post-discovery target | f3iche={f3iche}")
+    logger.debug("Building post-discovery target | f3iche=%s", f3iche)
     
     # 1. Load f3iche template seeds
     template_path = _get_f3iche_template_path(f3iche)
@@ -243,9 +249,9 @@ async def build_post_discovery_target(
     if not f3iche_seeds:
         # Fallback to minimal defaults
         f3iche_seeds = ["Customer", "Supplier", "Item"]
-        print(f"  ⚠️ No template found for {f3iche}, using minimal defaults")
-    
-    print(f"  ✓ F3iche template seeds: {len(f3iche_seeds)} doctypes")
+        logger.debug("No template found for %s, using minimal defaults", f3iche)
+
+    logger.debug("F3iche template seeds: %s doctypes", len(f3iche_seeds))
     
     # 2. Optional: Enhance with LLM reading discovery chat
     llm_enhanced_seeds: List[str] = []
@@ -259,14 +265,25 @@ async def build_post_discovery_target(
             discovery_chat=discovery_chat,
         )
         if llm_enhanced_seeds:
-            print(f"  ✓ LLM enhanced: +{len(llm_enhanced_seeds)} additional doctypes")
+            logger.debug("LLM enhanced: +%s additional doctypes", len(llm_enhanced_seeds))
     
-    # 3. Merge seed sources (f3iche template + LLM enhancements)
-    if seed_doctypes_override:
-        seed_doctypes = list(dict.fromkeys(seed_doctypes_override))
-        print(f"  ✓ User-confirmed seeds: {len(seed_doctypes)} doctypes")
-    else:
-        seed_doctypes = merge_seed_sources(f3iche_seeds, llm_enhanced_seeds)
+    # 3. Bottleneck-driven MVP scoping (Day-1 seeds vs deferred)
+    scoping = scope_mvp_seeds(
+        template_seeds=f3iche_seeds,
+        f3iche_data=f3iche_data,
+        mvp_focus=mvp_focus,
+        coverage=coverage,
+        chat_transcript=chat_transcript,
+        user_confirmed_override=seed_doctypes_override,
+    )
+    seed_doctypes = scoping["mvp_seeds"]
+    deferred_doctypes = scoping["deferred_seeds"]
+    logger.debug(
+        "MVP scoped | mode=%s day1=%s deferred=%s",
+        scoping["scoping_mode"],
+        len(seed_doctypes),
+        len(deferred_doctypes),
+    )
     
     # 4. Load graph and baseline
     graph, baseline = _load_graph_and_baseline()
@@ -277,7 +294,7 @@ async def build_post_discovery_target(
     all_required = resolution["all_required"]
     ordered_layers = resolution["ordered_layers"]
     
-    print(f"  ✓ Graph walk: {len(all_required)} total doctypes (seeds + prereqs)")
+    logger.debug("Graph walk: %s total doctypes (seeds + prereqs)", len(all_required))
     
     # 6. Classify doctypes against baseline
     classified = _classify_against_baseline(
@@ -301,12 +318,15 @@ async def build_post_discovery_target(
     
     # 9. Build MVP boundary
     mvp_boundary = {
-        "mode": "f3iche_template",
+        "mode": scoping["scoping_mode"],
         "f3iche": f3iche,
         "seed_doctypes": seed_doctypes,
-        "deferred_doctypes": [],  # No corpus-based deferral
+        "deferred_doctypes": deferred_doctypes,
+        "template_seeds": f3iche_seeds,
         "mvp_focus": mvp_focus or {},
-        "file_evidence": [],  # Not used in post-discovery generation
+        "scoping_reasoning": scoping["scoping_reasoning"],
+        "dual_system_note": scoping.get("dual_system_note", ""),
+        "file_evidence": [],
         "llm_enhanced": bool(llm_enhanced_seeds),
         "llm_reasoning": llm_reasoning,
     }
@@ -320,12 +340,17 @@ async def build_post_discovery_target(
         "import_phases": import_phases,
         "validation_rules": validation_rules,
         "mvp_boundary": mvp_boundary,
-        "deferred_doctypes": [],  # No corpus-based deferral
+        "deferred_doctypes": deferred_doctypes,
+        "scoping": scoping,
         "graph_driven": True,
         "corpus_independent": True,  # Flag for monitoring
     }
     
-    print(f"  ✅ Target structure complete: {len(seed_doctypes)} seeds → {len(all_required)} total doctypes")
+    logger.debug(
+        "Target structure complete: %s seeds → %s total doctypes",
+        len(seed_doctypes),
+        len(all_required),
+    )
     
     return result
 

@@ -95,6 +95,7 @@ export interface WorkflowPreviewResponse {
   phase: string;
   workflow_explanation: Record<string, unknown>;
   seed_doctypes: string[];
+  deferred_doctypes?: string[];
   required_doctypes: string[];
   discovery_metadata?: Record<string, unknown>;
 }
