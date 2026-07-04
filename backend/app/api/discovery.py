@@ -125,15 +125,36 @@ async def get_blueprint_status(project_id: UUID, db: AsyncSession = Depends(get_
             "id": str(target.id) if target else None,
             "f3iche": target.f3iche if target else None,
             "seed_doctypes": target.seed_doctypes if target else None,
+            "deferred_doctypes": target.deferred_doctypes if target else None,
             "total_doctypes": target.total_doctypes if target else None,
             "r2_path": target.r2_target_path if target else None,
+            "json_column_stored": bool(target and target.target_structure_json),
         },
         "mvp_boundary": {
-            "stored": mvp is not None,
+            "stored": bool(mvp or (target and target.mvp_boundary_json)),
             "id": str(mvp.id) if mvp else None,
-            "seed_doctypes": mvp.seed_doctypes if mvp else None,
-            "primary_bottleneck": mvp.primary_bottleneck if mvp else None,
-            "r2_path": mvp.r2_path if mvp else None,
+            "seed_doctypes": (
+                (target.mvp_boundary_json or {}).get("seed_doctypes")
+                if target and target.mvp_boundary_json
+                else (mvp.seed_doctypes if mvp else None)
+            ),
+            "deferred_doctypes": (
+                (target.mvp_boundary_json or {}).get("deferred_doctypes")
+                if target and target.mvp_boundary_json
+                else (mvp.deferred_doctypes if mvp else None)
+            ),
+            "primary_bottleneck": (
+                ((target.mvp_boundary_json or {}).get("mvp_focus") or {}).get("primary_bottleneck")
+                if target and target.mvp_boundary_json
+                else (mvp.primary_bottleneck if mvp else None)
+            ),
+            "scoping_mode": (
+                (target.mvp_boundary_json or {}).get("mode")
+                if target and target.mvp_boundary_json
+                else (mvp.mode if mvp else None)
+            ),
+            "r2_path": target.r2_mvp_path if target else (mvp.r2_path if mvp else None),
+            "json_column_stored": bool(target and target.mvp_boundary_json),
         },
         "hooks_metadata_has_target": bool(metadata.get("target_structure")),
     }

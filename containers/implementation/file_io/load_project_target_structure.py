@@ -102,9 +102,11 @@ async def load_project_target_structure(inp: LoadProjectTargetInput) -> Dict[str
             if isinstance(phases, str):
                 phases = json.loads(phases)
             
-            # 5. Build MVP boundary data
-            mvp_boundary = {}
-            if mvp:
+            # 5. Build MVP boundary — prefer consolidated column on target row
+            mvp_boundary: dict = {}
+            if target.mvp_boundary_json and isinstance(target.mvp_boundary_json, dict):
+                mvp_boundary = dict(target.mvp_boundary_json)
+            elif mvp:
                 mvp_boundary = {
                     "mode": mvp.mode,
                     "f3iche": mvp.f3iche,
@@ -125,7 +127,7 @@ async def load_project_target_structure(inp: LoadProjectTargetInput) -> Dict[str
                 "import_phases": phases or {},
                 "validation_rules": target.validation_rules or {},
                 "mvp_boundary": mvp_boundary,
-                "deferred_doctypes": [],  # Always empty for project-level
+                "deferred_doctypes": mvp_boundary.get("deferred_doctypes") or (target.deferred_doctypes or []),
                 "exists": True,
                 "source": "project_level",
                 "corpus_independent": True,

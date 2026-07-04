@@ -149,6 +149,43 @@ async def r2_write_json(
     return await loop.run_in_executor(None, partial(_sync_write_json, key, data, bucket))
 
 
+def _sync_object_size(key: str, bucket: str) -> int:
+    """Return R2 object ContentLength, or -1 on error."""
+    try:
+        client = _make_client()
+        resp = client.head_object(Bucket=bucket, Key=key)
+        return int(resp.get("ContentLength", 0))
+    except Exception:
+        return -1
+
+
+async def r2_object_size(key: str, bucket: str = R2_BUCKET_CONTEXT) -> int:
+    """Async wrapper for head_object ContentLength."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, partial(_sync_object_size, key, bucket))
+
+
+async def r2_write_json_verified(
+    key: str,
+    data: dict,
+    *,
+    bucket: str = R2_BUCKET_CONTEXT,
+    min_bytes: int = 3,
+) -> bool:
+    """Write JSON to R2 and verify non-empty object landed."""
+    if not data:
+        logger.error("R2 write refused: empty payload | key=%s", key)
+        return False
+    ok = await r2_write_json(key, data, bucket=bucket)
+    if not ok:
+        return False
+    size = await r2_object_size(key, bucket=bucket)
+    if size < min_bytes:
+        logger.error("R2 write verification failed: key=%s size=%d", key, size)
+        return False
+    return True
+
+
 async def r2_read_json(
     key:    str,
     bucket: str = R2_BUCKET_CONTEXT,

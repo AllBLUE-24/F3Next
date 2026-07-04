@@ -52,6 +52,10 @@ class ProjectTargetStructure(Base):
     r2_target_path = Column(String, nullable=True)  # target_structure.json
     r2_mvp_path = Column(String, nullable=True)     # mvp_boundary.json
 
+    # Full artifacts (canonical JSON blobs — same row, separate columns)
+    target_structure_json = Column(JSONB, nullable=True)  # Full target_structure.json payload
+    mvp_boundary_json = Column(JSONB, nullable=True)      # Full mvp_boundary.json payload
+
     # JSONB for easy querying
     seed_doctypes = Column(JSONB, nullable=True)      # MVP seed doctypes
     required_doctypes = Column(JSONB, nullable=True)  # All doctypes (seeds + prereqs)

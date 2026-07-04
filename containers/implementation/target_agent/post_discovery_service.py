@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.models.project_target import ProjectTargetStructure, ProjectMVPBoundary
 from shared.models.hooks import Hook
-from shared.r2_client import r2_write_json
+from shared.r2_client import r2_write_json_verified
 from containers.implementation.target_agent.build_post_discovery import (
     build_post_discovery_target,
 )
@@ -104,11 +104,19 @@ async def generate_project_target_structure(
     # 3. Store in R2 (clean-data bucket — same as IS pipeline)
     bucket = "clean-data"
     target_key = f"{company_slug}/project_{project_id}/_discovery/target_structure.json"
-    mvp_boundary_data = target_result.get("mvp_boundary", {})
+    mvp_boundary_data = target_result.get("mvp_boundary") or {}
+    if not mvp_boundary_data.get("seed_doctypes"):
+        raise RuntimeError(
+            "MVP boundary missing seed_doctypes — cannot persist empty boundary"
+        )
     mvp_key = f"{company_slug}/project_{project_id}/_discovery/mvp_boundary.json"
 
-    ok_target = await r2_write_json(target_key, target_result, bucket=bucket)
-    ok_mvp = await r2_write_json(mvp_key, mvp_boundary_data, bucket=bucket)
+    ok_target = await r2_write_json_verified(
+        target_key, target_result, bucket=bucket, min_bytes=10
+    )
+    ok_mvp = await r2_write_json_verified(
+        mvp_key, mvp_boundary_data, bucket=bucket, min_bytes=10
+    )
     if not ok_target or not ok_mvp:
         raise RuntimeError(
             f"R2 upload failed for discovery artifacts | target_ok={ok_target} mvp_ok={ok_mvp}"
@@ -134,6 +142,8 @@ async def generate_project_target_structure(
         validation_rules=target_result.get("validation_rules", {}),
         mvp_focus=mvp_focus,
         deferred_doctypes=target_result.get("deferred_doctypes", []),
+        target_structure_json=target_result,
+        mvp_boundary_json=mvp_boundary_data,
         corpus_independent=True,
         graph_driven=True,
     )
@@ -162,7 +172,7 @@ async def generate_project_target_structure(
         deferred_doctypes=target_result.get("deferred_doctypes", []),
         mode=mvp_boundary_data.get("mode", "f3iche_template"),
         llm_enhanced=mvp_boundary_data.get("llm_enhanced", False),
-        llm_reasoning=mvp_boundary_data.get("llm_reasoning"),
+        llm_reasoning=mvp_boundary_data.get("llm_reasoning") or mvp_boundary_data.get("scoping_reasoning"),
         r2_path=mvp_key,
     )
     
