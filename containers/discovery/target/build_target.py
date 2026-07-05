@@ -186,6 +186,7 @@ async def build_discovery_target(
     chat_transcript: str = "",
     enhance_with_llm: bool = False,
     seed_doctypes_override: Optional[List[str]] = None,
+    niche_resolution_source: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate target structure + MVP boundary after discovery chat completes."""
     logger.debug("Building discovery target | f3iche=%s", f3iche)
@@ -258,6 +259,7 @@ async def build_discovery_target(
         "archetype_source": scoping.get("archetype_source"),
         "signal_match_score": scoping.get("signal_match_score"),
         "graph_extensions": scoping.get("graph_extensions") or [],
+        "niche_resolution_source": niche_resolution_source,
         "file_evidence": [],
         "llm_enhanced": bool(llm_enhanced_seeds),
         "llm_reasoning": llm_reasoning,

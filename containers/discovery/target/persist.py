@@ -73,6 +73,7 @@ async def generate_project_target_structure(
         chat_transcript=chat_transcript,
         enhance_with_llm=False,
         seed_doctypes_override=seed_override,
+        niche_resolution_source=metadata.get("niche_resolution_source"),
     )
 
     bucket = "clean-data"

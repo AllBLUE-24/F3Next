@@ -1,8 +1,20 @@
 """Map broad discovery f3iche + industry/chat hints to concrete F3iche template IDs."""
 from __future__ import annotations
 
+import json
+import logging
+import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+_USE_LLM_NICHE = os.getenv("DISCOVERY_LLM_NICHE_RESOLVE", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+_NICHE_LLM_MODEL = os.getenv("DISCOVERY_NICHE_MODEL", os.getenv("DISCOVERY_EXTRACT_MODEL", "gpt-4o-mini"))
 
 _BROAD_CATEGORIES = frozenset({"trading", "manufacturing", "service"})
 
@@ -114,6 +126,125 @@ def resolve_discovery_f3iche_niche(
             return matches[0]
         return niche_ids[0]
     return discovery_f3iche or "manufacturing_project_chemical"
+
+
+def _parse_llm_json(content: str) -> dict:
+    start_idx = content.find("{")
+    end_idx = content.rfind("}")
+    if start_idx != -1 and end_idx != -1:
+        clean_json = content[start_idx : end_idx + 1]
+    else:
+        clean_json = content.replace("```json", "").replace("```", "").strip()
+    return json.loads(clean_json)
+
+
+def infer_broad_f3iche(
+    *,
+    f3iche_hint: Optional[str] = None,
+    industry: str = "",
+    coverage: Optional[dict] = None,
+) -> str:
+    """Map extraction hints to trading|manufacturing|service."""
+    hint = (f3iche_hint or "").strip().lower()
+    if hint in _BROAD_CATEGORIES:
+        return hint
+
+    industry_val = industry.strip()
+    if not industry_val and coverage:
+        industry_val = str((coverage.get("industry") or {}).get("value") or "")
+
+    lowered = industry_val.lower()
+    if "manufactur" in lowered or "factory" in lowered or "production" in lowered:
+        return "manufacturing"
+    if any(x in lowered for x in ("service", "consult", "facility", "maintenance")):
+        return "service"
+    return "trading"
+
+
+def _coverage_summary_for_niche(coverage: Optional[dict]) -> str:
+    if not coverage:
+        return "(none)"
+    lines: list[str] = []
+    for key in ("industry", "strategy", "scale", "legacy_system", "pain_point"):
+        entry = coverage.get(key) or {}
+        val = entry.get("value")
+        if val:
+            lines.append(f"  • {key}: {val}")
+    return "\n".join(lines) if lines else "(none)"
+
+
+async def resolve_discovery_f3iche_niche_with_llm(
+    *,
+    discovery_f3iche: str,
+    industry: str = "",
+    chat_transcript: str = "",
+    coverage: Optional[dict] = None,
+) -> Optional[str]:
+    """LLM picks a niche id from the registry. Returns None on failure."""
+    from containers.discovery.prompts.niche import NICHE_RESOLUTION_PROMPT
+    from llm_router import invoke_smart_llm
+
+    niche_ids = list_f3iche_template_ids()
+    if not niche_ids:
+        return None
+
+    prompt = NICHE_RESOLUTION_PROMPT.format(
+        transcript=chat_transcript or "(empty)",
+        coverage_summary=_coverage_summary_for_niche(coverage),
+        broad_f3iche=discovery_f3iche,
+        industry=industry or "(unknown)",
+        niche_id_list="\n".join(f"  - {nid}" for nid in niche_ids),
+    )
+
+    response = await invoke_smart_llm(
+        [("human", prompt)],
+        model_name=_NICHE_LLM_MODEL,
+        temperature=0.1,
+        max_output_tokens=300,
+        response_mime_type="application/json",
+    )
+    raw = _parse_llm_json(response.content or "")
+    niche_id = str(raw.get("f3iche_niche_id") or raw.get("niche_id") or "").strip()
+    if niche_id in niche_ids:
+        return niche_id
+    logger.warning("LLM niche %r not in registry; ignoring", niche_id)
+    return None
+
+
+async def resolve_discovery_f3iche_niche_async(
+    *,
+    discovery_f3iche: str,
+    industry: str = "",
+    chat_transcript: str = "",
+    coverage: Optional[dict] = None,
+    use_llm_niche: Optional[bool] = None,
+) -> Tuple[str, str]:
+    """
+    Resolve concrete F3iche niche id.
+
+    Returns (niche_id, source) where source is 'llm' or 'keyword'.
+    """
+    use_llm = _USE_LLM_NICHE if use_llm_niche is None else use_llm_niche
+
+    if use_llm:
+        try:
+            llm_niche = await resolve_discovery_f3iche_niche_with_llm(
+                discovery_f3iche=discovery_f3iche,
+                industry=industry,
+                chat_transcript=chat_transcript,
+                coverage=coverage,
+            )
+            if llm_niche:
+                return llm_niche, "llm"
+        except Exception as e:
+            logger.warning("LLM niche resolution failed, using keyword fallback: %s", e)
+
+    keyword_niche = resolve_discovery_f3iche_niche(
+        discovery_f3iche=discovery_f3iche,
+        industry=industry,
+        chat_transcript=chat_transcript,
+    )
+    return keyword_niche, "keyword"
 
 
 def f3iche_template_path(f3iche_id: str) -> Path:

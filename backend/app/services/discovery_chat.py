@@ -19,10 +19,9 @@ from containers.discovery.chat_service import (
     complete_discovery,
     count_user_turns,
     generate_chat_reply,
-    normalize_messages,
     opening_messages,
-    transcript_text,
 )
+from containers.discovery.utils import normalize_messages, transcript_text
 from containers.discovery.f3iche_resolver import resolve_discovery_f3iche_niche
 from containers.discovery.phases import DiscoveryPhase, get_phase, is_upload_ready
 from containers.discovery.workflow_explanation import generate_workflow_explanation
@@ -225,26 +224,30 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
 
     result = await complete_discovery(messages)
 
+    niche_id = result["discovery_metadata"].get("f3iche_niche") or result.get("f3iche_niche")
+    niche_source = result["discovery_metadata"].get("niche_resolution_source") or "keyword"
     broad_f3iche = result["discovery_metadata"].get("f3iche", "trading")
     industry = result["discovery_metadata"].get("industry", "")
     mvp_focus = result["discovery_metadata"].get("mvp_focus") or {}
     bottleneck = mvp_focus.get("primary_bottleneck", "")
 
-    niche_id = resolve_discovery_f3iche_niche(
-        discovery_f3iche=broad_f3iche,
-        industry=industry,
-        chat_transcript=transcript_text(messages),
-    )
+    if not niche_id:
+        niche_id = resolve_discovery_f3iche_niche(
+            discovery_f3iche=broad_f3iche,
+            industry=industry,
+            chat_transcript=transcript_text(messages),
+        )
 
     discovery_metadata = {
         **result["discovery_metadata"],
         "f3iche_niche": niche_id,
+        "niche_resolution_source": niche_source,
         "phase": DiscoveryPhase.WORKFLOW_DISPLAY.value,
     }
 
     # Persist metadata before target generation (post_discovery_service reads hooks.discovery_metadata)
     hook.discovery_coverage = result["coverage"]
-    hook.extracted_tags = result["extracted_tags"]
+    hook.extracted_tags = []
     hook.discovery_metadata = discovery_metadata
     await db.flush()
 

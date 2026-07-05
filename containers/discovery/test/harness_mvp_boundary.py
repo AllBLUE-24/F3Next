@@ -72,26 +72,21 @@ def _load_messages(args: argparse.Namespace) -> list[dict]:
     return _messages_from_user_text(user_text)
 
 
-async def _run_with_llm(messages: list[dict], *, enhance_target: bool) -> dict[str, Any]:
+async def _run_with_llm(messages: list[dict], *, enhance_target: bool, use_llm_niche: bool | None) -> dict[str, Any]:
     from containers.discovery.chat_service import complete_discovery
-    from containers.discovery.niche_resolver import resolve_discovery_f3iche_niche
     from containers.discovery.target.build_target import build_discovery_target
 
     chat_transcript = transcript_text(messages)
 
-    discovery = await complete_discovery(messages)
+    discovery = await complete_discovery(messages, use_llm_niche=use_llm_niche)
     metadata = discovery["discovery_metadata"]
     coverage = discovery["coverage"]
 
-    broad_f3iche = metadata.get("f3iche", "trading")
+    broad_f3iche = metadata.get("f3iche", discovery.get("broad_f3iche", "trading"))
     industry = metadata.get("industry", "")
     mvp_focus = metadata.get("mvp_focus") or {}
-
-    niche_id = resolve_discovery_f3iche_niche(
-        discovery_f3iche=broad_f3iche,
-        industry=industry,
-        chat_transcript=chat_transcript,
-    )
+    niche_id = metadata.get("f3iche_niche") or discovery.get("f3iche_niche")
+    niche_source = metadata.get("niche_resolution_source") or discovery.get("niche_resolution_source")
 
     target = await build_discovery_target(
         f3iche=niche_id,
@@ -100,6 +95,7 @@ async def _run_with_llm(messages: list[dict], *, enhance_target: bool) -> dict[s
         chat_transcript=chat_transcript,
         discovery_chat=messages,
         enhance_with_llm=enhance_target,
+        niche_resolution_source=niche_source,
     )
 
     return {
@@ -110,6 +106,7 @@ async def _run_with_llm(messages: list[dict], *, enhance_target: bool) -> dict[s
         "recommendation": discovery["recommendation"],
         "discovery_metadata": metadata,
         "niche_id": niche_id,
+        "niche_resolution_source": niche_source,
         "broad_f3iche": broad_f3iche,
         "industry": industry,
         "mvp_focus": mvp_focus,
@@ -185,6 +182,7 @@ def _print_result(result: dict[str, Any]) -> None:
         print(f"  broad_f3iche: {result.get('broad_f3iche')}")
         print(f"  industry:     {result.get('industry')}")
         print(f"  niche_id:     {result.get('niche_id')}")
+        print(f"  niche_source: {result.get('niche_resolution_source', '')}")
         _print_coverage(result.get("coverage") or {})
         _print_mvp_focus(result.get("mvp_focus") or {})
 
@@ -254,6 +252,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--f3iche",
         help="Force niche template id (offline --no-llm only)",
     )
+    p.add_argument(
+        "--llm-niche",
+        action="store_true",
+        help="Enable DISCOVERY_LLM_NICHE_RESOLVE for this run (LLM picks F3iche niche)",
+    )
     p.add_argument("--json-out", help="Write full pipeline result JSON to this path")
     p.add_argument("--quiet", action="store_true", help="Print MVP boundary JSON only")
     return p
@@ -266,8 +269,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_llm:
         result = _run_without_llm(messages, f3iche_override=args.f3iche)
     else:
+        use_llm_niche = True if args.llm_niche else None
         result = asyncio.run(
-            _run_with_llm(messages, enhance_target=not args.no_target_llm)
+            _run_with_llm(messages, enhance_target=not args.no_target_llm, use_llm_niche=use_llm_niche)
         )
 
     if args.json_out:

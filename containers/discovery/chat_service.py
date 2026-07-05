@@ -1,23 +1,28 @@
 """
 Discovery Chat Service — synchronous ChatGPT-style conversation.
 
-No Temporal, no per-turn coverage extraction, no polling.
 Messages are stored in hooks.chat_history; structured output runs at /complete.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
+from typing import Any, Optional
 
+from containers.discovery.bottleneck_context import build_bottleneck_hint_context
 from containers.discovery.prompts import (
     ADI_CHAT_SYSTEM_PROMPT,
     OPENING_MESSAGE,
     RECOMMENDATION_PROMPT,
     TRANSCRIPT_EXTRACTION_PROMPT,
 )
+from containers.discovery.schemas import RecommendationResult, TranscriptExtractionResult
 from containers.discovery.utils import normalize_messages, transcript_text
+
+logger = logging.getLogger(__name__)
 
 MAX_USER_TURNS = int(os.getenv("DISCOVERY_MAX_TURNS", "20"))
 DISCOVERY_CHAT_MODEL = os.getenv("DISCOVERY_CHAT_MODEL", "gpt-4o-mini")
@@ -83,7 +88,6 @@ def _parse_llm_json(content: str) -> dict:
 
 
 def _to_langchain_messages(messages: list[dict]) -> list[tuple[str, str]]:
-    """Convert stored history to (role, content) tuples for llm_router."""
     lc: list[tuple[str, str]] = [("system", ADI_CHAT_SYSTEM_PROMPT)]
     for m in messages:
         role = m.get("role")
@@ -97,8 +101,23 @@ def _to_langchain_messages(messages: list[dict]) -> list[tuple[str, str]]:
     return lc
 
 
+def _coverage_from_extraction(raw: dict[str, Any]) -> dict[str, dict]:
+    merged = {dim: dict(EMPTY_COVERAGE[dim]) for dim in EMPTY_COVERAGE}
+    coverage = raw.get("coverage") or {}
+    for dim, entry in coverage.items():
+        if dim not in merged or not isinstance(entry, dict):
+            continue
+        val = entry.get("value")
+        status = entry.get("status")
+        if val:
+            merged[dim]["value"] = val
+            merged[dim]["status"] = status if status in ("confirmed", "partial") else "confirmed"
+        else:
+            merged[dim] = {"status": None, "value": None}
+    return merged
+
+
 async def generate_chat_reply(messages: list[dict]) -> str:
-    """Plain-text Adi reply given full conversation history."""
     from llm_router import invoke_smart_llm
 
     lc_messages = _to_langchain_messages(messages)
@@ -114,8 +133,18 @@ async def generate_chat_reply(messages: list[dict]) -> str:
     return reply
 
 
+def _coerce_coverage_raw(raw: dict[str, Any]) -> dict[str, Any]:
+    """LLM may return null for unused coverage dimensions."""
+    coverage = dict(raw.get("coverage") or {})
+    for dim in EMPTY_COVERAGE:
+        if coverage.get(dim) is None:
+            coverage[dim] = {"status": None, "value": None}
+    raw = dict(raw)
+    raw["coverage"] = coverage
+    return raw
+
+
 async def extract_from_transcript(messages: list[dict]) -> dict:
-    """One-shot structured extraction from the full conversation."""
     from llm_router import invoke_smart_llm
 
     prompt = TRANSCRIPT_EXTRACTION_PROMPT.format(transcript=transcript_text(messages))
@@ -126,63 +155,47 @@ async def extract_from_transcript(messages: list[dict]) -> dict:
         max_output_tokens=800,
         response_mime_type="application/json",
     )
-    result = _parse_llm_json(response.content)
+    raw = _parse_llm_json(response.content)
+    raw = _coerce_coverage_raw(raw)
 
-    coverage = result.get("coverage") or {}
-    # Merge with empty defaults; sanitize null values
-    merged = {dim: dict(EMPTY_COVERAGE[dim]) for dim in EMPTY_COVERAGE}
-    for dim, entry in coverage.items():
-        if dim not in merged or not isinstance(entry, dict):
-            continue
-        val = entry.get("value")
-        status = entry.get("status")
-        if val:
-            merged[dim]["value"] = val
-            merged[dim]["status"] = status if status in ("confirmed", "partial") else "confirmed"
-        else:
-            merged[dim] = {"status": None, "value": None}
-
-    tags = result.get("extracted_tags") or []
-    if not isinstance(tags, list):
-        tags = []
+    try:
+        parsed = TranscriptExtractionResult.model_validate(raw)
+        coverage = parsed.coverage.model_dump()
+        f3iche_hint = parsed.f3iche_hint
+        industry_hint = parsed.industry_hint
+    except Exception as e:
+        logger.warning("Extract schema validation failed, using raw: %s", e)
+        coverage = _coverage_from_extraction(raw)
+        f3iche_hint = raw.get("f3iche_hint")
+        industry_hint = raw.get("industry_hint")
 
     return {
-        "coverage": merged,
-        "extracted_tags": tags,
-        "f3iche_hint": result.get("f3iche_hint"),
-        "industry_hint": result.get("industry_hint"),
+        "coverage": coverage,
+        "f3iche_hint": f3iche_hint,
+        "industry_hint": industry_hint,
     }
 
 
-async def generate_erp_recommendation(coverage: dict, tags: list) -> dict:
-    """Generate ERP recommendation from extracted coverage + tags."""
+async def generate_erp_recommendation(
+    coverage: dict,
+    *,
+    f3iche_hint: Optional[str] = None,
+    industry_hint: Optional[str] = None,
+    f3iche_id: Optional[str] = None,
+) -> dict:
     from llm_router import invoke_smart_llm
 
-    tag_str = ", ".join(tags) if tags else "none"
     coverage_summary = _build_coverage_summary(coverage)
     primary_bottleneck = (coverage.get("pain_point") or {}).get("value") or ""
 
-    rag_context = ""
-    if primary_bottleneck:
-        try:
-            from containers.implementation.utils.rag_helper import rag_retrieve
-            chunks = await rag_retrieve(primary_bottleneck, "business_bottlenecks", top_k=2)
-            rag_context = "\n\n".join(chunks)
-        except Exception as e:
-            print(f"⚠️ RAG Retrieval failed for bottleneck: {e!r}")
-            try:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-                map_path = os.path.join(base_dir, "..", "knowledge_base", "common", "mvp_bottleneck_map.json")
-                if os.path.exists(map_path):
-                    with open(map_path, "r") as f:
-                        rag_context = f"FALLBACK MAP:\n{f.read()}"
-            except Exception:
-                pass
+    bottleneck_hint_context = await build_bottleneck_hint_context(
+        primary_bottleneck,
+        f3iche_id=f3iche_id,
+    )
 
     formatted_prompt = RECOMMENDATION_PROMPT.format(
-        extracted_tags=tag_str,
         coverage_summary=coverage_summary,
-        rag_context=rag_context,
+        bottleneck_hint_context=bottleneck_hint_context,
     )
 
     try:
@@ -193,48 +206,91 @@ async def generate_erp_recommendation(coverage: dict, tags: list) -> dict:
             max_output_tokens=1000,
             response_mime_type="application/json",
         )
-        return _parse_llm_json(response.content)
+        raw = _parse_llm_json(response.content)
+        try:
+            return RecommendationResult.model_validate(raw).model_dump()
+        except Exception as e:
+            logger.warning("Recommend schema validation failed: %s", e)
+            return raw
     except Exception as e:
-        print(f"❌ Recommendation Error: {e!r}")
-        industry_val = (coverage.get("industry") or {}).get("value") or ""
-        is_mfg = "manufactur" in industry_val.lower()
-        return {
-            "recommended_erp": (
+        logger.error("Recommendation LLM failed: %r", e)
+        industry_val = (coverage.get("industry") or {}).get("value") or industry_hint or ""
+        is_mfg = "manufactur" in industry_val.lower() or f3iche_hint == "manufacturing"
+        return RecommendationResult(
+            recommended_erp=(
                 "ERPNext Manufacturing (Standard)" if is_mfg else "ERPNext Distribution & Commerce"
             ),
-            "fit_score": 78,
-            "headline": "Strong Match for Your Business Profile",
-            "reasoning": (
+            fit_score=78,
+            headline="Strong Match for Your Business Profile",
+            reasoning=(
                 "Based on your profile, ERPNext covers your core operational needs out of the box. "
                 "We can tailor the configuration to your specific pain points."
             ),
-            "f3iche": "manufacturing" if is_mfg else "trading",
-            "industry": industry_val or "General",
-            "price_plan": "Standard",
-        }
+            f3iche="manufacturing" if is_mfg else "trading",
+            industry=industry_val or "General",
+            price_plan="Standard",
+        ).model_dump()
 
 
-async def complete_discovery(messages: list[dict]) -> dict:
-    """Extract signals from transcript + generate recommendation."""
+async def complete_discovery(
+    messages: list[dict],
+    *,
+    use_llm_niche: Optional[bool] = None,
+) -> dict:
+    """Extract signals, resolve niche, then generate recommendation with F3iche hints."""
+    from containers.discovery.niche_resolver import (
+        infer_broad_f3iche,
+        resolve_discovery_f3iche_niche_async,
+    )
+
     extraction = await extract_from_transcript(messages)
     coverage = extraction["coverage"]
-    tags = extraction["extracted_tags"]
-    recommendation = await generate_erp_recommendation(coverage, tags)
+    chat_transcript = transcript_text(messages)
+
+    industry = (
+        (coverage.get("industry") or {}).get("value")
+        or extraction.get("industry_hint")
+        or ""
+    )
+    broad_f3iche = infer_broad_f3iche(
+        f3iche_hint=extraction.get("f3iche_hint"),
+        industry=industry,
+        coverage=coverage,
+    )
+
+    niche_id, niche_source = await resolve_discovery_f3iche_niche_async(
+        discovery_f3iche=broad_f3iche,
+        industry=industry,
+        chat_transcript=chat_transcript,
+        coverage=coverage,
+        use_llm_niche=use_llm_niche,
+    )
+
+    recommendation = await generate_erp_recommendation(
+        coverage,
+        f3iche_hint=extraction.get("f3iche_hint"),
+        industry_hint=extraction.get("industry_hint"),
+        f3iche_id=niche_id,
+    )
 
     metadata = {
-        "f3iche": recommendation.get("f3iche", "trading"),
-        "industry": recommendation.get("industry", ""),
+        "f3iche": recommendation.get("f3iche", broad_f3iche),
+        "industry": recommendation.get("industry", industry),
         "price_plan": recommendation.get("price_plan", "Standard"),
         "recommended_erp": recommendation.get("recommended_erp"),
         "fit_score": recommendation.get("fit_score"),
         "headline": recommendation.get("headline"),
         "reasoning": recommendation.get("reasoning"),
         "mvp_focus": recommendation.get("mvp_focus"),
+        "f3iche_niche": niche_id,
+        "niche_resolution_source": niche_source,
     }
 
     return {
         "coverage": coverage,
-        "extracted_tags": tags,
         "recommendation": recommendation,
         "discovery_metadata": metadata,
+        "f3iche_niche": niche_id,
+        "niche_resolution_source": niche_source,
+        "broad_f3iche": broad_f3iche,
     }
