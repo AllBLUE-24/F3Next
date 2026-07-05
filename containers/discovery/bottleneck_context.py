@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
-from containers.discovery.archetype_registry import load_catalog, load_f3iche_archetypes
+from containers.discovery.archetype_registry import load_catalog, merged_archetypes
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ USE_F3ICHE_BOTTLENECKS = os.getenv("DISCOVERY_USE_F3ICHE_BOTTLENECKS", "true").l
     "true",
     "yes",
 )
-USE_MVP_MAP_FALLBACK = os.getenv("DISCOVERY_USE_MVP_MAP_FALLBACK", "true").lower() in (
+USE_MVP_MAP_FALLBACK = os.getenv("DISCOVERY_USE_MVP_MAP_FALLBACK", "false").lower() in (
     "1",
     "true",
     "yes",
@@ -35,7 +35,7 @@ USE_BOTTLENECK_RAG = os.getenv("DISCOVERY_USE_BOTTLENECK_RAG", "false").lower() 
 
 @lru_cache(maxsize=1)
 def load_global_archetype_catalog() -> dict[str, Any]:
-    """Research-maintained catalog (optional). Falls back to mvp_bottleneck_map.json."""
+    """Research-maintained catalog. Legacy mvp_bottleneck_map.json only if flag enabled."""
     data = load_catalog()
     if isinstance(data, dict) and data.get("archetypes"):
         return {**data, "_source": "containers/discovery/kb/archetype_catalog.json"}
@@ -50,6 +50,10 @@ def load_global_archetype_catalog() -> dict[str, Any]:
         logger.warning("Failed to load mvp_bottleneck_map.json: %s", e)
         return {"archetypes": [], "_source": "none"}
 
+    logger.warning(
+        "Using deprecated mvp_bottleneck_map.json — set DISCOVERY_USE_MVP_MAP_FALLBACK=false "
+        "and expand archetype_catalog.json instead"
+    )
     archetypes = []
     for key, entry in raw.items():
         if key.startswith("_") or not isinstance(entry, dict):
@@ -62,14 +66,26 @@ def load_global_archetype_catalog() -> dict[str, Any]:
                 "day1_seed_hints": entry.get("suggested_seed_doctypes", []),
             }
         )
-    return {"archetypes": archetypes, "_source": "mvp_bottleneck_map.json"}
+    return {"archetypes": archetypes, "_source": "mvp_bottleneck_map.json (deprecated)"}
 
 
-def load_f3iche_bottlenecks(f3iche_id: Optional[str]) -> list[dict[str, Any]]:
-    """Read bottlenecks[] from a F3iche JSON once Research fills them in."""
-    if not f3iche_id or not USE_F3ICHE_BOTTLENECKS:
-        return []
-    return load_f3iche_archetypes(f3iche_id)
+def _format_archetype_line(a: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    aid = a.get("archetype_id", "")
+    lines.append(f"- {aid}: {a.get('primary_bottleneck', '')}")
+    reqs = a.get("functional_requirements") or []
+    if reqs:
+        lines.append(f"  functional_requirements: {', '.join(reqs)}")
+    seeds = a.get("day1_seed_hints") or a.get("suggested_seed_doctypes") or []
+    if seeds:
+        lines.append(f"  day1_seed_hints: {', '.join(seeds)}")
+    signals = a.get("signals") or []
+    if signals:
+        lines.append(f"  signals: {', '.join(signals)}")
+    defer = a.get("defer_typically") or []
+    if defer:
+        lines.append(f"  defer_typically: {', '.join(defer)}")
+    return lines
 
 
 def _format_archetypes_for_prompt(archetypes: list[dict[str, Any]], *, header: str) -> str:
@@ -77,18 +93,51 @@ def _format_archetypes_for_prompt(archetypes: list[dict[str, Any]], *, header: s
         return "(none — infer from coverage pain_point)"
     lines = [header]
     for a in archetypes:
-        aid = a.get("archetype_id", "")
-        lines.append(f"- {aid}: {a.get('primary_bottleneck', '')}")
-        reqs = a.get("functional_requirements") or []
-        if reqs:
-            lines.append(f"  functional_requirements: {', '.join(reqs)}")
-        seeds = a.get("day1_seed_hints") or a.get("suggested_seed_doctypes") or []
-        if seeds:
-            lines.append(f"  day1_seed_hints: {', '.join(seeds)}")
-        signals = a.get("signals") or []
-        if signals:
-            lines.append(f"  signals: {', '.join(signals)}")
+        lines.extend(_format_archetype_line(a))
     return "\n".join(lines)
+
+
+def _format_merged_archetypes_for_prompt(
+    f3iche_id: Optional[str],
+    *,
+    catalog: dict[str, Any],
+) -> str:
+    """Merged F3iche overrides + global catalog; optional sector grouping from _meta.sectors."""
+    merged = merged_archetypes(f3iche_id if USE_F3ICHE_BOTTLENECKS else None)
+    if not merged:
+        legacy = load_global_archetype_catalog()
+        merged = legacy.get("archetypes") or []
+        source = legacy.get("_source", "unknown")
+    else:
+        source = "archetype_registry (F3iche overrides + global catalog)"
+
+    if not merged:
+        return "(none — infer mvp_focus from coverage pain_point and industry)"
+
+    sectors: dict[str, list[str]] = (catalog.get("_meta") or {}).get("sectors") or {}
+    if not sectors:
+        header = f"ARCHETYPE HINTS (source: {source}"
+        if f3iche_id and USE_F3ICHE_BOTTLENECKS:
+            header += f", niche: {f3iche_id}"
+        header += "):"
+        return _format_archetypes_for_prompt(merged, header=header)
+
+    by_id = {str(a.get("archetype_id")): a for a in merged if a.get("archetype_id")}
+    grouped_ids: set[str] = set()
+    parts = [f"ARCHETYPE HINTS BY SECTOR (source: {source}):"]
+
+    for sector_name, ids in sectors.items():
+        sector_entries = [by_id[i] for i in ids if i in by_id]
+        if not sector_entries:
+            continue
+        grouped_ids.update(str(a.get("archetype_id")) for a in sector_entries)
+        parts.append(_format_archetypes_for_prompt(sector_entries, header=f"\n[{sector_name}]"))
+
+    ungrouped = [a for aid, a in by_id.items() if aid not in grouped_ids]
+    if ungrouped:
+        parts.append(_format_archetypes_for_prompt(ungrouped, header="\n[Other / cross-sector]"))
+
+    return "\n".join(parts)
 
 
 async def build_bottleneck_hint_context(
@@ -98,28 +147,14 @@ async def build_bottleneck_hint_context(
 ) -> str:
     """
     Context block injected into RECOMMENDATION_PROMPT.
-    Priority: F3iche bottlenecks[] → archetype_catalog → mvp map → optional RAG.
+
+    Uses merged_archetypes so global catalog and F3iche bottlenecks[] both reach the LLM.
     """
     parts: list[str] = []
-
-    f3iche_archetypes = load_f3iche_bottlenecks(f3iche_id)
-    if f3iche_archetypes:
-        parts.append(
-            _format_archetypes_for_prompt(
-                f3iche_archetypes,
-                header=f"F3ICHE BOTTLENECKS ({f3iche_id or 'unknown'}):",
-            )
-        )
-
-    catalog = load_global_archetype_catalog()
-    global_archetypes = catalog.get("archetypes") or []
-    if global_archetypes and not f3iche_archetypes:
-        parts.append(
-            _format_archetypes_for_prompt(
-                global_archetypes,
-                header=f"GLOBAL ARCHETYPE CATALOG (source: {catalog.get('_source', 'unknown')}):",
-            )
-        )
+    catalog = load_catalog()
+    merged_block = _format_merged_archetypes_for_prompt(f3iche_id, catalog=catalog)
+    if merged_block and not merged_block.startswith("(none"):
+        parts.append(merged_block)
 
     if primary_bottleneck and USE_BOTTLENECK_RAG:
         try:

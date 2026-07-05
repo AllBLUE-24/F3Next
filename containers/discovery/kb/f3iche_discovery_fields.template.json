@@ -1,0 +1,9 @@
+{
+  "_instructions": "Copy the bottleneck_archetype.template.json object into a bottlenecks[] array on each F3iche JSON. Copy import_field_policy block if missing. See RESEARCH_GUIDE.txt in this folder.",
+  "bottlenecks": [],
+  "import_field_policy": {
+    "always_ask": [],
+    "defer_until_post_mvp": [],
+    "default_when_missing": {}
+  }
+}

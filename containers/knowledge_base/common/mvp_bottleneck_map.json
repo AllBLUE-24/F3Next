@@ -1,5 +1,6 @@
 {
-  "_comment": "Fast-path resolution for common bottlenecks. Used as a baseline for 'direct foundings' before falling back to pgvector semantic search.",
+  "_comment": "DEPRECATED 2026-07-06 — use containers/discovery/kb/archetype_catalog.json. Loaded only when DISCOVERY_USE_MVP_MAP_FALLBACK=true.",
+  "_legacy_comment": "Fast-path resolution for common bottlenecks. Used as a baseline for 'direct foundings' before falling back to pgvector semantic search.",
   "basic_inventory": {
     "primary_bottleneck": "Basic stockouts and inventory visibility",
     "functional_requirements": ["inventory_tracking", "warehouse_management", "stock_reconciliation"]
@@ -45,3 +46,4 @@
     "functional_requirements": ["general_ledger", "inventory_tracking", "sales_order_management", "purchasing"]
   }
 }
+

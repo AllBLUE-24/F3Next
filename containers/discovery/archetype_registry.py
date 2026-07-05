@@ -209,11 +209,121 @@ def resolve_seed_doctypes(
     return resolved, graph_extensions
 
 
-def validate_archetype_load(f3iche_id: Optional[str] = None) -> list[str]:
-    """Return warning strings for archetypes missing day1_seed_hints."""
+_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _validate_archetype_entry(
+    entry: dict[str, Any],
+    *,
+    source: str,
+    graph_keys: frozenset[str],
+) -> tuple[list[str], list[str]]:
+    """Return (errors, warnings) for a single archetype row."""
+    errors: list[str] = []
     warnings: list[str] = []
-    for entry in merged_archetypes(f3iche_id):
-        aid = entry.get("archetype_id")
-        if not entry.get("day1_seed_hints"):
-            warnings.append(f"archetype {aid!r} has no day1_seed_hints")
-    return warnings
+    aid = str(entry.get("archetype_id") or "").strip()
+
+    if not aid:
+        errors.append(f"{source}: missing archetype_id")
+        return errors, warnings
+    if not _ID_PATTERN.match(aid):
+        errors.append(f"{source}: archetype_id {aid!r} must be snake_case")
+
+    if not str(entry.get("primary_bottleneck") or "").strip():
+        warnings.append(f"{source} {aid}: missing primary_bottleneck")
+
+    signals = entry.get("signals") or []
+    if not signals:
+        warnings.append(f"{source} {aid}: no signals[] (signal-match fallback weak)")
+    elif len(signals) < 3:
+        warnings.append(f"{source} {aid}: fewer than 3 signals")
+
+    hints = entry.get("day1_seed_hints") or entry.get("suggested_seed_doctypes") or []
+    if not hints:
+        errors.append(f"{source} {aid}: no day1_seed_hints")
+    else:
+        for hint in hints:
+            dt = canonicalize_seed(str(hint))
+            if not dt:
+                continue
+            if graph_keys and dt not in graph_keys:
+                warnings.append(
+                    f"{source} {aid}: day1_seed_hint {dt!r} not in erpnext_doctype_graph"
+                )
+
+    return errors, warnings
+
+
+def validate_archetype_registry(
+    f3iche_id: Optional[str] = None,
+    *,
+    check_all_f3iches: bool = False,
+) -> dict[str, Any]:
+    """
+    Validate catalog + optional F3iche bottlenecks[] for Research merge gates.
+
+    Returns {"errors": [...], "warnings": [...], "archetype_count": int}.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    graph_keys = _load_doctype_graph_keys()
+    seen_ids: dict[str, str] = {}
+
+    catalog = load_catalog()
+    for idx, entry in enumerate(catalog.get("archetypes") or []):
+        if not isinstance(entry, dict):
+            errors.append(f"catalog entry[{idx}] is not an object")
+            continue
+        source = f"catalog[{entry.get('archetype_id') or idx}]"
+        aid = str(entry.get("archetype_id") or "").strip()
+        if aid:
+            if aid in seen_ids:
+                errors.append(f"duplicate archetype_id {aid!r} ({seen_ids[aid]} vs {source})")
+            else:
+                seen_ids[aid] = source
+        entry_errors, entry_warnings = _validate_archetype_entry(
+            entry, source=source, graph_keys=graph_keys
+        )
+        errors.extend(entry_errors)
+        warnings.extend(entry_warnings)
+
+    f3iche_ids: list[Optional[str]]
+    if check_all_f3iches:
+        f3iche_ids = [
+            p.stem for p in sorted(_F3ICHE_DIR.glob("*.json")) if not p.name.startswith("_")
+        ]
+    elif f3iche_id:
+        f3iche_ids = [f3iche_id]
+    else:
+        f3iche_ids = []
+
+    for fid in f3iche_ids:
+        f3iche_seen: set[str] = set()
+        for idx, entry in enumerate(load_f3iche_archetypes(fid)):
+            if not isinstance(entry, dict):
+                errors.append(f"f3iche {fid} bottlenecks[{idx}] is not an object")
+                continue
+            source = f"f3iche:{fid}[{entry.get('archetype_id') or idx}]"
+            aid = str(entry.get("archetype_id") or "").strip()
+            if aid:
+                if aid in f3iche_seen:
+                    errors.append(f"duplicate archetype_id {aid!r} within f3iche {fid}")
+                f3iche_seen.add(aid)
+            entry_errors, entry_warnings = _validate_archetype_entry(
+                entry, source=source, graph_keys=graph_keys
+            )
+            errors.extend(entry_errors)
+            warnings.extend(entry_warnings)
+
+    merged_count = len(merged_archetypes(f3iche_id))
+    return {
+        "errors": errors,
+        "warnings": warnings,
+        "archetype_count": merged_count,
+    }
+
+
+def validate_archetype_load(f3iche_id: Optional[str] = None) -> list[str]:
+    """Return warning strings for archetypes missing day1_seed_hints (legacy helper)."""
+    result = validate_archetype_registry(f3iche_id)
+    return [w for w in result["warnings"] if "day1_seed_hints" in w or "no day1" in w]

@@ -138,3 +138,18 @@ def test_user_override_wins():
     )
     assert result["mvp_seeds"] == ["Item", "BOM"]
     assert result["scoping_mode"] == "user_confirmed"
+
+
+def test_invalid_archetype_id_falls_back_to_signal_match():
+    result = scope_mvp_seeds(
+        template_seeds=CHEMICAL_TEMPLATE,
+        f3iche_id=CHEMICAL_F3ICHE,
+        mvp_focus={
+            "primary_bottleneck": "inventory",
+            "archetype_id": "not_a_real_archetype",
+        },
+        chat_transcript="Part A and Part B mismatch stranded hardener hazmat batch",
+    )
+    assert result["invalid_archetype_id"] == "not_a_real_archetype"
+    assert result["archetype_source"] == "signal_match"
+    assert result["archetype_id"] == "inventory_visibility"

@@ -1,0 +1,48 @@
+F3Next Discovery — Research fill guide
+======================================
+
+Location: containers/knowledge_base/common/f3iches/
+
+WHAT TO FILL (per F3iche JSON, e.g. manufacturing_project_chemical.json)
+------------------------------------------------------------------------
+
+1. bottlenecks[]  — copy from bottleneck_archetype.template.json (2-4 entries per niche)
+   Fields:
+   - archetype_id        Prefer existing global ids when the pain is the same; new snake_case ids ok
+   - primary_bottleneck  Plain-language pain label
+   - signals             Words/phrases Adi might hear in discovery chat (≥5 recommended)
+   - functional_requirements  Capability phrases (snake_case ok)
+   - day1_seed_hints     ERPNext doctype names for Day-1 MVP (subset of mandatory_doctypes)
+   - defer_typically     Doctypes to defer when this bottleneck is primary
+   - notes               Dual-system (Tally), compliance, etc.
+
+2. import_field_policy  — see f3iche_discovery_fields.template.json
+   - always_ask              Always include in Day-1 seeds
+   - defer_until_post_mvp    Never Day-1 unless bottleneck rule overrides
+   - default_when_missing    Field defaults for import (optional)
+
+3. mandatory_doctypes / required_doctypes  — full niche template seed list (already present)
+
+GLOBAL CATALOG
+--------------
+containers/discovery/kb/archetype_catalog.json — cross-niche archetypes (target: 30–50 sector-grouped).
+
+Engineering reads all rows via archetype_registry.py (no Python allowlist per id).
+F3iche bottlenecks[] override catalog entries with the same archetype_id.
+
+Optional sector grouping for LLM prompts:
+  _meta.sectors: { "Sector Name": ["archetype_id", ...] }
+
+VALIDATE BEFORE MERGE
+---------------------
+  python -m containers.discovery.kb.validate_archetypes
+
+See RESEARCH_HANDOFF.md for priority archetypes blocking golden tests.
+
+DEPRECATED
+----------
+mvp_bottleneck_map.json — legacy fallback only (DISCOVERY_USE_MVP_MAP_FALLBACK=false by default).
+
+WHEN DONE
+---------
+Merge after validate_archetypes passes. No engineering gate for new ids — scoping uses day1_seed_hints automatically.

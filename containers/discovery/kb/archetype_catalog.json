@@ -1,0 +1,311 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "owner": "Research Team",
+    "description": "Global bottleneck archetypes for Discovery recommend step. Prefer filling bottlenecks inside each F3iche JSON; keep this file for cross-niche archetypes or until F3iches are complete.",
+    "engineering_consumer": "containers/discovery/bottleneck_context.py",
+    "scoping_rule_ids_must_match": [
+      "factory_wip_bridge",
+      "inventory_visibility",
+      "procurement_gap",
+      "basic_inventory",
+      "scrap_wastage",
+      "invoicing_receivables",
+      "basic_costing",
+      "basic_purchasing",
+      "excel_bom_disconnect",
+      "service_dispatch_chaos"
+    ]
+  },
+  "archetypes": [
+    {
+      "archetype_id": "basic_inventory",
+      "primary_bottleneck": "Inventory Visibility and Multi-Node Desynchronization",
+      "signals": [
+        "stockout",
+        "overstocking",
+        "clipboard tally",
+        "serial number mismatch",
+        "real inventory counts never match",
+        "paper pick lists"
+      ],
+      "functional_requirements": [
+        "real_time_multi_warehouse_tracking",
+        "automated_stock_deduction_on_shipment",
+        "serialized_and_batch_inventory_control",
+        "auditable_stock_reconciliation",
+        "multi_channel_order_consolidation"
+      ],
+      "day1_seed_hints": [
+        "Item",
+        "Warehouse",
+        "Stock Entry",
+        "Delivery Note",
+        "Stock Reconciliation"
+      ],
+      "defer_typically": [
+        "Manufacturing",
+        "HR",
+        "Payroll"
+      ],
+      "notes": "Critical for trading/retail SMEs expanding warehouses. Serialized items must use Stock Entry (Material Receipt) for opening balances, as standard Stock Reconciliation only updates quantity, not serial numbers."
+    },
+    {
+      "archetype_id": "excel_bom_disconnect",
+      "primary_bottleneck": "Manufacturing BOM and Finished Goods Valuation Disconnect",
+      "signals": [
+        "excel sheets flying around",
+        "whatsapp chats",
+        "outdated purchasing costs",
+        "unexplained financial balances",
+        "stock adjustment accounts",
+        "true production cost"
+      ],
+      "functional_requirements": [
+        "centralized_bill_of_materials_management",
+        "automated_wip_material_transfer",
+        "proportional_raw_material_cost_distribution",
+        "job_card_production_tracking",
+        "secondary_item_valuation_control"
+      ],
+      "day1_seed_hints": [
+        "BOM",
+        "Work Order",
+        "Job Card",
+        "Stock Entry"
+      ],
+      "defer_typically": [
+        "Capacity Planning",
+        "Downtime Entry",
+        "Quality Inspection"
+      ],
+      "notes": "Tally migrants frequently struggle here due to the shift to relational WIP tracking. Ensure secondary item valuation logic is strictly defined in Day-1 training to prevent stock adjustment ledger dumping."
+    },
+    {
+      "archetype_id": "procurement_gap",
+      "primary_bottleneck": "Procurement Opacity and MRP Failure",
+      "signals": [
+        "duplicate ordering",
+        "delayed shipping pipelines",
+        "inconsistent safety stock",
+        "vendor overbilling",
+        "where is my PO",
+        "pending GRN"
+      ],
+      "functional_requirements": [
+        "centralized_material_demand_consolidation",
+        "vendor_quotation_comparison",
+        "automated_purchase_order_generation",
+        "purchase_receipt_asset_capitalization",
+        "three_way_invoice_matching"
+      ],
+      "day1_seed_hints": [
+        "Material Request",
+        "Purchase Order",
+        "Purchase Receipt"
+      ],
+      "defer_typically": [
+        "Supplier Scorecard",
+        "Request for Quotation",
+        "Landed Cost Voucher"
+      ],
+      "notes": "Essential bottleneck to resolve to bridge the gap between sales demand and warehouse supply. Defer complex RFQ broadcasting and supplier scoring on Day 1 to reduce user adoption friction."
+    },
+    {
+      "archetype_id": "invoicing_receivables",
+      "primary_bottleneck": "Receivables Fragmentation and Aging Loss",
+      "signals": [
+        "overpays a sales invoice",
+        "lump-sum advance payment",
+        "unallocated balance",
+        "off-ledger adjustments",
+        "payment overdue"
+      ],
+      "functional_requirements": [
+        "preservation_of_invoice_aging_data",
+        "automated_payment_allocation_to_invoices",
+        "credit_and_debit_note_linking",
+        "fifo_payment_terms_scheduling",
+        "unallocated_advance_payment_handling"
+      ],
+      "day1_seed_hints": [
+        "Sales Invoice",
+        "Payment Entry",
+        "Credit Note",
+        "Debit Note"
+      ],
+      "defer_typically": [
+        "Dunning",
+        "Subscription"
+      ],
+      "notes": "Critical data migration architectural warning: Implementation MUST use Sales Invoice with 'is_opening' flag to preserve aging histories, rather than processing a bulk Journal Entry against the customer ledger."
+    },
+    {
+      "archetype_id": "service_dispatch_chaos",
+      "primary_bottleneck": "Unstructured Field Service Dispatching and SLA Failure",
+      "signals": [
+        "hotel staff group chat",
+        "recurring faults",
+        "untracked tasks",
+        "blind strategic decisions",
+        "whatsapp groups"
+      ],
+      "functional_requirements": [
+        "centralized_issue_ticketing_and_routing",
+        "timestamped_service_level_agreements",
+        "technician_assignment_tracking",
+        "maintenance_scheduling_and_logging",
+        "asset_fault_history_tracking"
+      ],
+      "day1_seed_hints": [
+        "Issue",
+        "Work Order",
+        "Maintenance Schedule",
+        "Maintenance Visit"
+      ],
+      "defer_typically": [
+        "AI Forecasting",
+        "Automated Intelligent Routing"
+      ],
+      "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Crucial structural mapping for facility management and field service SMEs that are completely reliant on consumer messaging apps."
+    },
+    {
+      "archetype_id": "subcontractor_job_work_yield_leakage",
+        "primary_bottleneck": "Subcontractor Job Work Yield Leakage and Statutory Reclassifications (Section 143)",
+        "signals": [
+          "job work",
+          "third-party vendor",
+          "unmonitored operational black box",
+          "deemed supply",
+          "section 143",
+          "itc-04",
+          "delivery challan",
+          "must be a non-stock item",
+          "phantom scrap",
+          "yield leakage"
+        ],
+        "functional_requirements": [
+          "job_work_challan_generation_rule_45",
+          "real_time_vendor_warehouse_stock_tracking",
+          "yield_and_scrap_discrepancy_reconciliation",
+          "itc_04_quarterly_compliance_reporting",
+          "backflushing_raw_materials_strictly_by_bom",
+          "non_stock_service_billing_linked_to_finished_goods"
+        ],
+        "day1_seed_hints": [
+          "Subcontracting Order",
+          "Subcontracting Receipt",
+          "Stock Entry",
+          "Item",
+          "BOM"
+        ],
+        "defer_typically": [
+          "Quality Inspection",
+          "Payment Entry"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Essential for OEM Tier-1 suppliers and process manufacturers. Standard Tally users only track ledger balances (e.g., job work service expenses) and completely fail to track physical raw material balances sitting at third-party job workers. This leads to massive scrap leaking and statutory compliance failure under Section 143 of the CGST Act (1-year limit for inputs, 3-year limit for capital goods, after which it is treated as a deemed supply). Implementation must seed the Subcontracting Order and Subcontracting Receipt doctypes (introduced in ERPNext v14) to bypass the classic v13 PO stock-item limitation."
+      },
+      {
+        "archetype_id": "warranty_rma_and_reverse_logistics_chaos",
+        "primary_bottleneck": "Unstructured B2B Return Merchandise Authorization and Serialized Warranty Tracking",
+        "signals": [
+          "warranty claim",
+          "amc status",
+          "dual-serial states",
+          "faulty serial number",
+          "replacement serial number",
+          "free sample",
+          "itc reversal",
+          "quarantine warehouse",
+          "rma"
+        ],
+        "functional_requirements": [
+          "rma_number_and_naming_series_configuration",
+          "dual_serial_number_capture_faulty_and_replacement",
+          "automated_warranty_and_amc_status_validation",
+          "free_spare_material_issuance_from_product_bom",
+          "maintenance_visit_and_resolution_logging"
+        ],
+        "day1_seed_hints": [
+          "Warranty Claim",
+          "Maintenance Visit",
+          "Delivery Note",
+          "Stock Entry",
+          "Material Request"
+        ],
+        "defer_typically": [
+          "Maintenance Schedule",
+          "Quality Inspection"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Crucial for manufacturing and distribution SMEs handling high-value serialized equipment. Standard ERPNext requires significant customization to capture both the incoming faulty serial number and the outgoing replacement serial number on the same transaction. SMEs migrating from basic accounting systems (like Tally) struggle with reverse inventory valuation and GST compliance on free-of-cost replacement spares. Seeding 'Warranty Claim' and 'Maintenance Visit' on Day 1 is mandatory; avoid over-complicating with preventive 'Maintenance Schedule' until reactive flows are stable."
+      },
+      {
+        "archetype_id": "multi_tier_sales_commission_and_payable_desynchronization",
+        "primary_bottleneck": "Multi-Tier Rule-Based Sales Commission and Accounts Payable Desynchronization",
+        "signals": [
+          "unpaid commissions",
+          "lump-sum advance payment to partner",
+          "sales person incentive tracking",
+          "tiered commission slab",
+          "calculate commission on gross margin",
+          "sales partner report in Excel",
+          "manual journal entry for commission",
+          "partner is not created as vendor",
+          "outstanding commission aging"
+        ],
+        "functional_requirements": [
+          "rule_based_commission_rate_calculation",
+          "tiered_incentive_and_volume_slab_mapping",
+          "sales_partner_to_supplier_ledger_linking",
+          "commission_accrual_and_payment_reconciliation",
+          "gross_margin_based_commission_calculation"
+        ],
+        "day1_seed_hints": [
+          "Sales Partner",
+          "Supplier",
+          "Sales Invoice",
+          "Payment Entry",
+          "Journal Entry"
+        ],
+        "defer_typically": [
+          "Payroll",
+          "HR"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. A massive systemic gap for trading and distribution SMEs. Tally does not handle automated commissions, and ERPNext does not auto-generate Accounts Payable for Sales Partners by default. Implementation must link the Sales Partner to a Supplier record to enable standard Payment Entry workflows, bypassing manual, error-prone Journal Entries. Defer advanced tiered accelerators and payroll integration on Day 1; focus on establishing the basic invoice-to-payable liability ledger."
+      },
+      {
+        "archetype_id": "eway_bill_transit_and_compliance_hazard",
+        "primary_bottleneck": "E-Way Bill Transit Compliance Desynchronization and Detention Liability Risks",
+        "signals": [
+          "e-way bill",
+          "bill-to/ship-to",
+          "ship-to gstin",
+          "urp",
+          "part b",
+          "vehicle detention",
+          "section 129",
+          "proof of delivery",
+          "api closure",
+          "gate pass"
+        ],
+        "functional_requirements": [
+          "mandatory_ship_to_gstin_validation",
+          "transhipment_vehicle_and_part_b_updating",
+          "transit_distance_and_validity_period_tracking",
+          "gate_pass_and_vehicle_verification",
+          "automated_eway_bill_api_closure_validation"
+        ],
+        "day1_seed_hints": [
+          "Delivery Note",
+          "Sales Invoice",
+          "Customer",
+          "Address"
+        ],
+        "defer_typically": [
+          "Freight Route",
+          "Driver"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Highly critical for Indian trading and manufacturing SMEs dispatching FTL or LTL consignments. Under Section 129 of the CGST Act, transit without valid documentation (like missing Ship-To GSTIN for Bill-To/Ship-To setups or expired validity) triggers a 200% tax penalty and physical vehicle detention. Since the June 15, 2026 mandate, the Ship-To GSTIN is strictly required and cannot be blank. Day-1 setup must map multiple customer addresses with correct GSTINs and use Delivery Note as the baseline document for Part-B validation before dispatch."
+    }
+  ]
+}

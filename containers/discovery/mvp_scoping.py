@@ -239,6 +239,7 @@ def scope_mvp_seeds(
             "archetype_id": None,
             "archetype_source": None,
             "signal_match_score": None,
+            "invalid_archetype_id": None,
         }
 
     context = _combined_context(
@@ -258,12 +259,16 @@ def scope_mvp_seeds(
     archetype_source: str | None = None
     signal_match_score: int | None = None
     graph_extensions: list[str] = []
+    invalid_archetype_id: str | None = None
 
     archetype_id = (mvp_focus or {}).get("archetype_id")
     if archetype_id:
-        archetype = get_by_id(str(archetype_id), f3iche_id)
+        requested_id = str(archetype_id).strip()
+        archetype = get_by_id(requested_id, f3iche_id)
         if archetype:
             archetype_source = "mvp_focus"
+        elif requested_id:
+            invalid_archetype_id = requested_id
 
     if not archetype:
         signal_hit = best_signal_match(context, f3iche_id)
@@ -322,4 +327,5 @@ def scope_mvp_seeds(
         "archetype_source": archetype_source,
         "signal_match_score": signal_match_score,
         "graph_extensions": graph_extensions,
+        "invalid_archetype_id": invalid_archetype_id,
     }
