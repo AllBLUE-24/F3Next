@@ -9,8 +9,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
-from containers.discovery.target.f3iche_seeds import canonicalize_template_doctype
-
 logger = logging.getLogger(__name__)
 
 _DISCOVERY_KB = Path(__file__).resolve().parent / "kb"
@@ -160,7 +158,10 @@ def best_signal_match(
 
 
 def canonicalize_seed(name: str) -> str:
-    return canonicalize_template_doctype(name)
+    raw = str(name or "").strip()
+    if not raw:
+        return ""
+    return raw.split(" (")[0].strip()
 
 
 def resolve_seed_doctypes(
