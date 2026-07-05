@@ -1,0 +1,96 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Discovery MVP boundary golden cases — deterministic scoping gate (no live LLM)",
+    "run": "pytest containers/discovery/test/test_mvp_boundary_golden.py",
+    "env": {
+      "DISCOVERY_USE_MVP_MAP_FALLBACK": "false",
+      "DISCOVERY_USE_LEGACY_REGEX_SCOPING": "false"
+    }
+  },
+  "cases": [
+    {
+      "id": "GM-DISC-01",
+      "name": "green_surface_wip",
+      "fixture": "green_surface_wip.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "mvp_focus": {
+        "primary_bottleneck": "Zero visibility into WIP and batch-wise profitability",
+        "archetype_id": "factory_wip_bridge",
+        "functional_requirements": ["wip_tracking", "centralize_bom_recipes"]
+      },
+      "coverage": {
+        "legacy_system": {"value": "Tally Prime", "status": "confirmed"},
+        "pain_point": {"value": "WIP black box and Excel BOMs", "status": "confirmed"},
+        "industry": {"value": "Industrial epoxy floor coatings", "status": "confirmed"}
+      },
+      "expect": {
+        "scoping_mode_prefix": "archetype_factory_wip_bridge",
+        "archetype_id": "factory_wip_bridge",
+        "archetype_source": "mvp_focus",
+        "must_include": ["Item", "BOM", "Work Order", "Quality Inspection"],
+        "must_exclude": ["Timesheet", "Quotation"]
+      }
+    },
+    {
+      "id": "GM-DISC-02",
+      "name": "part_a_b_inventory",
+      "fixture": "part_a_b_inventory.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "mvp_focus": {},
+      "coverage": {
+        "pain_point": {"value": "Part A Part B mismatch at sites", "status": "confirmed"}
+      },
+      "expect": {
+        "scoping_mode_prefix": "archetype_inventory_visibility",
+        "archetype_id": "inventory_visibility",
+        "archetype_source": "signal_match",
+        "must_include": ["Item", "Batch", "Stock Entry"],
+        "must_exclude": ["Work Order"]
+      }
+    },
+    {
+      "id": "GM-DISC-03",
+      "name": "iso_quality_gates",
+      "fixture": "iso_quality_gates.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "mvp_focus": {
+        "primary_bottleneck": "Strict quality gates on incoming stock and final products",
+        "archetype_id": "scrap_wastage",
+        "functional_requirements": ["quality_control", "batch_tracking"]
+      },
+      "coverage": {
+        "pain_point": {"value": "ISO audit requires batch inspection proof", "status": "confirmed"}
+      },
+      "expect": {
+        "scoping_mode_prefix": "archetype_scrap_wastage",
+        "archetype_id": "scrap_wastage",
+        "must_include": ["Stock Entry", "Batch", "Project"],
+        "must_exclude": ["Work Order", "Job Card"]
+      },
+      "notes": "Quality Inspection requires Research incoming_qc archetype — tracked separately"
+    },
+    {
+      "id": "GM-DISC-04",
+      "name": "custom_order_crm",
+      "fixture": "custom_order_crm.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "status": "pending_research",
+      "mvp_focus": {
+        "primary_bottleneck": "Losing track of custom orders and quotes",
+        "archetype_id": "custom_order_pipeline",
+        "defer_modules_mentioned": ["Work Order", "Job Card"],
+        "functional_requirements": ["order_tracking", "quote_to_cash"]
+      },
+      "coverage": {
+        "pain_point": {"value": "Instagram quotes and build status chaos", "status": "confirmed"}
+      },
+      "expect": {
+        "scoping_mode_prefix": "archetype_custom_order_pipeline",
+        "must_include": ["Quotation", "Sales Order"],
+        "must_exclude": ["Work Order", "Job Card"]
+      },
+      "notes": "Pending Research archetype custom_order_pipeline in catalog"
+    }
+  ]
+}

@@ -208,6 +208,24 @@ Document in [`v1.0.0/FOUNDATION_VERIFICATION.md`](./v1.0.0/FOUNDATION_VERIFICATI
 
 ---
 
+## 7b. Discovery MVP boundary (Step 1 gate)
+
+> **Harness:** `pytest containers/discovery/test/test_mvp_boundary_golden.py -m golden`  
+> **Fixtures:** `containers/discovery/test/fixtures/` (user transcript text only)  
+> **Matrix:** `containers/discovery/test/fixtures/golden_mvp_boundary.json`  
+> **Env gate:** `DISCOVERY_USE_MVP_MAP_FALLBACK=false`, `DISCOVERY_USE_LEGACY_REGEX_SCOPING=false`
+
+| Row ID | Scenario | F3iche | Archetype | Must include (Day-1) | Status |
+|--------|----------|--------|-----------|----------------------|--------|
+| **GM-DISC-01** | Green Surface WIP + Tally dual-system | `manufacturing_project_chemical` | `factory_wip_bridge` | Item, BOM, Work Order, Quality Inspection | ✅ Required |
+| **GM-DISC-02** | Part A/B inventory + hazmat batch | `manufacturing_project_chemical` | `inventory_visibility` (signal) | Item, Batch, Stock Entry | ✅ Required |
+| **GM-DISC-03** | ISO audit / quality gates | `manufacturing_project_chemical` | `scrap_wastage` | Stock Entry, Batch, Project | ✅ Required |
+| **GM-DISC-04** | Custom order / quote CRM | `manufacturing_project_chemical` | `custom_order_pipeline` (Research) | Quotation, Sales Order | ⏳ Pending Research |
+
+**Classify hint:** Failures here are **A (code)** if archetype_id + KB hints exist but scoping ignores them; **B (KB)** if Research archetype or `day1_seed_hints` missing (e.g. GM-DISC-04, ISO → Quality Inspection).
+
+---
+
 ## 8. Failure classification quick reference
 
 | Symptom | Likely class | First action |
@@ -240,6 +258,7 @@ Adding a doctype to “supported” requires:
 |------|--------|
 | 2026-06-05 | Initial manifest from Green Surface 3rd_run live run + codebase audit |
 | 2026-06-05 | GM-FILE-04 Stock Entry marked blocking — synonyms pending |
+| 2026-07-06 | Added GM-DISC-01..04 Discovery MVP boundary golden rows + pytest gate |
 | 2026-06-06 | ✅ **GM-FILE-04 RESOLVED** — Added synonyms (`Project_Ref`, `Item_Consumed`, `Quantity`, `Source_Whse`); test harness passes |
 
 ---
