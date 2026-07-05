@@ -188,6 +188,22 @@ def _minimal_fallback_seeds(template_seeds: list[str]) -> list[str]:
     return template_seeds[:1] if template_seeds else []
 
 
+def _apply_defer_modules_mentioned(
+    mvp: list[str],
+    *,
+    mvp_focus: dict[str, Any] | None,
+    template_set: set[str],
+) -> list[str]:
+    defer: set[str] = set()
+    for mod in (mvp_focus or {}).get("defer_modules_mentioned") or []:
+        dt = canonicalize_seed(str(mod))
+        if dt in template_set:
+            defer.add(dt)
+    if not defer:
+        return mvp
+    return [d for d in mvp if d not in defer]
+
+
 def scope_mvp_seeds(
     *,
     template_seeds: list[str],
@@ -285,6 +301,11 @@ def scope_mvp_seeds(
             mvp.append(dt)
 
     mvp = _apply_dual_system_filter(mvp, dual_system_note=dual_system_note, archetype=archetype)
+    mvp = _apply_defer_modules_mentioned(
+        mvp,
+        mvp_focus=mvp_focus,
+        template_set=template_set_lookup,
+    )
 
     priority = list(mvp)
     mvp = _cap_seeds(mvp, priority=priority, max_seeds=_MAX_DAY1_SEEDS)

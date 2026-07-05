@@ -19,7 +19,12 @@ from containers.discovery.prompts import (
     RECOMMENDATION_PROMPT,
     TRANSCRIPT_EXTRACTION_PROMPT,
 )
-from containers.discovery.schemas import RecommendationResult, TranscriptExtractionResult
+from containers.discovery.schemas import (
+    RecommendationResult,
+    TranscriptExtractionResult,
+    coerce_extraction_raw,
+    coerce_recommendation_raw,
+)
 from containers.discovery.utils import normalize_messages, transcript_text
 
 logger = logging.getLogger(__name__)
@@ -133,17 +138,6 @@ async def generate_chat_reply(messages: list[dict]) -> str:
     return reply
 
 
-def _coerce_coverage_raw(raw: dict[str, Any]) -> dict[str, Any]:
-    """LLM may return null for unused coverage dimensions."""
-    coverage = dict(raw.get("coverage") or {})
-    for dim in EMPTY_COVERAGE:
-        if coverage.get(dim) is None:
-            coverage[dim] = {"status": None, "value": None}
-    raw = dict(raw)
-    raw["coverage"] = coverage
-    return raw
-
-
 async def extract_from_transcript(messages: list[dict]) -> dict:
     from llm_router import invoke_smart_llm
 
@@ -155,8 +149,7 @@ async def extract_from_transcript(messages: list[dict]) -> dict:
         max_output_tokens=800,
         response_mime_type="application/json",
     )
-    raw = _parse_llm_json(response.content)
-    raw = _coerce_coverage_raw(raw)
+    raw = coerce_extraction_raw(_parse_llm_json(response.content))
 
     try:
         parsed = TranscriptExtractionResult.model_validate(raw)
@@ -206,7 +199,7 @@ async def generate_erp_recommendation(
             max_output_tokens=1000,
             response_mime_type="application/json",
         )
-        raw = _parse_llm_json(response.content)
+        raw = coerce_recommendation_raw(_parse_llm_json(response.content))
         try:
             return RecommendationResult.model_validate(raw).model_dump()
         except Exception as e:

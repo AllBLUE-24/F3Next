@@ -112,6 +112,24 @@ def test_minimal_fallback_without_archetype():
     assert "Quotation" in result["deferred_seeds"]
 
 
+def test_defer_modules_mentioned_removes_doctypes():
+    result = scope_mvp_seeds(
+        template_seeds=CHEMICAL_TEMPLATE,
+        f3iche_id=CHEMICAL_F3ICHE,
+        mvp_focus={
+            "primary_bottleneck": "custom orders",
+            "archetype_id": "factory_wip_bridge",
+            "defer_modules_mentioned": ["Work Order", "Job Card"],
+        },
+        chat_transcript="We don't care about machine overhead right now.",
+    )
+    mvp = result["mvp_seeds"]
+    assert "Work Order" not in mvp
+    assert "Job Card" not in mvp
+    assert "Item" in mvp
+    assert "BOM" in mvp
+
+
 def test_user_override_wins():
     result = scope_mvp_seeds(
         template_seeds=CHEMICAL_TEMPLATE,
