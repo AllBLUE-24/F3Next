@@ -1,7 +1,10 @@
-"""Tests for bottleneck-driven Discovery MVP scoping."""
+"""Tests for bottleneck-driven Discovery MVP scoping (legacy path — see discovery/test)."""
+
 from __future__ import annotations
 
 from containers.discovery.mvp_scoping import scope_mvp_seeds
+
+CHEMICAL_F3ICHE = "manufacturing_project_chemical"
 
 GREEN_SURFACE_TRANSCRIPT = (
     "We are Green Surface, a manufacturer of industrial epoxy coatings. "
@@ -29,20 +32,14 @@ CHEMICAL_TEMPLATE = [
     "Quality Inspection Template",
 ]
 
-CHEMICAL_F3ICHE_DATA = {
-    "import_field_policy": {
-        "always_ask": ["Batch", "BOM"],
-        "defer_until_post_mvp": ["Stock Entry", "Quality Inspection"],
-    }
-}
 
-
-def test_green_surface_wip_scopes_to_core_mvp():
+def test_green_surface_wip_scopes_via_archetype_id():
     result = scope_mvp_seeds(
         template_seeds=CHEMICAL_TEMPLATE,
-        f3iche_data=CHEMICAL_F3ICHE_DATA,
+        f3iche_id=CHEMICAL_F3ICHE,
         mvp_focus={
             "primary_bottleneck": "Zero visibility into WIP and batch-wise profitability",
+            "archetype_id": "factory_wip_bridge",
             "functional_requirements": [
                 "Real-time WIP tracking",
                 "Bridge sales to factory fulfillment",
@@ -56,23 +53,20 @@ def test_green_surface_wip_scopes_to_core_mvp():
     )
 
     mvp = result["mvp_seeds"]
+    assert result["scoping_mode"].startswith("archetype_factory_wip_bridge")
     assert len(mvp) <= 8
     assert "Item" in mvp
     assert "BOM" in mvp
-    assert "Sales Order" in mvp
     assert "Work Order" in mvp
-    assert "Stock Entry" in mvp
-    assert "Batch" in mvp  # always_ask + batch-wise mentioned
+    assert "Quality Inspection" in mvp
     assert "Timesheet" not in mvp
-    assert "Quality Inspection Template" not in mvp
-    assert "Timesheet" in result["deferred_seeds"]
     assert result["dual_system_note"]
-    assert "Tally" in result["dual_system_note"] or "current system" in result["dual_system_note"]
 
 
 def test_user_override_wins():
     result = scope_mvp_seeds(
         template_seeds=CHEMICAL_TEMPLATE,
+        f3iche_id=CHEMICAL_F3ICHE,
         user_confirmed_override=["Item", "BOM"],
     )
     assert result["mvp_seeds"] == ["Item", "BOM"]

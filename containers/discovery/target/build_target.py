@@ -212,6 +212,7 @@ async def build_discovery_target(
 
     scoping = scope_mvp_seeds(
         template_seeds=f3iche_seeds,
+        f3iche_id=f3iche,
         f3iche_data=f3iche_data,
         mvp_focus=mvp_focus,
         coverage=coverage,
@@ -253,6 +254,10 @@ async def build_discovery_target(
         "mvp_focus": mvp_focus or {},
         "scoping_reasoning": scoping["scoping_reasoning"],
         "dual_system_note": scoping.get("dual_system_note", ""),
+        "archetype_id": scoping.get("archetype_id"),
+        "archetype_source": scoping.get("archetype_source"),
+        "signal_match_score": scoping.get("signal_match_score"),
+        "graph_extensions": scoping.get("graph_extensions") or [],
         "file_evidence": [],
         "llm_enhanced": bool(llm_enhanced_seeds),
         "llm_reasoning": llm_reasoning,
