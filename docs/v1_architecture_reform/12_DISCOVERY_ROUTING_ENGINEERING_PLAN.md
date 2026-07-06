@@ -19,7 +19,7 @@ Research cannot verify signal improvements until engineering exposes **shadow si
 
 ## Engineering phases
 
-### Phase 1 — Observability (this sprint) ✅ in progress
+### Phase 1 — Observability (this sprint) ✅ done
 
 **Goal:** Every `mvp_boundary.json` shows what signals would have picked vs what LLM picked.
 
@@ -33,15 +33,15 @@ Research cannot verify signal improvements until engineering exposes **shadow si
 
 **Does not change routing behavior.**
 
-### Phase 2 — Recommend guardrails (next)
+### Phase 2 — Recommend guardrails ✅ done
 
 | Task | Deliverable |
 |------|-------------|
 | P2.1 | Coerce `archetype_id` `"null"` / invalid → signal fallback |
 | P2.2 | Validate id ∈ `list_archetype_ids(f3iche_id)` after recommend |
-| P2.3 | Copy `functional_requirements` from KB row after id pick (LLM stops inventing) |
-| P2.4 | Optional flag: `DISCOVERY_SIGNAL_OVERRIDE_MIN_MARGIN=2` — use top signal when LLM id score much lower |
-| P2.5 | Tighten recommend prompt (one id from list; sector grouping) |
+| P2.3 | Copy `functional_requirements` from KB row after id pick |
+| P2.4 | Optional flag: `DISCOVERY_SIGNAL_OVERRIDE_MIN_MARGIN=2` |
+| P2.5 | Tighten recommend prompt (one id from list; empty reqs from LLM) |
 
 ### Phase 3 — Niche + template fit
 

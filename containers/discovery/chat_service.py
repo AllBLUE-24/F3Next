@@ -25,6 +25,7 @@ from containers.discovery.schemas import (
     coerce_extraction_raw,
     coerce_recommendation_raw,
 )
+from containers.discovery.recommend_guard import apply_recommend_guard
 from containers.discovery.utils import normalize_messages, transcript_text
 
 logger = logging.getLogger(__name__)
@@ -201,10 +202,11 @@ async def generate_erp_recommendation(
         )
         raw = coerce_recommendation_raw(_parse_llm_json(response.content))
         try:
-            return RecommendationResult.model_validate(raw).model_dump()
+            result = RecommendationResult.model_validate(raw).model_dump()
         except Exception as e:
             logger.warning("Recommend schema validation failed: %s", e)
-            return raw
+            result = raw
+        return apply_recommend_guard(result, f3iche_id=f3iche_id)
     except Exception as e:
         logger.error("Recommendation LLM failed: %r", e)
         industry_val = (coverage.get("industry") or {}).get("value") or industry_hint or ""

@@ -76,5 +76,10 @@ def coerce_recommendation_raw(raw: dict[str, Any]) -> dict[str, Any]:
         focus["functional_requirements"] = []
     if focus.get("defer_modules_mentioned") is None:
         focus["defer_modules_mentioned"] = []
+    aid = focus.get("archetype_id")
+    if aid is not None:
+        token = str(aid).strip().lower()
+        if token in ("null", "none", "undefined", "n/a", ""):
+            focus["archetype_id"] = None
     out["mvp_focus"] = focus
     return out

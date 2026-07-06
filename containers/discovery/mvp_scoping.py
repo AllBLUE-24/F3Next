@@ -18,13 +18,27 @@ from containers.discovery.archetype_registry import (
     canonicalize_seed,
     get_by_id,
     resolve_seed_doctypes,
+    score_archetype_signals,
+    signal_match_rankings,
 )
+from containers.discovery.recommend_guard import normalize_archetype_id
 
 _USE_LEGACY_REGEX = os.getenv("DISCOVERY_USE_LEGACY_REGEX_SCOPING", "false").lower() in (
     "1",
     "true",
     "yes",
 )
+
+def _signal_override_margin() -> int | None:
+    raw = os.getenv("DISCOVERY_SIGNAL_OVERRIDE_MIN_MARGIN", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return None
+
+_SIGNAL_OVERRIDE_MARGIN = _signal_override_margin()
 
 _MAX_DAY1_SEEDS = 8
 
@@ -267,15 +281,39 @@ def scope_mvp_seeds(
     signal_match_score: int | None = None
     graph_extensions: list[str] = []
     invalid_archetype_id: str | None = None
+    signal_override_applied = False
+    signal_override_note: str | None = None
 
-    archetype_id = (mvp_focus or {}).get("archetype_id")
-    if archetype_id:
-        requested_id = str(archetype_id).strip()
+    raw_archetype_id = (mvp_focus or {}).get("archetype_id")
+    requested_id = normalize_archetype_id(raw_archetype_id)
+    if raw_archetype_id is not None and requested_id is None:
+        invalid_archetype_id = str(raw_archetype_id).strip()
+
+    if requested_id:
         archetype = get_by_id(requested_id, f3iche_id)
         if archetype:
             archetype_source = "mvp_focus"
-        elif requested_id:
+        elif not invalid_archetype_id:
             invalid_archetype_id = requested_id
+
+    override_margin = _SIGNAL_OVERRIDE_MARGIN
+    if override_margin and archetype and requested_id:
+        candidates = signal_match_rankings(context, f3iche_id, top_k=1)
+        if candidates:
+            top_id = candidates[0]["archetype_id"]
+            top_score = candidates[0]["score"]
+            llm_score = score_archetype_signals(requested_id, context, f3iche_id)
+            if top_id != requested_id and top_score - llm_score >= override_margin:
+                override_entry = get_by_id(top_id, f3iche_id)
+                if override_entry:
+                    archetype = override_entry
+                    archetype_source = "signal_override"
+                    signal_match_score = top_score
+                    signal_override_applied = True
+                    signal_override_note = (
+                        f"Signal override: {top_id!r} (score {top_score}) replaced "
+                        f"LLM {requested_id!r} (score {llm_score})"
+                    )
 
     if not archetype:
         signal_hit = best_signal_match(context, f3iche_id)
@@ -324,7 +362,7 @@ def scope_mvp_seeds(
 
     deferred = [d for d in template_set if d not in mvp]
 
-    resolved_archetype_id = (archetype or {}).get("archetype_id") or archetype_id
+    resolved_archetype_id = (archetype or {}).get("archetype_id") or requested_id
     routing = build_routing_diagnostics(
         context_text=context,
         f3iche_id=f3iche_id,
@@ -344,5 +382,7 @@ def scope_mvp_seeds(
         "signal_match_score": signal_match_score,
         "graph_extensions": graph_extensions,
         "invalid_archetype_id": invalid_archetype_id,
+        "signal_override_applied": signal_override_applied,
+        "signal_override_note": signal_override_note,
         **routing,
     }

@@ -9,7 +9,7 @@ We exclusively implement ERPNext, but we must be honest about fit.
 COVERAGE SUMMARY:
 {coverage_summary}
 
-BOTTLENECK HINT CONTEXT (archetypes + F3iche research — use if relevant, else infer from pain):
+BOTTLENECK HINT CONTEXT (archetypes — pick ONE id that best matches the user's pain):
 {bottleneck_hint_context}
 
 YOUR TASKS:
@@ -28,13 +28,15 @@ YOUR TASKS:
    - headline: One punchy line
    - reasoning: 2 sentences specific to their pain point and industry
 
-4. DETERMINE MVP FOCUS
+4. DETERMINE MVP FOCUS (archetype routing — critical)
    - primary_bottleneck: natural language (what hurts most operationally)
-   - functional_requirements: 3-5 agnostic capability phrases (snake_case ok)
-   - archetype_id: if a hint archetype matches clearly, copy its id; else null
-     (valid ids come from BOTTLENECK HINT CONTEXT only — do not invent new ids)
-   - defer_modules_mentioned: ERPNext doctype names the user explicitly said they
-     do NOT need on Day 1 (e.g. "don't care about machine overhead" → Work Order, Job Card)
+   - archetype_id: copy EXACTLY ONE id from BOTTLENECK HINT CONTEXT that matches
+     the user's stated pain. If none fit clearly, use null (JSON null, not the string "null").
+     Do NOT invent ids. Do NOT pick an id just because it appears first in the list.
+   - functional_requirements: leave as [] — engineering fills from KB after your id pick
+   - defer_modules_mentioned: ERPNext doctype names the user EXPLICITLY said they do NOT
+     need on Day 1 (e.g. "don't care about machine overhead" → Work Order, Job Card).
+     Do NOT infer deferrals the user did not state.
 
 5. CLASSIFY
    - f3iche: "trading" | "manufacturing" | "service"
@@ -52,9 +54,9 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences:
   "price_plan":      "Starter|Standard|Enterprise",
   "mvp_focus": {{
     "primary_bottleneck": "string",
-    "functional_requirements": ["string"],
-    "archetype_id": "string or null",
-    "defer_modules_mentioned": ["string"]
+    "functional_requirements": [],
+    "archetype_id": null,
+    "defer_modules_mentioned": []
   }}
 }}
 """

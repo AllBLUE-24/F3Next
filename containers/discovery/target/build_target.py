@@ -269,6 +269,8 @@ async def build_discovery_target(
         "chosen_archetype_signal_score": scoping.get("chosen_archetype_signal_score"),
         "archetype_routing_mismatch": scoping.get("archetype_routing_mismatch", False),
         "archetype_routing_note": scoping.get("archetype_routing_note"),
+        "signal_override_applied": scoping.get("signal_override_applied", False),
+        "signal_override_note": scoping.get("signal_override_note"),
     }
 
     return {
