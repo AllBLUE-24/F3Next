@@ -23,6 +23,41 @@ _GRAPH_PATH = (
 
 _SIGNAL_MIN_SCORE = 1
 
+# ERPNext doctypes valid for graph extension when not yet in erpnext_doctype_graph.json
+_GRAPH_EXTENSION_ALLOWLIST = frozenset({
+    "Issue",
+    "Maintenance Visit",
+    "Maintenance Schedule",
+    "Warranty Claim",
+    "Serial No",
+    "Asset",
+    "Asset Movement",
+    "Asset Repair",
+    "Asset Category",
+    "Employee",
+    "Landed Cost Voucher",
+    "Subcontracting Order",
+    "Subcontracting Receipt",
+    "Supplier",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Material Request",
+    "Workstation",
+    "Downtime Entry",
+    "Routing",
+    "Operation",
+    "Price List",
+    "UOM",
+    "Stock Reconciliation",
+    "Warehouse",
+    "Debit Note",
+    "Credit Note",
+    "Sales Partner",
+    "Address",
+    "Pricing Rule",
+    "Currency Exchange",
+})
+
 
 @lru_cache(maxsize=1)
 def _load_doctype_graph_keys() -> frozenset[str]:
@@ -268,6 +303,7 @@ def resolve_seed_doctypes(
     """
     template_set = set(template_seeds)
     graph_keys = _load_doctype_graph_keys() if allow_graph_extension else frozenset()
+    extension_keys = graph_keys | (_GRAPH_EXTENSION_ALLOWLIST if allow_graph_extension else frozenset())
 
     resolved: list[str] = []
     graph_extensions: list[str] = []
@@ -279,10 +315,11 @@ def resolve_seed_doctypes(
         if dt in template_set:
             if dt not in resolved:
                 resolved.append(dt)
-        elif allow_graph_extension and dt in graph_keys:
+        elif allow_graph_extension and dt in extension_keys:
             if dt not in resolved:
                 resolved.append(dt)
-                graph_extensions.append(dt)
+                if dt not in template_set:
+                    graph_extensions.append(dt)
         else:
             logger.debug(
                 "Archetype %s hint %s not in template or graph",

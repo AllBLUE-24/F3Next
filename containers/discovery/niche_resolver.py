@@ -19,19 +19,28 @@ _NICHE_LLM_MODEL = os.getenv("DISCOVERY_NICHE_MODEL", os.getenv("DISCOVERY_EXTRA
 _BROAD_CATEGORIES = frozenset({"trading", "manufacturing", "service"})
 
 _INDUSTRY_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
-    (("chemical", "coating", "epoxy", "floor", "paint", "primer", "resin", "adhesive"), "manufacturing_project_chemical"),
+    # Specific matches first (avoid bare "chemical" → wrong niche)
+    (("toll manufacturer", "toll manufacturing", "third party manufacturer", "job work challan"), "manufacturing_fabrication_jobshop"),
+    (("warranty claim", "field service", "service technician", "maintenance visit", "client site breakdown", "whatsapp repair"), "manufacturing_fabrication_jobshop"),
+    (("prefabricated panel", "pre-fabricated panel", "pre fabricated panel", "screwdriver assembly", "job shop", "metal fabrication"), "manufacturing_fabrication_jobshop"),
+    (("epoxy", "floor coating", "industrial coating", "paint manufacturer", "resin coating", "primer manufacturer", "chemical primer", "chemical primers"), "manufacturing_project_chemical"),
+    (("chemical coating", "chemical formulation plant", "chemical plant"), "manufacturing_project_chemical"),
     (("garment", "apparel", "textile", "fabric", "stitching"), "manufacturing_garment_variants"),
-    (("food", "batch", "fmcg", "dairy", "bakery"), "manufacturing_food_batch"),
-    (("fabrication", "job shop", "jobshop", "welding", "metal"), "manufacturing_fabrication_jobshop"),
+    (("food", "fmcg", "dairy", "bakery"), "manufacturing_food_batch"),
+    (("fabrication", "welding", "metal job"), "manufacturing_fabrication_jobshop"),
     (("fmcg", "distribution", "distributor", "wholesale"), "trading_fmcg_distributor"),
-    (("hardware", "building material", "pipe", "steel"), "trading_hardware_variants"),
+    (("hardware", "building material", "pipe", "steel trading"), "trading_hardware_variants"),
     (("auto parts", "autoparts", "spare parts", "oem"), "trading_autoparts_highvolume"),
-    (("consulting", "professional", "services", "retainer"), "service_professional"),
+    (("consulting", "professional services", "retainer"), "service_professional"),
 ]
 
 _CHAT_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
-    (("installation", "project", "site work", "coating", "epoxy", "floor"), "manufacturing_project_chemical"),
-    (("work in progress", "wip", "production schedule", "job order", "job shop", "fabrication"), "manufacturing_fabrication_jobshop"),
+    (("subcontractor", "toll manufacturer", "job work", "raw material waste"), "manufacturing_fabrication_jobshop"),
+    (("warranty", "field repair", "technician dispatch", "spare parts van"), "manufacturing_fabrication_jobshop"),
+    (("installation", "site work", "coating", "epoxy floor"), "manufacturing_project_chemical"),
+    (("hardener", "isocyanate", "part a and part b", "moisture sensitive"), "manufacturing_project_chemical"),
+    (("work in progress", "wip", "black box", "excel sheet", "batch-wise"), "manufacturing_project_chemical"),
+    (("procurement", "supplier lead time", "purchase order", "material request"), "manufacturing_fabrication_jobshop"),
 ]
 
 _F3ICHE_DIR = Path(__file__).parent.parent / "knowledge_base" / "common" / "f3iches"
