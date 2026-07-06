@@ -1,0 +1,113 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Live LLM archetype routing matrix — Phase 5 gate (≥80% accuracy + GM-DISC-01..04 green)",
+    "gate_min_accuracy": 0.8,
+    "run_deterministic": "pytest containers/discovery/test/test_live_routing_matrix.py -m routing_matrix",
+    "run_live": "DISCOVERY_LIVE_MATRIX=1 pytest containers/discovery/test/test_live_routing_matrix.py -m live_llm",
+    "harness": "python -m containers.discovery.test.harness_mvp_boundary --matrix --report"
+  },
+  "cases": [
+    {
+      "id": "LR-DISC-01",
+      "name": "green_surface_wip_tally",
+      "fixture": "wip_tally_blackbox.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "factory_wip_bridge",
+      "notes": "LLM should pick F3iche factory_wip_bridge; signals weak until Research pass"
+    },
+    {
+      "id": "LR-DISC-02",
+      "name": "procurement_shortages",
+      "fixture": "procurement_shortages.txt",
+      "f3iche_id": "manufacturing_fabrication_jobshop",
+      "expect_niche": "manufacturing_fabrication_jobshop",
+      "expect_archetype": "supplier_lead_time_variance",
+      "accept_alternate_archetypes": ["procurement_gap", "reorder_level_blindspot"],
+      "notes": "Prefabricated assembly; purchasing is the stated bottleneck"
+    },
+    {
+      "id": "LR-DISC-03",
+      "name": "toll_subcontractor_leakage",
+      "fixture": "toll_subcontractor.txt",
+      "f3iche_id": "manufacturing_fabrication_jobshop",
+      "expect_niche": "manufacturing_fabrication_jobshop",
+      "expect_archetype": "subcontracting_raw_material_leakage",
+      "deterministic": {
+        "signal_top": "subcontracting_raw_material_leakage"
+      }
+    },
+    {
+      "id": "LR-DISC-04",
+      "name": "field_service_dispatch",
+      "fixture": "field_service_dispatch.txt",
+      "f3iche_id": "manufacturing_fabrication_jobshop",
+      "expect_niche": "manufacturing_fabrication_jobshop",
+      "expect_archetype": "service_dispatch_chaos",
+      "accept_alternate_archetypes": ["untracked_warranty_leakage", "breakdown_sla_breach"]
+    },
+    {
+      "id": "LR-DISC-05",
+      "name": "iso_incoming_quality",
+      "fixture": "iso_quality_gates.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "incoming_quality_compliance",
+      "deterministic": {
+        "signal_top": "incoming_quality_compliance"
+      }
+    },
+    {
+      "id": "LR-DISC-06",
+      "name": "part_a_b_inventory",
+      "fixture": "part_a_b_inventory.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "inventory_visibility",
+      "deterministic": {
+        "signal_top": "inventory_visibility"
+      }
+    },
+    {
+      "id": "LR-DISC-07",
+      "name": "custom_order_crm",
+      "fixture": "custom_order_crm.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "custom_order_pipeline",
+      "deterministic": {
+        "signal_top": "custom_order_pipeline"
+      }
+    },
+    {
+      "id": "LR-DISC-08",
+      "name": "site_mix_scrap",
+      "fixture": "site_mix_scrap.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "scrap_yield_leakage",
+      "accept_alternate_archetypes": ["scrap_wastage"]
+    },
+    {
+      "id": "LR-DISC-09",
+      "name": "tally_dual_entry",
+      "fixture": "wip_tally_blackbox.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "factory_wip_bridge",
+      "accept_alternate_archetypes": ["tally_dual_entry_desync", "excel_bom_disconnect"],
+      "notes": "Tally black-box WIP; tally_dual acceptable when LLM emphasizes dual-system pain"
+    },
+    {
+      "id": "LR-DISC-10",
+      "name": "golden_wip_mirror",
+      "fixture": "green_surface_wip.txt",
+      "f3iche_id": "manufacturing_project_chemical",
+      "expect_niche": "manufacturing_project_chemical",
+      "expect_archetype": "factory_wip_bridge",
+      "deterministic_only": true,
+      "notes": "Mirrors GM-DISC-01; full scoping in golden_mvp_boundary.json"
+    }
+  ]
+}

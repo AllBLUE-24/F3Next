@@ -1,5 +1,1 @@
-We are Green Surface, a manufacturer of industrial epoxy floor coatings.
-Accounting is perfectly managed in Tally Prime — we are not replacing that.
-Tally treats our factory like a black box. We have zero visibility into work-in-progress,
-machine overhead, or batch-wise profitability. Chemical formulations and production
-schedules still live in disconnected Excel sheets on the shop floor.
+We are Green Surface, a manufacturer of industrial epoxy floor coatings. Accounting is perfectly managed in Tally Prime. Tally treats our factory like a black box. Zero visibility into Work-In-Progress (WIP), machine overhead, or batch-wise profitability. Chemical formulations and production schedules live in disconnected Excel sheets.

@@ -19,3 +19,4 @@ def _discovery_golden_env(request, monkeypatch):
 def pytest_configure(config):
     config.addinivalue_line("markers", "golden: Discovery MVP boundary golden gate tests")
     config.addinivalue_line("markers", "live_llm: Requires live LLM credentials")
+    config.addinivalue_line("markers", "routing_matrix: Live routing matrix deterministic checks")

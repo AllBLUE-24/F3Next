@@ -9,6 +9,7 @@ niche resolution and build_discovery_target.
   python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt --report
   python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt --report --expect-archetype factory_wip_bridge
   python -m containers.discovery.test.harness_mvp_boundary --messages-file chat.json
+  python -m containers.discovery.test.harness_mvp_boundary --matrix --report
 
 Requires LLM credentials (same as discovery). Use --no-llm only for offline scoping
 debug (skips extract/recommend; not a full pipeline test).
@@ -202,6 +203,91 @@ def _print_signal_routing_report(result: dict[str, Any]) -> None:
         print(f"    - {row.get('archetype_id')}: score {row.get('score')}{marker}")
 
 
+_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+_LIVE_MATRIX_PATH = _FIXTURES_DIR / "live_routing_matrix.json"
+
+
+def _load_live_matrix() -> dict[str, Any]:
+    return json.loads(_LIVE_MATRIX_PATH.read_text(encoding="utf-8"))
+
+
+def _live_matrix_cases() -> list[dict[str, Any]]:
+    return list(_load_live_matrix().get("cases") or [])
+
+
+def _accepted_archetypes_for_case(case: dict[str, Any]) -> set[str]:
+    ids = {str(case["expect_archetype"]).strip()}
+    for alt in case.get("accept_alternate_archetypes") or []:
+        ids.add(str(alt).strip())
+    return ids
+
+
+def _case_archetype_pass(case: dict[str, Any], result: dict[str, Any]) -> tuple[bool, str]:
+    mvp = result.get("mvp_boundary") or {}
+    scoping = result.get("scoping") or {}
+    focus = result.get("mvp_focus") or mvp.get("mvp_focus") or {}
+    llm_id = str(focus.get("archetype_id") or "").strip()
+    scoped_id = str(mvp.get("archetype_id") or scoping.get("archetype_id") or "").strip()
+    if llm_id.lower() in ("null", "none"):
+        llm_id = ""
+    accepted = _accepted_archetypes_for_case(case)
+    if scoped_id in accepted:
+        return True, f"scoped {scoped_id!r}"
+    if llm_id in accepted:
+        return True, f"LLM {llm_id!r} (scoped {scoped_id!r})"
+    top = (mvp.get("signal_match_candidates") or scoping.get("signal_match_candidates") or [])
+    top_id = top[0]["archetype_id"] if top else None
+    return False, f"expected {sorted(accepted)!r}; LLM={llm_id!r}, scoped={scoped_id!r}, top_signal={top_id!r}"
+
+
+async def _run_live_matrix(
+    *,
+    enhance_target: bool,
+    use_llm_niche: bool | None,
+    report: bool,
+    quiet: bool,
+) -> tuple[list[dict[str, Any]], float, int]:
+    matrix = _load_live_matrix()
+    gate = float((matrix.get("_meta") or {}).get("gate_min_accuracy") or 0.8)
+    cases = [c for c in _live_matrix_cases() if not c.get("deterministic_only")]
+
+    rows: list[dict[str, Any]] = []
+    passed = 0
+    for case in cases:
+        fixture = _FIXTURES_DIR / case["fixture"]
+        user_text = fixture.read_text(encoding="utf-8").strip()
+        messages = _messages_from_user_text(user_text)
+        result = await _run_with_llm(messages, enhance_target=enhance_target, use_llm_niche=use_llm_niche)
+        ok, msg = _case_archetype_pass(case, result)
+        if ok:
+            passed += 1
+        row = {
+            "id": case.get("id"),
+            "name": case.get("name"),
+            "fixture": case.get("fixture"),
+            "pass": ok,
+            "detail": msg,
+            "niche_id": result.get("niche_id"),
+            "result": result,
+        }
+        rows.append(row)
+
+        if not quiet:
+            status = "PASS" if ok else "FAIL"
+            print(f"\n[{status}] {case.get('id')} — {case.get('name')}")
+            print(f"  {msg}")
+            if report:
+                _print_signal_routing_report(result)
+
+    accuracy = passed / len(cases) if cases else 0.0
+    if not quiet:
+        _print_header("LIVE ROUTING MATRIX SUMMARY")
+        print(f"  Passed:   {passed}/{len(cases)} ({accuracy:.0%})")
+        print(f"  Gate:     {gate:.0%} minimum")
+        print(f"  Status:   {'GREEN' if accuracy >= gate else 'RED'}")
+    return rows, accuracy, 0 if accuracy >= gate else 1
+
+
 def _check_expect_archetype(result: dict[str, Any], expected: str) -> tuple[bool, str]:
     mvp = result.get("mvp_boundary") or {}
     scoping = result.get("scoping") or {}
@@ -335,11 +421,31 @@ def _build_parser() -> argparse.ArgumentParser:
         "--expect-archetype",
         help="With --report: exit 1 unless scoped or LLM archetype_id matches this id",
     )
+    p.add_argument(
+        "--matrix",
+        action="store_true",
+        help="Run live_routing_matrix.json cases (requires LLM; skips deterministic_only rows)",
+    )
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
+    if args.matrix:
+        if args.no_llm:
+            raise SystemExit("--matrix requires live LLM (do not pass --no-llm)")
+        use_llm_niche = True if args.llm_niche else None
+        _, _, exit_code = asyncio.run(
+            _run_live_matrix(
+                enhance_target=not args.no_target_llm,
+                use_llm_niche=use_llm_niche,
+                report=args.report,
+                quiet=args.quiet,
+            )
+        )
+        return exit_code
+
     messages = _load_messages(args)
 
     if args.no_llm:

@@ -210,19 +210,38 @@ Document in [`v1.0.0/FOUNDATION_VERIFICATION.md`](./v1.0.0/FOUNDATION_VERIFICATI
 
 ## 7b. Discovery MVP boundary (Step 1 gate)
 
-> **Harness:** `pytest containers/discovery/test/test_mvp_boundary_golden.py -m golden`  
-> **Fixtures:** `containers/discovery/test/fixtures/` (user transcript text only)  
-> **Matrix:** `containers/discovery/test/fixtures/golden_mvp_boundary.json`  
-> **Env gate:** `DISCOVERY_USE_MVP_MAP_FALLBACK=false`, `DISCOVERY_USE_LEGACY_REGEX_SCOPING=false`
+> **Deterministic golden:** `pytest containers/discovery/test/test_mvp_boundary_golden.py -m golden`  
+> **Live routing matrix (deterministic):** `pytest containers/discovery/test/test_live_routing_matrix.py -m routing_matrix`  
+> **Live routing matrix (LLM):** `DISCOVERY_LIVE_MATRIX=1 pytest containers/discovery/test/test_live_routing_matrix.py -m live_llm`  
+> **Harness batch:** `python -m containers.discovery.test.harness_mvp_boundary --matrix --report`  
+> **Fixtures:** `containers/discovery/test/fixtures/`  
+> **Matrices:** `golden_mvp_boundary.json` (scoping) · `live_routing_matrix.json` (LLM routing)  
+> **Env gate:** `DISCOVERY_USE_MVP_MAP_FALLBACK=false`, `DISCOVERY_USE_LEGACY_REGEX_SCOPING=false`  
+> **Step 1 complete:** GM-DISC-01..04 green **and** live matrix ≥80% (`gate_min_accuracy` in `live_routing_matrix.json`)
 
 | Row ID | Scenario | F3iche | Archetype | Must include (Day-1) | Status |
 |--------|----------|--------|-----------|----------------------|--------|
 | **GM-DISC-01** | Green Surface WIP + Tally dual-system | `manufacturing_project_chemical` | `factory_wip_bridge` | Item, BOM, Work Order, Quality Inspection | ✅ Required |
 | **GM-DISC-02** | Part A/B inventory + hazmat batch | `manufacturing_project_chemical` | `inventory_visibility` (signal) | Item, Batch, Stock Entry | ✅ Required |
-| **GM-DISC-03** | ISO audit / quality gates | `manufacturing_project_chemical` | `scrap_wastage` | Stock Entry, Batch, Project | ✅ Required |
-| **GM-DISC-04** | Custom order / quote CRM | `manufacturing_project_chemical` | `custom_order_pipeline` (Research) | Quotation, Sales Order | ⏳ Pending Research |
+| **GM-DISC-03** | ISO audit / quality gates | `manufacturing_project_chemical` | `incoming_quality_compliance` | Quality Inspection, Batch, Purchase Receipt | ✅ Required |
+| **GM-DISC-04** | Custom order / quote CRM | `manufacturing_project_chemical` | `custom_order_pipeline` | Quotation, Sales Order, Project | ✅ Required |
 
-**Classify hint:** Failures here are **A (code)** if archetype_id + KB hints exist but scoping ignores them; **B (KB)** if Research archetype or `day1_seed_hints` missing (e.g. GM-DISC-04, ISO → Quality Inspection).
+### Live LLM routing matrix (`LR-DISC-*`)
+
+| Row ID | Scenario | Expected archetype | Gate |
+|--------|----------|-------------------|------|
+| **LR-DISC-01** | Green Surface WIP / Tally black box | `factory_wip_bridge` | Live LLM |
+| **LR-DISC-02** | Procurement / supplier lead times | `supplier_lead_time_variance` (+ alts) | Live LLM |
+| **LR-DISC-03** | Toll subcontractor material leakage | `subcontracting_raw_material_leakage` | Live LLM + signal |
+| **LR-DISC-04** | Field service dispatch chaos | `service_dispatch_chaos` (+ alts) | Live LLM |
+| **LR-DISC-05** | ISO incoming quality | `incoming_quality_compliance` | Live LLM + signal |
+| **LR-DISC-06** | Part A/B inventory | `inventory_visibility` | Live LLM + signal |
+| **LR-DISC-07** | Custom order CRM | `custom_order_pipeline` | Live LLM + signal |
+| **LR-DISC-08** | Site mix scrap | `scrap_yield_leakage` (+ alts) | Live LLM |
+| **LR-DISC-09** | WIP / dual-system (alt archetypes OK) | `factory_wip_bridge` (+ alts) | Live LLM |
+| **LR-DISC-10** | Golden WIP mirror | `factory_wip_bridge` | Deterministic niche only |
+
+**Classify hint:** Failures here are **A (code)** if archetype_id + KB hints exist but scoping ignores them; **B (KB)** if Research archetype or `day1_seed_hints` missing; **C (LLM routing)** if deterministic golden passes but live matrix `<80%`.
 
 ---
 
@@ -259,6 +278,7 @@ Adding a doctype to “supported” requires:
 | 2026-06-05 | Initial manifest from Green Surface 3rd_run live run + codebase audit |
 | 2026-06-05 | GM-FILE-04 Stock Entry marked blocking — synonyms pending |
 | 2026-07-06 | Added GM-DISC-01..04 Discovery MVP boundary golden rows + pytest gate |
+| 2026-07-07 | Added LR-DISC-01..10 live routing matrix + ≥80% Step 1 gate |
 | 2026-06-06 | ✅ **GM-FILE-04 RESOLVED** — Added synonyms (`Project_Ref`, `Item_Consumed`, `Quantity`, `Source_Whse`); test harness passes |
 
 ---

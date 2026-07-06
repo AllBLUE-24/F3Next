@@ -43,7 +43,7 @@ Research cannot verify signal improvements until engineering exposes **shadow si
 | P2.4 | Optional flag: `DISCOVERY_SIGNAL_OVERRIDE_MIN_MARGIN=2` |
 | P2.5 | Tighten recommend prompt (one id from list; empty reqs from LLM) |
 
-### Phase 3 — Niche + template fit
+### Phase 3 — Niche + template fit ✅ done
 
 | Task | Deliverable |
 |------|-------------|
@@ -58,12 +58,12 @@ Research cannot verify signal improvements until engineering exposes **shadow si
 | P4.1 | Implement `_enhance_seeds_from_discovery` **or** remove from contract |
 | P4.2 | Clarify to Research: enhancement ≠ archetype routing |
 
-### Phase 5 — Live golden matrix + gate
+### Phase 5 — Live golden matrix + gate (in progress)
 
 | Task | Deliverable |
 |------|-------------|
-| P5.1 | 10–15 harness transcripts with `--expect-archetype` |
-| P5.2 | Nightly live LLM job; track archetype accuracy |
+| P5.1 | 10–15 harness transcripts with `--expect-archetype` ✅ `live_routing_matrix.json` |
+| P5.2 | Nightly live LLM job; track archetype accuracy ✅ harness `--matrix` + `test_live_routing_matrix.py -m live_llm` |
 | P5.3 | **Step 1 complete** when ≥80% on matrix + GM-DISC-01..04 green |
 
 ---
@@ -83,8 +83,11 @@ Research cannot verify signal improvements until engineering exposes **shadow si
 
 ```powershell
 pytest containers/discovery/test/ -q
+pytest containers/discovery/test/test_live_routing_matrix.py -m routing_matrix
 python -m containers.discovery.test.harness_mvp_boundary --transcript-file fixtures/green_surface_wip.txt --report
 python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt --report --expect-archetype factory_wip_bridge
+python -m containers.discovery.test.harness_mvp_boundary --matrix --report
+DISCOVERY_LIVE_MATRIX=1 pytest containers/discovery/test/test_live_routing_matrix.py -m live_llm
 ```
 
 ---
@@ -94,3 +97,6 @@ python -m containers.discovery.test.harness_mvp_boundary --transcript-file story
 | Date | Change |
 |------|--------|
 | 2026-07-07 | Phase 1 observability plan + implementation |
+| 2026-07-07 | Phase 2 recommend guardrails |
+| 2026-07-07 | Phase 3 niche hints + graph extension allowlist |
+| 2026-07-07 | Phase 5 live routing matrix + harness `--matrix` |
