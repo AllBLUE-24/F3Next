@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from containers.discovery.archetype_registry import (
     best_signal_match,
+    build_routing_diagnostics,
     canonicalize_seed,
     get_by_id,
     resolve_seed_doctypes,
@@ -240,6 +241,12 @@ def scope_mvp_seeds(
             "archetype_source": None,
             "signal_match_score": None,
             "invalid_archetype_id": None,
+            "signal_match_candidates": [],
+            "llm_archetype_id": None,
+            "llm_archetype_signal_score": None,
+            "chosen_archetype_signal_score": None,
+            "archetype_routing_mismatch": False,
+            "archetype_routing_note": None,
         }
 
     context = _combined_context(
@@ -317,15 +324,25 @@ def scope_mvp_seeds(
 
     deferred = [d for d in template_set if d not in mvp]
 
+    resolved_archetype_id = (archetype or {}).get("archetype_id") or archetype_id
+    routing = build_routing_diagnostics(
+        context_text=context,
+        f3iche_id=f3iche_id,
+        llm_archetype_id=(mvp_focus or {}).get("archetype_id"),
+        chosen_archetype_id=resolved_archetype_id,
+        archetype_source=archetype_source,
+    )
+
     return {
         "mvp_seeds": mvp,
         "deferred_seeds": deferred,
         "scoping_mode": scoping_mode,
         "scoping_reasoning": reasoning,
         "dual_system_note": dual_system_note,
-        "archetype_id": (archetype or {}).get("archetype_id") or archetype_id,
+        "archetype_id": resolved_archetype_id,
         "archetype_source": archetype_source,
         "signal_match_score": signal_match_score,
         "graph_extensions": graph_extensions,
         "invalid_archetype_id": invalid_archetype_id,
+        **routing,
     }

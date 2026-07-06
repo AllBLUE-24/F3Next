@@ -6,6 +6,8 @@ niche resolution and build_discovery_target.
 
   python -m containers.discovery.test.harness_mvp_boundary
   python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt
+  python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt --report
+  python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt --report --expect-archetype factory_wip_bridge
   python -m containers.discovery.test.harness_mvp_boundary --messages-file chat.json
 
 Requires LLM credentials (same as discovery). Use --no-llm only for offline scoping
@@ -146,6 +148,15 @@ def _run_without_llm(messages: list[dict], *, f3iche_override: str | None) -> di
         "mvp_focus": {},
         "scoping_reasoning": scoping["scoping_reasoning"],
         "dual_system_note": scoping.get("dual_system_note", ""),
+        "archetype_id": scoping.get("archetype_id"),
+        "archetype_source": scoping.get("archetype_source"),
+        "signal_match_score": scoping.get("signal_match_score"),
+        "signal_match_candidates": scoping.get("signal_match_candidates") or [],
+        "llm_archetype_id": scoping.get("llm_archetype_id"),
+        "llm_archetype_signal_score": scoping.get("llm_archetype_signal_score"),
+        "chosen_archetype_signal_score": scoping.get("chosen_archetype_signal_score"),
+        "archetype_routing_mismatch": scoping.get("archetype_routing_mismatch", False),
+        "archetype_routing_note": scoping.get("archetype_routing_note"),
     }
     return {
         "pipeline": "no_llm_scoping_only",
@@ -155,6 +166,62 @@ def _run_without_llm(messages: list[dict], *, f3iche_override: str | None) -> di
         "mvp_boundary": mvp_boundary,
         "scoping": scoping,
     }
+
+
+def _print_signal_routing_report(result: dict[str, Any]) -> None:
+    mvp = result.get("mvp_boundary") or {}
+    scoping = result.get("scoping") or {}
+    focus = result.get("mvp_focus") or mvp.get("mvp_focus") or {}
+
+    candidates = mvp.get("signal_match_candidates") or scoping.get("signal_match_candidates") or []
+    llm_id = focus.get("archetype_id") or mvp.get("llm_archetype_id")
+    scoped_id = mvp.get("archetype_id") or scoping.get("archetype_id")
+    source = mvp.get("archetype_source") or scoping.get("archetype_source")
+
+    _print_header("SIGNAL ROUTING DIAGNOSTICS")
+    print(f"  LLM archetype_id:              {llm_id}")
+    print(f"  Scoped archetype_id:           {scoped_id}")
+    print(f"  archetype_source:              {source}")
+    print(f"  signal_match_score (fallback): {mvp.get('signal_match_score') or scoping.get('signal_match_score')}")
+    print(f"  llm_archetype_signal_score:    {mvp.get('llm_archetype_signal_score') or scoping.get('llm_archetype_signal_score')}")
+    print(f"  chosen_archetype_signal_score: {mvp.get('chosen_archetype_signal_score') or scoping.get('chosen_archetype_signal_score')}")
+
+    mismatch = mvp.get("archetype_routing_mismatch") or scoping.get("archetype_routing_mismatch")
+    note = mvp.get("archetype_routing_note") or scoping.get("archetype_routing_note")
+    if mismatch:
+        print(f"  ⚠ routing_mismatch:            YES — {note}")
+    else:
+        print("  routing_mismatch:              no")
+
+    print()
+    print("  Top signal_match_candidates:")
+    if not candidates:
+        print("    (none — no signal hits at min score 1)")
+    for row in candidates:
+        marker = " ← top" if row == candidates[0] else ""
+        print(f"    - {row.get('archetype_id')}: score {row.get('score')}{marker}")
+
+
+def _check_expect_archetype(result: dict[str, Any], expected: str) -> tuple[bool, str]:
+    mvp = result.get("mvp_boundary") or {}
+    scoping = result.get("scoping") or {}
+    focus = result.get("mvp_focus") or mvp.get("mvp_focus") or {}
+    llm_id = str(focus.get("archetype_id") or "").strip()
+    scoped_id = str(mvp.get("archetype_id") or scoping.get("archetype_id") or "").strip()
+    expected = expected.strip()
+
+    if llm_id.lower() in ("null", "none"):
+        llm_id = ""
+
+    if scoped_id == expected:
+        return True, f"scoped archetype {scoped_id!r} matches expected"
+    if llm_id == expected:
+        return True, f"LLM archetype {llm_id!r} matches expected (scoped: {scoped_id!r})"
+    top = (mvp.get("signal_match_candidates") or scoping.get("signal_match_candidates") or [])
+    top_id = top[0]["archetype_id"] if top else None
+    return False, (
+        f"expected {expected!r}; LLM={llm_id!r}, scoped={scoped_id!r}, top_signal={top_id!r}"
+    )
 
 
 def _print_coverage(coverage: dict[str, Any]) -> None:
@@ -259,6 +326,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--json-out", help="Write full pipeline result JSON to this path")
     p.add_argument("--quiet", action="store_true", help="Print MVP boundary JSON only")
+    p.add_argument(
+        "--report",
+        action="store_true",
+        help="Print signal routing diagnostics (shadow signal rankings vs LLM pick)",
+    )
+    p.add_argument(
+        "--expect-archetype",
+        help="With --report: exit 1 unless scoped or LLM archetype_id matches this id",
+    )
     return p
 
 
@@ -287,8 +363,17 @@ def main(argv: list[str] | None = None) -> int:
         _print_header("INPUT")
         print(result.get("chat_transcript") or transcript_text(messages))
         _print_result(result)
+        if args.report:
+            _print_signal_routing_report(result)
         _print_header("MVP BOUNDARY JSON")
         print(json.dumps(result.get("mvp_boundary") or {}, indent=2, default=str))
+
+    if args.expect_archetype:
+        ok, msg = _check_expect_archetype(result, args.expect_archetype)
+        if args.report or args.quiet:
+            print(f"\nexpect-archetype: {'PASS' if ok else 'FAIL'} — {msg}")
+        if not ok:
+            return 1
 
     return 0
 

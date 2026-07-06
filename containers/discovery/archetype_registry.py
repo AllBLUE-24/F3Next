@@ -157,6 +157,96 @@ def best_signal_match(
     return matches[0] if matches else None
 
 
+def score_archetype_signals(
+    archetype_id: Optional[str],
+    text: str,
+    f3iche_id: Optional[str] = None,
+) -> int:
+    """Signal hit count for one archetype id in text (0 if unknown or no hits)."""
+    entry = get_by_id(archetype_id, f3iche_id)
+    if not entry:
+        return 0
+    return _signal_score(text, entry.get("signals") or [])
+
+
+def signal_match_rankings(
+    text: str,
+    f3iche_id: Optional[str] = None,
+    *,
+    top_k: int = 5,
+    min_score: int = _SIGNAL_MIN_SCORE,
+) -> list[dict[str, Any]]:
+    """
+    Top archetype ids by signal score for observability (shadow ranking).
+
+    Returns [{"archetype_id": str, "score": int}, ...] sorted by score desc.
+    """
+    ranked = match_by_signals(text, f3iche_id, min_score=min_score, top_k=top_k)
+    return [
+        {
+            "archetype_id": str(entry.get("archetype_id") or ""),
+            "score": score,
+        }
+        for entry, score in ranked
+        if entry.get("archetype_id")
+    ]
+
+
+def build_routing_diagnostics(
+    *,
+    context_text: str,
+    f3iche_id: Optional[str],
+    llm_archetype_id: Optional[str],
+    chosen_archetype_id: Optional[str],
+    archetype_source: Optional[str],
+    top_k: int = 5,
+    mismatch_margin: int = 2,
+) -> dict[str, Any]:
+    """
+    Shadow signal diagnostics for mvp_boundary (Phase 1 observability).
+
+    Does not change which archetype is selected — reporting only.
+    """
+    candidates = signal_match_rankings(context_text, f3iche_id, top_k=top_k)
+    llm_id = str(llm_archetype_id or "").strip().lower()
+    if llm_id in ("null", "none", "undefined"):
+        llm_id = ""
+
+    llm_score = score_archetype_signals(llm_id, context_text, f3iche_id) if llm_id else 0
+    top_id = candidates[0]["archetype_id"] if candidates else None
+    top_score = candidates[0]["score"] if candidates else 0
+
+    mismatch = False
+    note: str | None = None
+    if (
+        archetype_source == "mvp_focus"
+        and llm_id
+        and top_id
+        and llm_id != top_id
+        and top_score - llm_score >= mismatch_margin
+    ):
+        mismatch = True
+        note = (
+            f"LLM picked {llm_id!r} (signal score {llm_score}); "
+            f"top signal match is {top_id!r} (score {top_score})"
+        )
+
+    chosen_score = (
+        score_archetype_signals(chosen_archetype_id, context_text, f3iche_id)
+        if chosen_archetype_id
+        else 0
+    )
+
+    return {
+        "signal_match_candidates": candidates,
+        "llm_archetype_id": llm_id or None,
+        "llm_archetype_signal_score": llm_score if llm_id else None,
+        "chosen_archetype_signal_score": chosen_score if chosen_archetype_id else None,
+        "archetype_routing_mismatch": mismatch,
+        "archetype_routing_note": note,
+    }
+
+
 def canonicalize_seed(name: str) -> str:
     raw = str(name or "").strip()
     if not raw:

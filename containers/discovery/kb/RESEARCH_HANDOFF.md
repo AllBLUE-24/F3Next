@@ -74,3 +74,15 @@ Please land these **before** the bulk 30–50 if possible:
 **Global catalog:** `basic_inventory`, `excel_bom_disconnect`, `procurement_gap`, `invoicing_receivables`, `service_dispatch_chaos`, `subcontractor_job_work_yield_leakage`, `warranty_rma_and_reverse_logistics_chaos`, `multi_tier_sales_commission_and_payable_desynchronization`, `eway_bill_transit_and_compliance_hazard`
 
 New ids: pick new snake_case names; do not collide unless F3iche intentionally overrides.
+
+## Phase 1 observability (engineering)
+
+Every `mvp_boundary.json` includes shadow signal fields for Research verification:
+
+- `signal_match_candidates` — top-5 archetype ids by signal score
+- `llm_archetype_signal_score` — how well the LLM pick matches transcript signals
+- `archetype_routing_mismatch` — true when top signal beats LLM id by ≥2 points
+
+Harness: `python -m containers.discovery.test.harness_mvp_boundary --transcript-file story.txt --report`
+
+Note: `signal_match_score` stays null when `archetype_source=mvp_focus` (signal fallback path only).

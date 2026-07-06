@@ -263,6 +263,12 @@ async def build_discovery_target(
         "file_evidence": [],
         "llm_enhanced": bool(llm_enhanced_seeds),
         "llm_reasoning": llm_reasoning,
+        "signal_match_candidates": scoping.get("signal_match_candidates") or [],
+        "llm_archetype_id": scoping.get("llm_archetype_id"),
+        "llm_archetype_signal_score": scoping.get("llm_archetype_signal_score"),
+        "chosen_archetype_signal_score": scoping.get("chosen_archetype_signal_score"),
+        "archetype_routing_mismatch": scoping.get("archetype_routing_mismatch", False),
+        "archetype_routing_note": scoping.get("archetype_routing_note"),
     }
 
     return {
