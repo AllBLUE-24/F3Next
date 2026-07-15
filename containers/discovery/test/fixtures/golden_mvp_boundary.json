@@ -56,26 +56,26 @@
       "f3iche_id": "manufacturing_project_chemical",
       "mvp_focus": {
         "primary_bottleneck": "Strict quality gates on incoming stock and final products",
-        "archetype_id": "scrap_wastage",
+        "archetype_id": "incoming_quality_compliance",
         "functional_requirements": ["quality_control", "batch_tracking"]
       },
       "coverage": {
         "pain_point": {"value": "ISO audit requires batch inspection proof", "status": "confirmed"}
       },
       "expect": {
-        "scoping_mode_prefix": "archetype_scrap_wastage",
-        "archetype_id": "scrap_wastage",
-        "must_include": ["Stock Entry", "Batch", "Project"],
+        "scoping_mode_prefix": "archetype_incoming_quality_compliance",
+        "archetype_id": "incoming_quality_compliance",
+        "archetype_source": "mvp_focus",
+        "must_include": ["Quality Inspection", "Quality Inspection Template", "Batch", "Purchase Receipt"],
         "must_exclude": ["Work Order", "Job Card"]
       },
-      "notes": "Quality Inspection requires Research incoming_qc archetype — tracked separately"
+      "notes": "incoming_quality_compliance from Research catalog"
     },
     {
       "id": "GM-DISC-04",
       "name": "custom_order_crm",
       "fixture": "custom_order_crm.txt",
       "f3iche_id": "manufacturing_project_chemical",
-      "status": "pending_research",
       "mvp_focus": {
         "primary_bottleneck": "Losing track of custom orders and quotes",
         "archetype_id": "custom_order_pipeline",
@@ -87,10 +87,12 @@
       },
       "expect": {
         "scoping_mode_prefix": "archetype_custom_order_pipeline",
-        "must_include": ["Quotation", "Sales Order"],
+        "archetype_id": "custom_order_pipeline",
+        "archetype_source": "mvp_focus",
+        "must_include": ["Quotation", "Sales Order", "Project"],
         "must_exclude": ["Work Order", "Job Card"]
       },
-      "notes": "Pending Research archetype custom_order_pipeline in catalog"
+      "notes": "custom_order_pipeline from Research catalog"
     }
   ]
 }

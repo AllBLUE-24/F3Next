@@ -21,6 +21,15 @@ SELECT
     trigger_doctype, r2_key, created_at
 FROM cvs_snapshots_keep;
 
+-- Strip full JSONB blobs; R2 retains the authoritative payload (see r2_key).
+UPDATE context_snapshots
+SET data = jsonb_build_object(
+    '_payload_in_r2', true,
+    'counts', COALESCE(data->'counts', '{}'::jsonb)
+)
+WHERE r2_key IS NOT NULL
+  AND NOT COALESCE((data->>'_payload_in_r2')::boolean, false);
+
 COMMIT;
 
 -- Delete old audit events in batches if a single DELETE times out:

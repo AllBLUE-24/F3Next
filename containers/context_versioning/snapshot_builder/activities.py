@@ -87,6 +87,7 @@ async def build_and_store_snapshot(data: dict) -> dict:
     # ── Step 2: Write to Supabase and R2 ──────────────────────────────────────
     activity.heartbeat("Writing snapshots to Supabase + R2")
 
+    from shared.cvs_snapshot_loader import cvs_supabase_payload_stub
     from shared.database.db import AsyncSessionLocal
     from shared.models.cvs_models import ContextSnapshot
     from shared.r2_client import r2_write_context_snapshot
@@ -122,12 +123,17 @@ async def build_and_store_snapshot(data: dict) -> dict:
                 data         = result["data"],
             )
 
-            # Write Supabase row
+            # Write Supabase row (metadata stub when R2 succeeded — saves Supabase disk)
+            supabase_data = (
+                cvs_supabase_payload_stub(result["data"])
+                if r2_key
+                else result["data"]
+            )
             snapshot = ContextSnapshot(
                 project_id      = pid,
                 layer           = layer,
                 version         = new_version,
-                data            = result["data"],
+                data            = supabase_data,
                 trigger_event   = trigger_event,
                 trigger_doctype = trigger_doctype,
                 r2_key          = r2_key,

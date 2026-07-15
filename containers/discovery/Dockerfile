@@ -11,4 +11,5 @@ COPY . .
 # Ensure 'shared' and other root modules resolve
 ENV PYTHONPATH=/app/backend:/app
 
-CMD ["python", "containers/discovery/worker.py"]
+# Discovery chat runs synchronously in the FastAPI backend (see backend/app/services/discovery_chat.py).
+CMD ["python", "-c", "import sys; print('Discovery worker deprecated — use FastAPI /api/discovery/*', file=sys.stderr); sys.exit(0)"]

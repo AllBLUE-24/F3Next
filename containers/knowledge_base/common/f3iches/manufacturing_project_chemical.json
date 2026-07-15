@@ -435,16 +435,286 @@
       }
     ],
     
+    "bottlenecks": [
+      {
+        "archetype_id": "inventory_visibility",
+        "primary_bottleneck": "Critical imbalances of Part A and B components, hazardous material storage segregation, and stranded catalyst errors.",
+        "signals": [
+          "part a",
+          "part b",
+          "hardener",
+          "resin",
+          "catalyst",
+          "moisture sensitive isocyanates",
+          "gelled drum",
+          "stranded hardener",
+          "Part A Part B mismatch",
+          "hazmat",
+          "ibc tote",
+          "55 gallon drum"
+        ],
+        "functional_requirements": [
+          "enforce_strict_bom_ratios",
+          "batch_expiry_tracking",
+          "hazmat_segregation_warehouses",
+          "project_site_virtual_warehousing"
+        ],
+        "day1_seed_hints": [
+          "Item",
+          "Batch",
+          "Warehouse",
+          "Stock Entry"
+        ],
+        "defer_typically": [
+          "Sales Invoice",
+          "Purchase Invoice"
+        ],
+        "notes": "Isocyanates and polyamines require strict shelf-life monitoring. Batch lot numbers must be tracked seamlessly through to field execution to prevent floor color shifting (Delta E variance) on large continuous projects."
+      },
+      {
+        "archetype_id": "basic_costing",
+        "primary_bottleneck": "Project margin bleed due to substrate yield variance and uncosted tooling wear",
+        "signals": [
+          "yield variance",
+          "mver failure",
+          "csp 3",
+          "csp 4",
+          "diamond blade wear",
+          "substrate temperature",
+          "dew point",
+          "calcium chloride test",
+          "delamination",
+          "porous concrete"
+        ],
+        "functional_requirements": [
+          "project_specific_tooling_amortization",
+          "actual_vs_theoretical_yield_costing",
+          "labor_weather_delay_tracking"
+        ],
+        "day1_seed_hints": [
+          "Project",
+          "Task",
+          "Timesheet"
+        ],
+        "defer_typically": [
+          "Journal Entry",
+          "Sales Invoice"
+        ],
+        "notes": "Costing architecture must actively isolate diamond grinding wear and excessive primer absorption due to porous concrete. Financial accounting is deferred due to dual-system Tally integration for GST compliance."
+      },
+      {
+        "archetype_id": "factory_wip_bridge",
+        "primary_bottleneck": "Disconnect between dynamic factory bulk letdowns and rigid static BOM consumption",
+        "signals": [
+          "hegman grind",
+          "brookfield viscosity",
+          "pigment shock",
+          "bead mill bottleneck",
+          "delta e",
+          "letdown phase",
+          "dynamic tinting",
+          "cowles blade",
+          "fluid vortex",
+          "off spec adjustments"
+        ],
+        "functional_requirements": [
+          "in_process_qc_routing",
+          "dynamic_letdown_adjustments",
+          "site_warehouse_transfer_logic"
+        ],
+        "day1_seed_hints": [
+          "Item",
+          "BOM",
+          "Work Order",
+          "Job Card",
+          "Quality Inspection"
+        ],
+        "defer_typically": [
+          "Project",
+          "Customer"
+        ],
+        "notes": "Standard static ERP BOMs fail here; factory chief chemists require the flexibility to add tinting pastes or solvent thinners during the letdown phase to correct off-spec viscosity or color parameters prior to packaging."
+      },
+      {
+        "archetype_id": "scrap_wastage",
+        "primary_bottleneck": "Site mixing errors causing tacky floors, solvent popping, and exothermic flash curing",
+        "signals": [
+          "pot life expired",
+          "flash curing bucket",
+          "exothermic smoke",
+          "tacky floor",
+          "amine blush",
+          "improper induction time",
+          "sweat-in failure",
+          "uncured sticky spots",
+          "eyeballed mix ratio",
+          "solvent popping",
+          "outgassing pinholes",
+          "stripping rework"
+        ],
+        "functional_requirements": [
+          "strict_stoichiometric_consumption",
+          "scrap_reason_logging",
+          "rework_project_costing"
+        ],
+        "day1_seed_hints": [
+          "Stock Entry",
+          "Batch",
+          "Project"
+        ],
+        "defer_typically": [
+          "Purchase Order",
+          "Supplier"
+        ],
+        "notes": "Failures on-site—such as tacky floors or flash cures in ambient heat—lead to massive physical scrap. The consumption entries must capture this exact volume to reconcile against the theoretical project estimation and capture the cost of chemical stripping rework."
+      },
+      {
+        "archetype_id": "distributor_ship_and_debit_margin_blindness",
+        "primary_bottleneck": "Margin blindness and tax compliance violations resulting from disconnected tracking of OEM ship-and-debit rebate claims.",
+        "signals": [
+          "ship and debit",
+          "manufacturer rebate",
+          "debit note",
+          "true margin",
+          "margin blindness",
+          "zatca",
+          "continuous transaction control",
+          "retrospective claim"
+        ],
+        "functional_requirements": [
+          "retrospective_rebate_accruals",
+          "debit_note_reconciliation",
+          "claim_validation_workflow",
+          "tax_adjustment_automation"
+        ],
+        "day1_seed_hints": [
+          "Pricing Rule",
+          "Sales Invoice",
+          "Debit Note"
+        ],
+        "defer_typically": [
+          "Journal Entry",
+          "Payment Entry"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Crucial for heavy distributors. Sales happen at a loss intentionally, pending a manufacturer credit. The ERP must track the pending claim state to report true gross margins before the debit note is approved."
+      },
+      {
+        "archetype_id": "landed_cost_allocation_blindness",
+        "primary_bottleneck": "The illusion of high gross margins and systemic underpricing caused by booking import freight and customs duties as general overhead.",
+        "signals": [
+          "customs duty",
+          "freight forwarder bill",
+          "clearing agent",
+          "landed cost",
+          "true margin",
+          "import container",
+          "demurrage",
+          "terminal handling"
+        ],
+        "functional_requirements": [
+          "freight_apportionment",
+          "multi_vendor_cost_rollup",
+          "customs_duty_tracking",
+          "moving_average_revaluation"
+        ],
+        "day1_seed_hints": [
+          "Landed Cost Voucher",
+          "Purchase Invoice",
+          "Purchase Receipt"
+        ],
+        "defer_typically": [
+          "Payment Entry",
+          "Accounting Ledger"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Heavy importers must distribute secondary charges (freight, duties) across item valuation based on quantity or weight to prevent sales teams from quoting below actual landed cost."
+      },
+      {
+        "archetype_id": "multi_currency_exchange_volatility",
+        "primary_bottleneck": "Project margins wiped out due to untracked exposure to macroeconomic currency fluctuations between procurement and settlement.",
+        "signals": [
+          "forex loss",
+          "exchange rate variance",
+          "hedging",
+          "import advance",
+          "currency fluctuation",
+          "unrealized loss",
+          "base currency"
+        ],
+        "functional_requirements": [
+          "realized_unrealized_exchange_tracking",
+          "multi_currency_invoicing",
+          "advance_payment_revaluation"
+        ],
+        "day1_seed_hints": [
+          "Currency Exchange",
+          "Purchase Order",
+          "Journal Entry"
+        ],
+        "defer_typically": [
+          "Payment Reconciliation",
+          "Dunning"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. While Tally handles the final realized GL entries, the ERP must provide operational visibility into unrealized exposure on massive foreign currency advances to allow for proactive hedging."
+      },
+      {
+        "archetype_id": "subcontractor_retainage_and_ra_billing",
+        "primary_bottleneck": "Massive subcontractor overpayments and cash flow shocks resulting from manual tracking of retention withholding and mobilization advances.",
+        "signals": [
+          "running account bill",
+          "ra bill",
+          "retainage",
+          "retention amount",
+          "defect liability period",
+          "dlp",
+          "mobilization advance",
+          "cash flow shock"
+        ],
+        "functional_requirements": [
+          "retention_amount_withholding",
+          "running_account_billing",
+          "advance_deduction_tracking",
+          "defect_liability_monitoring"
+        ],
+        "day1_seed_hints": [
+          "Purchase Order",
+          "Purchase Invoice",
+          "Project"
+        ],
+        "defer_typically": [
+          "Payment Entry",
+          "Journal Entry"
+        ],
+        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. The ERP must algorithmically deduct previous advance payouts and standard retention percentages (e.g., 5%) from every cumulative RA bill generated by a subcontractor to prevent overpayment."
+      }
+    ],
+
     "import_field_policy": {
+      "always_ask": [
+        "item_code",
+        "item_group",
+        "stock_uom",
+        "has_batch_no",
+        "shelf_life_in_days",
+        "valuation_rate",
+        "warehouse"
+      ],
+      "defer_until_post_mvp": [
+        "income_account",
+        "expense_account",
+        "cost_center",
+        "tax_category",
+        "asset_category"
+      ],
       "default_when_missing": {
+        "has_batch_no": 1,
+        "maintain_stock": 1,
+        "valuation_method": "FIFO",
         "Item.item_group": "Consumable",
         "Item.stock_uom": "Nos",
         "Customer.territory": "All Territories",
         "Customer.customer_group": "All Customer Groups",
         "Supplier.supplier_group": "All Supplier Groups"
-      },
-      "always_ask": ["Batch", "BOM"],
-      "defer_until_post_mvp": ["Stock Entry", "Quality Inspection"]
+      }
     },
 
     "notes_for_ai_agent": {

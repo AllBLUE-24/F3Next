@@ -30,7 +30,8 @@ def test_merged_archetypes_includes_f3iche_and_catalog():
     ids = list_archetype_ids(CHEMICAL_F3ICHE)
     assert "factory_wip_bridge" in ids
     assert "basic_inventory" in ids
-    assert "subcontractor_job_work_yield_leakage" in ids
+    assert "subcontracting_raw_material_leakage" in ids
+    assert "custom_order_pipeline" in ids
 
 
 def test_f3iche_overrides_catalog_same_id():

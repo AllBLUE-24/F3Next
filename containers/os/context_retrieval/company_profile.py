@@ -291,6 +291,7 @@ async def fetch_cvs_enrichment(project_id: str) -> dict:
         return {"entity_registry": {}, "transaction_intel": {}, "cvs_version": {}}
 
     try:
+        from shared.cvs_snapshot_loader import resolve_snapshot_data
         from shared.database.db import AsyncSessionLocal
         from shared.models.cvs_models import ContextSnapshot
         from sqlalchemy import select
@@ -314,26 +315,27 @@ async def fetch_cvs_enrichment(project_id: str) -> dict:
                 )
                 row = res.scalars().first()
 
-                if row and row.data:
-                    result_dict["cvs_version"][layer] = row.version
+                if row:
+                    data = await resolve_snapshot_data(row)
+                    if data:
+                        result_dict["cvs_version"][layer] = row.version
 
-                    if layer == "master_data":
-                        data = row.data
-                        result_dict["entity_registry"] = {
-                            # Back-compat
-                            "known_customers":  data.get("known_customers", []),
-                            "known_suppliers":  data.get("known_suppliers", []),
-                            "known_items":      data.get("known_items", []),
-                            "known_warehouses": data.get("known_warehouses", []),
-                            "counts":           data.get("counts", {}),
+                        if layer == "master_data":
+                            result_dict["entity_registry"] = {
+                                # Back-compat
+                                "known_customers":  data.get("known_customers", []),
+                                "known_suppliers":  data.get("known_suppliers", []),
+                                "known_items":      data.get("known_items", []),
+                                "known_warehouses": data.get("known_warehouses", []),
+                                "counts":           data.get("counts", {}),
 
-                            # New generic registry (for dynamic doctypes)
-                            "known_names":        data.get("known_names", {}),
-                            "entities_by_doctype": data.get("entities_by_doctype", {}),
-                        }
+                                # New generic registry (for dynamic doctypes)
+                                "known_names":        data.get("known_names", {}),
+                                "entities_by_doctype": data.get("entities_by_doctype", {}),
+                            }
 
-                    elif layer == "transaction_intel":
-                        result_dict["transaction_intel"] = row.data
+                        elif layer == "transaction_intel":
+                            result_dict["transaction_intel"] = data
 
         if result_dict["entity_registry"] or result_dict["transaction_intel"]:
             logger.info(

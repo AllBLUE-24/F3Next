@@ -502,6 +502,7 @@ async def extract_intent(data: dict) -> dict:
         If 0 results are returned, retry with a shorter keyword (e.g. drop adjectives).
         """
         try:
+            from shared.cvs_snapshot_loader import resolve_snapshot_data
             from shared.database.db import AsyncSessionLocal
             from shared.models.cvs_models import ContextSnapshot
             from sqlalchemy import select, text
@@ -534,7 +535,11 @@ async def extract_intent(data: dict) -> dict:
                     .limit(1)
                 )
                 row = res.scalars().first()
-                if not row or not row.data:
+                if not row:
+                    return []
+
+                data = await resolve_snapshot_data(row)
+                if not data:
                     return []
 
             type_map = {
@@ -555,7 +560,7 @@ async def extract_intent(data: dict) -> dict:
             if not key:
                 # Best-effort: assume caller passed the raw snapshot key
                 key = str(entity_type or "items").strip().lower()
-            data_list = row.data.get(key, [])
+            data_list = data.get(key, [])
 
             # ── Token-based fuzzy scoring ────────────────────────────────────
             # Split the query into individual words. Score each record by how

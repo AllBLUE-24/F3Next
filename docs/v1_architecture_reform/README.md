@@ -25,12 +25,30 @@ Complete documentation of the proposed architectural reform for F3Next Implement
 | 06 | [Decision Framework](06_DECISION_FRAMEWORK.md) | Ship now vs rebuild analysis | 20 min | CEO |
 | 07 | [Vision vs Reality](07_VISION_VS_REALITY.md) | Gap analysis + 3-phase hardening plan | 20 min | CTO + Tech |
 | 08 | [START HERE](08_START_HERE.md) | ⚡ Immediate action plan (READ THIS FIRST) | 15 min | Everyone |
+| 09 | [Core KB & Stepwise Migration](09_CORE_KB_AND_STEPWISE_MIGRATION.md) | 🛠️ Execution doctrine: core KB allowlist, no-delete-first steps, agent guide | 20 min | Coding agents + Tech |
+| 10 | [MVP Boundary V1 Plan](10_MVP_BOUNDARY_V1_PLAN.md) | 🚧 **Active gate:** archetype-driven scoping, harness golden tests, no new patches | 25 min | Engineering |
 
-**Total read time**: ~3 hours for complete understanding
+**Total read time**: ~3.5 hours for complete understanding
 
 ---
 
 ## Quick Start
+
+### ⚡ If Discovery MVP Boundary Is Broken (Active — July 2026)
+
+Read: [10_MVP_BOUNDARY_V1_PLAN.md](10_MVP_BOUNDARY_V1_PLAN.md) — **Gate before Discovery step is v1-worthy**
+
+Covers: harness failures, archetype registry, Phase 0–6 engineering tasks, golden 10/10 gate.
+
+---
+
+### ⚡ If You Are Executing KB Reform Step-by-Step
+
+Read: [09_CORE_KB_AND_STEPWISE_MIGRATION.md](09_CORE_KB_AND_STEPWISE_MIGRATION.md) — **Start here for coding agents**
+
+Covers: core KB allowlist, patch→prompt philosophy, Steps 0–8 with 10/10 gates, no-delete-first rule.
+
+---
 
 ### ⚡ If You Need to Act NOW (Current Code Broken)
 

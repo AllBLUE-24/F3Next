@@ -51,3 +51,11 @@ def validation_rules_from_f3iche(f3iche_data: Dict[str, Any]) -> Dict[str, Any]:
     if f3iche_data.get("regulatory_criticality_level"):
         rules["regulatory_criticality"] = f3iche_data["regulatory_criticality_level"]
     return rules
+
+
+def bottlenecks_from_f3iche(f3iche_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Return Research-owned bottlenecks[] block when present on F3iche JSON."""
+    raw = f3iche_data.get("bottlenecks")
+    if not isinstance(raw, list):
+        return []
+    return [b for b in raw if isinstance(b, dict)]

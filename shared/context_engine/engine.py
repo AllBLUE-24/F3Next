@@ -71,6 +71,7 @@ class ContextEngine:
 
         cvs_data: dict[str, Any] = {}
         try:
+            from shared.cvs_snapshot_loader import resolve_snapshot_data
             from shared.database.db import AsyncSessionLocal
             from shared.models.cvs_models import ContextSnapshot
             from sqlalchemy import text
@@ -102,7 +103,9 @@ class ContextEngine:
                     )
                     row = q.scalars().first()
                     if row:
-                        cvs_data[layer] = row.data or {}
+                        payload = await resolve_snapshot_data(row)
+                        if payload:
+                            cvs_data[layer] = payload
                         if version is not None and row.version != version:
                             pass  # pinned mismatch — still return latest row; caller may validate
         except Exception as e:

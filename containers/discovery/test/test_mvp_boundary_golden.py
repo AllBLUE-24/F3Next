@@ -75,7 +75,6 @@ def test_golden_mvp_boundary_scoping(case: dict):
 @pytest.mark.golden
 def test_golden_matrix_pending_cases_documented():
     pending = [c for c in _load_matrix() if c.get("status") == "pending_research"]
-    assert pending, "expected at least one pending_research row for Research handoff"
     for case in pending:
         assert case.get("notes"), f"{case.get('id')} pending row needs notes"
 

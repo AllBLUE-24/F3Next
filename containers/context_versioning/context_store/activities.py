@@ -60,15 +60,25 @@ async def read_latest_snapshot(data: dict) -> Optional[dict]:
             )
             row = result.scalars().first()
 
+        from shared.cvs_snapshot_loader import resolve_snapshot_data
+
         if not row:
             logger.debug("CVS: no %s snapshot for project %s", layer, project_id)
+            return None
+
+        payload = await resolve_snapshot_data(row)
+        if payload is None:
+            logger.warning(
+                "CVS: no payload for %s snapshot v%d project %s",
+                layer, row.version, project_id,
+            )
             return None
 
         logger.debug(
             "CVS: read %s snapshot v%d for project %s",
             layer, row.version, project_id,
         )
-        return row.data
+        return payload
 
     except Exception as e:
         logger.exception("CVS: read_latest_snapshot failed: %s", e)
@@ -191,6 +201,26 @@ async def log_context_event(data: dict) -> dict:
 
 
 # ── Snapshot retention (Option 3: latest version only in Supabase) ───────────
+
+_STRIP_PAYLOADS_SQL = """
+UPDATE context_snapshots
+SET data = jsonb_build_object(
+    '_payload_in_r2', true,
+    'counts', COALESCE(data->'counts', '{}'::jsonb)
+)
+WHERE r2_key IS NOT NULL
+  AND NOT COALESCE((data->>'_payload_in_r2')::boolean, false)
+"""
+
+
+async def _strip_supabase_payloads(conn) -> int:
+    """Replace inline JSONB blobs with metadata stubs when R2 has the full copy."""
+    status = await conn.execute(_STRIP_PAYLOADS_SQL)
+    try:
+        return int(str(status).split()[-1])
+    except (ValueError, IndexError):
+        return 0
+
 
 _SNAPSHOTS_PRUNE_PROJECT_SQL = """
 DELETE FROM context_snapshots AS cs
@@ -317,6 +347,7 @@ async def prune_old_snapshots_core(data: dict | None = None) -> dict:
 
     snapshots_deleted = 0
     events_deleted = 0
+    payloads_stripped = 0
 
     try:
         from shared.database.db import AsyncSessionLocal
@@ -328,6 +359,7 @@ async def prune_old_snapshots_core(data: dict | None = None) -> dict:
             try:
                 snapshots_deleted = await _prune_snapshots_global_swap(conn)
                 events_deleted = await _prune_events_before(conn, cutoff)
+                payloads_stripped = await _strip_supabase_payloads(conn)
             finally:
                 await conn.close()
         else:
@@ -354,6 +386,8 @@ async def prune_old_snapshots_core(data: dict | None = None) -> dict:
                     {"cutoff": cutoff},
                 )
                 events_deleted = events_result.rowcount or 0
+                strip_result = await session.execute(text(_STRIP_PAYLOADS_SQL))
+                payloads_stripped = strip_result.rowcount or 0
                 await session.commit()
 
         vacuum_ran = False
@@ -361,9 +395,10 @@ async def prune_old_snapshots_core(data: dict | None = None) -> dict:
             vacuum_ran = await _vacuum_cvs_tables()
 
         logger.info(
-            "CVS prune: snapshots_deleted=%d events_deleted=%d project=%s vacuum=%s",
+            "CVS prune: snapshots_deleted=%d events_deleted=%d payloads_stripped=%d project=%s vacuum=%s",
             snapshots_deleted,
             events_deleted,
+            payloads_stripped,
             project_id or "*",
             vacuum_ran,
         )
@@ -371,6 +406,7 @@ async def prune_old_snapshots_core(data: dict | None = None) -> dict:
             "ok": True,
             "snapshots_deleted": snapshots_deleted,
             "events_deleted": events_deleted,
+            "payloads_stripped": payloads_stripped,
             "vacuum_ran": vacuum_ran,
         }
 

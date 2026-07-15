@@ -1,311 +1,424 @@
 {
   "_meta": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "owner": "Research Team",
-    "description": "Global bottleneck archetypes for Discovery recommend step. Prefer filling bottlenecks inside each F3iche JSON; keep this file for cross-niche archetypes or until F3iches are complete.",
+    "description": "Consolidated global bottleneck archetypes, optimized for hybrid Tally-ERPNext coexistence.",
     "engineering_consumer": "containers/discovery/bottleneck_context.py",
-    "scoping_rule_ids_must_match": [
-      "factory_wip_bridge",
-      "inventory_visibility",
-      "procurement_gap",
-      "basic_inventory",
-      "scrap_wastage",
-      "invoicing_receivables",
-      "basic_costing",
-      "basic_purchasing",
-      "excel_bom_disconnect",
-      "service_dispatch_chaos"
-    ]
+    "sectors": {
+      "Manufacturing & Job Work": [
+        "custom_order_pipeline", "incoming_quality_compliance", "quality_hold_quarantine", 
+        "subcontracting_raw_material_leakage", "bom_version_drift", "shop_floor_capacity_bottleneck", 
+        "tooling_wear_downtime", "multi_uom_conversion_error", "scrap_yield_leakage", 
+        "dye_lot_inconsistency", "excel_bom_disconnect", "factory_wip_bridge"
+      ],
+      "Trading & Distribution": [
+        "transit_stock_black_hole", "multi_warehouse_pricing_drift", "batch_expiration_obsolescence", 
+        "supplier_lead_time_variance", "customer_credit_limit_breach", "backorder_allocation_deadlock", 
+        "reorder_level_blindspot", "freight_landed_cost_mismatch", "inventory_visibility", 
+        "procurement_gap", "unreconciled_gate_pass_leak"
+      ],
+      "Service & Maintenance": [
+        "untracked_warranty_leakage", "preventive_maintenance_miss", "breakdown_sla_breach", 
+        "technician_allocation_conflict", "spare_parts_stockout", "field_feedback_isolation", 
+        "asset_custody_drift", "asset_repair_cost_bleeding", "service_dispatch_chaos"
+      ],
+      "Finance & Compliance": [
+        "tally_dual_entry_desync", "depreciation_schedule_misalignment", "gst_compliance_audit_gap", 
+        "stock_valuation_mismatch", "month_end_closure_delay", "purchase_invoice_matching_leakage", 
+        "inter_company_reconciliation_drift", "reverse_charge_compliance_leak", 
+        "unbilled_revenue_accrual_gap", "multi_currency_revaluation_drift", 
+        "tds_tcs_deduction_mismatch", "invoicing_receivables", "epc_project_milestone_billing"
+      ]
+    }
   },
   "archetypes": [
     {
-      "archetype_id": "basic_inventory",
-      "primary_bottleneck": "Inventory Visibility and Multi-Node Desynchronization",
+      "archetype_id": "factory_wip_bridge",
+      "primary_bottleneck": "Unbalanced and untracked WIP stock on the shop floor causes phantom costs and operational paralysis.",
       "signals": [
-        "stockout",
-        "overstocking",
-        "clipboard tally",
-        "serial number mismatch",
-        "real inventory counts never match",
-        "paper pick lists"
+        "Tally treats factory like a black box", "Tally fine, factory blind, WIP unknown", "where is my order", 
+        "how much raw material is currently on the shop floor", "machines are sitting idle but we don't know why",
+        "we don't know which stage the semi-finished goods are stuck at", "labor is waiting around for the previous batch to finish",
+        "no idea how many pieces are sitting at the welding station", "we track production on paper cards that get lost",
+        "supervisor says it's being made but has no date", "can't tell which operator worked on this batch",
+        "different departments blaming each other for delays", "we have to physically walk to the floor to count what is made",
+        "production status is just in the supervisor's head", "materials are lying around the shop floor in heaps",
+        "don't know the exact progress of work orders on the floor"
       ],
-      "functional_requirements": [
-        "real_time_multi_warehouse_tracking",
-        "automated_stock_deduction_on_shipment",
-        "serialized_and_batch_inventory_control",
-        "auditable_stock_reconciliation",
-        "multi_channel_order_consolidation"
-      ],
-      "day1_seed_hints": [
-        "Item",
-        "Warehouse",
-        "Stock Entry",
-        "Delivery Note",
-        "Stock Reconciliation"
-      ],
-      "defer_typically": [
-        "Manufacturing",
-        "HR",
-        "Payroll"
-      ],
-      "notes": "Critical for trading/retail SMEs expanding warehouses. Serialized items must use Stock Entry (Material Receipt) for opening balances, as standard Stock Reconciliation only updates quantity, not serial numbers."
+      "functional_requirements": ["track_wip_inventory_by_workstation_warehouse", "enforce_routing_operations_sequence_control"],
+      "day1_seed_hints": ["Warehouse", "Work Order", "Stock Entry", "Job Card", "Workstation", "Item", "UOM"],
+      "defer_typically": ["Employee"],
+      "notes": "Tally treats production as an immediate expense, ignoring the physical reality of the floor. This archetype bridges that gap by establishing the shop floor as a measurable warehouse structure. ERPNext makes these 'dark' WIP materials visible, allowing for accurate COGM calculations that match physical reality."
     },
     {
       "archetype_id": "excel_bom_disconnect",
-      "primary_bottleneck": "Manufacturing BOM and Finished Goods Valuation Disconnect",
+      "primary_bottleneck": "Product recipes and bills of materials managed in offline spreadsheets and chat threads.",
       "signals": [
-        "excel sheets flying around",
-        "whatsapp chats",
-        "outdated purchasing costs",
-        "unexplained financial balances",
-        "stock adjustment accounts",
-        "true production cost"
+        "We keep halting production because we forgot to order a 10-cent screw", "BOM/recipes in Excel/WhatsApp", 
+        "excel sheets for bills of materials", "sharing product recipes over whatsapp", "outdated purchasing lists",
+        "procurement bought the wrong size because they used an old spreadsheet", "production is using a different recipe than what was quoted",
+        "designer changed the drawings but didn't update the factory", "no central place for approved product specifications",
+        "we don't know the exact cost of making this item", "estimating raw materials needed is a guessing game",
+        "every estimator has their own version of the recipe spreadsheet", "buying team ordered parts for the old version of the product",
+        "wasting raw materials on incorrect product formulas", "we keep making mistakes in the assembly mixture because of wrong sheets",
+        "struggling to calculate total material requirements for a run"
       ],
-      "functional_requirements": [
-        "centralized_bill_of_materials_management",
-        "automated_wip_material_transfer",
-        "proportional_raw_material_cost_distribution",
-        "job_card_production_tracking",
-        "secondary_item_valuation_control"
+      "functional_requirements": ["automate_excel_bom_import_validation", "enforce_bom_version_control"],
+      "day1_seed_hints": ["BOM", "Item", "Work Order", "Stock Entry", "Warehouse", "UOM"],
+      "defer_typically": ["Quality Inspection", "Job Card"],
+      "notes": "Solves alignment gaps between design engineers and floor supervisors. Centralizing formulas prevents material waste and incorrect procurement caused by outdated Excel versions."
+    },
+    {
+      "archetype_id": "tally_dual_entry_desync",
+      "primary_bottleneck": "Manual re-keying of commercial invoices and stock transactions between ERP and Tally.",
+      "signals": [
+        "Re-keying invoices in Tally and ERP", "tally sync", "data entry error", "ledger mismatch",
+        "manually copying sales invoices into tally at the end of the month", "accounts team spends all week typing up delivery notes into tally",
+        "our inventory values in tally don't match the warehouse stock", "accountant keeps complaining about double entry work",
+        "we have to do data entry twice for every single sale", "outstanding customer balances in the system are always out of date",
+        "manually reconciling bills between two systems takes forever", "errors in tax calculation between sales team and accounts",
+        "tally is updated weeks after the actual dispatch happened", "typos during manual ledger entry causing payment follow-up failures",
+        "ledger balance is different in our internal sheet vs tally", "we need a way to push dispatch data directly to accounting"
       ],
-      "day1_seed_hints": [
-        "BOM",
-        "Work Order",
-        "Job Card",
-        "Stock Entry"
-      ],
-      "defer_typically": [
-        "Capacity Planning",
-        "Downtime Entry",
-        "Quality Inspection"
-      ],
-      "notes": "Tally migrants frequently struggle here due to the shift to relational WIP tracking. Ensure secondary item valuation logic is strictly defined in Day-1 training to prevent stock adjustment ledger dumping."
+      "functional_requirements": ["enforce_automatic_xml_export_on_invoice_completion", "validate_matching_ledger_balances"],
+      "day1_seed_hints": ["Sales Invoice", "Stock Entry", "Item", "Customer", "Payment Entry", "Sales Order"],
+      "defer_typically": ["Delivery Note"],
+      "notes": "Eliminates the 'double-entry' burden by programmatically pushing XML summaries from ERPNext to Tally. Ensures statutory records remain clean and audit-ready."
     },
     {
       "archetype_id": "procurement_gap",
-      "primary_bottleneck": "Procurement Opacity and MRP Failure",
+      "primary_bottleneck": "Material planning and procurement disconnected from real-time production consumption.",
       "signals": [
-        "duplicate ordering",
-        "delayed shipping pipelines",
-        "inconsistent safety stock",
-        "vendor overbilling",
-        "where is my PO",
-        "pending GRN"
+        "We keep halting production because we forgot to order a 10-cent screw", "procurement opacity", "mrp failure", "duplicate ordering",
+        "no idea when to order next batch of materials", "we run out of packing boxes right in the middle of a major dispatch",
+        "purchasing is based on gut feel rather than actual sales orders", "we have no safety stock limits set for critical components",
+        "ordering raw materials that we already have sitting in the back warehouse", "buying team doesn't know what production plans to run next week",
+        "emergency local purchases are costing us double the regular price", "production lines are paused while we wait for a supplier shipment",
+        "can we automate the process of creating purchase requisitions", "over-ordering bulk items while running out of fast-moving parts",
+        "we need to see all material shortages in one dashboard", "Can't track POs, lead times, material requests"
       ],
-      "functional_requirements": [
-        "centralized_material_demand_consolidation",
-        "vendor_quotation_comparison",
-        "automated_purchase_order_generation",
-        "purchase_receipt_asset_capitalization",
-        "three_way_invoice_matching"
-      ],
-      "day1_seed_hints": [
-        "Material Request",
-        "Purchase Order",
-        "Purchase Receipt"
-      ],
-      "defer_typically": [
-        "Supplier Scorecard",
-        "Request for Quotation",
-        "Landed Cost Voucher"
-      ],
-      "notes": "Essential bottleneck to resolve to bridge the gap between sales demand and warehouse supply. Defer complex RFQ broadcasting and supplier scoring on Day 1 to reduce user adoption friction."
+      "functional_requirements": ["automate_purchase_requisitions_based_on_demand_forecasting", "enforce_safety_stock_parameters_on_material_requests"],
+      "day1_seed_hints": ["Material Request", "Purchase Order", "Purchase Receipt", "Item", "Warehouse", "Supplier"],
+      "defer_typically": ["Price List"],
+      "notes": "Aligns purchasing with the shop floor by generating requests based on actual consumption, not guesswork. Prevents production halts caused by missing minor components."
     },
     {
-      "archetype_id": "invoicing_receivables",
-      "primary_bottleneck": "Receivables Fragmentation and Aging Loss",
+      "archetype_id": "supplier_lead_time_variance",
+      "primary_bottleneck": "Unreliable supplier delivery schedules causing production planning volatility.",
       "signals": [
-        "overpays a sales invoice",
-        "lump-sum advance payment",
-        "unallocated balance",
-        "off-ledger adjustments",
-        "payment overdue"
+        "Can't track POs, lead times, material requests", "supplier delay", "delivery variance", "lead time error", "stockout",
+        "supplier says they will deliver tomorrow but takes a week", "no way to track which vendors are consistently late",
+        "production planning is impossible because raw material arrival is unpredictable", "we need to record the actual date we received items against the PO date",
+        "some suppliers take 5 days, others take 20 days for the same part", "we are constantly expediting open purchase orders over phone calls",
+        "our inventory safety margins are too small for such erratic delivery", "late vendor shipments are making us miss our customer delivery dates",
+        "no systematic way to rate our suppliers on delivery performance", "purchasing team has no visibility into raw material transit times",
+        "materials arrive too late and throw off our entire operations schedule"
       ],
-      "functional_requirements": [
-        "preservation_of_invoice_aging_data",
-        "automated_payment_allocation_to_invoices",
-        "credit_and_debit_note_linking",
-        "fifo_payment_terms_scheduling",
-        "unallocated_advance_payment_handling"
+      "functional_requirements": ["track_expected_versus_actual_delivery_dates", "calculate_supplier_on_time_delivery_metrics"],
+      "day1_seed_hints": ["Supplier", "Purchase Order", "Purchase Receipt", "Item", "Warehouse", "UOM"],
+      "defer_typically": ["Purchase Invoice", "Landed Cost Voucher"],
+      "notes": "Provides data-driven performance metrics for vendors. Helps procurement teams build reliable safety stock buffers based on historical reality."
+    },
+    {
+      "archetype_id": "subcontracting_raw_material_leakage",
+      "primary_bottleneck": "Lack of reconciliation for materials issued to third-party subcontractors.",
+      "signals": [
+        "Subcontractor keeps wasting resin. Can't reconcile what left the warehouse.", "Toll/subcontractor wasting our material", 
+        "job work", "subcontractor loss", "challan reconciliation", "no idea how much raw material is currently sitting at the subcontractor site",
+        "subcontractor says they used 100 kilos but we think they only used 80", "we keep sending items for processing but don't track the scrap there",
+        "cannot reconcile the finished parts returned with materials sent out", "no record of raw material wastage at the job worker's factory",
+        "we send raw steel sheets to get cut but don't check the yield", "subcontractor asks for more material before finishing the agreed batch",
+        "no systematic way to issue materials against a subcontracting challan", "we are losing tracking of our molds and dies sent to external parties",
+        "finished goods arrive from job worker but we don't know the exact consumption of raw inventory",
+        "reconciling subcontractor stock takes weeks of manual phone coordination"
       ],
-      "day1_seed_hints": [
-        "Sales Invoice",
-        "Payment Entry",
-        "Credit Note",
-        "Debit Note"
-      ],
-      "defer_typically": [
-        "Dunning",
-        "Subscription"
-      ],
-      "notes": "Critical data migration architectural warning: Implementation MUST use Sales Invoice with 'is_opening' flag to preserve aging histories, rather than processing a bulk Journal Entry against the customer ledger."
+      "functional_requirements": ["track_material_transferred_to_subcontractor", "backflush_on_subcontracting_receipt"],
+      "day1_seed_hints": ["Subcontracting Order", "Subcontracting Receipt", "Stock Entry", "Item", "BOM", "Warehouse", "Supplier"],
+      "defer_typically": ["Quality Inspection"],
+      "notes": "Eliminates 'lost' material by maintaining custody via virtual subcontractor warehouses and automatic BOM-based consumption reconciliation."
     },
     {
       "archetype_id": "service_dispatch_chaos",
-      "primary_bottleneck": "Unstructured Field Service Dispatching and SLA Failure",
+      "primary_bottleneck": "Unorganized manual dispatching and tracking of field service technicians.",
       "signals": [
-        "hotel staff group chat",
-        "recurring faults",
-        "untracked tasks",
-        "blind strategic decisions",
-        "whatsapp groups"
+        "Field service techs get WhatsApp repair requests, no central queue.", "WhatsApp repairs, no dispatch queue",
+        "dispatch chaos", "missed service", "service technicians are running around with no clear schedule",
+        "we manage our service calls in a shared google sheet that gets corrupted", "customer is calling because the technician didn't show up today",
+        "no central record of past maintenance visits for this machine", "scheduling technicians for onsite support is a manual nightmare",
+        "technicians are picking jobs based on who calls their personal phone", "don't know if a breakdown is covered under active warranty",
+        "we forgot to perform the scheduled monthly service for our biggest client", "technicians are reporting job completion over whatsapp voice notes",
+        "customer has to sign a paper slip that often gets lost in transit", "we have no way to measure how long repairs are taking"
       ],
-      "functional_requirements": [
-        "centralized_issue_ticketing_and_routing",
-        "timestamped_service_level_agreements",
-        "technician_assignment_tracking",
-        "maintenance_scheduling_and_logging",
-        "asset_fault_history_tracking"
-      ],
-      "day1_seed_hints": [
-        "Issue",
-        "Work Order",
-        "Maintenance Schedule",
-        "Maintenance Visit"
-      ],
-      "defer_typically": [
-        "AI Forecasting",
-        "Automated Intelligent Routing"
-      ],
-      "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Crucial structural mapping for facility management and field service SMEs that are completely reliant on consumer messaging apps."
+      "functional_requirements": ["manage_central_service_dispatch_queues", "automate_technician_skills_based_job_assignment"],
+      "day1_seed_hints": ["Issue", "Maintenance Visit", "Employee", "Customer", "Maintenance Schedule", "Warranty Claim"],
+      "defer_typically": ["Serial No"],
+      "notes": "Centralizes dispatch to prevent lost revenue and SLA breaches. Enables accurate tracking of field labor and spare parts usage."
     },
     {
-      "archetype_id": "subcontractor_job_work_yield_leakage",
-        "primary_bottleneck": "Subcontractor Job Work Yield Leakage and Statutory Reclassifications (Section 143)",
-        "signals": [
-          "job work",
-          "third-party vendor",
-          "unmonitored operational black box",
-          "deemed supply",
-          "section 143",
-          "itc-04",
-          "delivery challan",
-          "must be a non-stock item",
-          "phantom scrap",
-          "yield leakage"
-        ],
-        "functional_requirements": [
-          "job_work_challan_generation_rule_45",
-          "real_time_vendor_warehouse_stock_tracking",
-          "yield_and_scrap_discrepancy_reconciliation",
-          "itc_04_quarterly_compliance_reporting",
-          "backflushing_raw_materials_strictly_by_bom",
-          "non_stock_service_billing_linked_to_finished_goods"
-        ],
-        "day1_seed_hints": [
-          "Subcontracting Order",
-          "Subcontracting Receipt",
-          "Stock Entry",
-          "Item",
-          "BOM"
-        ],
-        "defer_typically": [
-          "Quality Inspection",
-          "Payment Entry"
-        ],
-        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Essential for OEM Tier-1 suppliers and process manufacturers. Standard Tally users only track ledger balances (e.g., job work service expenses) and completely fail to track physical raw material balances sitting at third-party job workers. This leads to massive scrap leaking and statutory compliance failure under Section 143 of the CGST Act (1-year limit for inputs, 3-year limit for capital goods, after which it is treated as a deemed supply). Implementation must seed the Subcontracting Order and Subcontracting Receipt doctypes (introduced in ERPNext v14) to bypass the classic v13 PO stock-item limitation."
-      },
-      {
-        "archetype_id": "warranty_rma_and_reverse_logistics_chaos",
-        "primary_bottleneck": "Unstructured B2B Return Merchandise Authorization and Serialized Warranty Tracking",
-        "signals": [
-          "warranty claim",
-          "amc status",
-          "dual-serial states",
-          "faulty serial number",
-          "replacement serial number",
-          "free sample",
-          "itc reversal",
-          "quarantine warehouse",
-          "rma"
-        ],
-        "functional_requirements": [
-          "rma_number_and_naming_series_configuration",
-          "dual_serial_number_capture_faulty_and_replacement",
-          "automated_warranty_and_amc_status_validation",
-          "free_spare_material_issuance_from_product_bom",
-          "maintenance_visit_and_resolution_logging"
-        ],
-        "day1_seed_hints": [
-          "Warranty Claim",
-          "Maintenance Visit",
-          "Delivery Note",
-          "Stock Entry",
-          "Material Request"
-        ],
-        "defer_typically": [
-          "Maintenance Schedule",
-          "Quality Inspection"
-        ],
-        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Crucial for manufacturing and distribution SMEs handling high-value serialized equipment. Standard ERPNext requires significant customization to capture both the incoming faulty serial number and the outgoing replacement serial number on the same transaction. SMEs migrating from basic accounting systems (like Tally) struggle with reverse inventory valuation and GST compliance on free-of-cost replacement spares. Seeding 'Warranty Claim' and 'Maintenance Visit' on Day 1 is mandatory; avoid over-complicating with preventive 'Maintenance Schedule' until reactive flows are stable."
-      },
-      {
-        "archetype_id": "multi_tier_sales_commission_and_payable_desynchronization",
-        "primary_bottleneck": "Multi-Tier Rule-Based Sales Commission and Accounts Payable Desynchronization",
-        "signals": [
-          "unpaid commissions",
-          "lump-sum advance payment to partner",
-          "sales person incentive tracking",
-          "tiered commission slab",
-          "calculate commission on gross margin",
-          "sales partner report in Excel",
-          "manual journal entry for commission",
-          "partner is not created as vendor",
-          "outstanding commission aging"
-        ],
-        "functional_requirements": [
-          "rule_based_commission_rate_calculation",
-          "tiered_incentive_and_volume_slab_mapping",
-          "sales_partner_to_supplier_ledger_linking",
-          "commission_accrual_and_payment_reconciliation",
-          "gross_margin_based_commission_calculation"
-        ],
-        "day1_seed_hints": [
-          "Sales Partner",
-          "Supplier",
-          "Sales Invoice",
-          "Payment Entry",
-          "Journal Entry"
-        ],
-        "defer_typically": [
-          "Payroll",
-          "HR"
-        ],
-        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. A massive systemic gap for trading and distribution SMEs. Tally does not handle automated commissions, and ERPNext does not auto-generate Accounts Payable for Sales Partners by default. Implementation must link the Sales Partner to a Supplier record to enable standard Payment Entry workflows, bypassing manual, error-prone Journal Entries. Defer advanced tiered accelerators and payroll integration on Day 1; focus on establishing the basic invoice-to-payable liability ledger."
-      },
-      {
-        "archetype_id": "eway_bill_transit_and_compliance_hazard",
-        "primary_bottleneck": "E-Way Bill Transit Compliance Desynchronization and Detention Liability Risks",
-        "signals": [
-          "e-way bill",
-          "bill-to/ship-to",
-          "ship-to gstin",
-          "urp",
-          "part b",
-          "vehicle detention",
-          "section 129",
-          "proof of delivery",
-          "api closure",
-          "gate pass"
-        ],
-        "functional_requirements": [
-          "mandatory_ship_to_gstin_validation",
-          "transhipment_vehicle_and_part_b_updating",
-          "transit_distance_and_validity_period_tracking",
-          "gate_pass_and_vehicle_verification",
-          "automated_eway_bill_api_closure_validation"
-        ],
-        "day1_seed_hints": [
-          "Delivery Note",
-          "Sales Invoice",
-          "Customer",
-          "Address"
-        ],
-        "defer_typically": [
-          "Freight Route",
-          "Driver"
-        ],
-        "notes": "NEW ARCHETYPE SUGGESTED - REQUIRES ENGINEERING APPROVAL. Highly critical for Indian trading and manufacturing SMEs dispatching FTL or LTL consignments. Under Section 129 of the CGST Act, transit without valid documentation (like missing Ship-To GSTIN for Bill-To/Ship-To setups or expired validity) triggers a 200% tax penalty and physical vehicle detention. Since the June 15, 2026 mandate, the Ship-To GSTIN is strictly required and cannot be blank. Day-1 setup must map multiple customer addresses with correct GSTINs and use Delivery Note as the baseline document for Part-B validation before dispatch."
+      "archetype_id": "incoming_quality_compliance",
+      "primary_bottleneck": "Uninspected raw materials directly received into inventory without quality gates.",
+      "signals": [
+        "Massive ISO audit. Need strict quality gates on all incoming stock.", "ISO audit, incoming inspection, CoA",
+        "incoming inspection", "ISO", "raw material batch", "quality gate", "CoA",
+        "received a batch of defective raw materials and used it in production", "supplier didn't send the Certificate of Analysis but we accepted the load",
+        "we have no formal checklist for inspecting incoming steel rolls", "defective batch passed straight to the shop floor and ruined the machine",
+        "auditors are asking for quality test reports for raw stock receipts", "no way to isolate uninspected raw materials from cleared inventory",
+        "we need to block the receipt if the quality inspection fails", "our inspection records are written in registers that get dirty and lost",
+        "releasing material to production before checking its chemical properties"
+      ],
+      "functional_requirements": ["enforce_incoming_inspection_criteria", "link_inspection_template_to_item_group"],
+      "day1_seed_hints": ["Quality Inspection", "Quality Inspection Template", "Batch", "Item", "Purchase Receipt", "Warehouse"],
+      "defer_typically": ["Supplier"],
+      "notes": "Prevents production contamination by blocking receipt postings until inspection criteria are digitally satisfied."
+    },
+    {
+      "archetype_id": "inventory_visibility",
+      "primary_bottleneck": "Lack of real-time, unified inventory tracking across multiple warehouses.",
+      "signals": [
+        "Part A and B ship out of ratio. Moisture-sensitive isocyanates gel in drums.", "Part A / Part B ratio, batch at sites",
+        "real time stock", "inventory gap", "duplicate purchases", "we have to call three different warehouses to find out if we have stock",
+        "our physical counts are always different from what the computer says", "we promised stock to a customer but realized it was already sold",
+        "transferring materials between warehouses is a manual paper process", "we don't know the expiry date of the chemical batches in our back room",
+        "some batches of chemicals are gelling in the drums because they expired", "we ended up buying more raw materials when we had them in another facility",
+        "no easy way to see our total stock across all locations instantly", "stock is sitting idle in one warehouse while another branch is out",
+        "we are shipping matching kits but the components are out of ratio", "cannot trace which customer received a specific raw material batch"
+      ],
+      "functional_requirements": ["track_real_time_stock_balances_across_warehouses", "automate_inter_warehouse_stock_reconciliation"],
+      "day1_seed_hints": ["Warehouse", "Stock Entry", "Item", "Batch", "Serial No", "Delivery Note", "UOM"],
+      "defer_typically": ["Sales Order"],
+      "notes": "Creates a single source of truth for stock levels and batch/expiry data, preventing stockouts and material decay."
+    },
+    {
+      "archetype_id": "custom_order_pipeline",
+      "primary_bottleneck": "Custom sales quotes and design specifications disconnected from production execution.",
+      "signals": [
+        "DMs on Instagram, send quotes, lose track of what's built.", "Instagram quotes, custom order tracking",
+        "custom order", "quotation", "design approval", "engineered to order", "we send custom quotes over email but lose track of what was approved",
+        "the factory built the wrong custom size because they used an old design sketch", "sales team is promising custom features without checking with design first",
+        "manufacturing has no link back to the original design specification", "we are managing our custom project stages on a whiteboard",
+        "no easy way to see if we are making money on this custom build", "customer wants to change the custom spec after production has started",
+        "we forgot to bill the customer for the design modification they requested", "design team uploads raw drawings to a cloud drive but factory doesn't know",
+        "sales quotes are hand-written and the details get lost in translation"
+      ],
+      "functional_requirements": ["link_quotation_to_project", "track_sales_order_design_approval"],
+      "day1_seed_hints": ["Quotation", "Sales Order", "Project", "Item", "BOM", "Customer", "Delivery Note"],
+      "defer_typically": ["Work Order"],
+      "notes": "Links custom design iterations directly to the commercial pipeline, preventing rework caused by outdated drawings."
+    },
+    {
+      "archetype_id": "scrap_yield_leakage",
+      "primary_bottleneck": "Undocumented raw material waste and excessive scrap during manufacturing.",
+      "signals": [
+        "Crews pour wrong ratio, throw away half drums, site mixing errors.", "Site mixing errors, half drums wasted",
+        "scrap tracking", "waste percentage", "yield loss", "we throw away a lot of plastic scrap but don't record it anywhere",
+        "no idea how much raw chemical is being wasted during setup", "operators are hiding their mixing mistakes by throwing away bad batches",
+        "our raw material consumption is much higher than what the recipe says", "we need to account for scrap metal left over from the cutting process",
+        "no system to track standard vs actual yield percentages", "throwing out semi-solid mixtures because they were prepared incorrectly",
+        "we are buying raw materials assuming zero waste, which is unrealistic", "no way to record the value of scrap material sold to recyclers",
+        "heavy raw material loss on the floor is driving up our product costs", "mixing errors are leading to whole drums of compound being scrapped"
+      ],
+      "functional_requirements": ["define_scrap_items_in_bom", "record_scrap_yields_on_work_order_completion"],
+      "day1_seed_hints": ["BOM", "Work Order", "Stock Entry", "Item", "Batch", "Warehouse", "Job Card"],
+      "defer_typically": ["Quality Inspection"],
+      "notes": "Captures the economic recovery value of waste and identifies process-related yield leaks on the shop floor."
+    },
+    {
+      "archetype_id": "transit_stock_black_hole",
+      "primary_bottleneck": "Unreconciled transport transfers create blind spots where inventory vanishes from books but remains physically active.",
+      "signals": ["stock in transit", "missing transfer", "duplicate order", "warehousing gap", "transit stock", "inventory vanished during transport", "truck reached destination but stock not updated in system", "driver says items were dropped off but warehouse manager hasn't received anything", "how much stock is currently on the move between branches", "transit warehouse is not reflecting in the main balance sheet", "we keep losing items in between our two factory locations", "why does the system show items arrived when the truck is still on the road", "manual reconciliation of stock transfers takes us the whole month", "we need a digital sign-off when the shipment is accepted at the branch", "items are not showing as received until the branch accountant updates their computer", "we have no idea what is currently moving between our warehouses"],
+      "functional_requirements": ["manage_transit_warehouse_balances", "enforce_two_step_stock_transfers"],
+      "day1_seed_hints": ["Warehouse", "Stock Entry", "Delivery Note", "Purchase Receipt", "Item", "UOM"],
+      "defer_typically": ["Sales Invoice"],
+      "notes": "Unreconciled transport transfers create blind spots where inventory vanishes from books but remains physically active. This gap in basic Tally tracking leads to extensive write-offs and cargo theft. Implementing dual-stage sign-offs secures physical and ledger alignment across retail and manufacturing points."
+    },
+    {
+      "archetype_id": "multi_warehouse_pricing_drift",
+      "primary_bottleneck": "Inconsistent regional pricing across sites due to decentralized control.",
+      "signals": ["regional pricing", "pricing drift", "margin leak", "territory pricing", "sales team is quoting old prices from their personal excel files", "customer is getting a different rate in the north branch versus the south branch", "regional branch is offering unauthorized discounts to move stock", "we need a central way to control price lists for every territory", "salesmen are quoting rates that are lower than our margin targets", "no way to stop the branch from changing the unit price on the invoice", "pricing drift is eating away at our net profitability", "how do we enforce the official price list across all our retail outlets", "branch managers are colluding with local buyers on price", "our margins are inconsistent because of different rates at different locations", "we need to automatically apply customer-specific discount rules at the order stage", "central office has no visibility into what the branch is actually charging"],
+      "functional_requirements": ["configure_region_specific_price_lists", "automate_pricing_rules_by_customer_group"],
+      "day1_seed_hints": ["Price List", "Item", "Customer", "Sales Order", "Quotation"],
+      "defer_typically": ["Sales Invoice", "Payment Entry"],
+      "notes": "Decentralized sales teams often quote localized rates from memory or personal messaging sheets, bypassing margin controls. Excel-managed price lists fail to sync real-time, causing severe regional margin erosion. Forcing centralized price lists at order booking eliminates billing audits and secures revenue."
+    },
+    {
+      "archetype_id": "batch_expiration_obsolescence",
+      "primary_bottleneck": "Expired stock not tracked due to lack of rotation logic.",
+      "signals": ["expired stock", "decaying material", "fefo failure", "expiry date", "chemicals are gelling in the drums", "expired stock not tracked", "no system for First-Expired-First-Out", "batches are sitting in the back room until they are rotten", "we lost thousands because we shipped newer stock instead of older ones", "how do we know which batch to pick before it goes bad", "chemical components are losing shelf life in our inventory", "we need automated alerts before our materials reach expiry", "warehouse staff is manually rotating stock and making mistakes", "we keep writing off expired inventory every single year", "we need to block the dispatch of any batch that has passed its expiry date", "no visibility on the age of chemical drums in our warehouse"],
+      "functional_requirements": ["enforce_fifo_batch_selection_logic", "track_expiry_and_manufacturing_dates_per_batch"],
+      "day1_seed_hints": ["Batch", "Item", "Stock Entry", "Delivery Note", "Warehouse"],
+      "defer_typically": ["Quality Inspection", "Quality Inspection Template"],
+      "notes": "Perishable or chemical raw materials expire on warehouse shelves due to arbitrary physical stock rotation by workers. Relying on manual batch tracking results in significant material waste and high compliance risks during quality audits. Automating FEFO logic preserves working capital and satisfies regulatory quality standards."
+    },
+    {
+      "archetype_id": "supplier_lead_time_variance",
+      "primary_bottleneck": "Erratic supplier delivery times causing planning volatility.",
+      "signals": ["supplier delay", "delivery variance", "lead time error", "stockout", "we keep halting production because we forgot to order", "some suppliers take 5 days others take 20 days", "vendor promised tomorrow but it took a week", "no way to track vendor reliability", "we have to call our suppliers every morning to ask where the truck is", "production plan is useless because raw material arrival is unpredictable", "we are constantly expediting open POs over phone calls", "supplier lead time is a total mystery to our purchasing team", "we need to record the actual date we received items against the PO date", "late vendor shipments make us miss our own customer delivery dates", "no systematic way to rate our suppliers on delivery performance", "how do we know which vendor is consistently late"],
+      "functional_requirements": ["track_expected_versus_actual_delivery_dates", "calculate_supplier_on_time_delivery_metrics"],
+      "day1_seed_hints": ["Supplier", "Purchase Order", "Purchase Receipt", "Item", "Warehouse", "UOM"],
+      "defer_typically": ["Purchase Invoice", "Landed Cost Voucher"],
+      "notes": "Unpredictable supplier delivery schedules disrupt assembly runs and force expensive local market rush purchases. The disconnect in tracking lead times in Tally forces managers to maintain bloated safety buffers. Establishing actual lead-time variance analytics allows procurement to penalize underperforming vendors."
+    },
+    {
+      "archetype_id": "customer_credit_limit_breach",
+      "primary_bottleneck": "Shipping to customers with overdue balances.",
+      "signals": ["credit limit breach", "overdue balance", "cash flow risk", "bad debt", "sales team is booking orders for customers who never pay", "we don't know the customer is over their limit until after we ship", "how do we block the warehouse from dispatching to bad accounts", "sales personnel are pushing orders through to meet their targets", "we need an automated credit hold on our sales orders", "manual credit checks are not happening fast enough", "aging receivables report in tally is always two weeks behind", "we need to stop sales before the goods leave our dock", "customer is constantly asking for more credit despite high pending balance", "no visibility into current credit limits at the time of order entry", "we are losing money on bad debts because credit controls are loose", "sales and accounting have different views on customer credit status"],
+      "functional_requirements": ["enforce_strict_credit_limit_blocks_on_sales_order", "track_customer_aging_receivables_real_time"],
+      "day1_seed_hints": ["Customer", "Sales Order", "Sales Invoice", "Payment Entry", "Quotation"],
+      "defer_typically": ["Delivery Note"],
+      "notes": "Sales divisions frequently book new orders for defaulting buyers, prioritizing short-term targets over company liquidity. Manual checks of spreadsheet-based aging reports fail under high order volumes, risking severe bad debt. Systematically blocking orders at entry safeguards operating cash flow."
+    },
+    {
+      "archetype_id": "backorder_allocation_deadlock",
+      "primary_bottleneck": "Inventory fulfillment deadlocks during scarcity.",
+      "signals": ["backorder deadlocks", "starving priority contracts", "inventory allocation", "high-value clients are waiting while small orders get the stock", "we need to reserve items for our biggest projects", "how do we ensure our top customers get stock during shortages", "warehouse team is dispatching on first-come-first-serve and ignoring priorities", "we are starving our institutional contracts", "we need to lock inventory for confirmed sales orders", "how do we prevent someone else from grabbing our reserved stock", "we keep missing big delivery dates because items were sold to smaller buyers", "need a way to allocate incoming inventory to specific contracts", "scarcity of components is leading to internal fights between sales branches", "manual reservation process is not working for our biggest client", "we need to protect our strategic agreements during shortages", "how to prioritize stock distribution without manual spreadsheets"],
+      "functional_requirements": ["reserve_stock_against_sales_orders", "enforce_allocation_priority_by_customer_tier"],
+      "day1_seed_hints": ["Sales Order", "Item", "Stock Entry", "Delivery Note", "Warehouse"],
+      "defer_typically": ["Sales Invoice"],
+      "notes": "High-value contract obligations are routinely starved when available stock is diverted to minor walk-in buyers. Disconnected spreadsheets create administrative standoffs between sales executives fighting for scarce items. Automating priority reservation rules protects critical institutional accounts and prevents contract churn."
+    },
+    {
+      "archetype_id": "reorder_level_blindspot",
+      "primary_bottleneck": "No real-time low-stock alerts.",
+      "signals": ["reorder level", "stockout", "low stock alert", "procurement missing", "we ran out of packing boxes in the middle of a major dispatch", "how do we know when to order more of the common items", "we rely on storekeepers checking shelves manually", "purchasing team is reacting to shortages instead of planning ahead", "we are paying triple for rush orders because we missed the reorder point", "no automated notifications when stock drops below safety levels", "storekeeper didn't tell us and we had to halt production", "we need an alert when we hit the minimum quantity", "every time I ask the storekeeper, the numbers are different", "manual card system for tracking reorder points is failing", "we need a dashboard that shows exactly when to reorder every SKU", "purchasing has no visibility into low-stock items"],
+      "functional_requirements": ["configure_reorder_level_and_reorder_qty_per_item", "generate_auto_material_requests_on_reorder_breach"],
+      "day1_seed_hints": ["Item", "Warehouse", "Material Request", "Purchase Order", "Supplier"],
+      "defer_typically": ["Purchase Invoice", "Landed Cost Voucher"],
+      "notes": "A lack of real-time low-stock alerts causes production lines to halt over trivial, low-value components. Physical store checks and clipboards fail to signal consumption velocity changes to purchasing. Linking real-time stock balances to automated material requests ensures continuous manufacturing uptime."
+    },
+    {
+      "archetype_id": "freight_landed_cost_mismatch",
+      "primary_bottleneck": "Ancillary costs not capitalized into valuation.",
+      "signals": ["customs duty", "freight bill", "clearing agent", "landed cost", "true margin", "import container", "how do we add duty and shipping to the product cost", "we sold the item but forgot the freight expense", "our margins look good until the final freight bill arrives", "customs fees and clearing charges are killing our profits", "we are not adding import costs to our inventory value", "we need a way to distribute logistics costs across all imported items", "actual cost of product is higher once we factor in shipping", "we are miscalculating our gross margin", "manual spreadhseets to calculate landed cost are prone to errors", "how to link freight invoices to the original purchase receipt", "we are paying clearing agents but not seeing the cost in our item valuation", "need to capitalize shipping fees at the time of purchase"],
+      "functional_requirements": ["allocate_landed_costs_by_weight_or_value", "link_freight_and_customs_vouchers_to_receipts"],
+      "day1_seed_hints": ["Landed Cost Voucher", "Purchase Receipt", "Purchase Invoice", "Item", "Warehouse"],
+      "defer_typically": ["Journal Entry", "Payment Entry"],
+      "notes": "Import duties and freight fees are typically invoiced weeks after stock receipt, distorting immediate product profitability. Manual spreadsheet models designed to adjust item values are slow, causing inaccurate cost-of-goods-sold reporting. Capitalizing logistics fees directly into receipts secures gross margin accuracy."
+    },
+    {
+      "archetype_id": "inventory_visibility",
+      "primary_bottleneck": "Mismatched and delayed stock updates.",
+      "signals": ["real time stock", "inventory gap", "duplicate purchases", "Part A and B ship out of ratio", "moisture sensitive isocyanates", "how do we know our stock across all sites", "we bought items because we thought we were out", "warehouse team and sales team have different numbers", "stock is rotting in one branch while another is ordering it", "we need a single source of truth for stock levels", "how do we track batch and expiry across our network", "physical inventory counts never match the computer system", "we are shipping incomplete kits because components are spread everywhere", "no visibility into warehouse balances in real time", "we rely on memory rather than digital records for stock", "how to prevent duplicate purchasing when we have the stock in another branch"],
+      "functional_requirements": ["track_real_time_stock_balances_across_warehouses", "automate_inter_warehouse_stock_reconciliation"],
+      "day1_seed_hints": ["Warehouse", "Stock Entry", "Item", "Batch", "Serial No", "Delivery Note", "UOM"],
+      "defer_typically": ["Sales Order"],
+      "notes": "SMEs frequently build up redundant safety stock because they do not trust outdated inventory ledgers. Keeping Tally and the factory floor disconnected results in duplicate purchases and unrecorded work-in-progress stock. Activating a synchronized real-time stock balance restores confidence and frees locked-up working capital."
+    },
+    {
+      "archetype_id": "procurement_gap",
+      "primary_bottleneck": "Purchasing disconnected from velocity.",
+      "signals": ["procurement opacity", "mrp failure", "duplicate ordering", "material request", "forgot to order", "purchasing based on guesswork", "we don't know what is needed for the production run", "purchasing and production teams don't communicate", "how do we link sales demand to our buying plan", "we have too much of what we don't need", "fast-moving items are always out of stock", "no automation for our material requests", "purchasing team is working in a vacuum", "we need to align our orders with our current order book", "we are buying items we haven't sold in months", "purchasing doesn't know the production schedule for next week"],
+      "functional_requirements": ["automate_purchase_requisitions_based_on_demand_forecasting", "enforce_safety_stock_parameters_on_material_requests"],
+      "day1_seed_hints": ["Material Request", "Purchase Order", "Purchase Receipt", "Item", "Warehouse", "Supplier"],
+      "defer_typically": ["Quotation"],
+      "notes": "Purchasing departments in SMEs often operate based on intuition rather than actual consumption rates and sales demand. This isolation causes massive over-ordering of slow-moving items while fast-moving components remain out of stock. Connecting material requests directly to sales bookings balances stock levels."
+    },
+    {
+      "archetype_id": "unreconciled_gate_pass_leak",
+      "primary_bottleneck": "Unauthorized inventory removals.",
+      "signals": ["gate pass", "leakage", "unauthorized removal", "security let the truck out without a match", "materials disappearing from loading dock", "driver walked off with samples", "unauthorized removal", "we need digital sign-off at the exit gate", "security has no way to verify items against the system", "unexplained inventory shortages", "scrap yard gate is wide open", "paper registers kept by security are lost", "we need to link exit passes to our delivery notes", "can we block trucks if they don't have a system-generated gate pass", "unrecorded material leaving the factory gate", "security is not reconciling what goes out with what we sold"],
+      "functional_requirements": ["generate_system_linked_gate_passes", "enforce_gate_pass_reconciliation_on_exit"],
+      "day1_seed_hints": ["Delivery Note", "Stock Entry", "Warehouse", "Item", "Customer"],
+      "defer_typically": ["Sales Invoice"],
+      "notes": "Unmonitored material transfers at security gates allow stock to leave the premises without formal invoices or transfer orders. Paper registers kept by security guards are easily lost or bypassed, enabling internal theft and border shrinkage. Enforcing system-linked gate pass reconciliation locks down loading dock security."
+    },
+    {
+      "archetype_id": "untracked_warranty_leakage",
+      "primary_bottleneck": "Servicing out-of-warranty products due to manual lookup failures.",
+      "signals": ["we are giving away free repairs because we can't find the invoice", "customer says it's under warranty but we have no way to check", "technician changed the motor for free but the warranty expired last month", "doing free service because of missing serial number records", "we lose money on free spare parts for old machines", "no idea if this serial number was sold one year ago or two", "customer insists they bought it recently but they lost the paper warranty card", "replaced the compressor under warranty without checking when it actually shipped", "did we cover this repair under warranty or did they pay for it?", "our service guys just believe the customer when they say it's still covered", "warranty claim leak is costing us lakhs in free components", "we don't track serial-level warranty periods", "is this serial number still within the 1-year free replacement window?", "technician dispatched for free warranty work but customer bought it three years ago", "repair log doesn't match the original delivery date"],
+      "functional_requirements": ["enforce_warranty_period_validation_on_service_request", "track_serial_number_warranty_histories", "link_warranty_claims_to_delivery_notes", "block_unauthorized_free_service_orders"],
+      "day1_seed_hints": ["Warranty Claim", "Serial No", "Delivery Note", "Customer", "Item", "Sales Invoice"],
+      "defer_typically": ["Maintenance Schedule"],
+      "notes": "Manual lookup gaps on paper receipts cause service coordinators to give away free parts and labor for expired products. Because Tally lacks serial-level invoice matching, managers cannot verify active coverage in real-time. This exposes the firm to severe margin erosion and compliance failure during internal financial audits."
+    },
+    {
+      "archetype_id": "preventive_maintenance_miss",
+      "primary_bottleneck": "Missing scheduled PM cycles causing equipment failure.",
+      "signals": ["forgot the quarterly service and now the customer's machine seized up", "customer is angry because we missed their scheduled monthly PM", "no calendar alert for the AMC service due this week", "we keep missing preventive service visits because it's managed on a white board", "machine broke down because we didn't do the scheduled oil change", "how do we know which customer's AMC is due for service this month?", "technician missed the PM date and now the client is claiming SLA penalty", "we have no system to auto-generate preventive maintenance visits", "contract says 4 visits a year but we only did 2 and the year ended", "missing scheduled calibration dates for client equipment", "AMC schedule is in a spreadsheet that nobody looks at", "regular servicing was skipped and the motor burned out", "customer called to ask why our service team hasn't visited for the scheduled checkup", "no way to track PM frequency across hundreds of installed machines", "preventive maintenance is completely reactive right now"],
+      "functional_requirements": ["generate_automated_preventive_maintenance_schedules", "link_maintenance_schedules_to_customer_assets", "trigger_preventive_maintenance_notifications", "track_amc_contract_frequencies"],
+      "day1_seed_hints": ["Maintenance Schedule", "Asset", "Customer", "Employee", "Maintenance Visit"],
+      "defer_typically": ["Warranty Claim"],
+      "notes": "When service contracts are tracked in offline Excel files, coordinators inevitably miss critical PM dates, causing customer equipment to fail prematurely. Failing to perform contracted servicing results in heavy SLA penalties and contract cancellations that are invisible in Tally. Automating these schedules is essential to protect recurring revenue streams and pass service-level quality audits."
+    },
+    {
+      "archetype_id": "breakdown_sla_breach",
+      "primary_bottleneck": "Slow resolution of emergency breakdowns.",
+      "signals": ["urgent breakdown at client site and no technician has responded yet", "customer's line is down and we are breaching our 4-hour response SLA", "emergency ticket has been open for 3 days with no update", "client is threatening to sue us for downtime because we missed the repair deadline", "no alert when an urgent breakdown ticket goes unresolved", "how long did it take to fix that critical breakdown?", "we don't know which emergency tickets are about to breach SLA", "technician reached late for a high-priority repair", "customer escalation because breakdown support is taking too long", "we are losing clients because our response time for critical issues is terrible", "no system to track time-to-resolve for priority-1 issues", "unresolved critical breakdowns are piling up in our support queue", "we need to automatically escalate tickets that are not resolved in 2 hours", "our breakdown response is totally chaotic and lacks priority routing", "client demands compensation for the delayed breakdown service"],
+      "functional_requirements": ["track_sla_response_and_resolution_times", "automate_ticket_escalation_rules", "define_sla_priority_tiers", "log_breakdown_downtime_duration"],
+      "day1_seed_hints": ["Issue", "Maintenance Visit", "Customer", "Employee", "Sales Order"],
+      "defer_typically": ["Maintenance Schedule"],
+      "notes": "Lacking a digital system to track emergency breakdown tickets forces organizations to rely on phone calls, making SLA response times impossible to monitor. This communication gap leads to severe resolution delays, causing customers to terminate contracts and claim heavy downtime penalties. Bringing SLA escalations onto a centralized platform protects enterprise accounts and reduces contract compliance risks."
+    },
+    {
+      "archetype_id": "technician_allocation_conflict",
+      "primary_bottleneck": "Double-booking or poorly scheduling field technicians.",
+      "signals": ["assigned Ramesh to two different sites at the same time", "technician is double-booked and can't make it to both clients", "we sent a tech to Noida when they were already busy in Gurgaon", "no central calendar to see which field techs are free today", "dispatching the wrong technician who doesn't have the skills for this machine", "sent our senior engineer for a minor issue while a major breakdown is waiting", "technicians complaining about overlapping schedules and travel chaos", "we have no visibility into technician availability before assigning jobs", "manually calling technicians to check if they are free for a service call", "two coordinators assigned different tasks to the same service engineer", "technician is already on leave but we scheduled him for a site visit", "no way to track which technician is assigned to which region", "our scheduling is completely blind and depends on memory", "clashing assignments causing major delays in field service delivery", "we scheduled a technician for Noida and Gurgaon on the exact same morning"],
+      "functional_requirements": ["manage_technician_calendars", "prevent_double_booking_of_resources", "match_technician_skills_to_service_jobs", "track_technician_geographic_zones"],
+      "day1_seed_hints": ["Maintenance Visit", "Employee", "Customer", "Issue", "Project"],
+      "defer_typically": ["Work Order"],
+      "notes": "Coordinators who schedule field staff using wall calendars or memory routinely double-book engineers or dispatch unqualified personnel to complex sites. This chaotic dispatching wastes valuable fuel, increases technician idle time, and delays urgent repairs. Integrating real-time availability and skill matrices ensures optimal field utilization and prevents costly scheduling overlaps."
+    },
+    {
+      "archetype_id": "spare_parts_stockout",
+      "primary_bottleneck": "Service technicians arrive without required spare parts.",
+      "signals": ["technician reached the site but didn't have the spare gasket", "had to do a second site visit because the spare part was out of stock", "no spare parts in the technician's van inventory", "we don't know what parts our field service engineers are carrying", "technician took 5 spare parts from the main store but never recorded where they went", "customer is angry because the repair is delayed waiting for a spare valve", "no tracking of spare parts consumed during field maintenance", "we are hoarding expensive spare parts but still running out of critical items", "technicians are hoarding parts in their cars without any stock ledger", "how do we track van stock or consignment inventory for service?", "we need to restock spare parts based on what was used in the field", "issued spare parts for a repair but they got lost in transit", "first-time fix rate is terrible because parts are always missing", "had to buy spare parts from local market at double price for an urgent repair"],
+      "functional_requirements": ["configure_reorder_levels_for_spare_parts", "track_spare_parts_inventory_by_technician_car_stock", "reconcile_spare_parts_consumption_on_maintenance_visits", "manage_van_warehouses"],
+      "day1_seed_hints": ["Item", "Warehouse", "Stock Entry", "Maintenance Visit"],
+      "defer_typically": [],
+      "notes": "Field technicians who arrive on-site without critical components are forced to schedule costly repeat visits, dragging down first-time fix rates. Because spare parts are often kept in technician vehicles without an active stock ledger, they are highly vulnerable to pilferage and physical count audits. Establishing virtual van warehouses provides complete inventory visibility and stops material leakage."
+    },
+    {
+      "archetype_id": "field_feedback_isolation",
+      "primary_bottleneck": "Feedback isolated in paper logs.",
+      "signals": ["technician wrote the failure details on a paper receipt that got lost", "we don't know why this model of pump keeps failing in the field", "failure details are trapped in technician's WhatsApp chats", "no central database of root causes for equipment breakdowns", "paper service reports are piled up in a box and never digitized", "we can't share field issue feedback with our design or manufacturing team", "technician just wrote 'repaired' without specifying the cause of the issue", "no way to run a report on the most common failure modes", "the same motor burnt out three times at this client but we don't know why", "customer feedback and service logs are offline and invisible", "engineering team has no idea what problems technicians are finding on site", "we need a standard list of failure codes for technicians to select on their mobile", "valuable site repair notes are completely lost after the job is closed", "cannot track if a product design defect is causing repetitive field failures", "quality complaints from site are not linked to serial numbers"],
+      "functional_requirements": ["capture_failure_cause_codes_on_service_visits", "link_field_issues_to_engineering_change_orders", "digitize_field_service_activity_logs", "analyze_recurrent_failure_modes"],
+      "day1_seed_hints": ["Issue", "Maintenance Visit", "Customer", "Item", "Quality Inspection"],
+      "defer_typically": ["BOM"],
+      "notes": "Breakdown details and engineering failure causes are routinely trapped on handwritten paper slips or inside individual WhatsApp chats. This structural block prevents engineering teams from identifying repetitive product defects and scheduling necessary design revisions. Digitizing site feedback at the moment of repair eliminates information silos and drives continuous quality control."
+    },
+    {
+      "archetype_id": "asset_custody_drift",
+      "primary_bottleneck": "Internal tool transfer tracking failure.",
+      "signals": ["where is the expensive welding machine? Nobody knows who took it", "we keep losing ladders, drills, and tools across different sites", "tool custody is managed on a register that nobody signs", "Ramesh took the diagnostic scanner home and now Suresh can't find it", "who is currently responsible for this high-value testing tool?", "assets are moving between sites without any official handover", "we had to buy another laser level because the old one disappeared", "no record of which worker has which company asset", "employees resign and leave with company tools because we didn't track custody", "we are losing lakhs every year in missing or stolen site equipment", "no system to track asset location and custodian in real time", "handover of specialized machinery is done verbally without approvals", "who had the camera last? It was returned broken and nobody is taking blame", "tools are drifting between project sites with zero paperwork", "we need a strict gate pass or transfer log for company-owned tools"],
+      "functional_requirements": ["track_asset_custodian_and_location", "enforce_custody_handover_approvals", "log_asset_movements_between_employees", "reconcile_physical_asset_counts"],
+      "day1_seed_hints": ["Asset", "Asset Movement", "Employee"],
+      "defer_typically": ["Asset Capitalization"],
+      "notes": "High-value tools and shared diagnostic assets frequently go missing when transferred between field technicians or site locations without formal handovers. Relying on physical signing logs creates high asset loss risks and renders year-end capital audits incredibly difficult. Enforcing digital custodianship creates individual employee accountability and protects the company's balance sheet."
+    },
+    {
+      "archetype_id": "asset_repair_cost_bleeding",
+      "primary_bottleneck": "High repair costs on obsolete assets.",
+      "signals": ["we have spent more on repairing this old DG set than a new one costs", "this forklift is a money pit, always in the repair workshop", "no idea how much we spent on spare parts for this specific generator this year", "we keep paying for repeated breakdown repairs on an obsolete boiler", "need to track the total maintenance expense for each machine separately", "is it cheaper to scrap this machine or keep repairing it?", "repair bills from third-party mechanics are piling up without tracking against the asset", "spent another fifty thousand rupees on fixing the packaging line today", "we are bleeding cash on maintenance for machines that should be replaced", "no cumulative history of repair costs for our factory assets", "maintenance expenses are clubbed under one general ledger account instead of per machine", "we need to compare repair history against the book value of the asset", "forklift broke down again, our repair cost this quarter is ridiculous", "paying for high-value overhauls without checking asset lifetime cost", "maintenance budget is being blown entirely on a couple of old machines"],
+      "functional_requirements": ["track_accumulated_maintenance_costs_per_asset", "evaluate_repair_cost_against_asset_book_value", "link_purchase_invoices_to_specific_assets", "capture_maintenance_labor_and_part_costs"],
+      "day1_seed_hints": ["Asset", "Asset Repair", "Purchase Invoice"],
+      "defer_typically": ["Asset Capitalization"],
+      "notes": "Organizations blindly spend money on repairing highly depreciated, obsolete machinery because maintenance expenses are lumped into general ledger overheads in Tally. Without tracking cumulative repair costs against specific equipment, management cannot identify when an asset has become a financial drain. Linking every repair invoice and parts issue directly to the asset master reveals the true cost of ownership."
+    },
+    {
+      "archetype_id": "service_dispatch_chaos",
+      "primary_bottleneck": "Disorganized scheduling.",
+      "signals": ["Field service techs get WhatsApp repair requests, no central queue.", "WhatsApp repairs, no dispatch queue", "coordinators are shouting across the office to assign service calls", "we missed a customer repair request because it was sent to an individual's email", "technicians don't know where they are supposed to go tomorrow", "no single dashboard to track pending service visits and field dispatches", "technicians are sitting idle because dispatch scheduling is slow", "customer called to complain that no technician showed up today", "jobs are assigned via verbal instructions, leading to missed appointments", "we have no queue system for incoming customer service complaints", "dispatching is totally disorganized and depends on who answers the phone first", "service requests are piling up on WhatsApp and we are losing track of them", "who is dispatched to the Gurgaon site today? Nobody knows", "we need to organize our technician visits into a central dispatch queue", "technician went to Noida when the client was actually in Delhi", "no way to prioritize which repair ticket gets dispatched first"],
+      "functional_requirements": ["manage_central_service_dispatch_queues", "automate_technician_skills_based_job_assignment", "digitize_service_request_intake", "track_real_time_dispatch_status"],
+      "day1_seed_hints": ["Issue", "Maintenance Visit", "Employee", "Customer", "Sales Order"],
+      "defer_typically": ["Work Order"],
+      "notes": "Receiving repair requests via raw WhatsApp chats or personal emails leaves dispatchers without a centralized work queue, causing tickets to get lost. This disorganization results in missed client appointments, chaotic technician scheduling, and lost service revenue. Establishing a structured dispatch pipeline ensures every request is logged, prioritized, and tracked to completion."
+    },
+    {
+      "archetype_id": "gst_compliance_audit_gap",
+      "primary_bottleneck": "GSTIN/HSN discrepancies.",
+      "signals": ["gst error", "hsn code", "itc credit", "gstin mismatch", "our tax consultant says our HSN codes are wrong", "gst returns don't match our sales invoices", "we keep getting blocked for input tax credits", "supplier GSTIN is invalid and we didn't check", "we are paying the wrong tax rate on our chemical products", "audit failure because our sales ledger doesn't match the GST portal", "need a way to reconcile purchase ledgers with GSTR-2B automatically", "we forgot to file e-invoices for three months", "tax template is wrong for this state", "we have to manually re-enter tax data into the GST portal", "our sales invoices have the wrong tax categories for interstate trade", "audit department flagged us for HSN mismatch on inventory items"],
+      "functional_requirements": ["automate_gst_tax_template_assignment_by_state", "enforce_einvoice_and_ewaybill_integration"],
+      "day1_seed_hints": ["Item", "Customer", "Supplier", "Sales Invoice"],
+      "defer_typically": [],
+      "notes": "Transactions blocked unless valid tax ID recorded."
+    },
+    {
+      "archetype_id": "invoicing_receivables",
+      "primary_bottleneck": "Receivables Fragmentation and Aging Loss.",
+      "signals": ["overpays sales invoice", "advance payment", "unallocated balance", "customer paid but we haven't allocated the money against the invoice", "we don't know who owes us money because Tally is not updated", "sales team says customer paid but accounts team says invoice is open", "need to track aging receivables real time", "we have massive unallocated balances on our customer ledger", "we are sending dunning letters to customers who have already paid", "cannot see the aging of our outstanding sales invoices", "payment entry is not linked correctly to the invoice", "we need a dashboard for overdue customer balances", "customer is overpaying invoices and we have no record of the advance", "how do we track partial payments against our sales invoices", "receivables are fragmented and we don't have a clean aging report", "every month end is a headache to reconcile customer accounts"],
+      "functional_requirements": ["preservation_of_invoice_aging_data", "automated_payment_allocation_to_invoices"],
+      "day1_seed_hints": ["Sales Invoice", "Payment Entry"],
+      "defer_typically": ["Dunning", "Subscription"],
+      "notes": "Must use Sales Invoice with 'is_opening' flag."
     }
   ]
 }

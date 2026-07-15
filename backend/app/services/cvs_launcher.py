@@ -208,6 +208,7 @@ class CVSLauncher:
         Returns None if no snapshot exists yet (IS not yet complete).
         """
         try:
+            from shared.cvs_snapshot_loader import resolve_snapshot_data
             from shared.database.db import AsyncSessionLocal
             from shared.models.cvs_models import ContextSnapshot
             from sqlalchemy import select
@@ -230,10 +231,14 @@ class CVSLauncher:
             if not row:
                 return None
 
+            payload = await resolve_snapshot_data(row)
+            if payload is None:
+                return None
+
             return {
                 "layer":         row.layer,
                 "version":       row.version,
-                "data":          row.data,
+                "data":          payload,
                 "r2_key":        row.r2_key,
                 "trigger_event": row.trigger_event,
                 "created_at":    row.created_at.isoformat() if row.created_at else None,
