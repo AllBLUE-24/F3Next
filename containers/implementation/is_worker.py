@@ -53,11 +53,13 @@ from containers.implementation.mapping_agent.activities    import (
 )
 from containers.implementation.validation_agent.activities import validate_mapped_data, bootstrap_site_config
 from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import
-from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
+from containers.implementation.corpus.activities import (
+    enrich_corpus_understanding,
+    fetch_clean_files,
+    virus_scan_quarantine,
+)
 from containers.implementation.supervisor_agent.activities import supervise_step, apply_supervisor_actions
 from containers.implementation.derive_agent.activities import derive_required_records
-from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files
-from containers.implementation.file_io.enrich_corpus_understanding import enrich_corpus_understanding
 from containers.implementation.file_io.persist_profile     import persist_profile
 from containers.implementation.file_io.persist_session     import persist_session
 from containers.implementation.file_io.persist_mapping     import persist_mapping

@@ -1,0 +1,52 @@
+{
+  "_manifest_version": 2,
+  "_created_at": "2026-07-18T00:00:00Z",
+  "file_count": 1,
+  "files": {
+    "client_orders.csv": "Client,Project,Target_Date,Product,Vol,Price\r\nRohan Construction,PRJ-Mumbai-Mall,2026-08-15,SRV-INSTALL,12000,\r\nNew Age Builders,PRJ-Pune-ITPark,2026-09-01,FG-PRIMER-A,200,52.00"
+  },
+  "file_meta": {
+    "client_orders.csv": {
+      "columns": ["Client", "Project", "Target_Date", "Product", "Vol", "Price"],
+      "row_count": 2,
+      "sample_rows": [
+        {"Client": "Rohan Construction", "Project": "PRJ-Mumbai-Mall", "Target_Date": "2026-08-15", "Product": "SRV-INSTALL", "Vol": "12000", "Price": ""},
+        {"Client": "New Age Builders", "Project": "PRJ-Pune-ITPark", "Target_Date": "2026-09-01", "Product": "FG-PRIMER-A", "Vol": "200", "Price": "52.00"}
+      ],
+      "is_structured": true,
+      "format": "csv",
+      "char_len": 180,
+      "source_file": "client_orders.csv"
+    }
+  },
+  "corpus_understanding": {
+    "corpus_summary": "Client project orders with sold products and delivery targets — sales/project tracking, not manufacturing WIP.",
+    "files": [
+      {
+        "filename": "client_orders.csv",
+        "business_description": "Client orders linked to construction projects and products sold or installed.",
+        "likely_entity_types": ["Customer", "Project"],
+        "likely_erpnext_doctypes": ["Sales Order", "Customer", "Project"],
+        "explicitly_not_doctypes": ["Work Order", "BOM"],
+        "column_interpretations": [
+          {"column": "Client", "meaning": "Customer or buyer company name"},
+          {"column": "Project", "meaning": "Client job or site project identifier"}
+        ],
+        "confidence": 0.82,
+        "reasoning_signals": [
+          "Project + Client columns with order-like product rows indicate sales/project tracking",
+          "No batch or routing fields — not manufacturing WIP or BOM"
+        ]
+      }
+    ],
+    "_validation": {"status": "ok", "warnings": []}
+  },
+  "_golden": {
+    "file_doctype_expectations": {
+      "client_orders.csv": ["Sales Order", "Customer"]
+    },
+    "file_exclusion_expectations": {
+      "client_orders.csv": ["Work Order", "BOM"]
+    }
+  }
+}

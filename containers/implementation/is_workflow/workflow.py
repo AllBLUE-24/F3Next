@@ -45,9 +45,13 @@ with workflow.unsafe.imports_passed_through():
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput, assign_corpus_doctypes, AssignCorpusDoctypesInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput, bootstrap_site_config, BootstrapSiteConfigInput
     from containers.implementation.import_agent.activities     import build_import_plan, execute_import_phase, get_import_plan_phases, finalize_import_plan, preflight_import, BuildImportPlanInput, ExecutePhaseInput, GetImportPlanPhasesInput, FinalizeImportPlanInput, PreflightImportInput
-    from containers.implementation.virus_scan_agent.activities import virus_scan_quarantine
-    from containers.implementation.file_io.fetch_clean_files   import fetch_clean_files, FetchCleanFilesInput
-    from containers.implementation.file_io.enrich_corpus_understanding import enrich_corpus_understanding, EnrichCorpusUnderstandingInput
+    from containers.implementation.corpus.activities import (
+        enrich_corpus_understanding,
+        EnrichCorpusUnderstandingInput,
+        fetch_clean_files,
+        FetchCleanFilesInput,
+        virus_scan_quarantine,
+    )
     from containers.implementation.file_io.persist_session     import persist_session, CompleteSessionInput, PersistSessionInput
     from containers.implementation.supervisor_agent.activities import supervise_step, SuperviseStepInput
     from containers.implementation.supervisor_agent.activities import apply_supervisor_actions
