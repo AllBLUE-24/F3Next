@@ -47,6 +47,14 @@
     },
     "file_exclusion_expectations": {
       "client_orders.csv": ["Work Order", "BOM"]
+    },
+    "discovery_metadata": {
+      "f3iche": "manufacturing_project_chemical",
+      "industry": "construction coatings",
+      "mvp_focus": {
+        "primary_bottleneck": "tracking client project orders on site",
+        "functional_requirements": ["Sales Order", "Project", "Customer"]
+      }
     }
   }
 }

@@ -76,6 +76,7 @@ with workflow.unsafe.imports_passed_through():
     )
 
 TASK_QUEUE = "is-queue"
+V1_PIPELINE_STEPS = 5
 
 _RETRY = RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=2), backoff_coefficient=2.0)
 _ACT   = {"start_to_close_timeout": timedelta(minutes=5), "retry_policy": _RETRY}
@@ -90,15 +91,20 @@ _BANNER = "═" * 72
 _DIVIDER = "─" * 72
 _DOT_LINE = "· " * 36
 
-def _step_start(logger, step_num: int | str, title: str, detail: str = ""):
+def _step_start(logger, step_num: int | str, title: str, detail: str = "", *, total: int | None = None):
     logger.info("")
     logger.info("")
     logger.info(_BANNER)
-    logger.info("  STEP %s / 9  │  %s", step_num, title)
+    step_total = total if total is not None else V1_PIPELINE_STEPS
+    logger.info("  STEP %s / %s  │  %s", step_num, step_total, title)
     if detail:
         logger.info("  %s", detail)
     logger.info(_BANNER)
     logger.info("")
+
+
+def _substep(logger, label: str):
+    logger.info("      ▸ %s", label)
 
 def _step_ok(logger, step_num: int | str, title: str, summary: str = ""):
     logger.info("")
@@ -381,6 +387,7 @@ class ImplementationWorkflow:
                         user_import_note=getattr(self, "_latest_upload_note", None),
                         discovery_chat_history=re_discovery.get("chat_history"),
                         discovery_metadata=re_discovery.get("discovery_metadata"),
+                        discovery_status=re_discovery.get("discovery_status"),
                     ),
                     **_LONG,
                 )
@@ -506,9 +513,14 @@ class ImplementationWorkflow:
         self._set_task("t1", "running")
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 1 / 9  —  Virus Scan
+        # STEP 2 / 5  —  Corpus Intake & Understanding
         # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 1, "Virus Scan (Quarantine Protocol)", f"{len(sig.uploaded_files)} files to scan")
+        _step_start(
+            L, 2, "Corpus Intake & Understanding",
+            "virus scan → parse manifest → LLM understand (discovery-first)",
+        )
+
+        _substep(L, "Virus scan & quarantine")
 
         try:
             scan_result: Dict = await workflow.execute_activity(
@@ -521,26 +533,19 @@ class ImplementationWorkflow:
             _kv(L, "infected_count", scan_result.get("infected_count"))
             _kv(L, "table written", "is_files (virus_scan_status, clean/virus r2 paths)")
         except Exception as e:
-            _step_fail(L, 1, "Virus Scan", str(e))
+            _step_fail(L, 2, "Corpus Intake & Understanding", f"Virus scan: {e}")
             self._stage = "error"
             raise ApplicationError(f"Virus scan failed: {e}")
 
         if not scan_result.get("safe", False):
-            _step_fail(L, 1, "Virus Scan", "INFECTED FILES DETECTED — halting workflow")
+            _step_fail(L, 2, "Corpus Intake & Understanding", "INFECTED FILES DETECTED — halting workflow")
             self._stage = "infected_halt"
             raise ApplicationError("Implementation halted due to malicious payload.")
 
         self._company_slug = sig.company_slug or "unknown"
-        _step_ok(L, 1, "Virus Scan", f"All {scan_result.get('clean_count')} files clean | slug={self._company_slug}")
+        _substep(L, f"Virus scan OK — {scan_result.get('clean_count')} clean files")
 
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 2 / 9  —  Fetch & Parse Clean Files
-        # ══════════════════════════════════════════════════════════════════════
-        self._set_task("t1", "done")
-        self._set_task("t2", "running")
-        self._stage = "analyzing"
-
-        _step_start(L, 2, "Fetch & Parse Clean Files", "Download from R2 clean-data, build manifest")
+        _substep(L, "Fetch & parse clean files → manifest v2")
 
         try:
             fetch_results: Dict = await workflow.execute_activity(
@@ -554,27 +559,28 @@ class ImplementationWorkflow:
             _kv(L, "manifest_url", r2_manifest_url)
             _kv(L, "parsed_files", self._parsed_files)
             _kv(L, "R2 path", f"clean-data/{self._company_slug}/{project_id}/_manifest/")
-            _step_ok(L, 2, "Fetch & Parse", f"{len(self._parsed_files)} files parsed")
+            _substep(L, f"Parsed {len(self._parsed_files)} files → {r2_manifest_url}")
         except Exception as e:
-            _step_fail(L, 2, "Fetch & Parse", str(e))
-            L.info("      ⚠️  Continuing with empty manifest — signals inference will be limited")
+            _substep(L, f"Fetch & parse failed: {e}")
+            L.info("      ⚠️  Continuing with empty manifest — corpus understanding will be limited")
             r2_manifest_url = "error"
             self._r2_manifest_url = r2_manifest_url
             self._parsed_files = []
 
-        # ── Step 2b: LLM corpus understanding (semantic file descriptions) ──
-        # Fetch discovery context for business-aware corpus classification
+        _substep(L, "LLM corpus understanding (discovery context required)")
         discovery_context = {}
         try:
             from containers.implementation.supervisor_agent.activities import fetch_discovery_context
             discovery_context = await fetch_discovery_context(project_id)
             if discovery_context.get("chat_history"):
-                L.info("      ✓ Discovery context loaded: %d messages, status=%s",
-                       len(discovery_context.get("chat_history", [])),
-                       discovery_context.get("discovery_status"))
+                L.info(
+                    "      ✓ Discovery context loaded: %d messages, status=%s",
+                    len(discovery_context.get("chat_history", [])),
+                    discovery_context.get("discovery_status"),
+                )
         except Exception as e:
-            L.info("      ⚠️  Could not load discovery context (non-fatal): %s", e)
-        
+            L.info("      ⚠️  Could not load discovery context: %s", e)
+
         if r2_manifest_url and not r2_manifest_url.startswith("error"):
             try:
                 enrich_result: Dict = await workflow.execute_activity(
@@ -584,6 +590,7 @@ class ImplementationWorkflow:
                         user_import_note=sig.user_note,
                         discovery_chat_history=discovery_context.get("chat_history"),
                         discovery_metadata=discovery_context.get("discovery_metadata"),
+                        discovery_status=discovery_context.get("discovery_status"),
                     ),
                     **_LONG,
                 )
@@ -591,10 +598,26 @@ class ImplementationWorkflow:
                 _kv(L, "corpus_summary", (enrich_result.get("corpus_summary") or "")[:120])
                 _kv(L, "files_understood", enrich_result.get("files_understood", 0))
                 _kv(L, "corpus_status", enrich_result.get("status", "unknown"))
+                _kv(L, "corpus_gate", enrich_result.get("gate_passed", False))
                 for w in enrich_result.get("warnings") or []:
                     L.info("      ⚠️  corpus: [%s] %s", w.get("code"), w.get("message"))
+                if enrich_result.get("status") == "failed":
+                    L.info("      ⚠️  Corpus understanding failed — check discovery completion before mapping")
             except Exception as e:
-                L.info("      ⚠️  Corpus understanding failed (non-fatal): %s", e)
+                L.info("      ⚠️  Corpus understanding activity error: %s", e)
+        else:
+            L.info("      ⚠️  Skipping corpus understanding — no valid manifest")
+
+        self._set_task("t1", "done")
+        self._set_task("t2", "done")
+        self._stage = "analyzing"
+        _step_ok(
+            L, 2, "Corpus Intake & Understanding",
+            f"{len(self._parsed_files)} files | gate={getattr(self, '_corpus_understanding', {}).get('gate_passed', 'n/a')}",
+        )
+
+        # ── Step 2b block merged above ──
+        # Legacy marker removed: fetch + enrich are sub-steps of Step 2 / 5
 
         # ══════════════════════════════════════════════════════════════════════════════
         # P1 OPTIMIZATION: Steps 3-6a REMOVED — Read f3iche + MVP focus from discovery
@@ -1017,6 +1040,7 @@ class ImplementationWorkflow:
                                             user_import_note=getattr(self, "_latest_upload_note", None),
                                             discovery_chat_history=re_discovery.get("chat_history"),
                                             discovery_metadata=re_discovery.get("discovery_metadata"),
+                                            discovery_status=re_discovery.get("discovery_status"),
                                         ),
                                         **_LONG,
                                     )

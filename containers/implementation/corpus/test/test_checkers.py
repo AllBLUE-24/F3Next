@@ -27,6 +27,16 @@ def test_check_manifest_v2_shape_rejects_empty():
 
 
 @pytest.mark.golden
+def test_matrix_fixtures_pass_offline_gate():
+    from containers.implementation.corpus.test.harness_corpus import FIXTURE_NAMES, _load_fixture, _run_offline_gate
+
+    for name in FIXTURE_NAMES:
+        manifest = _load_fixture(name)
+        code = _run_offline_gate(manifest, label=name)
+        assert code == 0, f"fixture {name} failed offline gate"
+
+
+@pytest.mark.golden
 def test_green_surface_fixture_passes_gate():
     raw = json.loads((FIXTURES / "green_surface_manifest.json").read_text(encoding="utf-8"))
     golden = raw.pop("_golden", {})

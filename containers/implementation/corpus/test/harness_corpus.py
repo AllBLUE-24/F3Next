@@ -2,7 +2,7 @@
 Step 2 corpus harness — offline golden gate + optional live LLM (Phase 3).
 
   python -m containers.implementation.corpus.test.harness_corpus --fixture green_surface
-  python -m containers.implementation.corpus.test.harness_corpus --manifest path/to/manifest.json
+  python -m containers.implementation.corpus.test.harness_corpus --matrix
   python -m containers.implementation.corpus.test.harness_corpus --fixture green_surface --live-llm
 """
 from __future__ import annotations
@@ -10,13 +10,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import sys
+import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from containers.implementation.corpus.checkers import evaluate_step2_gate
+from containers.implementation.corpus.discovery_context import build_discovery_context_block
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURE_NAMES = ["green_surface", "renamed_columns"]
 
 
 def _print_header(title: str) -> None:
@@ -61,26 +63,24 @@ async def _run_live_enrich(
     *,
     discovery_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    from containers.implementation.corpus.enrich_understanding import (
-        _build_files_block,
-        _extract_discovery_context,
-    )
+    from containers.implementation.corpus.enrich_understanding import _build_files_block
+    from containers.implementation.corpus.manifest import extract_files_from_manifest
     from containers.implementation.corpus.prompts import CORPUS_UNDERSTANDING_PROMPT
     from containers.implementation.corpus.schemas import CorpusUnderstanding
     from containers.implementation.corpus.validation import (
         merge_missing_file_entries,
         validate_corpus_understanding,
     )
-    from containers.implementation.corpus.manifest import extract_files_from_manifest
     from shared.llm_schema_utils import repair_pydantic_dict
     from shared.structured_llm import generate_typed
 
+    ctx = build_discovery_context_block(None, discovery_metadata, require=True)
+
     files = extract_files_from_manifest(manifest)
     expected = list(files.keys())
-    discovery_context = _extract_discovery_context(None, discovery_metadata)
     prompt = CORPUS_UNDERSTANDING_PROMPT.format(
-        discovery_context=discovery_context,
-        user_import_note="(harness)",
+        discovery_context=ctx.context_block,
+        user_import_note="(harness live matrix)",
         files_block=_build_files_block(manifest),
     )
     llm_result = await generate_typed(
@@ -99,30 +99,61 @@ async def _run_live_enrich(
     return manifest
 
 
+async def _run_fixture(name: str, *, live_llm: bool) -> int:
+    raw_fixture = _load_fixture(name)
+    golden = raw_fixture.get("_golden") or {}
+    manifest = json.loads(json.dumps(raw_fixture))
+
+    if live_llm:
+        if not os.getenv("OPENAI_API_KEYS") and not os.getenv("GEMINI_API_KEYS"):
+            print(f"SKIP live LLM for {name}: no API keys configured")
+            return 0
+        _print_header(f"Live LLM enrich — {name}")
+        manifest.pop("_golden", None)
+        manifest.pop("corpus_understanding", None)
+        manifest = await _run_live_enrich(
+            manifest,
+            discovery_metadata=golden.get("discovery_metadata"),
+        )
+        manifest["_golden"] = golden
+
+    return _run_offline_gate(manifest, label=name)
+
+
 async def _async_main(args: argparse.Namespace) -> int:
+    if args.matrix:
+        codes: List[int] = []
+        for name in FIXTURE_NAMES:
+            codes.append(await _run_fixture(name, live_llm=args.live_llm))
+        passed = sum(1 for c in codes if c == 0)
+        _print_header(f"Matrix summary: {passed}/{len(codes)} fixtures passed")
+        return 0 if all(c == 0 for c in codes) else 1
+
     if args.manifest:
         manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
         label = Path(args.manifest).name
-    elif args.fixture:
-        manifest = _load_fixture(args.fixture)
-        label = args.fixture
-    else:
-        raise SystemExit("Provide --fixture or --manifest")
+        if args.live_llm:
+            _print_header(f"Live LLM enrich — {label}")
+            golden = manifest.get("_golden") or {}
+            manifest.pop("corpus_understanding", None)
+            manifest = await _run_live_enrich(
+                manifest,
+                discovery_metadata=golden.get("discovery_metadata"),
+            )
+        return _run_offline_gate(manifest, label=label)
 
-    if args.live_llm:
-        _print_header(f"Live LLM enrich — {label}")
-        manifest = await _run_live_enrich(manifest)
-        if args.fixture:
-            manifest["_golden"] = _load_fixture(args.fixture).get("_golden")
+    if args.fixture:
+        return await _run_fixture(args.fixture, live_llm=args.live_llm)
 
-    return _run_offline_gate(manifest, label=label)
+    raise SystemExit("Provide --fixture, --manifest, or --matrix")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Step 2 corpus harness")
     parser.add_argument("--fixture", help="Fixture name (e.g. green_surface)")
     parser.add_argument("--manifest", help="Path to manifest JSON")
-    parser.add_argument("--live-llm", action="store_true", help="Run live LLM enrich (Phase 3)")
+    parser.add_argument("--matrix", action="store_true", help="Run all offline golden fixtures")
+    parser.add_argument("--live-llm", action="store_true", help="Run live LLM enrich before gate")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(_async_main(args)))
 

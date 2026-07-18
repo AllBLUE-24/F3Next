@@ -1221,11 +1221,22 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
     candidates = await _get_candidate_doctypes(inp.session_id)
     user_note = session_context.get("user_import_note", "")
     assignments: List[Dict[str, Any]] = []
+    from containers.implementation.corpus.doctype_from_understanding import assignment_from_corpus_understanding
     from containers.implementation.file_io.manifest_utils import corpus_file_understanding
 
     for filename, content in (manifest.get("files") or {}).items():
         if not content:
             continue
+
+        corpus_assignment = assignment_from_corpus_understanding(
+            filename,
+            manifest.get("corpus_understanding"),
+            candidates,
+        )
+        if corpus_assignment:
+            assignments.append(corpus_assignment)
+            continue
+
         is_unstructured = filename.lower().endswith(".txt") or filename.lower().endswith(".pdf")
         if is_unstructured:
             cls = await classify_doctype(

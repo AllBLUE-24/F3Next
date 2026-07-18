@@ -1,0 +1,60 @@
+{
+  "_manifest_version": 2,
+  "_created_at": "2026-07-18T00:00:00Z",
+  "file_count": 1,
+  "files": {
+    "buyer_jobs.csv": "Buyer,Job_Code,Due_Date,SKU,Qty,Unit_Price\r\nRohan Construction,PRJ-Mumbai-Mall,2026-08-15,SRV-INSTALL,12000,\r\nNew Age Builders,PRJ-Pune-ITPark,2026-09-01,FG-PRIMER-A,200,52.00"
+  },
+  "file_meta": {
+    "buyer_jobs.csv": {
+      "columns": ["Buyer", "Job_Code", "Due_Date", "SKU", "Qty", "Unit_Price"],
+      "row_count": 2,
+      "sample_rows": [
+        {"Buyer": "Rohan Construction", "Job_Code": "PRJ-Mumbai-Mall", "Due_Date": "2026-08-15", "SKU": "SRV-INSTALL", "Qty": "12000", "Unit_Price": ""},
+        {"Buyer": "New Age Builders", "Job_Code": "PRJ-Pune-ITPark", "Due_Date": "2026-09-01", "SKU": "FG-PRIMER-A", "Qty": "200", "Unit_Price": "52.00"}
+      ],
+      "is_structured": true,
+      "format": "csv",
+      "char_len": 175,
+      "source_file": "buyer_jobs.csv"
+    }
+  },
+  "corpus_understanding": {
+    "corpus_summary": "Buyer job orders with SKUs and due dates — project/sales tracking despite generic filename.",
+    "files": [
+      {
+        "filename": "buyer_jobs.csv",
+        "business_description": "Buyer companies placing jobs with SKUs and quantities.",
+        "likely_entity_types": ["Customer", "Project"],
+        "likely_erpnext_doctypes": ["Sales Order", "Customer", "Project"],
+        "explicitly_not_doctypes": ["Work Order", "BOM"],
+        "column_interpretations": [
+          {"column": "Buyer", "meaning": "Customer company"},
+          {"column": "Job_Code", "meaning": "Project or job identifier"}
+        ],
+        "confidence": 0.78,
+        "reasoning_signals": [
+          "Buyer + Job_Code + SKU pattern matches sales/project orders",
+          "No manufacturing routing or batch fields"
+        ]
+      }
+    ],
+    "_validation": {"status": "ok", "warnings": []}
+  },
+  "_golden": {
+    "file_doctype_expectations": {
+      "buyer_jobs.csv": ["Sales Order", "Customer"]
+    },
+    "file_exclusion_expectations": {
+      "buyer_jobs.csv": ["Work Order", "BOM"]
+    },
+    "discovery_metadata": {
+      "f3iche": "manufacturing_project_chemical",
+      "industry": "construction coatings",
+      "mvp_focus": {
+        "primary_bottleneck": "tracking client project orders and deliveries",
+        "functional_requirements": ["Sales Order", "Project", "Customer"]
+      }
+    }
+  }
+}
