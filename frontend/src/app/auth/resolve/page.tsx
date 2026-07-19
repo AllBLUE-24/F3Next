@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
+import { getAuthUser } from '@/utils/auth-user';
 
 interface ResolveUserResponse {
   company_slug?: string;
@@ -22,7 +22,6 @@ interface ResolveUserResponse {
  */
 export default function AuthResolvePage() {
   const router = useRouter();
-  const supabase = createClient();
   const [error, setError] = useState('');
   const [retrying, setRetrying] = useState(false);
 
@@ -31,10 +30,7 @@ export default function AuthResolvePage() {
     setRetrying(true);
 
     try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+      const { user, error: authError } = await getAuthUser();
 
       if (authError || !user) {
         console.error('[Resolve] No user found:', authError);

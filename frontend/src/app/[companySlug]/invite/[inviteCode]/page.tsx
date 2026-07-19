@@ -4,6 +4,8 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { getAuthUser } from "@/utils/auth-user";
+import { isDevAuthBypassEnabled } from "@/utils/dev-auth";
 import { getBaseApiUrl } from "@/lib/config";
 import { slugify } from "@/lib/slugify";
 import { Bot, Loader2, Users } from "lucide-react";
@@ -30,6 +32,14 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (isDevAuthBypassEnabled()) {
+      getAuthUser().then(({ user }) => {
+        setUser(user);
+        setAuthLoading(false);
+      });
+      return;
+    }
+
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       setUser(u);
       setAuthLoading(false);

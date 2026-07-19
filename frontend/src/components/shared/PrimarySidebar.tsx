@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutGrid, LogOut, Bot, UploadCloud, Terminal, Search, User, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
+import { signOutAuth } from "@/utils/auth-user";
+import { isDevAuthBypassEnabled } from "@/utils/dev-auth";
 import { getBaseApiUrl } from "@/lib/config";
 import { stageToHref } from "@/lib/implementation-routes";
 
@@ -47,9 +48,8 @@ export default function PrimarySidebar({ companySlug, userSlug }: { companySlug:
   }, [companySlug, base]);
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
+    await signOutAuth();
+    router.push(isDevAuthBypassEnabled() ? "/landing" : "/login");
   };
 
   const navItems = [

@@ -3,6 +3,8 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { getAuthUser } from '@/utils/auth-user';
+import { isDevAuthBypassEnabled } from '@/utils/dev-auth';
 import QuestionsList, { QUESTIONS_DATA } from './questions';
 import { ChevronRight, FileBarChart, Loader2, ArrowRight } from 'lucide-react';
 import { getBaseApiUrl } from '@/lib/config';
@@ -29,6 +31,11 @@ function HealthCheckContent() {
     const savedAnswers = localStorage.getItem('f3_temp_answers');
     if (savedAnswers) {
       setAnswers(JSON.parse(savedAnswers));
+    }
+
+    if (isDevAuthBypassEnabled()) {
+      getAuthUser().then(({ user }) => setUser(user));
+      return;
     }
 
     supabase.auth.getUser().then(({ data: { user } }) => {

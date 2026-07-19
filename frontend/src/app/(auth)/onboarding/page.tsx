@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { getAuthUser } from "@/utils/auth-user";
+import { isDevAuthBypassEnabled } from "@/utils/dev-auth";
 import { getBaseApiUrl } from "@/lib/config";
 import { slugify } from "@/lib/slugify";
 import { ArrowRight, ArrowLeft, CheckCircle2, Copy, Loader2, Users } from "lucide-react";
@@ -55,6 +57,18 @@ export default function OnboardingPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
 
   useEffect(() => {
+    if (isDevAuthBypassEnabled()) {
+      getAuthUser().then(({ user }) => {
+        if (!user) {
+          router.push("/login");
+        } else {
+          setSessionUser(user);
+          setLoading(false);
+        }
+      });
+      return;
+    }
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
         router.push("/login");

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Copy, Loader2, Trash2, UserPlus, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { getAuthUser } from "@/utils/auth-user";
+import { isDevAuthBypassEnabled } from "@/utils/dev-auth";
 import { getBaseApiUrl } from "@/lib/config";
 
 type InviteRow = {
@@ -55,6 +57,18 @@ export function TeamInvitesPanel({ companySlug }: Props) {
   }, [companySlug]);
 
   useEffect(() => {
+    if (isDevAuthBypassEnabled()) {
+      getAuthUser().then(({ user }) => {
+        if (user) {
+          setUserId(user.id);
+          loadInvites(user.id);
+        } else {
+          setLoading(false);
+        }
+      });
+      return;
+    }
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUserId(user.id);

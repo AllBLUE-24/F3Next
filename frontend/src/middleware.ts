@@ -1,7 +1,13 @@
 import type { NextRequest } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
+import { handleDevAuthBypass } from '@/utils/dev-auth-middleware'
 
 export async function middleware(request: NextRequest) {
+  const bypassResponse = handleDevAuthBypass(request)
+  if (bypassResponse) {
+    return bypassResponse
+  }
+
   return await updateSession(request)
 }
 
