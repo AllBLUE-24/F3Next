@@ -127,14 +127,14 @@ Flow: plan → validate → optional one revision with validation errors → per
 **Files:** `chat_service.py`, `target/build_target.py`
 
 - When `DISCOVERY_USE_MVP_PLANNER=true`: `complete_discovery` calls planner; legacy recommend becomes fallback
-- `build_discovery_target` accepts `mvp_plan`; uses validated seeds with `mode: planner_validated`
-- Store `plan_reasoning`, `validation_notes` in `mvp_boundary.json`
+- `build_discovery_target` uses `mvp_focus.planner_day1_seeds`; `mode: planner_validated`
+- Store `mvp_plan`, `plan_reasoning`, `mvp_plan_validation` in `discovery_metadata`
 
-### Phase 4 — Niche + copy fixes
+### Phase 4 — Niche + copy fixes ✅ (partial)
 
-- Niche hints: adhesives, sealants, resins, chemical drums, shelf life → `manufacturing_project_chemical` or `manufacturing_food_batch`
-- `workflow_explanation.py`: add `Warehouse`, `Delivery Note`, `Purchase Receipt` labels (no “layout plan”)
-- Default `DISCOVERY_LLM_NICHE_RESOLVE=true` when planner enabled
+- Niche hints: adhesives, sealants, resins, chemical drums → `manufacturing_project_chemical`
+- `workflow_explanation.py`: Warehouse, Delivery Note, Purchase Receipt labels
+- Default `DISCOVERY_LLM_NICHE_RESOLVE=true` when planner enabled — **TODO**
 
 ### Phase 5 — Golden gate
 
@@ -173,12 +173,12 @@ pytest containers/discovery/test/ -q
 ## 7. Verification checklist (Step 1 v1-worthy)
 
 - [ ] GM-DISC-01..04 still green (regression)
-- [ ] GM-DISC-05 Apex Resins green
+- [x] GM-DISC-05 Apex Resins validator golden (`test_gm_disc_05_apex_resins_recall_plan`)
 - [ ] Live matrix ≥80%
-- [ ] `mvp_plan.plan_reasoning` persisted for debug
+- [x] `mvp_plan` / `plan_reasoning` persisted when planner enabled
 - [ ] UI upload list includes promoted masters (Customer when Delivery Note seeded)
-- [ ] Wrong niche (jobshop + batch expiry) caught by validator
-- [ ] Legacy path works when `DISCOVERY_USE_MVP_PLANNER=false`
+- [x] Wrong niche (jobshop + batch expiry) caught by validator warning
+- [x] Legacy path works when `DISCOVERY_USE_MVP_PLANNER=false`
 
 ---
 
