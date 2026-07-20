@@ -232,7 +232,8 @@ async def complete_discovery(
     *,
     use_llm_niche: Optional[bool] = None,
 ) -> dict:
-    """Extract signals, resolve niche, then generate recommendation with F3iche hints."""
+    """Extract signals, resolve niche, then plan or recommend Day-1 MVP."""
+    from containers.discovery.mvp_planner import plan_day1_mvp, planner_enabled
     from containers.discovery.niche_resolver import (
         infer_broad_f3iche,
         resolve_discovery_f3iche_niche_async,
@@ -252,6 +253,42 @@ async def complete_discovery(
         industry=industry,
         coverage=coverage,
     )
+
+    if planner_enabled():
+        planner_result = await plan_day1_mvp(
+            transcript=chat_transcript,
+            coverage=coverage,
+            broad_f3iche=broad_f3iche,
+        )
+        recommendation = planner_result["recommendation"]
+        niche_id = planner_result["f3iche_niche"]
+        niche_source = planner_result["niche_resolution_source"]
+        metadata = {
+            "f3iche": recommendation.get("f3iche", broad_f3iche),
+            "industry": recommendation.get("industry", industry),
+            "price_plan": recommendation.get("price_plan", "Standard"),
+            "recommended_erp": recommendation.get("recommended_erp"),
+            "fit_score": recommendation.get("fit_score"),
+            "headline": recommendation.get("headline"),
+            "reasoning": recommendation.get("reasoning"),
+            "mvp_focus": planner_result["mvp_focus"],
+            "f3iche_niche": niche_id,
+            "niche_resolution_source": niche_source,
+            "mvp_plan": planner_result["plan"],
+            "mvp_plan_validation": planner_result["validation"],
+            "plan_reasoning": planner_result.get("plan_reasoning", ""),
+            "dual_system_note": planner_result.get("dual_system_note", ""),
+            "scoping_mode": "planner_validated",
+        }
+        return {
+            "coverage": coverage,
+            "recommendation": recommendation,
+            "discovery_metadata": metadata,
+            "f3iche_niche": niche_id,
+            "niche_resolution_source": niche_source,
+            "broad_f3iche": broad_f3iche,
+            "mvp_plan": planner_result,
+        }
 
     niche_id, niche_source = await resolve_discovery_f3iche_niche_async(
         discovery_f3iche=broad_f3iche,

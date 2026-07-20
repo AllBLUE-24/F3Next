@@ -30,6 +30,20 @@ def test_keyword_resolve_epoxy_to_chemical():
     assert niche == "manufacturing_project_chemical"
 
 
+def test_apex_resins_adhesives_not_jobshop():
+    transcript = (
+        "We are Apex Resins. We manufacture industrial adhesives and sealants. "
+        "Chemical drums with 6-month shelf lives. Batch traceability in Excel."
+    )
+    niche = resolve_discovery_f3iche_niche(
+        discovery_f3iche="manufacturing",
+        industry="industrial adhesives",
+        chat_transcript=transcript,
+    )
+    assert niche in ("manufacturing_project_chemical", "manufacturing_food_batch")
+    assert niche != "manufacturing_fabrication_jobshop"
+
+
 def test_async_resolve_keyword_source():
     niche_id, source = asyncio.run(
         resolve_discovery_f3iche_niche_async(

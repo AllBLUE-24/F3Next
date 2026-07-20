@@ -220,8 +220,27 @@ async def build_discovery_target(
         chat_transcript=chat_transcript,
         user_confirmed_override=seed_doctypes_override,
     )
-    seed_doctypes = scoping["mvp_seeds"]
-    deferred_doctypes = scoping["deferred_seeds"]
+
+    planner_seeds = (mvp_focus or {}).get("planner_day1_seeds") if not seed_doctypes_override else None
+    if planner_seeds:
+        planner_deferred = (mvp_focus or {}).get("defer_modules_mentioned") or []
+        seed_doctypes = list(planner_seeds)
+        deferred_doctypes = [
+            d for d in f3iche_seeds if d not in seed_doctypes and d not in planner_deferred
+        ] + [d for d in planner_deferred if d not in seed_doctypes]
+        deferred_doctypes = list(dict.fromkeys(deferred_doctypes))
+        scoping = {
+            **scoping,
+            "mvp_seeds": seed_doctypes,
+            "deferred_seeds": deferred_doctypes,
+            "scoping_mode": "planner_validated",
+            "scoping_reasoning": (mvp_focus or {}).get("plan_reasoning")
+            or "Day-1 scope from MVP planner + validator.",
+            "dual_system_note": scoping.get("dual_system_note", ""),
+        }
+    else:
+        seed_doctypes = scoping["mvp_seeds"]
+        deferred_doctypes = scoping["deferred_seeds"]
 
     graph, baseline = _load_graph_and_baseline()
     graph_dts = graph.get("doctypes", {})
@@ -261,8 +280,10 @@ async def build_discovery_target(
         "graph_extensions": scoping.get("graph_extensions") or [],
         "niche_resolution_source": niche_resolution_source,
         "file_evidence": [],
-        "llm_enhanced": bool(llm_enhanced_seeds),
-        "llm_reasoning": llm_reasoning,
+        "llm_enhanced": bool(llm_enhanced_seeds) or scoping["scoping_mode"] == "planner_validated",
+        "llm_reasoning": llm_reasoning or scoping.get("scoping_reasoning", ""),
+        "plan_reasoning": (mvp_focus or {}).get("plan_reasoning"),
+        "planner_validated": scoping["scoping_mode"] == "planner_validated",
         "signal_match_candidates": scoping.get("signal_match_candidates") or [],
         "llm_archetype_id": scoping.get("llm_archetype_id"),
         "llm_archetype_signal_score": scoping.get("llm_archetype_signal_score"),

@@ -42,8 +42,23 @@ _DOCTYPE_LABELS: dict[str, tuple[str, str, list[str]]] = {
     ),
     "Batch": (
         "Batch / lot numbers",
-        "Batch IDs for color consistency and traceability",
-        ["batch_register.xlsx"],
+        "Batch IDs with manufacturing and expiry dates for traceability",
+        ["batch_register.xlsx", "batch_tracking.xlsx"],
+    ),
+    "Delivery Note": (
+        "Delivery / dispatch records",
+        "Challans or shipping records showing which batch went to which customer",
+        ["delivery_notes.xlsx", "dispatch_challan.xls"],
+    ),
+    "Warehouse": (
+        "Warehouse / storage location list",
+        "Simple list of storage zones (Raw Materials, Finished Goods, Quarantine)",
+        ["warehouse_list.xlsx", "storage_locations.xls"],
+    ),
+    "Purchase Receipt": (
+        "Goods receipt / GRN records",
+        "Incoming raw material receipts with supplier batch numbers",
+        ["grn_register.xlsx", "goods_receipt.xls"],
     ),
     "Job Card": (
         "Shop floor operation logs",

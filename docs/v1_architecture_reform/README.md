@@ -27,6 +27,7 @@ Complete documentation of the proposed architectural reform for F3Next Implement
 | 08 | [START HERE](08_START_HERE.md) | ⚡ Immediate action plan (READ THIS FIRST) | 15 min | Everyone |
 | 09 | [Core KB & Stepwise Migration](09_CORE_KB_AND_STEPWISE_MIGRATION.md) | 🛠️ Execution doctrine: core KB allowlist, no-delete-first steps, agent guide | 20 min | Coding agents + Tech |
 | 10 | [MVP Boundary V1 Plan](10_MVP_BOUNDARY_V1_PLAN.md) | 🚧 **Active gate:** archetype-driven scoping, harness golden tests, no new patches | 25 min | Engineering |
+| 13 | [Discovery Step 1 V1 Plan](13_DISCOVERY_STEP1_V1_PLAN.md) | 🧠 **Active:** planner + validator replaces classifier pipeline | 20 min | Engineering |
 
 **Total read time**: ~3.5 hours for complete understanding
 

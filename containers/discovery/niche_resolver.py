@@ -24,6 +24,8 @@ _INDUSTRY_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
     (("warranty claim", "field service", "service technician", "maintenance visit", "client site breakdown", "whatsapp repair"), "manufacturing_fabrication_jobshop"),
     (("prefabricated panel", "pre-fabricated panel", "pre fabricated panel", "screwdriver assembly", "job shop", "metal fabrication"), "manufacturing_fabrication_jobshop"),
     (("epoxy", "floor coating", "industrial coating", "paint manufacturer", "resin coating", "primer manufacturer", "chemical primer", "chemical primers"), "manufacturing_project_chemical"),
+    (("adhesive", "adhesives", "sealant", "sealants", "industrial resin", "apex resins", "resins", "chemical drum", "chemical drums"), "manufacturing_project_chemical"),
+    (("shelf life", "batch traceability", "batch expiry", "expiry tracking"), "manufacturing_food_batch"),
     (("chemical coating", "chemical formulation plant", "chemical plant"), "manufacturing_project_chemical"),
     (("garment", "apparel", "textile", "fabric", "stitching"), "manufacturing_garment_variants"),
     (("food", "fmcg", "dairy", "bakery"), "manufacturing_food_batch"),
@@ -39,6 +41,7 @@ _CHAT_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
     (("warranty", "field repair", "technician dispatch", "spare parts van"), "manufacturing_fabrication_jobshop"),
     (("installation", "site work", "coating", "epoxy floor"), "manufacturing_project_chemical"),
     (("hardener", "isocyanate", "part a and part b", "moisture sensitive"), "manufacturing_project_chemical"),
+    (("adhesive", "sealant", "chemical drum", "shelf life", "raw material batch", "batch traceability"), "manufacturing_project_chemical"),
     (("work in progress", "wip", "black box", "excel sheet", "batch-wise"), "manufacturing_project_chemical"),
     (("procurement", "supplier lead time", "purchase order", "material request"), "manufacturing_fabrication_jobshop"),
 ]

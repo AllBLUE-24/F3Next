@@ -217,7 +217,7 @@ Document in [`v1.0.0/FOUNDATION_VERIFICATION.md`](./v1.0.0/FOUNDATION_VERIFICATI
 > **Fixtures:** `containers/discovery/test/fixtures/`  
 > **Matrices:** `golden_mvp_boundary.json` (scoping) · `live_routing_matrix.json` (LLM routing)  
 > **Env gate:** `DISCOVERY_USE_MVP_MAP_FALLBACK=false`, `DISCOVERY_USE_LEGACY_REGEX_SCOPING=false`  
-> **Step 1 complete:** GM-DISC-01..04 green **and** live matrix ≥80% (`gate_min_accuracy` in `live_routing_matrix.json`)
+> **Step 1 complete:** GM-DISC-01..05 green **and** live matrix ≥80% (`gate_min_accuracy` in `live_routing_matrix.json`)
 
 | Row ID | Scenario | F3iche | Archetype | Must include (Day-1) | Status |
 |--------|----------|--------|-----------|----------------------|--------|
@@ -225,6 +225,7 @@ Document in [`v1.0.0/FOUNDATION_VERIFICATION.md`](./v1.0.0/FOUNDATION_VERIFICATI
 | **GM-DISC-02** | Part A/B inventory + hazmat batch | `manufacturing_project_chemical` | `inventory_visibility` (signal) | Item, Batch, Stock Entry | ✅ Required |
 | **GM-DISC-03** | ISO audit / quality gates | `manufacturing_project_chemical` | `incoming_quality_compliance` | Quality Inspection, Batch, Purchase Receipt | ✅ Required |
 | **GM-DISC-04** | Custom order / quote CRM | `manufacturing_project_chemical` | `custom_order_pipeline` | Quotation, Sales Order, Project | ✅ Required |
+| **GM-DISC-05** | Apex Resins recall + Tally dual-system | `manufacturing_project_chemical` | planner + `batch_expiration_obsolescence` ref | Batch, Customer, Delivery Note, Supplier or Purchase Receipt | ✅ Required |
 
 ### Live LLM routing matrix (`LR-DISC-*`)
 

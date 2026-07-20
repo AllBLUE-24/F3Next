@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from containers.discovery.mvp_validator import validate_mvp_plan
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -104,3 +106,24 @@ def test_unknown_doctype_is_error():
     )
     assert not result.valid
     assert any(i.code == "UNKNOWN_DOCTYPE" for i in result.issues)
+
+
+@pytest.mark.golden
+def test_gm_disc_05_apex_resins_recall_plan():
+    """GM-DISC-05: validated planner scope for chemical recall + Tally."""
+    result = validate_mvp_plan(
+        day1_entries=[
+            "Batch", "Item", "Stock Entry", "Delivery Note", "Warehouse",
+            "Customer", "Supplier", "Purchase Receipt",
+        ],
+        deferred_entries=["Sales Invoice", "Payment Entry", "BOM", "Work Order"],
+        niche_id="manufacturing_project_chemical",
+        chat_transcript=APEX_TRANSCRIPT,
+        template_seeds=CHEMICAL_TEMPLATE,
+        legacy_system="Tally",
+    )
+    assert result.valid
+    for dt in ("Batch", "Customer", "Delivery Note"):
+        assert dt in result.day1_doctypes
+    assert any(d in result.day1_doctypes for d in ("Supplier", "Purchase Receipt"))
+    assert "Sales Invoice" not in result.day1_doctypes
