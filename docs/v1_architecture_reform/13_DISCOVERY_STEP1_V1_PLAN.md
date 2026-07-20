@@ -136,26 +136,27 @@ Flow: plan → validate → optional one revision with validation errors → per
 - `workflow_explanation.py`: Warehouse, Delivery Note, Purchase Receipt labels
 - Default `DISCOVERY_LLM_NICHE_RESOLVE=true` when planner enabled — **TODO**
 
-### Phase 5 — Golden gate
+### Phase 5 — Golden gate ✅ (offline)
 
 | Row | Scenario | Expected |
 |-----|----------|----------|
-| **GM-DISC-05** | Apex Resins recall + Tally | niche `manufacturing_project_chemical`; seeds include Batch, Customer, Delivery Note, Purchase Receipt or Supplier |
-| Matrix | ≥80% on `live_routing_matrix.json` | |
+| **GM-DISC-05** / **PV1-01** | Apex Resins recall + Tally | niche `manufacturing_project_chemical`; seeds include Batch, Customer, Delivery Note, Supplier |
+| **PV1-02..05** | Green Surface, ISO, CRM, Part A/B | offline planner+validator green |
+| Matrix | ≥80% on `live_routing_matrix.json` | Live LLM still pending |
 
 **Harness:**
 
 ```powershell
-python -m containers.discovery.test.harness_mvp_boundary --transcript-file containers/discovery/test/fixtures/apex_resins_recall.txt --report
-pytest containers/discovery/test/test_mvp_validator.py -q
+python -m containers.discovery.test.harness_mvp_boundary --transcript-file containers/discovery/test/fixtures/apex_resins_recall.txt --planner-offline --report
+pytest containers/discovery/test/test_planner_v1_worthiness.py -m golden -q
 pytest containers/discovery/test/ -q
 ```
 
-### Phase 6 — Default-on + deprecate classifier scope
+### Phase 6 — Default-on + offline fallback ✅
 
-- Flip `DISCOVERY_USE_MVP_PLANNER=true` by default
-- `scope_mvp_seeds` remains fallback + user override path only
-- Update `10_MVP_BOUNDARY_V1_PLAN.md` checklist
+- `DISCOVERY_USE_MVP_PLANNER` defaults **true** (set `false` to use legacy classifier)
+- LLM planner falls back to offline draft+validate on failure
+- Unit tests force `DISCOVERY_USE_MVP_PLANNER=false` via conftest
 
 ---
 
@@ -172,13 +173,14 @@ pytest containers/discovery/test/ -q
 
 ## 7. Verification checklist (Step 1 v1-worthy)
 
-- [ ] GM-DISC-01..04 still green (regression)
-- [x] GM-DISC-05 Apex Resins validator golden (`test_gm_disc_05_apex_resins_recall_plan`)
+- [x] GM-DISC-05 / PV1-01 Apex offline golden
+- [x] PV1-02..05 dummy inputs green
 - [ ] Live matrix ≥80%
-- [x] `mvp_plan` / `plan_reasoning` persisted when planner enabled
-- [ ] UI upload list includes promoted masters (Customer when Delivery Note seeded)
+- [x] `mvp_plan` / `plan_reasoning` / `promoted_doctypes` persisted when planner enabled
+- [x] UI upload list shows promoted masters badge
 - [x] Wrong niche (jobshop + batch expiry) caught by validator warning
 - [x] Legacy path works when `DISCOVERY_USE_MVP_PLANNER=false`
+- [x] Planner defaults on with offline LLM fallback
 
 ---
 
