@@ -52,6 +52,32 @@ class RecommendationResult(BaseModel):
     mvp_focus: MvpFocus = Field(default_factory=MvpFocus)
 
 
+class DoctypePlanEntry(BaseModel):
+    doctype: str
+    why: str = ""
+
+
+class MVPPlanResult(BaseModel):
+    """Structured Day-1 MVP plan from the discovery planner (replaces classifier scope)."""
+
+    niche_id: str = ""
+    niche_reasoning: str = ""
+    primary_bottleneck: str = ""
+    workflows_required: list[str] = Field(default_factory=list)
+    day1_doctypes: list[DoctypePlanEntry] = Field(default_factory=list)
+    deferred_doctypes: list[DoctypePlanEntry] = Field(default_factory=list)
+    dual_system_note: str = ""
+    reference_archetype_ids: list[str] = Field(default_factory=list)
+    plan_reasoning: str = ""
+    industry: str = ""
+    f3iche: Literal["trading", "manufacturing", "service"] = "manufacturing"
+    recommended_erp: str = ""
+    fit_score: int = 0
+    headline: str = ""
+    reasoning: str = ""
+    price_plan: Literal["Starter", "Standard", "Enterprise"] = "Standard"
+
+
 def _empty_coverage_dimension() -> dict[str, None]:
     return {"status": None, "value": None}
 
@@ -82,4 +108,26 @@ def coerce_recommendation_raw(raw: dict[str, Any]) -> dict[str, Any]:
         if token in ("null", "none", "undefined", "n/a", ""):
             focus["archetype_id"] = None
     out["mvp_focus"] = focus
+    return out
+
+
+def coerce_mvp_plan_raw(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize LLM planner JSON before Pydantic validation."""
+    out = dict(raw)
+    for key in ("day1_doctypes", "deferred_doctypes"):
+        entries = out.get(key) or []
+        normalized: list[dict[str, str]] = []
+        for entry in entries:
+            if isinstance(entry, str):
+                normalized.append({"doctype": entry.strip(), "why": ""})
+            elif isinstance(entry, dict):
+                normalized.append({
+                    "doctype": str(entry.get("doctype") or "").strip(),
+                    "why": str(entry.get("why") or ""),
+                })
+        out[key] = normalized
+    if out.get("workflows_required") is None:
+        out["workflows_required"] = []
+    if out.get("reference_archetype_ids") is None:
+        out["reference_archetype_ids"] = []
     return out
