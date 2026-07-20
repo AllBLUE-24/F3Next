@@ -86,8 +86,10 @@ export default function RecommendationPage() {
                 seed_doctypes: target.seed_doctypes || [],
                 deferred_doctypes: target.deferred_doctypes || [],
                 required_doctypes: target.required_doctypes || [],
+                promoted_doctypes: target.promoted_doctypes || data.promoted_doctypes || [],
                 dual_system_note: target.dual_system_note,
                 scoping_reasoning: target.scoping_reasoning,
+                plan_reasoning: data.plan_reasoning,
               });
             } else {
               try {
@@ -97,8 +99,10 @@ export default function RecommendationPage() {
                   seed_doctypes: preview.seed_doctypes,
                   deferred_doctypes: preview.deferred_doctypes,
                   required_doctypes: preview.required_doctypes,
-                  dual_system_note: preview.discovery_metadata?.target_structure?.dual_system_note,
+                  promoted_doctypes: preview.promoted_doctypes,
+                  dual_system_note: preview.dual_system_note ?? preview.discovery_metadata?.target_structure?.dual_system_note,
                   scoping_reasoning: preview.discovery_metadata?.target_structure?.scoping_reasoning,
+                  plan_reasoning: preview.plan_reasoning,
                 });
               } catch (previewErr) {
                 console.warn("Workflow preview load failed:", previewErr);

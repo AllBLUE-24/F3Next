@@ -282,6 +282,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
             "seed_doctypes": target_payload.get("seed_doctypes", []),
             "deferred_doctypes": deferred_seeds,
             "required_doctypes": target_payload.get("required_doctypes", []),
+            "promoted_doctypes": (
+                (target_structure.get("mvp_boundary") or {}).get("promoted_doctypes")
+                or discovery_metadata.get("promoted_doctypes")
+                or []
+            ),
             "setup_steps": target_structure.get("setup_steps", []),
             "import_phases": target_structure.get("import_phases", {}),
             "target_structure_id": target_payload.get("target_structure_id"),
@@ -336,6 +341,7 @@ async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
     seed_doctypes = target_meta.get("seed_doctypes", [])
     deferred_seeds = target_meta.get("deferred_doctypes", [])
     required_doctypes = target_meta.get("required_doctypes", [])
+    promoted_doctypes = target_meta.get("promoted_doctypes") or metadata.get("promoted_doctypes") or []
 
     # Fallback: read from project_target_structures if hooks JSON was not persisted
     if not workflow_explanation or not seed_doctypes:
@@ -387,6 +393,9 @@ async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
         "seed_doctypes": seed_doctypes,
         "deferred_doctypes": deferred_seeds,
         "required_doctypes": required_doctypes,
+        "promoted_doctypes": promoted_doctypes,
+        "dual_system_note": metadata.get("dual_system_note") or target_meta.get("dual_system_note", ""),
+        "plan_reasoning": metadata.get("plan_reasoning", ""),
         "discovery_metadata": metadata,
     }
 

@@ -119,6 +119,31 @@ async def _run_with_llm(messages: list[dict], *, enhance_target: bool, use_llm_n
     }
 
 
+async def _run_planner_offline_async(messages: list[dict]) -> dict[str, Any]:
+    from containers.discovery.mvp_plan_draft import finalize_offline_mvp_plan
+    from containers.discovery.target.build_target import build_discovery_target
+
+    chat_transcript = transcript_text(messages)
+    offline = finalize_offline_mvp_plan(transcript=chat_transcript)
+
+    target = await build_discovery_target(
+        f3iche=offline["f3iche_niche"],
+        mvp_focus=offline["mvp_focus"],
+        chat_transcript=chat_transcript,
+    )
+    return {
+        "pipeline": "planner_offline",
+        "messages": messages,
+        "chat_transcript": chat_transcript,
+        "niche_id": offline["f3iche_niche"],
+        "mvp_focus": offline["mvp_focus"],
+        "mvp_boundary": target.get("mvp_boundary", {}),
+        "target": target,
+        "promoted_doctypes": offline.get("promoted_doctypes") or [],
+        "validation": offline.get("validation"),
+    }
+
+
 def _run_without_llm(messages: list[dict], *, f3iche_override: str | None) -> dict[str, Any]:
     from containers.discovery.niche_resolver import resolve_discovery_f3iche_niche
     from containers.discovery.mvp_scoping import scope_mvp_seeds
@@ -392,6 +417,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Full chat history JSON [{role, content}, ...] including user turns",
     )
     p.add_argument(
+        "--planner-offline",
+        action="store_true",
+        help="Offline planner draft + validator + build_target (no LLM)",
+    )
+    p.add_argument(
         "--no-llm",
         action="store_true",
         help="Skip LLM extract/recommend; regex scoping on transcript only (debug)",
@@ -448,7 +478,9 @@ def main(argv: list[str] | None = None) -> int:
 
     messages = _load_messages(args)
 
-    if args.no_llm:
+    if args.planner_offline:
+        result = asyncio.run(_run_planner_offline_async(messages))
+    elif args.no_llm:
         result = _run_without_llm(messages, f3iche_override=args.f3iche)
     else:
         use_llm_niche = True if args.llm_niche else None

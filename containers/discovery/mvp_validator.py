@@ -264,6 +264,18 @@ def validate_mvp_plan(
                     notes.append(f"Promoted {candidate} for upstream raw-material trace.")
                     missing = [d for d in required if d not in day1_set]
                     break
+        elif signal == "customer_recall":
+            for candidate in ("Delivery Note", "Customer"):
+                if candidate not in template_set or candidate in day1_set:
+                    continue
+                if candidate in deferred_set:
+                    deferred = [d for d in deferred if d != candidate]
+                    deferred_set.discard(candidate)
+                day1.append(candidate)
+                promoted.append(candidate)
+                day1_set.add(candidate)
+                notes.append(f"Promoted {candidate} for downstream customer recall trace.")
+            missing = [d for d in required if d not in day1_set]
         if missing:
             issues.append(ValidationIssue(
                 code=f"MISSING_{signal.upper()}",

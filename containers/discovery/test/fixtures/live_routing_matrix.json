@@ -100,14 +100,15 @@
       "notes": "Tally black-box WIP; tally_dual acceptable when LLM emphasizes dual-system pain"
     },
     {
-      "id": "LR-DISC-10",
-      "name": "golden_wip_mirror",
-      "fixture": "green_surface_wip.txt",
+      "id": "LR-DISC-11",
+      "name": "apex_resins_recall",
+      "fixture": "apex_resins_recall.txt",
       "f3iche_id": "manufacturing_project_chemical",
       "expect_niche": "manufacturing_project_chemical",
-      "expect_archetype": "factory_wip_bridge",
+      "expect_archetype": "batch_expiration_obsolescence",
+      "accept_alternate_archetypes": ["inventory_visibility"],
       "deterministic_only": true,
-      "notes": "Mirrors GM-DISC-01; full scoping in golden_mvp_boundary.json"
+      "notes": "Mirrors GM-DISC-05 / PV1-01; offline planner+validator gate"
     }
   ]
 }

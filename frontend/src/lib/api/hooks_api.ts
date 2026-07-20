@@ -97,6 +97,9 @@ export interface WorkflowPreviewResponse {
   seed_doctypes: string[];
   deferred_doctypes?: string[];
   required_doctypes: string[];
+  promoted_doctypes?: string[];
+  dual_system_note?: string;
+  plan_reasoning?: string;
   discovery_metadata?: Record<string, unknown>;
 }
 

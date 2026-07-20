@@ -28,8 +28,10 @@ interface WorkflowPreviewDisplayProps {
     seed_doctypes: string[];
     deferred_doctypes?: string[];
     required_doctypes?: string[];
+    promoted_doctypes?: string[];
     dual_system_note?: string;
     scoping_reasoning?: string;
+    plan_reasoning?: string;
   };
   onConfirm: (adjustments: {
     confirmed_doctypes: string[];
@@ -67,6 +69,10 @@ export default function WorkflowPreviewDisplay({
   }, [preview.workflow_explanation.expected_data, preview.seed_doctypes]);
 
   const deferred = preview.deferred_doctypes ?? [];
+  const promoted = useMemo(
+    () => new Set(preview.promoted_doctypes ?? []),
+    [preview.promoted_doctypes]
+  );
 
   const toggle = (doctype: string, checked: boolean) => {
     setSelected((prev) => {
@@ -121,7 +127,14 @@ export default function WorkflowPreviewDisplay({
                 onChange={(e) => toggle(item.doctype, e.target.checked)}
               />
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-white text-sm">{item.user_friendly_name}</div>
+                <div className="font-semibold text-white text-sm flex items-center gap-2 flex-wrap">
+                  {item.user_friendly_name}
+                  {promoted.has(item.doctype) && (
+                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                      Required for traceability
+                    </span>
+                  )}
+                </div>
                 <div className="text-zinc-500 text-xs mt-1">{item.description}</div>
                 {item.example_files?.length > 0 && (
                   <div className="text-zinc-600 text-xs mt-2">
