@@ -10,6 +10,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _discovery_golden_env(request, monkeypatch):
     """Force core-only path for golden MVP boundary tests."""
+    monkeypatch.setenv("DISCOVERY_USE_MVP_PLANNER", "false")
     if request.node.get_closest_marker("golden"):
         monkeypatch.setenv("DISCOVERY_USE_MVP_MAP_FALLBACK", "false")
         monkeypatch.setenv("DISCOVERY_USE_LEGACY_REGEX_SCOPING", "false")

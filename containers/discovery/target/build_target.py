@@ -284,6 +284,7 @@ async def build_discovery_target(
         "llm_reasoning": llm_reasoning or scoping.get("scoping_reasoning", ""),
         "plan_reasoning": (mvp_focus or {}).get("plan_reasoning"),
         "planner_validated": scoping["scoping_mode"] == "planner_validated",
+        "promoted_doctypes": (mvp_focus or {}).get("promoted_doctypes") or [],
         "signal_match_candidates": scoping.get("signal_match_candidates") or [],
         "llm_archetype_id": scoping.get("llm_archetype_id"),
         "llm_archetype_signal_score": scoping.get("llm_archetype_signal_score"),

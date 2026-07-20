@@ -29,8 +29,8 @@ from containers.discovery.niche_resolver import f3iche_template_path
 
 logger = logging.getLogger(__name__)
 
-_USE_PLANNER = os.getenv("DISCOVERY_USE_MVP_PLANNER", "false").lower() in (
-    "1", "true", "yes",
+_USE_PLANNER = os.getenv("DISCOVERY_USE_MVP_PLANNER", "true").lower() not in (
+    "0", "false", "no",
 )
 _PLANNER_MODEL = os.getenv("DISCOVERY_PLANNER_MODEL", os.getenv("DISCOVERY_EXTRACT_MODEL", "gpt-4o-mini"))
 _PLANNER_TEMPERATURE = float(os.getenv("DISCOVERY_PLANNER_TEMPERATURE", "0.2"))
@@ -139,24 +139,37 @@ async def plan_day1_mvp(
     """
     Plan Day-1 MVP with LLM reasoning + deterministic validation.
 
-    Returns dict with keys: plan (MVPPlanResult dict), validation, mvp_focus, f3iche_niche.
+    Falls back to offline draft+validate when LLM is unavailable.
     """
     legacy = _legacy_system_value(coverage)
     bottleneck = str((coverage.get("pain_point") or {}).get("value") or "")
 
-    reference = await _reference_patterns(bottleneck, f3iche_id_hint)
+    try:
+        reference = await _reference_patterns(bottleneck, f3iche_id_hint)
 
-    prompt = MVP_PLANNER_PROMPT.format(
-        transcript=transcript[:8000],
-        coverage_summary=_coverage_summary(coverage),
-        legacy_system=legacy or "(none stated)",
-        niche_catalog=_niche_catalog_summary(),
-        reference_patterns=reference[:6000],
-        graph_summary=_graph_summary(),
-    )
+        prompt = MVP_PLANNER_PROMPT.format(
+            transcript=transcript[:8000],
+            coverage_summary=_coverage_summary(coverage),
+            legacy_system=legacy or "(none stated)",
+            niche_catalog=_niche_catalog_summary(),
+            reference_patterns=reference[:6000],
+            graph_summary=_graph_summary(),
+        )
 
-    raw = await _invoke_planner_llm(prompt)
-    plan = MVPPlanResult.model_validate(raw)
+        raw = await _invoke_planner_llm(prompt)
+        plan = MVPPlanResult.model_validate(raw)
+    except Exception as exc:
+        logger.warning("MVP planner LLM failed, using offline draft+validate: %r", exc)
+        from containers.discovery.mvp_plan_draft import finalize_offline_mvp_plan
+
+        offline = finalize_offline_mvp_plan(
+            transcript=transcript,
+            coverage=coverage,
+            industry=str((coverage.get("industry") or {}).get("value") or ""),
+            f3iche_hint=broad_f3iche,
+        )
+        offline["niche_resolution_source"] = "planner_offline_fallback"
+        return offline
 
     # Resolve template for validation allowlist
     niche_id = plan.niche_id or f3iche_id_hint or ""
@@ -222,6 +235,7 @@ async def plan_day1_mvp(
         "defer_modules_mentioned": deferred_names,
         "planner_day1_seeds": day1_names,
         "plan_reasoning": plan.plan_reasoning,
+        "promoted_doctypes": validation.promoted_doctypes,
     }
 
     return {
@@ -232,6 +246,7 @@ async def plan_day1_mvp(
         "niche_resolution_source": "planner",
         "day1_doctypes": day1_names,
         "deferred_doctypes": deferred_names,
+        "promoted_doctypes": validation.promoted_doctypes,
         "dual_system_note": plan.dual_system_note,
         "plan_reasoning": plan.plan_reasoning,
         "recommendation": {

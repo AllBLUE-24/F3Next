@@ -278,6 +278,7 @@ async def complete_discovery(
             "mvp_plan_validation": planner_result["validation"],
             "plan_reasoning": planner_result.get("plan_reasoning", ""),
             "dual_system_note": planner_result.get("dual_system_note", ""),
+            "promoted_doctypes": planner_result.get("promoted_doctypes") or [],
             "scoping_mode": "planner_validated",
         }
         return {
