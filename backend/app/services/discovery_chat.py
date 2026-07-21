@@ -6,6 +6,7 @@ Step 1: Discovery Assistant — chat → MVP/target draft → workflow preview �
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -30,6 +31,8 @@ from containers.discovery.target.persist import generate_project_target_structur
 from shared.models.core import Project
 from shared.models.hooks import Hook
 from shared.models.project_target import ProjectTargetStructure
+
+logger = logging.getLogger(__name__)
 
 
 async def get_or_create_hook(db: AsyncSession, project_id: UUID) -> Hook:
@@ -132,6 +135,19 @@ async def send_chat_message(db: AsyncSession, project_id: UUID, user_message: st
             "ready_for_recommendation": False,
         }
 
+    if hook.discovery_status == "AWAITING_CLARIFICATION":
+        return {
+            "reply": (
+                "Please answer the clarifying questions on screen so I can lock your Day-1 plan."
+            ),
+            "messages": normalize_messages(hook.chat_history),
+            "status": hook.discovery_status,
+            "phase": DiscoveryPhase.CLARIFICATION.value,
+            "is_complete": False,
+            "is_finalized": False,
+            "ready_for_recommendation": False,
+        }
+
     messages = _ensure_opening(hook)
     user_turns = count_user_turns(messages)
 
@@ -198,12 +214,13 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     """End chat, optionally clarify, then generate MVP/target draft + workflow preview."""
     from containers.discovery.discovery_assurance import compute_assurance
     from containers.discovery.discovery_clarify import (
+        append_clarifications_to_transcript,
         build_clarifying_questions,
         needs_clarification,
     )
 
     hook = await get_or_create_hook(db, project_id)
-    metadata = hook.discovery_metadata or {}
+    metadata = dict(hook.discovery_metadata or {})
     phase = get_phase(metadata)
 
     if phase == DiscoveryPhase.FINALIZED and hook.discovery_status == "COMPLETE":
@@ -232,13 +249,18 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     if count_user_turns(messages) < 1:
         raise ValueError("Need at least one exchange before generating a recommendation.")
 
-    # Lightweight extract for clarification gating
     from containers.discovery.chat_service import extract_from_transcript
 
-    extraction = await extract_from_transcript(messages)
-    coverage = extraction["coverage"]
-    transcript = transcript_text(messages)
     clarification_answers = dict(metadata.get("clarification_answers") or {})
+    transcript = transcript_text(messages)
+
+    # Reuse coverage from first /complete when continuing after clarification
+    if clarification_answers and hook.discovery_coverage:
+        coverage = hook.discovery_coverage
+    else:
+        extraction = await extract_from_transcript(messages)
+        coverage = extraction["coverage"]
+        hook.discovery_coverage = coverage
 
     if needs_clarification(
         transcript,
@@ -256,7 +278,6 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
             "clarifying_questions": [q.to_dict() for q in questions],
             "clarification_answers": clarification_answers,
         }
-        hook.discovery_coverage = coverage
         hook.discovery_metadata = clarification_metadata
         flag_modified(hook, "discovery_metadata")
         hook.discovery_status = "AWAITING_CLARIFICATION"
@@ -268,10 +289,16 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
             "coverage": coverage,
         }
 
+    # Release DB connection before long LLM + target generation (avoids idle-in-tx timeout)
+    await db.commit()
+
     result = await complete_discovery(
         messages,
         clarification_answers=clarification_answers or None,
     )
+
+    hook = await get_or_create_hook(db, project_id)
+    metadata = dict(hook.discovery_metadata or {})
 
     niche_id = result["discovery_metadata"].get("f3iche_niche") or result.get("f3iche_niche")
     niche_source = result["discovery_metadata"].get("niche_resolution_source") or "keyword"
@@ -281,8 +308,13 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     bottleneck = mvp_focus.get("primary_bottleneck", "")
 
     validation = result["discovery_metadata"].get("mvp_plan_validation") or {}
+    assurance_transcript = (
+        append_clarifications_to_transcript(transcript, clarification_answers)
+        if clarification_answers
+        else transcript
+    )
     assurance = compute_assurance(
-        transcript=transcript,
+        transcript=assurance_transcript,
         niche_id=niche_id or "manufacturing_project_chemical",
         validation=validation,
         coverage=coverage,
@@ -300,7 +332,7 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         niche_id = resolve_discovery_f3iche_niche(
             discovery_f3iche=broad_f3iche,
             industry=industry,
-            chat_transcript=transcript_text(messages),
+            chat_transcript=assurance_transcript,
         )
 
     discovery_metadata = {
@@ -317,11 +349,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "validator_warnings": validator_warnings,
     }
 
-    # Persist metadata before target generation (post_discovery_service reads hooks.discovery_metadata)
     hook.discovery_coverage = result["coverage"]
     hook.extracted_tags = []
     hook.discovery_metadata = discovery_metadata
-    await db.flush()
+    flag_modified(hook, "discovery_metadata")
+    await db.commit()
 
     project = await _get_project(db, project_id)
     target_payload = await generate_project_target_structure(
@@ -337,7 +369,13 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
 
     from containers.discovery.upload_schema_preview import build_upload_schema_preview
 
-    upload_schema = build_upload_schema_preview(seed_doctypes)
+    try:
+        upload_schema = build_upload_schema_preview(seed_doctypes)
+    except Exception as exc:
+        logger.warning("Upload schema preview skipped: %r", exc)
+        upload_schema = {}
+
+    await db.commit()
 
     workflow_explanation = await generate_workflow_explanation(
         f3iche=niche_id,
@@ -345,14 +383,14 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         bottleneck=bottleneck,
         target_structure=target_structure or {},
         coverage=result["coverage"],
-        chat_transcript=transcript_text(messages),
+        chat_transcript=assurance_transcript,
         mvp_focus=mvp_focus,
         deferred_seeds=deferred_seeds,
         dual_system_note=scoping.get("dual_system_note", ""),
         scoping_reasoning=scoping.get("scoping_reasoning", ""),
     )
 
-    # New dict + flag_modified — in-place JSON mutations are not persisted by SQLAlchemy
+    hook = await get_or_create_hook(db, project_id)
     discovery_metadata = {
         **discovery_metadata,
         "target_structure": {
@@ -432,6 +470,7 @@ async def submit_clarification_answers(
     flag_modified(hook, "discovery_metadata")
     hook.discovery_status = "ACTIVE"
     await db.commit()
+    await db.refresh(hook)
     return await finalize_discovery(db, project_id)
 
 

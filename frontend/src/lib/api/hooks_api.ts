@@ -2,6 +2,23 @@
 import { getBaseApiUrl } from "@/lib/config";
 const API_BASE_URL = getBaseApiUrl();
 
+function formatApiError(detail: unknown, fallback: string): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) =>
+        typeof item === "object" && item && "msg" in item
+          ? String((item as { msg?: string }).msg)
+          : String(item)
+      )
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    return JSON.stringify(detail);
+  }
+  return fallback;
+}
+
 // --- Discovery Chat (sync, ChatGPT-style) ---
 
 export interface ChatMessage {
@@ -115,7 +132,7 @@ export const submitDiscoveryClarification = async (payload: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Clarification failed (${res.status})`);
+    throw new Error(formatApiError(err.detail, `Clarification failed (${res.status})`));
   }
   return res.json();
 };
