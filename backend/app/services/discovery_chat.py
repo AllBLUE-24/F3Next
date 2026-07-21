@@ -290,6 +290,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
             transcript, coverage=coverage
         ),
     )
+    validator_warnings = [
+        i for i in (validation.get("issues") or [])
+        if i.get("severity") == "warning"
+    ]
+    promotion_reasons = validation.get("promotion_reasons") or {}
 
     if not niche_id:
         niche_id = resolve_discovery_f3iche_niche(
@@ -307,6 +312,9 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "assurance": assurance.to_dict(),
         "closure_test": (result["discovery_metadata"].get("mvp_plan") or {}).get("closure_test")
         or mvp_focus.get("plan_reasoning", ""),
+        "plan_reasoning": mvp_focus.get("plan_reasoning", ""),
+        "promotion_reasons": promotion_reasons,
+        "validator_warnings": validator_warnings,
     }
 
     # Persist metadata before target generation (post_discovery_service reads hooks.discovery_metadata)
@@ -325,6 +333,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     target_structure = target_payload.get("target_structure") or {}
     scoping = target_structure.get("scoping") or {}
     deferred_seeds = target_payload.get("deferred_doctypes") or target_structure.get("deferred_doctypes") or []
+    seed_doctypes = target_payload.get("seed_doctypes") or []
+
+    from containers.discovery.upload_schema_preview import build_upload_schema_preview
+
+    upload_schema = build_upload_schema_preview(seed_doctypes)
 
     workflow_explanation = await generate_workflow_explanation(
         f3iche=niche_id,
@@ -361,6 +374,7 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         },
         "workflow_explanation": workflow_explanation,
         "phase": DiscoveryPhase.MODULE_CONFIRMATION.value,
+        "upload_schema_preview": upload_schema,
     }
 
     headline = result["discovery_metadata"].get("headline", "")
@@ -395,6 +409,10 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "workflow_preview": workflow_explanation,
         "assurance": discovery_metadata.get("assurance"),
         "closure_test": discovery_metadata.get("closure_test", ""),
+        "plan_reasoning": discovery_metadata.get("plan_reasoning", ""),
+        "promotion_reasons": discovery_metadata.get("promotion_reasons") or {},
+        "validator_warnings": discovery_metadata.get("validator_warnings") or [],
+        "upload_schema_preview": discovery_metadata.get("upload_schema_preview") or {},
     }
 
 
@@ -483,6 +501,9 @@ async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
         "plan_reasoning": metadata.get("plan_reasoning", ""),
         "assurance": metadata.get("assurance"),
         "closure_test": metadata.get("closure_test", ""),
+        "promotion_reasons": metadata.get("promotion_reasons") or {},
+        "validator_warnings": metadata.get("validator_warnings") or [],
+        "upload_schema_preview": metadata.get("upload_schema_preview") or {},
         "discovery_metadata": metadata,
     }
 
