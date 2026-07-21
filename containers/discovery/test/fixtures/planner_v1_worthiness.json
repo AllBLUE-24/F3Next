@@ -17,7 +17,7 @@
       "expect": {
         "niche_id": "manufacturing_project_chemical",
         "niche_not": ["manufacturing_fabrication_jobshop"],
-        "must_include": ["Batch", "Customer", "Delivery Note", "Item", "Warehouse"],
+        "must_include": ["Batch", "Customer", "Delivery Note", "Item", "Stock Entry", "Warehouse"],
         "must_exclude": ["Sales Invoice", "Payment Entry"]
       }
     },
@@ -31,7 +31,7 @@
       },
       "expect": {
         "niche_id": "manufacturing_project_chemical",
-        "must_include": ["Item", "BOM", "Work Order"]
+        "must_include": ["Item", "BOM", "Work Order", "Job Card", "Stock Entry", "Warehouse"]
       }
     },
     {
@@ -66,6 +66,21 @@
       "expect": {
         "niche_id": "manufacturing_project_chemical",
         "must_include": ["Item", "Batch", "Stock Entry"]
+      }
+    },
+    {
+      "id": "PV1-06",
+      "name": "cleaning_chemicals_yield_routing",
+      "fixture": "cleaning_chemicals_yield.txt",
+      "coverage": {
+        "legacy_system": {"value": "Tally", "status": "confirmed"},
+        "pain_point": {"value": "yield variance and inaccurate product costing", "status": "confirmed"},
+        "industry": {"value": "industrial cleaning chemicals", "status": "confirmed"}
+      },
+      "expect": {
+        "niche_id": "manufacturing_project_chemical",
+        "must_include": ["Item", "BOM", "Work Order", "Job Card", "Stock Entry", "Warehouse"],
+        "must_exclude": ["Sales Invoice", "Payment Entry"]
       }
     }
   ]

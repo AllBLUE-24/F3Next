@@ -14,6 +14,10 @@ from typing import Any, Optional
 
 from containers.discovery.archetype_registry import list_archetype_ids, get_by_id
 from containers.discovery.bottleneck_context import build_bottleneck_hint_context
+from containers.discovery.erpnext_planner_context import (
+    ERP_NEXT_OPERATING_SEMANTICS,
+    build_rich_graph_summary,
+)
 from containers.discovery.mvp_validator import (
     validate_mvp_plan,
     validation_errors_for_planner,
@@ -78,19 +82,7 @@ def _niche_catalog_summary() -> str:
 
 
 def _graph_summary() -> str:
-    graph = _load_graph()
-    key_dts = [
-        "Batch", "Item", "Stock Entry", "Delivery Note", "Customer",
-        "Supplier", "Purchase Receipt", "Warehouse", "Work Order", "BOM",
-    ]
-    lines: list[str] = []
-    for dt in key_dts:
-        info = graph.get("doctypes", {}).get(dt, {})
-        deps = info.get("depends_on") or []
-        req = info.get("required_fields") or []
-        if info:
-            lines.append(f"- {dt}: depends_on={deps}; required_fields={req}")
-    return "\n".join(lines)
+    return build_rich_graph_summary()
 
 
 def _coverage_summary(coverage: dict[str, Any]) -> str:
@@ -107,8 +99,17 @@ def _legacy_system_value(coverage: dict[str, Any]) -> str:
     return str((coverage.get("legacy_system") or {}).get("value") or "")
 
 
-async def _reference_patterns(primary_bottleneck: str, f3iche_id: Optional[str]) -> str:
-    ctx = await build_bottleneck_hint_context(primary_bottleneck, f3iche_id=f3iche_id)
+async def _reference_patterns(
+    transcript: str,
+    primary_bottleneck: str,
+    f3iche_id: Optional[str],
+) -> str:
+    ctx = await build_bottleneck_hint_context(
+        primary_bottleneck,
+        f3iche_id=f3iche_id,
+        transcript=transcript,
+        top_k=3,
+    )
     return ctx or "(no patterns retrieved)"
 
 
@@ -145,7 +146,7 @@ async def plan_day1_mvp(
     bottleneck = str((coverage.get("pain_point") or {}).get("value") or "")
 
     try:
-        reference = await _reference_patterns(bottleneck, f3iche_id_hint)
+        reference = await _reference_patterns(transcript, bottleneck, f3iche_id_hint)
 
         prompt = MVP_PLANNER_PROMPT.format(
             transcript=transcript[:8000],
@@ -153,6 +154,7 @@ async def plan_day1_mvp(
             legacy_system=legacy or "(none stated)",
             niche_catalog=_niche_catalog_summary(),
             reference_patterns=reference[:6000],
+            erp_semantics=ERP_NEXT_OPERATING_SEMANTICS,
             graph_summary=_graph_summary(),
         )
 

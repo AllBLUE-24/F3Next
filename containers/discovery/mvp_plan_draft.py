@@ -14,6 +14,7 @@ from containers.discovery.archetype_registry import (
     get_by_id,
     signal_match_rankings,
 )
+from containers.discovery.workflow_closure import detect_workflow_signals
 from containers.discovery.mvp_validator import validate_mvp_plan
 from containers.discovery.mvp_scoping import scope_mvp_seeds
 from containers.discovery.niche_resolver import (
@@ -42,6 +43,11 @@ def _transcript_has_recall_batch_pain(transcript: str) -> bool:
     return recall and batch
 
 
+def _transcript_is_wip_yield_routing(transcript: str) -> bool:
+    signals = detect_workflow_signals(transcript)
+    return bool(signals & {"yield_routing", "wip_visibility", "material_consumption"})
+
+
 def _resolve_offline_archetype_id(
     transcript: str,
     f3iche_id: str,
@@ -54,6 +60,10 @@ def _resolve_offline_archetype_id(
         for preferred in ("batch_expiration_obsolescence", "inventory_visibility"):
             if get_by_id(preferred, f3iche_id):
                 return preferred
+
+    if _transcript_is_wip_yield_routing(transcript):
+        if get_by_id("factory_wip_bridge", f3iche_id):
+            return "factory_wip_bridge"
 
     rankings = signal_match_rankings(transcript, f3iche_id, top_k=3)
     if rankings:

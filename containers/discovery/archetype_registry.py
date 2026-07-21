@@ -58,6 +58,9 @@ _GRAPH_EXTENSION_ALLOWLIST = frozenset({
     "Currency Exchange",
 })
 
+# Public alias for validator allowlist checks
+GRAPH_EXTENSION_ALLOWLIST = _GRAPH_EXTENSION_ALLOWLIST
+
 
 @lru_cache(maxsize=1)
 def _load_doctype_graph_keys() -> frozenset[str]:
@@ -118,8 +121,18 @@ def merged_archetypes(f3iche_id: Optional[str] = None) -> list[dict[str, Any]]:
             by_id[aid] = dict(entry)
     for entry in load_f3iche_archetypes(f3iche_id):
         aid = str(entry.get("archetype_id") or "").strip()
-        if aid:
-            by_id[aid] = dict(entry)
+        if not aid:
+            continue
+        base = by_id.get(aid, {})
+        merged_entry = {**base, **entry}
+        for key in ("signals", "functional_requirements", "day1_seed_hints", "defer_typically"):
+            combined = list(dict.fromkeys(
+                [str(x) for x in (base.get(key) or []) if x]
+                + [str(x) for x in (entry.get(key) or []) if x]
+            ))
+            if combined:
+                merged_entry[key] = combined
+        by_id[aid] = merged_entry
     return list(by_id.values())
 
 

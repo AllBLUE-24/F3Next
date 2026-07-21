@@ -20,8 +20,8 @@ CHEMICAL_TEMPLATE = [
 ]
 
 WIP_TRANSCRIPT = (
-    "excel sheets flying around work in progress black box true production cost "
-    "batch-wise profitability chemical formulations"
+    "Tally treats our factory like a black box. Zero visibility into Work-In-Progress (WIP). "
+    "batch-wise profitability. Chemical formulations in disconnected Excel sheets."
 )
 
 

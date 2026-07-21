@@ -123,7 +123,47 @@ def test_gm_disc_05_apex_resins_recall_plan():
         legacy_system="Tally",
     )
     assert result.valid
-    for dt in ("Batch", "Customer", "Delivery Note"):
+    for dt in ("Batch", "Customer", "Delivery Note", "Stock Entry"):
         assert dt in result.day1_doctypes
     assert any(d in result.day1_doctypes for d in ("Supplier", "Purchase Receipt"))
     assert "Sales Invoice" not in result.day1_doctypes
+
+
+YIELD_TRANSCRIPT = (
+    FIXTURES / "cleaning_chemicals_yield.txt"
+).read_text(encoding="utf-8")
+
+
+def test_yield_routing_promotes_job_card_and_stock_entry():
+    """Test #2 gap: WO+BOM without Job Card/Stock Entry fails closure."""
+    result = validate_mvp_plan(
+        day1_entries=["Item", "BOM", "Work Order", "Batch", "Purchase Receipt"],
+        deferred_entries=[
+            "Job Card", "Stock Entry", "Sales Invoice", "Delivery Note", "Customer",
+        ],
+        niche_id="manufacturing_project_chemical",
+        chat_transcript=YIELD_TRANSCRIPT,
+        template_seeds=CHEMICAL_TEMPLATE,
+        legacy_system="Tally",
+    )
+    assert result.valid
+    for dt in ("Job Card", "Stock Entry", "Warehouse"):
+        assert dt in result.day1_doctypes
+    assert "Job Card" in result.promoted_doctypes or "Stock Entry" in result.promoted_doctypes
+
+
+def test_manufacturing_batch_promotes_stock_entry_for_recall():
+    """Apex gap: batch trace + manufacture requires Stock Entry for genealogy."""
+    result = validate_mvp_plan(
+        day1_entries=[
+            "Batch", "Item", "Delivery Note", "Customer", "Supplier",
+            "Purchase Receipt", "Warehouse",
+        ],
+        deferred_entries=["Stock Entry", "Work Order", "Sales Invoice"],
+        niche_id="manufacturing_project_chemical",
+        chat_transcript=APEX_TRANSCRIPT,
+        template_seeds=CHEMICAL_TEMPLATE,
+        legacy_system="Tally",
+    )
+    assert result.valid
+    assert "Stock Entry" in result.day1_doctypes

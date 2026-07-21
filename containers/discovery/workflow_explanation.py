@@ -65,6 +65,11 @@ _DOCTYPE_LABELS: dict[str, tuple[str, str, list[str]]] = {
         "Dispersion, milling, letdown step records",
         ["job_cards.xlsx"],
     ),
+    "Workstation": (
+        "Production lines and machines",
+        "Vats, curing areas, bottling lines — where Job Cards record time",
+        ["workstation_list.xlsx", "machine_line_master.xls"],
+    ),
     "Project": (
         "Installation / site projects",
         "Turnkey jobs linking factory output to field crews",

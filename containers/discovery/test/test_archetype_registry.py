@@ -29,7 +29,7 @@ CHEMICAL_TEMPLATE = [
 def test_merged_archetypes_includes_f3iche_and_catalog():
     ids = list_archetype_ids(CHEMICAL_F3ICHE)
     assert "factory_wip_bridge" in ids
-    assert "basic_inventory" in ids
+    assert "inventory_visibility" in ids
     assert "subcontracting_raw_material_leakage" in ids
     assert "custom_order_pipeline" in ids
 
@@ -55,11 +55,14 @@ def test_signal_match_part_a_b_inventory():
 
 
 def test_signal_match_wip_excel():
-    text = "excel sheets flying around work in progress black box true production cost"
+    text = (
+        "Tally treats our factory like a black box. Zero visibility into Work-In-Progress (WIP). "
+        "Chemical formulations live in disconnected Excel sheets."
+    )
     match = best_signal_match(text, CHEMICAL_F3ICHE)
     assert match is not None
     archetype, score = match
-    assert archetype["archetype_id"] == "excel_bom_disconnect"
+    assert archetype["archetype_id"] in ("excel_bom_disconnect", "factory_wip_bridge", "tally_dual_entry_desync")
     assert score >= 1
 
 

@@ -36,7 +36,9 @@
       "archetype_id": "factory_wip_bridge",
       "primary_bottleneck": "Unbalanced and untracked WIP stock on the shop floor causes phantom costs and operational paralysis.",
       "signals": [
-        "Tally treats factory like a black box", "Tally fine, factory blind, WIP unknown", "where is my order", 
+        "Tally treats factory like a black box", "Tally fine, factory blind, WIP unknown", "factory floor is a black box",
+        "factory floor is a blackbox", "yield variance", "machine time at each step", "routing process",
+        "product costing is completely inaccurate", "material consumption at each step", "where is my order", 
         "how much raw material is currently on the shop floor", "machines are sitting idle but we don't know why",
         "we don't know which stage the semi-finished goods are stuck at", "labor is waiting around for the previous batch to finish",
         "no idea how many pieces are sitting at the welding station", "we track production on paper cards that get lost",
@@ -55,7 +57,7 @@
       "primary_bottleneck": "Product recipes and bills of materials managed in offline spreadsheets and chat threads.",
       "signals": [
         "We keep halting production because we forgot to order a 10-cent screw", "BOM/recipes in Excel/WhatsApp", 
-        "excel sheets for bills of materials", "sharing product recipes over whatsapp", "outdated purchasing lists",
+        "excel sheets", "disconnected Excel sheets", "excel sheets for bills of materials",
         "procurement bought the wrong size because they used an old spreadsheet", "production is using a different recipe than what was quoted",
         "designer changed the drawings but didn't update the factory", "no central place for approved product specifications",
         "we don't know the exact cost of making this item", "estimating raw materials needed is a guessing game",
@@ -142,6 +144,8 @@
       "primary_bottleneck": "Unorganized manual dispatching and tracking of field service technicians.",
       "signals": [
         "Field service techs get WhatsApp repair requests, no central queue.", "WhatsApp repairs, no dispatch queue",
+        "WhatsApp repair requests with no central dispatch queue", "field service technicians",
+        "warranty claims and client site breakdowns", "manually assign jobs by phone",
         "dispatch chaos", "missed service", "service technicians are running around with no clear schedule",
         "we manage our service calls in a shared google sheet that gets corrupted", "customer is calling because the technician didn't show up today",
         "no central record of past maintenance visits for this machine", "scheduling technicians for onsite support is a manual nightmare",
@@ -210,6 +214,7 @@
       "primary_bottleneck": "Undocumented raw material waste and excessive scrap during manufacturing.",
       "signals": [
         "Crews pour wrong ratio, throw away half drums, site mixing errors.", "Site mixing errors, half drums wasted",
+        "throw away half drums", "site mixing errors", "wrong ratio", "scrap and rework",
         "scrap tracking", "waste percentage", "yield loss", "we throw away a lot of plastic scrap but don't record it anywhere",
         "no idea how much raw chemical is being wasted during setup", "operators are hiding their mixing mistakes by throwing away bad batches",
         "our raw material consumption is much higher than what the recipe says", "we need to account for scrap metal left over from the cutting process",
@@ -250,15 +255,6 @@
       "notes": "Perishable or chemical raw materials expire on warehouse shelves due to arbitrary physical stock rotation by workers. Relying on manual batch tracking results in significant material waste and high compliance risks during quality audits. Automating FEFO logic preserves working capital and satisfies regulatory quality standards."
     },
     {
-      "archetype_id": "supplier_lead_time_variance",
-      "primary_bottleneck": "Erratic supplier delivery times causing planning volatility.",
-      "signals": ["supplier delay", "delivery variance", "lead time error", "stockout", "we keep halting production because we forgot to order", "some suppliers take 5 days others take 20 days", "vendor promised tomorrow but it took a week", "no way to track vendor reliability", "we have to call our suppliers every morning to ask where the truck is", "production plan is useless because raw material arrival is unpredictable", "we are constantly expediting open POs over phone calls", "supplier lead time is a total mystery to our purchasing team", "we need to record the actual date we received items against the PO date", "late vendor shipments make us miss our own customer delivery dates", "no systematic way to rate our suppliers on delivery performance", "how do we know which vendor is consistently late"],
-      "functional_requirements": ["track_expected_versus_actual_delivery_dates", "calculate_supplier_on_time_delivery_metrics"],
-      "day1_seed_hints": ["Supplier", "Purchase Order", "Purchase Receipt", "Item", "Warehouse", "UOM"],
-      "defer_typically": ["Purchase Invoice", "Landed Cost Voucher"],
-      "notes": "Unpredictable supplier delivery schedules disrupt assembly runs and force expensive local market rush purchases. The disconnect in tracking lead times in Tally forces managers to maintain bloated safety buffers. Establishing actual lead-time variance analytics allows procurement to penalize underperforming vendors."
-    },
-    {
       "archetype_id": "customer_credit_limit_breach",
       "primary_bottleneck": "Shipping to customers with overdue balances.",
       "signals": ["credit limit breach", "overdue balance", "cash flow risk", "bad debt", "sales team is booking orders for customers who never pay", "we don't know the customer is over their limit until after we ship", "how do we block the warehouse from dispatching to bad accounts", "sales personnel are pushing orders through to meet their targets", "we need an automated credit hold on our sales orders", "manual credit checks are not happening fast enough", "aging receivables report in tally is always two weeks behind", "we need to stop sales before the goods leave our dock", "customer is constantly asking for more credit despite high pending balance", "no visibility into current credit limits at the time of order entry", "we are losing money on bad debts because credit controls are loose", "sales and accounting have different views on customer credit status"],
@@ -293,24 +289,6 @@
       "day1_seed_hints": ["Landed Cost Voucher", "Purchase Receipt", "Purchase Invoice", "Item", "Warehouse"],
       "defer_typically": ["Journal Entry", "Payment Entry"],
       "notes": "Import duties and freight fees are typically invoiced weeks after stock receipt, distorting immediate product profitability. Manual spreadsheet models designed to adjust item values are slow, causing inaccurate cost-of-goods-sold reporting. Capitalizing logistics fees directly into receipts secures gross margin accuracy."
-    },
-    {
-      "archetype_id": "inventory_visibility",
-      "primary_bottleneck": "Mismatched and delayed stock updates.",
-      "signals": ["real time stock", "inventory gap", "duplicate purchases", "Part A and B ship out of ratio", "moisture sensitive isocyanates", "how do we know our stock across all sites", "we bought items because we thought we were out", "warehouse team and sales team have different numbers", "stock is rotting in one branch while another is ordering it", "we need a single source of truth for stock levels", "how do we track batch and expiry across our network", "physical inventory counts never match the computer system", "we are shipping incomplete kits because components are spread everywhere", "no visibility into warehouse balances in real time", "we rely on memory rather than digital records for stock", "how to prevent duplicate purchasing when we have the stock in another branch"],
-      "functional_requirements": ["track_real_time_stock_balances_across_warehouses", "automate_inter_warehouse_stock_reconciliation"],
-      "day1_seed_hints": ["Warehouse", "Stock Entry", "Item", "Batch", "Serial No", "Delivery Note", "UOM"],
-      "defer_typically": ["Sales Order"],
-      "notes": "SMEs frequently build up redundant safety stock because they do not trust outdated inventory ledgers. Keeping Tally and the factory floor disconnected results in duplicate purchases and unrecorded work-in-progress stock. Activating a synchronized real-time stock balance restores confidence and frees locked-up working capital."
-    },
-    {
-      "archetype_id": "procurement_gap",
-      "primary_bottleneck": "Purchasing disconnected from velocity.",
-      "signals": ["procurement opacity", "mrp failure", "duplicate ordering", "material request", "forgot to order", "purchasing based on guesswork", "we don't know what is needed for the production run", "purchasing and production teams don't communicate", "how do we link sales demand to our buying plan", "we have too much of what we don't need", "fast-moving items are always out of stock", "no automation for our material requests", "purchasing team is working in a vacuum", "we need to align our orders with our current order book", "we are buying items we haven't sold in months", "purchasing doesn't know the production schedule for next week"],
-      "functional_requirements": ["automate_purchase_requisitions_based_on_demand_forecasting", "enforce_safety_stock_parameters_on_material_requests"],
-      "day1_seed_hints": ["Material Request", "Purchase Order", "Purchase Receipt", "Item", "Warehouse", "Supplier"],
-      "defer_typically": ["Quotation"],
-      "notes": "Purchasing departments in SMEs often operate based on intuition rather than actual consumption rates and sales demand. This isolation causes massive over-ordering of slow-moving items while fast-moving components remain out of stock. Connecting material requests directly to sales bookings balances stock levels."
     },
     {
       "archetype_id": "unreconciled_gate_pass_leak",
@@ -392,15 +370,6 @@
       "day1_seed_hints": ["Asset", "Asset Repair", "Purchase Invoice"],
       "defer_typically": ["Asset Capitalization"],
       "notes": "Organizations blindly spend money on repairing highly depreciated, obsolete machinery because maintenance expenses are lumped into general ledger overheads in Tally. Without tracking cumulative repair costs against specific equipment, management cannot identify when an asset has become a financial drain. Linking every repair invoice and parts issue directly to the asset master reveals the true cost of ownership."
-    },
-    {
-      "archetype_id": "service_dispatch_chaos",
-      "primary_bottleneck": "Disorganized scheduling.",
-      "signals": ["Field service techs get WhatsApp repair requests, no central queue.", "WhatsApp repairs, no dispatch queue", "coordinators are shouting across the office to assign service calls", "we missed a customer repair request because it was sent to an individual's email", "technicians don't know where they are supposed to go tomorrow", "no single dashboard to track pending service visits and field dispatches", "technicians are sitting idle because dispatch scheduling is slow", "customer called to complain that no technician showed up today", "jobs are assigned via verbal instructions, leading to missed appointments", "we have no queue system for incoming customer service complaints", "dispatching is totally disorganized and depends on who answers the phone first", "service requests are piling up on WhatsApp and we are losing track of them", "who is dispatched to the Gurgaon site today? Nobody knows", "we need to organize our technician visits into a central dispatch queue", "technician went to Noida when the client was actually in Delhi", "no way to prioritize which repair ticket gets dispatched first"],
-      "functional_requirements": ["manage_central_service_dispatch_queues", "automate_technician_skills_based_job_assignment", "digitize_service_request_intake", "track_real_time_dispatch_status"],
-      "day1_seed_hints": ["Issue", "Maintenance Visit", "Employee", "Customer", "Sales Order"],
-      "defer_typically": ["Work Order"],
-      "notes": "Receiving repair requests via raw WhatsApp chats or personal emails leaves dispatchers without a centralized work queue, causing tickets to get lost. This disorganization results in missed client appointments, chaotic technician scheduling, and lost service revenue. Establishing a structured dispatch pipeline ensures every request is logged, prioritized, and tracked to completion."
     },
     {
       "archetype_id": "gst_compliance_audit_gap",

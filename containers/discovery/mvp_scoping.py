@@ -40,7 +40,7 @@ def _signal_override_margin() -> int | None:
 
 _SIGNAL_OVERRIDE_MARGIN = _signal_override_margin()
 
-_MAX_DAY1_SEEDS = 8
+_MAX_DAY1_SEEDS = 10
 
 # Legacy regex rules — deprecated; enable only for rollback
 _LEGACY_SCOPING_RULES: list[dict[str, Any]] = [

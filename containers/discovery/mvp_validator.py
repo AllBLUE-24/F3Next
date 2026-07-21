@@ -13,7 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from containers.discovery.archetype_registry import canonicalize_seed
+from containers.discovery.archetype_registry import canonicalize_seed, GRAPH_EXTENSION_ALLOWLIST
+from containers.discovery.workflow_closure import apply_workflow_closure
 
 _GRAPH_PATH = (
     Path(__file__).parent.parent / "knowledge_base" / "erpnext" / "erpnext_doctype_graph.json"
@@ -199,7 +200,7 @@ def validate_mvp_plan(
     promoted: list[str] = []
 
     # Allow graph-extension doctypes not on template (Batch, etc.)
-    allowed = template_set | graph_keys
+    allowed = template_set | graph_keys | GRAPH_EXTENSION_ALLOWLIST
 
     for dt in day1:
         if dt not in allowed:
@@ -285,6 +286,36 @@ def validate_mvp_plan(
                 severity="error",
                 suggested_doctypes=missing,
             ))
+
+    # Workflow closure — manufacturing, routing, yield, WIP (senior consultant rules)
+    day1_set = set(day1)
+
+    def _workflow_missing(signal: str, missing: list[str]) -> None:
+        still_missing = [d for d in missing if d not in set(day1)]
+        if still_missing:
+            issues.append(ValidationIssue(
+                code=f"MISSING_{signal.upper()}",
+                message=(
+                    f"Workflow closure: transcript signals {signal!r} but Day-1 omits: "
+                    f"{', '.join(still_missing)}"
+                ),
+                severity="error",
+                suggested_doctypes=still_missing,
+            ))
+
+    apply_workflow_closure(
+        day1=day1,
+        deferred=deferred,
+        deferred_set=deferred_set,
+        promoted=promoted,
+        template_set=template_set,
+        graph_keys=graph_keys,
+        transcript=chat_transcript,
+        niche_id=niche_id,
+        notes=notes,
+        on_missing=_workflow_missing,
+    )
+    day1_set = set(day1)
 
     # Dual-system: defer invoicing, not operational trace masters
     if _is_dual_system(legacy_system):

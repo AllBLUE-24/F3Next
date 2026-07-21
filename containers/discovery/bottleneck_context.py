@@ -9,7 +9,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
-from containers.discovery.archetype_registry import load_catalog, merged_archetypes
+from containers.discovery.archetype_registry import (
+    get_by_id,
+    load_catalog,
+    merged_archetypes,
+    signal_match_rankings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +90,9 @@ def _format_archetype_line(a: dict[str, Any]) -> list[str]:
     defer = a.get("defer_typically") or []
     if defer:
         lines.append(f"  defer_typically: {', '.join(defer)}")
+    note = str(a.get("notes") or "").strip()
+    if note:
+        lines.append(f"  notes: {note}")
     return lines
 
 
@@ -140,21 +148,59 @@ def _format_merged_archetypes_for_prompt(
     return "\n".join(parts)
 
 
+def _format_ranked_archetypes(
+    rankings: list[dict[str, Any]],
+    f3iche_id: Optional[str],
+) -> str:
+    """Top signal-ranked archetypes for planner context (not full catalog dump)."""
+    entries: list[dict[str, Any]] = []
+    for rank in rankings:
+        entry = get_by_id(rank.get("archetype_id"), f3iche_id)
+        if entry:
+            entries.append({**entry, "_signal_score": rank.get("score", 0)})
+    if not entries:
+        return ""
+    header = (
+        f"TOP MATCHED REFERENCE PATTERNS (signal-ranked from transcript, "
+        f"top {len(entries)}):"
+    )
+    lines = [header]
+    for a in entries:
+        score = a.get("_signal_score", 0)
+        lines.append(f"\n[score={score}]")
+        lines.extend(_format_archetype_line(a))
+    return "\n".join(lines)
+
+
 async def build_bottleneck_hint_context(
     primary_bottleneck: str,
     *,
     f3iche_id: Optional[str] = None,
+    transcript: Optional[str] = None,
+    top_k: int = 3,
 ) -> str:
     """
-    Context block injected into RECOMMENDATION_PROMPT.
+    Context block for planner / recommendation prompts.
 
-    Uses merged_archetypes so global catalog and F3iche bottlenecks[] both reach the LLM.
+    When transcript is provided, returns signal-ranked top-k archetypes instead of
+    dumping the entire catalog (reduces noise, improves pattern matching).
     """
     parts: list[str] = []
     catalog = load_catalog()
-    merged_block = _format_merged_archetypes_for_prompt(f3iche_id, catalog=catalog)
-    if merged_block and not merged_block.startswith("(none"):
-        parts.append(merged_block)
+
+    retrieval_text = " ".join(
+        t for t in (transcript or "", primary_bottleneck or "") if t
+    ).strip()
+    if retrieval_text:
+        rankings = signal_match_rankings(retrieval_text, f3iche_id, top_k=top_k)
+        ranked_block = _format_ranked_archetypes(rankings, f3iche_id)
+        if ranked_block:
+            parts.append(ranked_block)
+
+    if not parts:
+        merged_block = _format_merged_archetypes_for_prompt(f3iche_id, catalog=catalog)
+        if merged_block and not merged_block.startswith("(none"):
+            parts.append(merged_block)
 
     if primary_bottleneck and USE_BOTTLENECK_RAG:
         try:
