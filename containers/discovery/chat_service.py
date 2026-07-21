@@ -231,8 +231,11 @@ async def complete_discovery(
     messages: list[dict],
     *,
     use_llm_niche: Optional[bool] = None,
+    clarification_answers: dict[str, Any] | None = None,
+    transcript_override: str | None = None,
 ) -> dict:
     """Extract signals, resolve niche, then plan or recommend Day-1 MVP."""
+    from containers.discovery.discovery_clarify import append_clarifications_to_transcript
     from containers.discovery.mvp_planner import plan_day1_mvp, planner_enabled
     from containers.discovery.niche_resolver import (
         infer_broad_f3iche,
@@ -241,7 +244,11 @@ async def complete_discovery(
 
     extraction = await extract_from_transcript(messages)
     coverage = extraction["coverage"]
-    chat_transcript = transcript_text(messages)
+    chat_transcript = transcript_override or transcript_text(messages)
+    if clarification_answers:
+        chat_transcript = append_clarifications_to_transcript(
+            chat_transcript, clarification_answers
+        )
 
     industry = (
         (coverage.get("industry") or {}).get("value")

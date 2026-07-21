@@ -7,6 +7,7 @@ Step 1: Discovery Assistant — chat → MVP/target draft → workflow preview �
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -72,6 +73,7 @@ def _session_payload(hook: Hook, messages: list[dict]) -> dict:
         DiscoveryPhase.WORKFLOW_DISPLAY,
         DiscoveryPhase.MODULE_CONFIRMATION,
     )
+    awaiting_clarification = phase == DiscoveryPhase.CLARIFICATION
 
     return {
         "messages": messages,
@@ -80,6 +82,8 @@ def _session_payload(hook: Hook, messages: list[dict]) -> dict:
         "is_complete": finalized,
         "is_finalized": finalized,
         "awaiting_confirmation": awaiting_confirmation,
+        "awaiting_clarification": awaiting_clarification,
+        "clarifying_questions": metadata.get("clarifying_questions") or [],
         "user_turns": user_turns,
         "ready_for_recommendation": user_turns >= 2 and hook.discovery_status != "COMPLETE",
         "discovery_metadata": metadata if metadata else None,
@@ -191,7 +195,13 @@ async def _get_project(db: AsyncSession, project_id: UUID) -> Project:
 
 
 async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
-    """End chat, generate MVP/target draft + workflow preview (not finalized yet)."""
+    """End chat, optionally clarify, then generate MVP/target draft + workflow preview."""
+    from containers.discovery.discovery_assurance import compute_assurance
+    from containers.discovery.discovery_clarify import (
+        build_clarifying_questions,
+        needs_clarification,
+    )
+
     hook = await get_or_create_hook(db, project_id)
     metadata = hook.discovery_metadata or {}
     phase = get_phase(metadata)
@@ -222,7 +232,46 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     if count_user_turns(messages) < 1:
         raise ValueError("Need at least one exchange before generating a recommendation.")
 
-    result = await complete_discovery(messages)
+    # Lightweight extract for clarification gating
+    from containers.discovery.chat_service import extract_from_transcript
+
+    extraction = await extract_from_transcript(messages)
+    coverage = extraction["coverage"]
+    transcript = transcript_text(messages)
+    clarification_answers = dict(metadata.get("clarification_answers") or {})
+
+    if needs_clarification(
+        transcript,
+        coverage=coverage,
+        clarification_answers=clarification_answers,
+    ):
+        questions = build_clarifying_questions(
+            transcript,
+            coverage=coverage,
+            clarification_answers=clarification_answers,
+        )
+        clarification_metadata = {
+            **metadata,
+            "phase": DiscoveryPhase.CLARIFICATION.value,
+            "clarifying_questions": [q.to_dict() for q in questions],
+            "clarification_answers": clarification_answers,
+        }
+        hook.discovery_coverage = coverage
+        hook.discovery_metadata = clarification_metadata
+        flag_modified(hook, "discovery_metadata")
+        hook.discovery_status = "AWAITING_CLARIFICATION"
+        await db.commit()
+        return {
+            "status": "awaiting_clarification",
+            "phase": DiscoveryPhase.CLARIFICATION.value,
+            "clarifying_questions": clarification_metadata["clarifying_questions"],
+            "coverage": coverage,
+        }
+
+    result = await complete_discovery(
+        messages,
+        clarification_answers=clarification_answers or None,
+    )
 
     niche_id = result["discovery_metadata"].get("f3iche_niche") or result.get("f3iche_niche")
     niche_source = result["discovery_metadata"].get("niche_resolution_source") or "keyword"
@@ -230,6 +279,17 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     industry = result["discovery_metadata"].get("industry", "")
     mvp_focus = result["discovery_metadata"].get("mvp_focus") or {}
     bottleneck = mvp_focus.get("primary_bottleneck", "")
+
+    validation = result["discovery_metadata"].get("mvp_plan_validation") or {}
+    assurance = compute_assurance(
+        transcript=transcript,
+        niche_id=niche_id or "manufacturing_project_chemical",
+        validation=validation,
+        coverage=coverage,
+        clarification_complete=bool(clarification_answers) or not needs_clarification(
+            transcript, coverage=coverage
+        ),
+    )
 
     if not niche_id:
         niche_id = resolve_discovery_f3iche_niche(
@@ -243,6 +303,10 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "f3iche_niche": niche_id,
         "niche_resolution_source": niche_source,
         "phase": DiscoveryPhase.WORKFLOW_DISPLAY.value,
+        "clarification_answers": clarification_answers,
+        "assurance": assurance.to_dict(),
+        "closure_test": (result["discovery_metadata"].get("mvp_plan") or {}).get("closure_test")
+        or mvp_focus.get("plan_reasoning", ""),
     }
 
     # Persist metadata before target generation (post_discovery_service reads hooks.discovery_metadata)
@@ -329,7 +393,28 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "extracted_tags": hook.extracted_tags,
         "confirmation_message": confirmation_message,
         "workflow_preview": workflow_explanation,
+        "assurance": discovery_metadata.get("assurance"),
+        "closure_test": discovery_metadata.get("closure_test", ""),
     }
+
+
+async def submit_clarification_answers(
+    db: AsyncSession,
+    project_id: UUID,
+    answers: dict[str, Any],
+) -> dict:
+    """Store clarification answers and continue to MVP planning."""
+    hook = await get_or_create_hook(db, project_id)
+    metadata = dict(hook.discovery_metadata or {})
+    merged = dict(metadata.get("clarification_answers") or {})
+    merged.update(answers or {})
+    metadata["clarification_answers"] = merged
+    metadata["phase"] = DiscoveryPhase.INITIAL_CHAT.value
+    hook.discovery_metadata = metadata
+    flag_modified(hook, "discovery_metadata")
+    hook.discovery_status = "ACTIVE"
+    await db.commit()
+    return await finalize_discovery(db, project_id)
 
 
 async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
@@ -396,6 +481,8 @@ async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
         "promoted_doctypes": promoted_doctypes,
         "dual_system_note": metadata.get("dual_system_note") or target_meta.get("dual_system_note", ""),
         "plan_reasoning": metadata.get("plan_reasoning", ""),
+        "assurance": metadata.get("assurance"),
+        "closure_test": metadata.get("closure_test", ""),
         "discovery_metadata": metadata,
     }
 

@@ -11,6 +11,7 @@ from app.services.discovery_chat import (
     load_session,
     load_workflow_preview,
     send_chat_message,
+    submit_clarification_answers,
 )
 from shared.database.db import get_shared_db
 from shared.models.core import Project
@@ -37,6 +38,11 @@ class ConfirmModulesRequest(BaseModel):
     added_doctypes: list[str] = []
     removed_doctypes: list[str] = []
     notes: str = ""
+
+
+class ClarificationRequest(BaseModel):
+    project_id: UUID
+    answers: dict[str, str | list[str]]
 
 
 @router.get("/session/{project_id}")
@@ -156,6 +162,27 @@ async def get_blueprint_status(project_id: UUID, db: AsyncSession = Depends(get_
         },
         "hooks_metadata_has_target": bool(metadata.get("target_structure")),
     }
+
+
+@router.post("/clarification")
+async def submit_clarification(request: ClarificationRequest, db: AsyncSession = Depends(get_shared_db)):
+    """Submit answers to pre-plan clarifying questions, then generate MVP plan."""
+    res = await db.execute(select(Project).where(Project.id == request.project_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not request.answers:
+        raise HTTPException(status_code=400, detail="At least one answer is required")
+
+    try:
+        return await submit_clarification_answers(
+            db, request.project_id, dict(request.answers)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"❌ Discovery clarification error: {e!r}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{project_id}/workflow-preview")
