@@ -69,6 +69,7 @@ class MVPPlanResult(BaseModel):
     dual_system_note: str = ""
     reference_archetype_ids: list[str] = Field(default_factory=list)
     plan_reasoning: str = ""
+    closure_test: str = ""
     industry: str = ""
     f3iche: Literal["trading", "manufacturing", "service"] = "manufacturing"
     recommended_erp: str = ""

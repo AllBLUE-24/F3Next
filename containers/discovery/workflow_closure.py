@@ -86,6 +86,28 @@ FUNCTIONAL_REQUIREMENT_DOCTYPES: dict[str, list[str]] = {
 }
 
 # Work Order alone does not close the loop — these complete manufacturing MVP
+_QUALITY_SIGNALS: tuple[str, ...] = (
+    r"quality inspection",
+    r"\biso\b",
+    r"incoming qc",
+    r"quality gate",
+    r"certificate of analysis",
+    r"\bcoa\b",
+    r"quality control",
+)
+
+
+def _needs_quality_inspection(transcript: str) -> bool:
+    text = transcript.lower()
+    return any(re.search(p, text, re.I) for p in _QUALITY_SIGNALS)
+
+
+def _should_promote_doctype(dt: str, transcript: str) -> bool:
+    if dt in ("Quality Inspection", "Quality Inspection Template"):
+        return _needs_quality_inspection(transcript)
+    return True
+
+
 _WORK_ORDER_CLOSURE = ("Stock Entry", "Warehouse")
 _ROUTING_CLOSURE = ("Job Card", "Stock Entry", "Warehouse")
 
@@ -223,6 +245,8 @@ def apply_workflow_closure(
             continue
         for req in entry.get("functional_requirements") or []:
             for dt in FUNCTIONAL_REQUIREMENT_DOCTYPES.get(str(req), []):
+                if not _should_promote_doctype(dt, transcript):
+                    continue
                 promote(
                     dt,
                     f"Promoted {dt} — archetype {entry.get('archetype_id')!r} "
@@ -231,7 +255,7 @@ def apply_workflow_closure(
         # Promote high-confidence day1_seed_hints not already deferred by planner
         for hint in entry.get("day1_seed_hints") or []:
             dt = canonicalize_seed(str(hint))
-            if rank["score"] >= 3 and dt:
+            if rank["score"] >= 3 and dt and _should_promote_doctype(dt, transcript):
                 promote(
                     dt,
                     f"Promoted {dt} — strong signal match to {entry.get('archetype_id')!r}.",

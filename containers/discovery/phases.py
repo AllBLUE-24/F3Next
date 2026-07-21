@@ -7,6 +7,7 @@ from enum import Enum
 
 class DiscoveryPhase(str, Enum):
     INITIAL_CHAT = "initial_chat"
+    CLARIFICATION = "clarification"
     WORKFLOW_DISPLAY = "workflow_display"
     MODULE_CONFIRMATION = "module_confirmation"
     FINALIZED = "finalized"
