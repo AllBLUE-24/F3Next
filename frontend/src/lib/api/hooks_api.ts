@@ -17,6 +17,8 @@ export interface DiscoverySessionResponse {
   is_complete: boolean;
   is_finalized?: boolean;
   awaiting_confirmation?: boolean;
+  awaiting_clarification?: boolean;
+  clarifying_questions?: Array<Record<string, unknown>>;
   user_turns: number;
   ready_for_recommendation: boolean;
   discovery_metadata?: Record<string, unknown> | null;
@@ -78,6 +80,9 @@ export const completeDiscovery = async (
   data: Record<string, unknown>;
   confirmation_message?: string;
   workflow_preview?: Record<string, unknown>;
+  clarifying_questions?: Array<Record<string, unknown>>;
+  assurance?: Record<string, unknown>;
+  closure_test?: string;
 }> => {
   const res = await fetch(`${API_BASE_URL}/api/discovery/complete`, {
     method: "POST",
@@ -91,6 +96,30 @@ export const completeDiscovery = async (
   return res.json();
 };
 
+export const submitDiscoveryClarification = async (payload: {
+  project_id: string;
+  answers: Record<string, string | string[]>;
+}): Promise<{
+  status: string;
+  phase?: string;
+  data: Record<string, unknown>;
+  confirmation_message?: string;
+  workflow_preview?: Record<string, unknown>;
+  assurance?: Record<string, unknown>;
+  closure_test?: string;
+}> => {
+  const res = await fetch(`${API_BASE_URL}/api/discovery/clarification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Clarification failed (${res.status})`);
+  }
+  return res.json();
+};
+
 export interface WorkflowPreviewResponse {
   phase: string;
   workflow_explanation: Record<string, unknown>;
@@ -100,6 +129,8 @@ export interface WorkflowPreviewResponse {
   promoted_doctypes?: string[];
   dual_system_note?: string;
   plan_reasoning?: string;
+  assurance?: { level?: string; reasons?: string[] };
+  closure_test?: string;
   discovery_metadata?: Record<string, unknown>;
 }
 

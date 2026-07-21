@@ -3,10 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ChatInterface, { type Message } from "@/components/shared/ChatInterface";
+import DiscoveryClarificationPanel, {
+  type ClarifyingQuestion,
+} from "@/components/discovery/DiscoveryClarificationPanel";
 import {
   completeDiscovery,
   getDiscoverySession,
   sendMessageToDiscoveryAgent,
+  submitDiscoveryClarification,
 } from "@/lib/api/hooks_api";
 
 // ------------------------------------------------------------------
@@ -146,6 +150,8 @@ export default function DiscoveryClient({
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isCompleting, setIsCompleting] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [clarifyingQuestions, setClarifyingQuestions] = useState<ClarifyingQuestion[] | null>(null);
+  const [isSubmittingClarification, setIsSubmittingClarification] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +166,10 @@ export default function DiscoveryClient({
             `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
           );
           return;
+        }
+
+        if (session.awaiting_clarification && session.clarifying_questions?.length) {
+          setClarifyingQuestions(session.clarifying_questions as ClarifyingQuestion[]);
         }
 
         setMessages(toUiMessages(session.messages));
@@ -206,6 +216,11 @@ export default function DiscoveryClient({
     try {
       const result = await completeDiscovery(projectId);
 
+      if (result.status === "awaiting_clarification" && result.clarifying_questions?.length) {
+        setClarifyingQuestions(result.clarifying_questions as ClarifyingQuestion[]);
+        return;
+      }
+
       if (result.confirmation_message) {
         const confirmationMsg: Message = {
           id: `msg-confirmation-${Date.now()}`,
@@ -228,6 +243,36 @@ export default function DiscoveryClient({
       );
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const handleClarificationSubmit = async (answers: Record<string, string | string[]>) => {
+    setIsSubmittingClarification(true);
+    try {
+      const result = await submitDiscoveryClarification({
+        project_id: projectId,
+        answers,
+      });
+      setClarifyingQuestions(null);
+      if (result.confirmation_message) {
+        const confirmationMsg: Message = {
+          id: `msg-confirmation-${Date.now()}`,
+          role: "assistant",
+          content: result.confirmation_message,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, confirmationMsg]);
+      }
+      router.push(
+        `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+      );
+    } catch (err) {
+      console.error("Clarification submit error:", err);
+      alert(
+        err instanceof Error ? err.message : "Could not continue. Try again."
+      );
+    } finally {
+      setIsSubmittingClarification(false);
     }
   };
 
@@ -276,12 +321,22 @@ export default function DiscoveryClient({
         background: "var(--bg-void)",
       }}
     >
-      <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-        <ChatInterface
-          messages={messages}
-          setMessages={setMessages}
-          onSendMessage={handleDiscoveryMessage}
-        />
+      <div style={{ flex: 1, overflow: "hidden", minWidth: 0, display: "flex", flexDirection: "column" }}>
+        {clarifyingQuestions && clarifyingQuestions.length > 0 ? (
+          <div style={{ flex: 1, overflow: "auto", padding: "24px" }}>
+            <DiscoveryClarificationPanel
+              questions={clarifyingQuestions}
+              onSubmit={handleClarificationSubmit}
+              isSubmitting={isSubmittingClarification}
+            />
+          </div>
+        ) : (
+          <ChatInterface
+            messages={messages}
+            setMessages={setMessages}
+            onSendMessage={handleDiscoveryMessage}
+          />
+        )}
       </div>
 
       <SessionPanel

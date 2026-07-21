@@ -43,8 +43,12 @@ export default function RecommendationPage() {
     seed_doctypes: string[];
     deferred_doctypes?: string[];
     required_doctypes: string[];
+    promoted_doctypes?: string[];
     dual_system_note?: string;
     scoping_reasoning?: string;
+    plan_reasoning?: string;
+    assurance?: { level?: string; reasons?: string[] };
+    closure_test?: string;
   } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -90,6 +94,8 @@ export default function RecommendationPage() {
                 dual_system_note: target.dual_system_note,
                 scoping_reasoning: target.scoping_reasoning,
                 plan_reasoning: data.plan_reasoning,
+                assurance: data.assurance || json.data?.discovery_metadata?.assurance,
+                closure_test: data.closure_test || json.data?.discovery_metadata?.closure_test,
               });
             } else {
               try {
@@ -103,6 +109,8 @@ export default function RecommendationPage() {
                   dual_system_note: preview.dual_system_note ?? preview.discovery_metadata?.target_structure?.dual_system_note,
                   scoping_reasoning: preview.discovery_metadata?.target_structure?.scoping_reasoning,
                   plan_reasoning: preview.plan_reasoning,
+                  assurance: preview.assurance,
+                  closure_test: preview.closure_test,
                 });
               } catch (previewErr) {
                 console.warn("Workflow preview load failed:", previewErr);

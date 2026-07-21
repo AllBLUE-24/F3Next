@@ -32,6 +32,8 @@ interface WorkflowPreviewDisplayProps {
     dual_system_note?: string;
     scoping_reasoning?: string;
     plan_reasoning?: string;
+    assurance?: { level?: string; reasons?: string[] };
+    closure_test?: string;
   };
   onConfirm: (adjustments: {
     confirmed_doctypes: string[];
@@ -74,6 +76,22 @@ export default function WorkflowPreviewDisplay({
     [preview.promoted_doctypes]
   );
 
+  const assuranceLevel = preview.assurance?.level?.toLowerCase();
+  const assuranceStyles =
+    assuranceLevel === "green"
+      ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-300"
+      : assuranceLevel === "red"
+        ? "border-red-500/25 bg-red-500/8 text-red-300"
+        : "border-amber-500/25 bg-amber-500/8 text-amber-300";
+  const assuranceLabel =
+    assuranceLevel === "green"
+      ? "High confidence"
+      : assuranceLevel === "red"
+        ? "Needs review"
+        : assuranceLevel === "yellow"
+          ? "Review recommended"
+          : null;
+
   const toggle = (doctype: string, checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -96,6 +114,24 @@ export default function WorkflowPreviewDisplay({
 
   return (
     <div className="space-y-6 fade-in-up">
+      {assuranceLabel && (
+        <div className={`surface-card p-4 sm:p-5 border ${assuranceStyles}`} style={{ borderRadius: "var(--radius-xl)" }}>
+          <div className="text-xs font-bold uppercase tracking-wider mb-1">{assuranceLabel}</div>
+          {preview.assurance?.reasons?.map((reason, idx) => (
+            <p key={idx} className="text-sm leading-relaxed opacity-90">
+              {reason}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {preview.closure_test && (
+        <div className="surface-card p-4 sm:p-5 border border-zinc-800" style={{ borderRadius: "var(--radius-xl)" }}>
+          <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Closure test</div>
+          <p className="text-sm text-zinc-300 leading-relaxed">{preview.closure_test}</p>
+        </div>
+      )}
+
       <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
         <h2 className="text-xl font-bold text-white mb-2">Your Day-1 MVP plan</h2>
         {preview.dual_system_note && (
