@@ -60,22 +60,24 @@ flowchart TD
 - Return 2–3 structured questions before planning when YELLOW triggers
 - Append answers to transcript context for planner
 
-### Phase B — Transparent reasoning + assurance ✅ (this branch)
+### Phase B — Transparent reasoning + assurance ✅
 
-**Files:** `discovery_assurance.py`, `WorkflowPreviewDisplay.tsx`, `workflow_explanation.py`
+**Files:** `discovery_assurance.py`, `promotion_reasons.py`, `WorkflowPreviewDisplay.tsx`
 
 - Compute assurance tier from validation + signal margin + promotion count
-- Surface `closure_test`, `plan_reasoning`, promotion reasons in UI
-- Badge promoted modules with specific reason (not generic "traceability")
+- Surface `closure_test`, `plan_reasoning`, per-doctype promotion reasons in UI
+- Badge promoted modules with validator reason (not generic "traceability")
 
-### Phase C — Validator warning conversation (next)
+### Phase C — Validator warning conversation ✅
 
 - Surface validator warnings in preview before confirm
-- User can accept or request revision via notes field
+- Block confirm on RED assurance; notes field for scope revision requests
 
-### Phase D — Upload schema preview (next)
+### Phase D — Upload schema preview ✅
 
-- Required/optional columns per doctype from graph before upload step
+**Files:** `upload_schema_preview.py`, `WorkflowPreviewDisplay.tsx`
+
+- Required/optional columns per doctype from `field_mappings.json` KB before upload step
 
 ### Phase E — RED path deep loop (future)
 
@@ -105,7 +107,8 @@ flowchart TD
 
 ## 7. Sprint order
 
-1. Phase A + B (this branch)
-2. QI promotion guard (yield-only → no QI)
-3. Phase C warnings in UI
-4. Phase D upload schema
+1. Phase A + B ✅
+2. QI promotion guard (quality_gates clarification) ✅
+3. Phase C warnings in UI ✅
+4. Phase D upload schema ✅
+5. Phase E deep loop (future)

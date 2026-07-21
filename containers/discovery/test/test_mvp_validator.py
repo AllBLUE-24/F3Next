@@ -152,6 +152,24 @@ def test_yield_routing_promotes_job_card_and_stock_entry():
     assert "Job Card" in result.promoted_doctypes or "Stock Entry" in result.promoted_doctypes
 
 
+def test_quality_gates_costing_only_skips_qi_promotion():
+    """Clarification answer costing_only must not promote Quality Inspection."""
+    transcript = (
+        YIELD_TRANSCRIPT
+        + "\n\nCLARIFICATION ANSWERS (user confirmed):\n- quality_gates: costing_only"
+    )
+    result = validate_mvp_plan(
+        day1_entries=["Item", "BOM", "Work Order", "Batch", "Job Card", "Stock Entry", "Warehouse"],
+        deferred_entries=["Quality Inspection", "Quality Inspection Template"],
+        niche_id="manufacturing_project_chemical",
+        chat_transcript=transcript,
+        template_seeds=CHEMICAL_TEMPLATE,
+        clarification_answers={"quality_gates": "costing_only"},
+    )
+    assert "Quality Inspection" not in result.day1_doctypes
+    assert "Quality Inspection" not in result.promoted_doctypes
+
+
 def test_manufacturing_batch_promotes_stock_entry_for_recall():
     """Apex gap: batch trace + manufacture requires Stock Entry for genealogy."""
     result = validate_mvp_plan(
