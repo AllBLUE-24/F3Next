@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { UploadSchemaDoctype, ValidatorWarning } from "@/lib/api/hooks_api";
 
 export interface ExpectedDataItem {
   doctype: string;
@@ -34,6 +35,9 @@ interface WorkflowPreviewDisplayProps {
     plan_reasoning?: string;
     assurance?: { level?: string; reasons?: string[] };
     closure_test?: string;
+    promotion_reasons?: Record<string, string>;
+    validator_warnings?: ValidatorWarning[];
+    upload_schema_preview?: Record<string, UploadSchemaDoctype>;
   };
   onConfirm: (adjustments: {
     confirmed_doctypes: string[];
@@ -55,6 +59,11 @@ export default function WorkflowPreviewDisplay({
   );
   const [selected, setSelected] = useState<Set<string>>(initialSelected);
   const [notes, setNotes] = useState("");
+  const [expandedSchema, setExpandedSchema] = useState<string | null>(null);
+
+  const validatorWarnings = preview.validator_warnings ?? [];
+  const promotionReasons = preview.promotion_reasons ?? {};
+  const uploadSchema = preview.upload_schema_preview ?? {};
 
   const expectedData = useMemo(() => {
     const fromLlm = preview.workflow_explanation.expected_data ?? [];
@@ -91,6 +100,7 @@ export default function WorkflowPreviewDisplay({
         : assuranceLevel === "yellow"
           ? "Review recommended"
           : null;
+  const isBlocked = assuranceLevel === "red";
 
   const toggle = (doctype: string, checked: boolean) => {
     setSelected((prev) => {
@@ -132,6 +142,34 @@ export default function WorkflowPreviewDisplay({
         </div>
       )}
 
+      {preview.plan_reasoning && (
+        <div className="surface-card p-4 sm:p-5 border border-zinc-800" style={{ borderRadius: "var(--radius-xl)" }}>
+          <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Why this scope</div>
+          <p className="text-sm text-zinc-300 leading-relaxed">{preview.plan_reasoning}</p>
+        </div>
+      )}
+
+      {validatorWarnings.length > 0 && (
+        <div className="surface-card p-4 sm:p-5 border border-amber-500/25 bg-amber-500/5" style={{ borderRadius: "var(--radius-xl)" }}>
+          <div className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">Validator notes</div>
+          <ul className="space-y-2">
+            {validatorWarnings.map((w, idx) => (
+              <li key={idx} className="text-sm text-zinc-300 leading-relaxed">
+                {w.message}
+                {w.suggested_doctypes && w.suggested_doctypes.length > 0 && (
+                  <span className="text-zinc-500 text-xs block mt-0.5">
+                    Suggested: {w.suggested_doctypes.join(", ")}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="text-zinc-600 text-xs mt-3">
+            Add context in the notes below if you want us to adjust scope before upload.
+          </p>
+        </div>
+      )}
+
       <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
         <h2 className="text-xl font-bold text-white mb-2">Your Day-1 MVP plan</h2>
         {preview.dual_system_note && (
@@ -166,8 +204,14 @@ export default function WorkflowPreviewDisplay({
                 <div className="font-semibold text-white text-sm flex items-center gap-2 flex-wrap">
                   {item.user_friendly_name}
                   {promoted.has(item.doctype) && (
-                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                      Required for traceability
+                    <span
+                      className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 max-w-full truncate"
+                      title={promotionReasons[item.doctype] || "Promoted by validator"}
+                    >
+                      {promotionReasons[item.doctype]
+                        ? promotionReasons[item.doctype].slice(0, 48) +
+                          (promotionReasons[item.doctype].length > 48 ? "…" : "")
+                        : "Validator promoted"}
                     </span>
                   )}
                 </div>
@@ -202,6 +246,72 @@ export default function WorkflowPreviewDisplay({
         </div>
       )}
 
+      {Object.keys(uploadSchema).length > 0 && (
+        <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
+          <h3 className="text-lg font-semibold text-white mb-1">Expected spreadsheet columns</h3>
+          <p className="text-zinc-600 text-xs mb-4">
+            From our field-mapping KB — what each Day-1 file should contain before upload.
+          </p>
+          <div className="space-y-2">
+            {preview.seed_doctypes
+              .filter((dt) => uploadSchema[dt]?.kb_available)
+              .map((dt) => {
+                const schema = uploadSchema[dt];
+                const open = expandedSchema === dt;
+                return (
+                  <div key={dt} className="border border-zinc-800 rounded-xl overflow-hidden">
+                    <button
+                      type="button"
+                      className="w-full flex justify-between items-center px-4 py-3 text-left text-sm font-medium text-white hover:bg-zinc-900/50"
+                      onClick={() => setExpandedSchema(open ? null : dt)}
+                    >
+                      {dt}
+                      <span className="text-zinc-600 text-xs">
+                        {schema.required_columns.length} required
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-4 space-y-3 border-t border-zinc-800">
+                        {schema.required_columns.length > 0 && (
+                          <div>
+                            <div className="text-xs text-zinc-500 mb-1">Required columns</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {schema.required_columns.map((col) => (
+                                <span
+                                  key={col.field}
+                                  className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                                  title={col.synonyms?.join(", ")}
+                                >
+                                  {col.label}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {schema.optional_columns.length > 0 && (
+                          <div>
+                            <div className="text-xs text-zinc-500 mb-1">Optional columns</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {schema.optional_columns.map((col) => (
+                                <span
+                                  key={col.field}
+                                  className="px-2 py-0.5 rounded text-xs text-zinc-500 border border-zinc-800"
+                                >
+                                  {col.label}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {preview.workflow_explanation.upload_checklist &&
         preview.workflow_explanation.upload_checklist.length > 0 && (
           <div className="surface-card p-6 sm:p-8" style={{ borderRadius: "var(--radius-xl)" }}>
@@ -221,16 +331,26 @@ export default function WorkflowPreviewDisplay({
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="e.g. We also need project costing for field crews..."
+          placeholder={
+            validatorWarnings.length > 0
+              ? "Tell us if a validator note is wrong or if scope should change…"
+              : "e.g. We also need project costing for field crews..."
+          }
           className="w-full min-h-[100px] rounded-xl bg-black/30 border border-[var(--border-subtle)] text-sm text-zinc-300 p-3 focus:outline-none focus:border-amber-500/40"
         />
       </div>
+
+      {isBlocked && (
+        <p className="text-red-400/90 text-sm text-right">
+          Plan has structural validation errors — adjust modules or add notes before continuing.
+        </p>
+      )}
 
       <div className="flex justify-end">
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={isSubmitting || selected.size === 0}
+          disabled={isSubmitting || selected.size === 0 || isBlocked}
           className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black text-sm font-bold rounded-xl transition-colors"
         >
           {isSubmitting ? "Saving blueprint…" : "Confirm workflow & continue"}

@@ -49,6 +49,9 @@ export default function RecommendationPage() {
     plan_reasoning?: string;
     assurance?: { level?: string; reasons?: string[] };
     closure_test?: string;
+    promotion_reasons?: Record<string, string>;
+    validator_warnings?: Array<{ code?: string; message?: string; suggested_doctypes?: string[] }>;
+    upload_schema_preview?: Record<string, unknown>;
   } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -96,6 +99,13 @@ export default function RecommendationPage() {
                 plan_reasoning: data.plan_reasoning,
                 assurance: data.assurance || json.data?.discovery_metadata?.assurance,
                 closure_test: data.closure_test || json.data?.discovery_metadata?.closure_test,
+                plan_reasoning: data.plan_reasoning || json.data?.discovery_metadata?.plan_reasoning,
+                promotion_reasons:
+                  data.promotion_reasons || json.data?.discovery_metadata?.promotion_reasons,
+                validator_warnings:
+                  data.validator_warnings || json.data?.discovery_metadata?.validator_warnings,
+                upload_schema_preview:
+                  data.upload_schema_preview || json.data?.discovery_metadata?.upload_schema_preview,
               });
             } else {
               try {
@@ -111,6 +121,10 @@ export default function RecommendationPage() {
                   plan_reasoning: preview.plan_reasoning,
                   assurance: preview.assurance,
                   closure_test: preview.closure_test,
+                  plan_reasoning: preview.plan_reasoning,
+                  promotion_reasons: preview.promotion_reasons,
+                  validator_warnings: preview.validator_warnings,
+                  upload_schema_preview: preview.upload_schema_preview,
                 });
               } catch (previewErr) {
                 console.warn("Workflow preview load failed:", previewErr);

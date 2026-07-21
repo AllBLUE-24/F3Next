@@ -120,6 +120,26 @@ export const submitDiscoveryClarification = async (payload: {
   return res.json();
 };
 
+export interface UploadColumnHint {
+  field: string;
+  label: string;
+  synonyms?: string[];
+  fieldtype?: string;
+}
+
+export interface UploadSchemaDoctype {
+  required_columns: UploadColumnHint[];
+  optional_columns: UploadColumnHint[];
+  kb_available: boolean;
+}
+
+export interface ValidatorWarning {
+  code?: string;
+  message?: string;
+  severity?: string;
+  suggested_doctypes?: string[];
+}
+
 export interface WorkflowPreviewResponse {
   phase: string;
   workflow_explanation: Record<string, unknown>;
@@ -131,6 +151,9 @@ export interface WorkflowPreviewResponse {
   plan_reasoning?: string;
   assurance?: { level?: string; reasons?: string[] };
   closure_test?: string;
+  promotion_reasons?: Record<string, string>;
+  validator_warnings?: ValidatorWarning[];
+  upload_schema_preview?: Record<string, UploadSchemaDoctype>;
   discovery_metadata?: Record<string, unknown>;
 }
 
