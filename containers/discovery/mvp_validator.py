@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from containers.discovery.archetype_registry import canonicalize_seed, GRAPH_EXTENSION_ALLOWLIST
+from containers.discovery.promotion_reasons import promotion_reasons_from_notes
 from containers.discovery.workflow_closure import apply_workflow_closure
 
 _GRAPH_PATH = (
@@ -104,6 +105,7 @@ class ValidationResult:
             "day1_doctypes": self.day1_doctypes,
             "deferred_doctypes": self.deferred_doctypes,
             "promoted_doctypes": self.promoted_doctypes,
+            "promotion_reasons": promotion_reasons_from_notes(self.notes),
             "issues": [
                 {
                     "code": i.code,
@@ -181,6 +183,7 @@ def validate_mvp_plan(
     template_seeds: list[str],
     legacy_system: str = "",
     graph: dict[str, Any] | None = None,
+    clarification_answers: dict[str, Any] | None = None,
 ) -> ValidationResult:
     """
     Validate and normalize an MVP plan from the planner.
@@ -314,6 +317,7 @@ def validate_mvp_plan(
         niche_id=niche_id,
         notes=notes,
         on_missing=_workflow_missing,
+        clarification_answers=clarification_answers,
     )
     day1_set = set(day1)
 

@@ -97,14 +97,33 @@ _QUALITY_SIGNALS: tuple[str, ...] = (
 )
 
 
-def _needs_quality_inspection(transcript: str) -> bool:
+def _needs_quality_inspection(
+    transcript: str,
+    clarification_answers: dict[str, Any] | None = None,
+) -> bool:
+    """QI only when transcript or clarifications indicate formal QC — not yield-only costing."""
+    answers = clarification_answers or {}
+    qg = answers.get("quality_gates")
+    if qg == "costing_only":
+        return False
+    if qg in ("incoming_qc", "stage_qc"):
+        return True
+
     text = transcript.lower()
+    if re.search(r"quality_gates:\s*costing_only", text, re.I):
+        return False
+    if re.search(r"quality_gates:\s*(incoming_qc|stage_qc)", text, re.I):
+        return True
     return any(re.search(p, text, re.I) for p in _QUALITY_SIGNALS)
 
 
-def _should_promote_doctype(dt: str, transcript: str) -> bool:
+def _should_promote_doctype(
+    dt: str,
+    transcript: str,
+    clarification_answers: dict[str, Any] | None = None,
+) -> bool:
     if dt in ("Quality Inspection", "Quality Inspection Template"):
-        return _needs_quality_inspection(transcript)
+        return _needs_quality_inspection(transcript, clarification_answers)
     return True
 
 
@@ -158,6 +177,7 @@ def apply_workflow_closure(
     niche_id: str,
     notes: list[str],
     on_missing: Callable[[str, list[str]], None] | None = None,
+    clarification_answers: dict[str, Any] | None = None,
 ) -> None:
     """
     Promote doctypes needed to close the operational loop for stated workflows.
@@ -245,7 +265,7 @@ def apply_workflow_closure(
             continue
         for req in entry.get("functional_requirements") or []:
             for dt in FUNCTIONAL_REQUIREMENT_DOCTYPES.get(str(req), []):
-                if not _should_promote_doctype(dt, transcript):
+                if not _should_promote_doctype(dt, transcript, clarification_answers):
                     continue
                 promote(
                     dt,
@@ -255,7 +275,7 @@ def apply_workflow_closure(
         # Promote high-confidence day1_seed_hints not already deferred by planner
         for hint in entry.get("day1_seed_hints") or []:
             dt = canonicalize_seed(str(hint))
-            if rank["score"] >= 3 and dt and _should_promote_doctype(dt, transcript):
+            if rank["score"] >= 3 and dt and _should_promote_doctype(dt, transcript, clarification_answers):
                 promote(
                     dt,
                     f"Promoted {dt} — strong signal match to {entry.get('archetype_id')!r}.",
