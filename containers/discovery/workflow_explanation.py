@@ -221,8 +221,15 @@ async def generate_workflow_explanation(
     deferred_seeds: Optional[List[str]] = None,
     dual_system_note: str = "",
     scoping_reasoning: str = "",
+    clarification_answers: Optional[Dict[str, Any]] = None,
+    plan_reasoning: str = "",
+    closure_test: str = "",
 ) -> Dict[str, Any]:
     """LLM-backed workflow explanation with deterministic fallback."""
+    from containers.discovery.discovery_clarification_policy import (
+        clarification_context_for_explainer,
+    )
+
     seed_doctypes = target_structure.get("seed_doctypes") or []
     deferred = deferred_seeds or target_structure.get("deferred_doctypes") or []
     discovery_context = _build_discovery_context(
@@ -231,6 +238,7 @@ async def generate_workflow_explanation(
         mvp_focus=mvp_focus,
         scoping_reasoning=scoping_reasoning,
     )
+    clarification_context = clarification_context_for_explainer(clarification_answers)
 
     try:
         from llm_router import invoke_smart_llm
@@ -241,6 +249,9 @@ async def generate_workflow_explanation(
             bottleneck=bottleneck or "Operational efficiency",
             discovery_context=discovery_context,
             dual_system_note=dual_system_note or "None",
+            clarification_context=clarification_context,
+            plan_reasoning=plan_reasoning or bottleneck or "See Day-1 module list.",
+            closure_test=closure_test or "Day-1 modules close the stated operational loop.",
             mvp_seeds_json=json.dumps(seed_doctypes, indent=2),
             deferred_seeds_json=json.dumps(deferred, indent=2),
             target_json=json.dumps(

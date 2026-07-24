@@ -43,6 +43,7 @@ def compute_assurance(
     validation: dict[str, Any],
     coverage: dict[str, Any] | None = None,
     clarification_complete: bool = True,
+    closure_test: str = "",
 ) -> AssuranceResult:
     reasons: list[str] = []
     rankings = signal_match_rankings(transcript, niche_id, top_k=2, min_score=1)
@@ -89,6 +90,10 @@ def compute_assurance(
         level = "yellow"
         reasons.append("Clarifying questions were skipped or incomplete.")
 
+    if not (closure_test or "").strip():
+        level = "yellow"
+        reasons.append("Closure test missing — Day-1 scope may not answer the stated bottleneck.")
+
     cov = coverage or {}
     missing_dims = [
         dim for dim in ("industry", "pain_point", "legacy_system")
@@ -99,7 +104,7 @@ def compute_assurance(
         reasons.append(f"Limited coverage extraction: missing {', '.join(missing_dims)}.")
 
     if level == "green":
-        reasons.append("Structural closure passed with strong signal match.")
+        reasons.append("Structural closure passed with strong signal match and explicit closure test.")
 
     return AssuranceResult(
         level=level,

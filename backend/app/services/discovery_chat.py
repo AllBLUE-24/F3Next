@@ -308,6 +308,9 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     bottleneck = mvp_focus.get("primary_bottleneck", "")
 
     validation = result["discovery_metadata"].get("mvp_plan_validation") or {}
+    mvp_plan = result["discovery_metadata"].get("mvp_plan") or {}
+    closure_test = mvp_plan.get("closure_test") or mvp_focus.get("plan_reasoning", "")
+    plan_reasoning = mvp_focus.get("plan_reasoning", "") or closure_test
     assurance_transcript = (
         append_clarifications_to_transcript(transcript, clarification_answers)
         if clarification_answers
@@ -321,6 +324,7 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         clarification_complete=bool(clarification_answers) or not needs_clarification(
             transcript, coverage=coverage
         ),
+        closure_test=closure_test,
     )
     validator_warnings = [
         i for i in (validation.get("issues") or [])
@@ -342,9 +346,8 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "phase": DiscoveryPhase.WORKFLOW_DISPLAY.value,
         "clarification_answers": clarification_answers,
         "assurance": assurance.to_dict(),
-        "closure_test": (result["discovery_metadata"].get("mvp_plan") or {}).get("closure_test")
-        or mvp_focus.get("plan_reasoning", ""),
-        "plan_reasoning": mvp_focus.get("plan_reasoning", ""),
+        "closure_test": closure_test,
+        "plan_reasoning": plan_reasoning,
         "promotion_reasons": promotion_reasons,
         "validator_warnings": validator_warnings,
     }
@@ -388,6 +391,9 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         deferred_seeds=deferred_seeds,
         dual_system_note=scoping.get("dual_system_note", ""),
         scoping_reasoning=scoping.get("scoping_reasoning", ""),
+        clarification_answers=clarification_answers,
+        plan_reasoning=plan_reasoning,
+        closure_test=closure_test,
     )
 
     hook = await get_or_create_hook(db, project_id)
@@ -515,6 +521,9 @@ async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
                     deferred_seeds=deferred_seeds,
                     dual_system_note=target_meta.get("dual_system_note", ""),
                     scoping_reasoning=target_meta.get("scoping_reasoning", ""),
+                    clarification_answers=metadata.get("clarification_answers"),
+                    plan_reasoning=metadata.get("plan_reasoning", ""),
+                    closure_test=metadata.get("closure_test", ""),
                 )
                 metadata["workflow_explanation"] = workflow_explanation
                 metadata["target_structure"] = metadata.get("target_structure") or {
