@@ -99,7 +99,7 @@ flowchart TD
 
 ## 6. Verification
 
-- Unit: `test_discovery_clarify.py`, `test_discovery_assurance.py`
+- Unit: `test_discovery_clarify.py`, `test_discovery_assurance.py`, `test_clarification_policy.py`
 - Golden: Apex + yield fixtures pass with clarification answers appended
 - Manual: complete → questions → answer → preview shows assurance + closure
 
@@ -111,4 +111,11 @@ flowchart TD
 2. QI promotion guard (quality_gates clarification) ✅
 3. Phase C warnings in UI ✅
 4. Phase D upload schema ✅
-5. Phase E deep loop (future)
+5. **v1.5 gate** (see [`15_DISCOVERY_STEP1_V95_GATE.md`](./15_DISCOVERY_STEP1_V95_GATE.md)) ✅
+   - Clarification → validator policy (`discovery_clarification_policy.py`)
+   - Batch/lot closure signal
+   - Grounded workflow explainer + assurance closure test
+   - Policy + assurance tests (104 discovery tests green)
+6. Live golden matrix ≥80% (open — run `harness_mvp_boundary --planner-offline`)
+7. Phase E deep loop (future)
+8. Frontend polish: YELLOW assumption ack, friendly promotion badge labels (optional)
