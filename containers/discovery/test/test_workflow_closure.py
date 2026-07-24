@@ -19,3 +19,12 @@ def test_detects_manufacturing_execution():
     text = "We manufacture industrial adhesives and make to stock."
     signals = detect_workflow_signals(text)
     assert "manufacturing_execution" in signals
+
+
+def test_detects_batch_lot_identity():
+    text = (
+        "Each production batch gets a batch ticket at mixing. "
+        "We need lot number traceability on the floor."
+    )
+    signals = detect_workflow_signals(text)
+    assert "batch_lot_identity" in signals

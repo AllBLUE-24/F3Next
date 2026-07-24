@@ -21,9 +21,22 @@ def test_green_when_valid_with_strong_signals():
             "legacy_system": {"value": "Tally"},
         },
         clarification_complete=True,
+        closure_test="After Day-1 we can answer yield variance per batch because Job Card captures consumption.",
     )
     assert result.level == "green"
     assert result.validator_valid
+
+
+def test_yellow_when_closure_test_missing():
+    result = compute_assurance(
+        transcript=YIELD_TRANSCRIPT,
+        niche_id="manufacturing_project_chemical",
+        validation={"valid": True, "issues": [], "promoted_doctypes": []},
+        clarification_complete=True,
+        closure_test="",
+    )
+    assert result.level == "yellow"
+    assert any("closure test" in r.lower() for r in result.reasons)
 
 
 def test_red_on_validation_errors():
