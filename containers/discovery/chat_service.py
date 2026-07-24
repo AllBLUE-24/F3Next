@@ -266,6 +266,7 @@ async def complete_discovery(
             transcript=chat_transcript,
             coverage=coverage,
             broad_f3iche=broad_f3iche,
+            clarification_answers=clarification_answers,
         )
         recommendation = planner_result["recommendation"]
         niche_id = planner_result["f3iche_niche"]

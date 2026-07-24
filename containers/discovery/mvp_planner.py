@@ -136,6 +136,7 @@ async def plan_day1_mvp(
     coverage: dict[str, Any],
     broad_f3iche: str = "manufacturing",
     f3iche_id_hint: Optional[str] = None,
+    clarification_answers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Plan Day-1 MVP with LLM reasoning + deterministic validation.
@@ -169,6 +170,7 @@ async def plan_day1_mvp(
             coverage=coverage,
             industry=str((coverage.get("industry") or {}).get("value") or ""),
             f3iche_hint=broad_f3iche,
+            clarification_answers=clarification_answers,
         )
         offline["niche_resolution_source"] = "planner_offline_fallback"
         return offline
@@ -190,6 +192,7 @@ async def plan_day1_mvp(
         chat_transcript=transcript,
         template_seeds=template_seeds,
         legacy_system=legacy,
+        clarification_answers=clarification_answers,
     )
 
     revisions = 0
@@ -213,6 +216,7 @@ async def plan_day1_mvp(
             chat_transcript=transcript,
             template_seeds=template_seeds or [],
             legacy_system=legacy,
+            clarification_answers=clarification_answers,
         )
 
     # Apply validator promotions to plan seeds

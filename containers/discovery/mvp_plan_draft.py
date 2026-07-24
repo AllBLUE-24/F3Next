@@ -168,6 +168,7 @@ def finalize_offline_mvp_plan(
     industry: str = "",
     f3iche_hint: Optional[str] = None,
     mvp_focus: dict[str, Any] | None = None,
+    clarification_answers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Full offline pipeline: draft → validate → mvp_focus compatible with build_target.
@@ -193,6 +194,7 @@ def finalize_offline_mvp_plan(
         chat_transcript=transcript,
         template_seeds=template_seeds,
         legacy_system=_legacy_system(coverage),
+        clarification_answers=clarification_answers,
     )
 
     day1_names = validation.day1_doctypes
