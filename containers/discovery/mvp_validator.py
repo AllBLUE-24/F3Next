@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from containers.discovery.archetype_registry import canonicalize_seed, GRAPH_EXTENSION_ALLOWLIST
+from containers.discovery.discovery_clarification_policy import apply_clarification_policy
 from containers.discovery.promotion_reasons import promotion_reasons_from_notes
 from containers.discovery.workflow_closure import apply_workflow_closure
 
@@ -213,10 +214,13 @@ def validate_mvp_plan(
                 severity="error",
             ))
 
-    # Dependency promotion for transactional seeds
-    signals = _detect_problem_signals(chat_transcript)
-    for dt in list(day1):
-        if dt in _TRANSACTIONAL_REQUIRES_CUSTOMER and "Customer" not in day1:
+    # Dependency promotion for transactional seeds — runs after clarification policy
+    def _apply_transactional_customer_deps() -> None:
+        nonlocal day1, deferred, deferred_set
+        signals = _detect_problem_signals(chat_transcript)
+        for dt in list(day1):
+            if dt not in _TRANSACTIONAL_REQUIRES_CUSTOMER or "Customer" in day1:
+                continue
             operational_override = "customer_recall" in signals
             if "Customer" in deferred_set and operational_override:
                 deferred = [d for d in deferred if d != "Customer"]
@@ -239,17 +243,16 @@ def validate_mvp_plan(
                     suggested_doctypes=["Customer"],
                 ))
 
-    # Batch upstream: Supplier often required
+    # Problem coverage rules
+    signals = _detect_problem_signals(chat_transcript)
     if "Batch" in day1 and "Supplier" not in day1 and "Supplier" not in deferred_set:
         deps = _graph_deps("Batch", graph)
         if "Supplier" in deps:
-            signals = _detect_problem_signals(chat_transcript)
             if "raw_material_trace" in signals or "batch_identity" in signals:
                 day1.append("Supplier")
                 promoted.append("Supplier")
                 notes.append("Promoted Supplier for raw-material batch traceability.")
 
-    # Problem coverage rules
     day1_set = set(day1)
     for signal in signals:
         required = _PROBLEM_REQUIREMENTS.get(signal, [])
@@ -321,6 +324,20 @@ def validate_mvp_plan(
     )
     day1_set = set(day1)
 
+    apply_clarification_policy(
+        day1=day1,
+        deferred=deferred,
+        deferred_set=deferred_set,
+        promoted=promoted,
+        template_set=template_set,
+        notes=notes,
+        clarification_answers=clarification_answers,
+    )
+    day1_set = set(day1)
+
+    _apply_transactional_customer_deps()
+    day1_set = set(day1)
+
     # Dual-system: defer invoicing, not operational trace masters
     if _is_dual_system(legacy_system):
         for fin in _DUAL_SYSTEM_DEFERRABLE:
@@ -359,6 +376,16 @@ def validate_mvp_plan(
         if dt not in seen_def and dt not in seen:
             seen_def.add(dt)
             deferred_ordered.append(dt)
+
+    day1_final = set(day1_ordered)
+    issues = [
+        i for i in issues
+        if not (
+            i.code.startswith("MISSING_")
+            and i.suggested_doctypes
+            and all(d in day1_final for d in i.suggested_doctypes)
+        )
+    ]
 
     errors = [i for i in issues if i.severity == "error"]
     return ValidationResult(

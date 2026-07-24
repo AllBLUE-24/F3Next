@@ -13,6 +13,13 @@ DISCOVERY CONTEXT:
 
 DUAL-SYSTEM NOTE (if any): {dual_system_note}
 
+USER CLARIFICATIONS (confirmed — narrative MUST align; do not contradict):
+{clarification_context}
+
+VALIDATED PLAN CONTEXT (scope is fixed — explain only these modules):
+Plan reasoning: {plan_reasoning}
+Closure test: {closure_test}
+
 DAY-1 MVP MODULES (seed_doctypes — explain ONLY these):
 {mvp_seeds_json}
 
@@ -34,6 +41,9 @@ HARD RULES:
 - Do NOT ask for deferred modules in expected_data or upload_checklist.
 - Ban generic openers like "We will set up a system that gives you visibility".
 - Never use bare doctype.csv filenames — use human labels.
+- If user confirmed make-to-stock, do NOT describe order-driven or "when an order comes in" production.
+- If user confirmed make-to-order, describe production triggered by confirmed orders.
+- Job Card = shop-floor operation log; Batch = lot/batch master — do not conflate them.
 
 Return ONLY valid JSON:
 {{

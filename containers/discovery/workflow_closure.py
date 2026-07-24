@@ -54,6 +54,16 @@ WORKFLOW_SIGNALS: dict[str, tuple[str, ...]] = {
         r"consumption at each",
         r"standard vs actual",
     ),
+    "batch_lot_identity": (
+        r"batch ticket",
+        r"batch tickets",
+        r"production batch",
+        r"each batch",
+        r"per batch",
+        r"batch number",
+        r"\blot\b",
+        r"lot number",
+    ),
 }
 
 # Minimum doctypes required when a workflow signal fires
@@ -62,6 +72,7 @@ WORKFLOW_REQUIREMENTS: dict[str, list[str]] = {
     "yield_routing": ["Job Card", "Stock Entry", "Warehouse"],
     "wip_visibility": ["Stock Entry", "Warehouse"],
     "material_consumption": ["Stock Entry", "Job Card"],
+    "batch_lot_identity": ["Batch"],
 }
 
 # Archetype functional_requirements → ERPNext doctypes (capability law)
