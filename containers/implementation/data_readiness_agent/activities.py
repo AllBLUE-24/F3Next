@@ -38,7 +38,6 @@ from shared.models.is_models import (
 from shared.models.is_status import NodeStatusEnvelope
 from shared.structured_llm import generate_typed
 
-from containers.implementation.data_readiness_agent.gap_analyzer import analyze_gaps
 from containers.implementation.data_readiness_agent.models import DataReadinessAssessment
 from containers.implementation.data_readiness_agent.prompts import DATA_READINESS_PROMPT
 from containers.implementation.mapping_agent.kb import field_mappings as _kb_field_mappings
@@ -528,15 +527,24 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not load session mvp_focus: %s", e)
 
-    # 4. Deterministic gap analysis (no LLM)
+    # 4. Deterministic gap analysis via Step 3 readiness package (no LLM)
     kb = _kb_field_mappings() or {}
     f3iche_id = str(company_profile.get("f3iche") or "")
-    pre_analysis = analyze_gaps(
+    from containers.implementation.readiness.assess import assess_readiness
+    from containers.implementation.readiness.inputs import build_readiness_inputs
+
+    readiness_inputs = build_readiness_inputs(
+        project_id=inp.project_id,
         manifest=manifest,
         target_structure=target_structure,
-        field_mappings_kb=kb,
         f3iche_id=f3iche_id or None,
+        field_mappings_kb=kb,
     )
+    readiness_core = assess_readiness(readiness_inputs)
+    pre_analysis = readiness_core.pre_analysis
+    step3_matrix = readiness_core.matrix.model_dump()
+    step3_level = readiness_core.readiness_level
+    step3_gap_items = list(readiness_core.gap_items or [])
     _tag_bottleneck_gaps(pre_analysis, mvp_focus, target_structure)
     summary = _recompute_viability_summary(pre_analysis)
     activity.logger.info(
@@ -642,7 +650,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             merge_gap_item_dicts,
         )
 
-        readiness_gap_items = gaps_from_pre_analysis(pre_analysis)
+        readiness_gap_items = step3_gap_items or gaps_from_pre_analysis(pre_analysis)
         deterministic_gap_report = {
             "summary": summary,
             "ready_doctypes": pre_analysis.get("ready_doctypes", []),
@@ -651,6 +659,8 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
             "complete_gaps": live_erp_overlay.get("complete_gaps", []),
             "file_doctype_matrix": pre_analysis.get("file_doctype_matrix"),
+            "matrix": step3_matrix,
+            "readiness_level": step3_level,
             "corpus_overclaims": pre_analysis.get("corpus_overclaims") or [],
             "gap_items": merge_gap_item_dicts(
                 readiness_gap_items,
@@ -715,8 +725,10 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 UserQuestion(**q) for q in (llm_raw.get("questions_for_user") or [])
                 if not q.get("is_blocking") or _has_blocking_gaps(pre_analysis)
             ],
-            executive_summary=llm_raw.get("executive_summary", ""),
-            import_readiness_score=float(llm_raw.get("import_readiness_score", summary.get("raw_readiness_score", 1.0))),
+            executive_summary=llm_raw.get("executive_summary", "") or readiness_core.executive_summary,
+            import_readiness_score=float(
+                llm_raw.get("import_readiness_score", summary.get("raw_readiness_score", 1.0))
+            ),
             user_decision=llm_raw.get("user_decision"),
         )
         activity.logger.info(
@@ -770,7 +782,7 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
             merge_gap_item_dicts,
         )
         fallback_gap_items = merge_gap_item_dicts(
-            gaps_from_pre_analysis(pre_analysis),
+            step3_gap_items or gaps_from_pre_analysis(pre_analysis),
             live_erp_overlay.get("complete_gaps") or [],
         )
         assessment = DataReadinessAssessment(
@@ -785,10 +797,9 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
                 "missing_doctypes": pre_analysis.get("missing_doctypes", []),
                 "unmappable_chunks": pre_analysis.get("unmappable_chunks", []),
                 "complete_gaps": live_erp_overlay.get("complete_gaps", []),
-                "gap_items": merge_gap_item_dicts(
-                    readiness_gap_items,
-                    live_erp_overlay.get("complete_gaps") or [],
-                ),
+                "matrix": step3_matrix,
+                "readiness_level": step3_level,
+                "gap_items": fallback_gap_items,
                 "link_cache_meta": {
                     k: len(v) for k, v in (live_erp_overlay.get("link_cache") or {}).items()
                 },

@@ -10,6 +10,8 @@ import { TaskStream } from './TaskStream';
 import type { AnalysisTask } from '@/types/implementation';
 import { getBaseApiUrl } from '@/lib/config';
 import { SupervisorInlineUploader } from '../supervisor/SupervisorInlineUploader';
+import { ReadinessMatrixTable, type ReadinessMatrixRow } from './ReadinessMatrixTable';
+import { ReadinessBanner, type ReadinessUiPayload } from './ReadinessBanner';
 
 // ── DataReadinessGateCard ──────────────────────────────────────────────────
 // Shown inline in the main content area when stage === 'awaiting_data_readiness_confirmation'.
@@ -48,7 +50,19 @@ type SessionSummary = {
   }>;
 } | null;
 
-function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: string; onDone: () => void; sessionSummary?: SessionSummary }) {
+function DataReadinessGateCard({
+  jobId,
+  onDone,
+  sessionSummary,
+  requireAckForContinue = false,
+  acknowledged = true,
+}: {
+  jobId: string;
+  onDone: () => void;
+  sessionSummary?: SessionSummary;
+  requireAckForContinue?: boolean;
+  acknowledged?: boolean;
+}) {
   const [prompts, setPrompts] = useState<DRPrompt[]>([]);
   const [responding, setResponding] = useState(false);
   const [fetchErr, setFetchErr] = useState<string | null>(null);
@@ -74,6 +88,11 @@ function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: strin
   useEffect(() => { load(); }, [load]);
 
   const respond = async (prompt: DRPrompt, action: DRAction, option: string) => {
+    const isContinue = option.toLowerCase().includes('continue');
+    if (isContinue && requireAckForContinue && !acknowledged) {
+      setFetchErr('Please review the coverage matrix and check the acknowledgment box first.');
+      return;
+    }
     setResponding(true);
     setFetchErr(null);
     try {
@@ -254,10 +273,12 @@ function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: strin
                   ) : (
                     (impAct.options || []).map((opt) => {
                       const isUpload = opt.toLowerCase().includes('upload');
+                      const isContinue = opt.toLowerCase().includes('continue');
+                      const blocked = isContinue && requireAckForContinue && !acknowledged;
                       return (
                         <button
                           key={opt}
-                          disabled={responding}
+                          disabled={responding || blocked}
                           onClick={() => {
                             if (isUpload) {
                             setActiveUpload({ promptId: p.id, actionId: impAct.id, selectedOption: opt });
@@ -265,6 +286,7 @@ function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: strin
                             respond(p, impAct, opt);
                             }
                           }}
+                          title={blocked ? 'Acknowledge the coverage review first' : undefined}
                           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 ${
                             isUpload
                               ? 'bg-amber-500/10 border border-amber-500/25 hover:bg-amber-500/20 text-amber-100'
@@ -291,16 +313,21 @@ function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: strin
               <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 space-y-4">
                 <p className="text-white text-sm leading-relaxed">{fallAct.question}</p>
                 <div className="space-y-2">
-                  {(fallAct.options || []).map((opt) => (
+                  {(fallAct.options || []).map((opt) => {
+                    const isContinue = opt.toLowerCase().includes('continue');
+                    const blocked = isContinue && requireAckForContinue && !acknowledged;
+                    return (
                     <button
                       key={opt}
-                      disabled={responding}
+                      disabled={responding || blocked}
                       onClick={() => respond(p, fallAct, opt)}
+                      title={blocked ? 'Acknowledge the coverage review first' : undefined}
                       className="w-full text-left px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] text-gray-200 text-sm transition-all disabled:opacity-50"
                     >
                       {responding ? 'Submitting…' : opt}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -327,6 +354,89 @@ function DataReadinessGateCard({ jobId, onDone, sessionSummary }: { jobId: strin
   );
 }
 
+// ── Readiness panel (matrix + banner) ───────────────────────────────────────
+
+function ReadinessPanel({
+  jobId,
+  onRefresh,
+  onAckChange,
+  acknowledged,
+  onRequiresAckChange,
+}: {
+  jobId: string;
+  onRefresh: () => void;
+  onAckChange: (v: boolean) => void;
+  acknowledged: boolean;
+  onRequiresAckChange?: (v: boolean) => void;
+}) {
+  const [readiness, setReadiness] = useState<(ReadinessUiPayload & { matrix?: { rows?: ReadinessMatrixRow[] } }) | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [proceeding, setProceeding] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const base = getBaseApiUrl();
+      const res = await fetch(`${base}/api/implementation/readiness/${jobId}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        const payload = data?.readiness ?? null;
+        setReadiness(payload);
+        onRequiresAckChange?.(payload?.requires_acknowledgment === true);
+      }
+    } catch {
+      /* best-effort */
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleProceed = async () => {
+    setProceeding(true);
+    try {
+      const base = getBaseApiUrl();
+      await fetch(`${base}/api/implementation/readiness/decisions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: jobId,
+          decision: readiness?.readiness_level === 'yellow' ? 'acknowledge_yellow' : 'proceed',
+        }),
+      });
+      onRefresh();
+    } catch {
+      /* supervisor path may still handle continue */
+    } finally {
+      setProceeding(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 flex items-center gap-3 animate-pulse">
+        <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+        <span className="text-sm text-gray-500">Building readiness matrix…</span>
+      </div>
+    );
+  }
+
+  if (!readiness) return null;
+
+  return (
+    <div className="space-y-4">
+      <ReadinessBanner
+        readiness={readiness}
+        acknowledged={acknowledged}
+        onAckChange={onAckChange}
+        onProceed={handleProceed}
+        proceeding={proceeding}
+      />
+      <ReadinessMatrixTable rows={readiness.matrix?.rows ?? []} />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -344,6 +454,8 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
   const [confirmedMapping, setConfirmedMapping] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
   const [correctionText, setCorrectionText] = useState('');
+  const [readinessAcked, setReadinessAcked] = useState(false);
+  const [readinessNeedsAck, setReadinessNeedsAck] = useState(false);
 
   // FIX: Added `?? []` so it never tries to run .filter() on undefined!
   const tasks    = devTasks ?? live.tasks ?? [];
@@ -468,7 +580,22 @@ export function AnalyzeView({ jobId, validateHref, devTasks }: Props) {
           waiting for the user to provide or confirm missing data.
          ══════════════════════════════════════════════════════════════════ */}
       {stage === 'awaiting_data_readiness_confirmation' && (
-        <DataReadinessGateCard jobId={jobId} onDone={live.refresh} sessionSummary={live.session} />
+        <>
+          <ReadinessPanel
+            jobId={jobId}
+            onRefresh={live.refresh}
+            acknowledged={readinessAcked}
+            onAckChange={setReadinessAcked}
+            onRequiresAckChange={setReadinessNeedsAck}
+          />
+          <DataReadinessGateCard
+            jobId={jobId}
+            onDone={live.refresh}
+            sessionSummary={live.session}
+            requireAckForContinue={readinessNeedsAck}
+            acknowledged={readinessAcked}
+          />
+        </>
       )}
 
 

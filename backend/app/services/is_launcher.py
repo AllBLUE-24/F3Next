@@ -729,12 +729,17 @@ class ImplementationLauncher:
             if not row:
                 return None
 
+            gap_report = row.gap_report or {}
             return {
                 "ready_doctypes": row.ready_doctypes or [],
                 "partial_doctypes": row.partial_doctypes or [],
                 "missing_doctypes": row.missing_doctypes or [],
                 "unmappable_chunks": row.unmappable_chunks or [],
-                "gap_report": row.gap_report or {},
+                "gap_report": gap_report,
+                "matrix": gap_report.get("matrix"),
+                "readiness_level": gap_report.get("readiness_level"),
+                "gap_items": gap_report.get("gap_items") or [],
+                "minimum_viable_import_possible": row.minimum_viable_possible,
                 "minimum_viable_possible": row.minimum_viable_possible,
                 "user_action_required": row.user_action_required,
                 "questions_for_user": row.questions_for_user or [],
@@ -742,6 +747,116 @@ class ImplementationLauncher:
                 "executive_summary": row.executive_summary,
                 "user_decision": row.user_decision,
             }
+
+    async def reassess_readiness(self, project_id: str | UUID) -> Dict[str, Any]:
+        """Re-run deterministic Step 3 assess from latest R2 manifest (offline refresh)."""
+        from containers.implementation.data_readiness_agent.activities import (
+            _download_manifest,
+            _load_target_structure,
+            _persist_assessment,
+        )
+        from containers.implementation.data_readiness_agent.models import (
+            DataReadinessAssessment,
+            DoctypeGap,
+            DoctypeReady,
+        )
+        from containers.implementation.readiness.assess import assess_readiness
+        from containers.implementation.readiness.inputs import build_readiness_inputs
+        from containers.implementation.readiness.readiness_ui import build_readiness_ui_payload
+
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            raise ValueError("Implementation session not found")
+
+        async with AsyncSessionLocal() as session:
+            proj = (
+                await session.execute(select(Project).where(Project.id == UUID(str(project_id))))
+            ).scalar_one_or_none()
+        if not proj:
+            raise ValueError("Project not found")
+
+        manifest_key = f"{proj.company_slug}/{project_id}/_file_contents/manifest.json"
+        manifest = _download_manifest(manifest_key)
+        if not manifest:
+            raise ValueError(f"Manifest not found at {manifest_key}")
+
+        target_structure = await _load_target_structure(str(is_session.id))
+        inputs = build_readiness_inputs(
+            project_id=str(project_id),
+            manifest=manifest,
+            target_structure=target_structure,
+            f3iche_id=is_session.discovery_f3iche,
+        )
+        report = assess_readiness(inputs)
+        assessment = DataReadinessAssessment(
+            ready_doctypes=report.ready_doctypes,
+            partial_doctypes=report.partial_doctypes,
+            missing_doctypes=report.missing_doctypes,
+            gap_report={
+                "matrix": report.matrix.model_dump(),
+                "readiness_level": report.readiness_level,
+                "gap_items": report.gap_items,
+                "summary": report.pre_analysis.get("summary") or {},
+            },
+            minimum_viable_import_possible=report.minimum_viable_import_possible,
+            user_action_required=report.user_action_required,
+            executive_summary=report.executive_summary,
+            import_readiness_score=report.import_readiness_score,
+        )
+        await _persist_assessment(str(is_session.id), assessment)
+        payload = assessment.model_dump()
+        payload["matrix"] = report.matrix.model_dump()
+        payload["readiness_level"] = report.readiness_level
+        payload["gap_items"] = report.gap_items
+        return build_readiness_ui_payload(payload)
+
+    async def record_readiness_decision(
+        self,
+        project_id: str | UUID,
+        decision: str,
+    ) -> Dict[str, Any]:
+        """Persist user readiness decision; signal continue when acknowledging yellow."""
+        is_session = await self._get_session(project_id)
+        if not is_session:
+            raise ValueError("Implementation session not found")
+
+        from sqlalchemy import update
+
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(ISDataReadinessAssessment)
+                .where(ISDataReadinessAssessment.session_id == is_session.id)
+                .order_by(ISDataReadinessAssessment.created_at.desc())
+                .limit(1)
+            )
+            row = (await session.execute(stmt)).scalar_one_or_none()
+            if row:
+                await session.execute(
+                    update(ISDataReadinessAssessment)
+                    .where(ISDataReadinessAssessment.id == row.id)
+                    .values(user_decision=decision)
+                )
+                await session.commit()
+
+        if decision in ("acknowledge_yellow", "proceed"):
+            prompts = await self.get_supervisor_prompts(project_id, status="open")
+            for prompt in prompts:
+                if prompt.get("step") not in ("data_readiness", "8c"):
+                    continue
+                for action in prompt.get("actions") or []:
+                    opts = action.get("options") or []
+                    aid = str(action.get("id") or "")
+                    if aid == "ask_user_data_readiness_continue" or any(
+                        "continue" in str(o).lower() for o in opts
+                    ):
+                        await self.answer_supervisor_prompt(
+                            project_id,
+                            prompt["id"],
+                            action["id"],
+                            extra_data={"readiness_decision": decision},
+                        )
+                        break
+        return {"ok": True, "decision": decision}
 
     async def get_supervisor_prompts(self, project_id: str | UUID, status: str = "open") -> List[Dict[str, Any]]:
         """

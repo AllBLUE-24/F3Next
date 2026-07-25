@@ -419,6 +419,37 @@ async def get_readiness_ui(
     return {"readiness": build_readiness_ui_payload(report)}
 
 
+class ReadinessDecisionRequest(BaseModel):
+    project_id: UUID
+    decision: str  # acknowledge_yellow | proceed | defer
+
+
+@router.post("/readiness/decisions", summary="Record readiness acknowledgment or deferral")
+async def post_readiness_decision(
+    req: ReadinessDecisionRequest,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    if req.decision not in ("acknowledge_yellow", "proceed", "defer"):
+        raise HTTPException(status_code=400, detail="Invalid decision")
+    try:
+        result = await launcher.record_readiness_decision(req.project_id, req.decision)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/readiness/reassess/{project_id}", summary="Re-run deterministic readiness assess")
+async def post_readiness_reassess(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    try:
+        readiness = await launcher.reassess_readiness(project_id)
+        return {"readiness": readiness}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/import-plan/{project_id}", summary="3-phase import plan")
 async def get_import_plan(
     project_id: UUID,
