@@ -193,6 +193,7 @@ async def plan_day1_mvp(
         template_seeds=template_seeds,
         legacy_system=legacy,
         clarification_answers=clarification_answers,
+        coverage=coverage,
     )
 
     revisions = 0
@@ -217,6 +218,7 @@ async def plan_day1_mvp(
             template_seeds=template_seeds or [],
             legacy_system=legacy,
             clarification_answers=clarification_answers,
+            coverage=coverage,
         )
 
     # Apply validator promotions to plan seeds

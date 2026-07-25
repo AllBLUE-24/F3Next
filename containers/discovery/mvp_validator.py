@@ -82,6 +82,94 @@ _NICHE_BATCH_EXPIRY_INCOMPATIBLE = frozenset({
     "manufacturing_fabrication_jobshop",
 })
 
+_MAX_DAY1_SMALL = 12
+_MIN_DAY1_LARGE_MANUFACTURING = 7
+
+
+def _scale_band(coverage: dict[str, Any] | None, transcript: str) -> str:
+    """Infer company size band from coverage + transcript (consultant Day-1 breadth)."""
+    scale_val = str(((coverage or {}).get("scale") or {}).get("value") or "")
+    text = f"{scale_val} {transcript}".lower()
+
+    headcount = re.search(r"\b(\d+)\s*[-]?\s*(employee|employees|staff|people|workers|person)\b", text)
+    if headcount:
+        count = int(headcount.group(1))
+        if count >= 100:
+            return "large"
+        if count <= 30:
+            return "small"
+
+    if any(
+        kw in text
+        for kw in (
+            "multi-plant",
+            "multi plant",
+            "multiple plant",
+            "multi-branch",
+            "multi branch",
+            "multiple location",
+            "300 employee",
+            "500 employee",
+        )
+    ):
+        return "large"
+
+    if any(
+        kw in text
+        for kw in (
+            "15-person",
+            "15 person",
+            "small team",
+            "10 employee",
+            "20 employee",
+            "startup",
+            "micro enterprise",
+        )
+    ):
+        return "small"
+
+    turnover_cr = re.search(r"\b(\d+)\s*(cr|crore)\b", text)
+    if turnover_cr and int(turnover_cr.group(1)) >= 50:
+        return "large"
+    if turnover_cr and int(turnover_cr.group(1)) <= 5:
+        return "small"
+
+    return "unknown"
+
+
+def _apply_scale_breadth_rules(
+    *,
+    day1: list[str],
+    niche_id: str,
+    coverage: dict[str, Any] | None,
+    transcript: str,
+    issues: list[ValidationIssue],
+) -> None:
+    band = _scale_band(coverage, transcript)
+    count = len(day1)
+    if band == "small" and count > _MAX_DAY1_SMALL:
+        issues.append(ValidationIssue(
+            code="SCALE_BREADTH_HIGH",
+            message=(
+                f"Day-1 plan lists {count} modules for a small operation — "
+                "confirm deferrals so go-live stays achievable."
+            ),
+            severity="warning",
+        ))
+    if (
+        band == "large"
+        and niche_id.startswith("manufacturing_")
+        and count < _MIN_DAY1_LARGE_MANUFACTURING
+    ):
+        issues.append(ValidationIssue(
+            code="SCALE_BREADTH_LOW",
+            message=(
+                "Day-1 plan may be thin for a large/multi-site manufacturer — "
+                "confirm branch warehouses and routing depth."
+            ),
+            severity="warning",
+        ))
+
 
 @dataclass
 class ValidationIssue:
@@ -185,6 +273,7 @@ def validate_mvp_plan(
     legacy_system: str = "",
     graph: dict[str, Any] | None = None,
     clarification_answers: dict[str, Any] | None = None,
+    coverage: dict[str, Any] | None = None,
 ) -> ValidationResult:
     """
     Validate and normalize an MVP plan from the planner.
@@ -386,6 +475,14 @@ def validate_mvp_plan(
             and all(d in day1_final for d in i.suggested_doctypes)
         )
     ]
+
+    _apply_scale_breadth_rules(
+        day1=day1_ordered,
+        niche_id=niche_id,
+        coverage=coverage,
+        transcript=chat_transcript,
+        issues=issues,
+    )
 
     errors = [i for i in issues if i.severity == "error"]
     return ValidationResult(

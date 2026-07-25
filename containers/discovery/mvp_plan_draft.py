@@ -195,6 +195,7 @@ def finalize_offline_mvp_plan(
         template_seeds=template_seeds,
         legacy_system=_legacy_system(coverage),
         clarification_answers=clarification_answers,
+        coverage=coverage,
     )
 
     day1_names = validation.day1_doctypes

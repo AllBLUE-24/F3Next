@@ -41,13 +41,20 @@ Step 1 architecture is directionally correct (plan → validate → explain + cl
 | **F5** | Org-structure open assumptions (locations, fiscal year, cutover, multi-company) | C · L2 | `discovery_org_assumptions.py`, `discovery_assurance.py` | YELLOW lists open org facts when not in transcript |
 | **F6** | Offline planner fallback forces YELLOW assurance | A · L1 | `discovery_assurance.py`, `discovery_chat.py` | `planner_offline_fallback` never GREEN |
 
-### Phase C — Backlog (P2)
+### Phase C — Non-manufacturing beta + scale rules (P2) ✅
+
+| ID | Fix | Class | Files | Verification |
+|----|-----|-------|-------|--------------|
+| **F7** | Scale-aware Day-1 breadth warnings in validator | C · L3 | `mvp_validator.py`, `mvp_planner.py` | Small +14 modules → SCALE_BREADTH_HIGH |
+| **F8** | Ship `trading_fmcg_distributor.json` + `service_professional.json` | B · L3 | `knowledge_base/common/f3iches/` | Template exists; org_skeleton populated |
+| **F9** | Field-service hints → `service_professional` not jobshop | A · L3 | `niche_resolver.py`, routing matrix | LR-DISC-04 → service_professional |
+
+### Phase C — Backlog (P3)
 
 | ID | Fix | Notes |
 |----|-----|-------|
-| **F7** | Scale-aware Day-1 breadth in validator | Requires band rules in `mvp_validator.py` |
-| **F8** | Ship `trading_fmcg_distributor.json` + `service_professional.json` | Unblocks non-manufacturing beta |
-| **F9** | Fix field-service hints → not jobshop | `niche_resolver.py` hint table |
+| **F10** | `trading_hardware_variants.json` + `trading_autoparts_highvolume.json` | Extend trading catalog |
+| **Live matrix ≥80%** | Unchanged gate | `DISCOVERY_LIVE_MATRIX=1` harness |
 
 ---
 
@@ -69,4 +76,8 @@ Step 1 architecture is directionally correct (plan → validate → explain + cl
 - [x] Clarify panel shows ≥1 niche-specific question for resolved manufacturing niche
 - [x] `mvp_boundary.org_skeleton.required_warehouses` populated for chemical
 - [x] `planner_offline_fallback` → assurance YELLOW
+- [x] `trading_fmcg_distributor` F3iche template on disk with seeds + questions
+- [x] `service_professional` F3iche template on disk
+- [x] Field-service routing → `service_professional` (LR-DISC-04)
+- [x] Scale band warnings in validator (small/large)
 - [ ] Live matrix ≥80% (unchanged gate)

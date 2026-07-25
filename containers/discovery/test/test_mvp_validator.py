@@ -185,3 +185,34 @@ def test_manufacturing_batch_promotes_stock_entry_for_recall():
     )
     assert result.valid
     assert "Stock Entry" in result.day1_doctypes
+
+
+def test_small_scale_warns_on_broad_day1_plan():
+    many_doctypes = [
+        "Item", "Batch", "BOM", "Work Order", "Job Card", "Stock Entry",
+        "Warehouse", "Customer", "Supplier", "Purchase Receipt",
+        "Delivery Note", "Workstation", "Operation", "Quality Inspection",
+    ]
+    result = validate_mvp_plan(
+        day1_entries=many_doctypes,
+        deferred_entries=["Sales Invoice"],
+        niche_id="manufacturing_project_chemical",
+        chat_transcript="small 15-person factory",
+        template_seeds=CHEMICAL_TEMPLATE,
+        coverage={"scale": {"value": "15 employees"}},
+    )
+    codes = {i.code for i in result.issues}
+    assert "SCALE_BREADTH_HIGH" in codes
+
+
+def test_large_scale_warns_on_thin_manufacturing_plan():
+    result = validate_mvp_plan(
+        day1_entries=["Item", "Warehouse", "Customer"],
+        deferred_entries=["BOM", "Work Order", "Job Card", "Stock Entry"],
+        niche_id="manufacturing_project_chemical",
+        chat_transcript="Large company with 300 employees and four locations.",
+        template_seeds=CHEMICAL_TEMPLATE,
+        coverage={"scale": {"value": "300 employees across 4 plants"}},
+    )
+    codes = {i.code for i in result.issues}
+    assert "SCALE_BREADTH_LOW" in codes
