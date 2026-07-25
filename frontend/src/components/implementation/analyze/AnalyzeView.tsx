@@ -388,7 +388,7 @@ function ReadinessPanel({
     } finally {
       setLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, onRequiresAckChange]);
 
   useEffect(() => { load(); }, [load]);
 
