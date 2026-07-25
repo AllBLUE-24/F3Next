@@ -60,14 +60,43 @@ def _hint_match(text: str, keywords: tuple[str, ...]) -> bool:
     return any(kw in t for kw in keywords)
 
 
-def resolve_niche_from_text(text: str, niche_ids: List[str]) -> Optional[str]:
+def resolve_niche_from_text(
+    text: str,
+    niche_ids: List[str],
+    *,
+    broad_f3iche: Optional[str] = None,
+) -> Optional[str]:
     """Match free text (confirmation message, chat, industry) to a registry niche."""
     if not text or not text.strip():
         return None
     for keywords, niche in _INDUSTRY_NICHE_HINTS + _CHAT_NICHE_HINTS:
-        if niche in niche_ids and _hint_match(text, keywords):
-            return niche
+        if _hint_match(text, keywords):
+            if broad_f3iche and niche_broad_category(niche) != broad_f3iche:
+                continue
+            if not niche_ids or niche in niche_ids:
+                return niche
     return None
+
+
+def resolve_niche_hint_from_text(
+    text: str,
+    *,
+    broad_f3iche: Optional[str] = None,
+) -> Optional[str]:
+    """Match text to catalog niche id even when no F3iche template file exists yet."""
+    if not text or not text.strip():
+        return None
+    matches: List[str] = []
+    for keywords, niche in _INDUSTRY_NICHE_HINTS + _CHAT_NICHE_HINTS:
+        if _hint_match(text, keywords) and niche not in matches:
+            matches.append(niche)
+    if not matches:
+        return None
+    if broad_f3iche:
+        for niche in matches:
+            if niche_broad_category(niche) == broad_f3iche:
+                return niche
+    return matches[0]
 
 
 def niche_broad_category(niche_id: str) -> str:
@@ -95,12 +124,16 @@ def resolve_niche_from_discovery(
     industry = (discovery_industry or "").strip()
     chat = (chat_transcript or "").strip()
     combined = f"{industry} {chat}"
+    f3 = (discovery_f3iche or "").strip()
 
-    resolved = resolve_niche_from_text(combined, niche_ids)
+    resolved = resolve_niche_from_text(
+        combined,
+        niche_ids,
+        broad_f3iche=f3 if f3 in _BROAD_CATEGORIES else None,
+    )
     if resolved:
         return resolved
 
-    f3 = (discovery_f3iche or "").strip()
     if f3 in niche_ids:
         return f3
 
@@ -121,6 +154,18 @@ def resolve_discovery_f3iche_niche(
 ) -> str:
     """Map trading|manufacturing|service to a template under common/f3iches/."""
     niche_ids = list_f3iche_template_ids()
+    combined = f"{industry} {chat_transcript}".strip()
+    broad = discovery_f3iche if discovery_f3iche in _BROAD_CATEGORIES else None
+
+    category_hint = resolve_niche_hint_from_text(combined, broad_f3iche=broad)
+    if category_hint:
+        if f3iche_template_exists(category_hint) or broad:
+            return category_hint
+
+    strong_hint = resolve_niche_hint_from_text(combined)
+    if strong_hint and f3iche_template_exists(strong_hint):
+        return strong_hint
+
     resolved = resolve_niche_from_discovery(
         discovery_f3iche=discovery_f3iche,
         discovery_industry=industry,
@@ -136,7 +181,10 @@ def resolve_discovery_f3iche_niche(
         matches = [n for n in niche_ids if n.startswith(prefix)] if prefix else niche_ids
         if matches:
             return matches[0]
-        return niche_ids[0]
+        if hinted:
+            return hinted
+        if discovery_f3iche in _BROAD_CATEGORIES:
+            return discovery_f3iche
     return discovery_f3iche or "manufacturing_project_chemical"
 
 
@@ -260,14 +308,23 @@ async def resolve_discovery_f3iche_niche_async(
 
 
 def f3iche_template_path(f3iche_id: str) -> Path:
-    path = _F3ICHE_DIR / f"{f3iche_id}.json"
-    if path.exists():
-        return path
-    ids = list_f3iche_template_ids()
-    if ids:
-        return _F3ICHE_DIR / f"{ids[0]}.json"
-    return path
+    """Expected path for a niche template — never silently substitutes another file."""
+    return _F3ICHE_DIR / f"{f3iche_id}.json"
 
+
+def f3iche_template_exists(f3iche_id: str) -> bool:
+    return f3iche_template_path(f3iche_id).is_file()
+
+
+def f3iche_template_status(f3iche_id: str) -> dict[str, object]:
+    """Report whether the resolved niche has a template on disk."""
+    path = f3iche_template_path(f3iche_id)
+    return {
+        "niche_id": f3iche_id,
+        "template_available": path.is_file(),
+        "template_path": str(path),
+        "broad_category": niche_broad_category(f3iche_id),
+    }
 
 def discovery_evidence_bullets(
     *,
