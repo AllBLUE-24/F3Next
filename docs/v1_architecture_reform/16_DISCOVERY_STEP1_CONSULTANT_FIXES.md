@@ -49,6 +49,15 @@ Step 1 architecture is directionally correct (plan → validate → explain + cl
 | **F8** | Ship `trading_fmcg_distributor.json` + `service_professional.json` | B · L3 | `knowledge_base/common/f3iches/` | Template exists; org_skeleton populated |
 | **F9** | Field-service hints → `service_professional` not jobshop | A · L3 | `niche_resolver.py`, routing matrix | LR-DISC-04 → service_professional |
 
+### Phase D — UX lock-in (P0) ✅
+
+| ID | Fix | Class | Files | Verification |
+|----|-----|-------|-------|--------------|
+| **F11** | No internal reasoning in UI — humanized assurance, promotion labels, no `plan_reasoning`/`why`/`purpose` in API | A · L2 | `discovery_ui.py`, `discovery_chat.py`, `WorkflowPreviewDisplay.tsx` | `test_discovery_ui.py` |
+| **F12** | F3iche domain MCQ options + "Something else" text input on every clarify question | B · L2 | `discovery_clarify.py`, F3iche JSON, `DiscoveryClarificationPanel.tsx` | `test_discovery_clarify.py` |
+| **F13** | YELLOW requires acknowledgment checkbox before confirm | C · L2 | `WorkflowPreviewDisplay.tsx` | Manual + assurance `requires_acknowledgment` |
+| **F15** | Org-structure gaps surfaced as clarify questions (not only assurance flags) | C · L2 | `discovery_clarify.py` | org_* questions when unstated |
+
 ### Phase C — Backlog (P3)
 
 | ID | Fix | Notes |
@@ -80,4 +89,8 @@ Step 1 architecture is directionally correct (plan → validate → explain + cl
 - [x] `service_professional` F3iche template on disk
 - [x] Field-service routing → `service_professional` (LR-DISC-04)
 - [x] Scale band warnings in validator (small/large)
+- [x] F11 — no internal reasoning strings in Step 1 UI
+- [x] F12 — domain MCQ options + other/text on clarify panel
+- [x] F13 — YELLOW acknowledgment before confirm
+- [x] F15 — org-structure clarify questions
 - [ ] Live matrix ≥80% (unchanged gate)

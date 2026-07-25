@@ -45,12 +45,10 @@ export default function RecommendationPage() {
     required_doctypes: string[];
     promoted_doctypes?: string[];
     dual_system_note?: string;
-    scoping_reasoning?: string;
-    plan_reasoning?: string;
-    assurance?: { level?: string; reasons?: string[] };
+    assurance?: { level?: string; reasons?: string[]; requires_acknowledgment?: boolean };
     closure_test?: string;
-    promotion_reasons?: Record<string, string>;
-    validator_warnings?: Array<{ code?: string; message?: string; suggested_doctypes?: string[] }>;
+    promotion_labels?: Record<string, string>;
+    validator_warnings?: Array<{ message?: string; suggested_doctypes?: string[] }>;
     upload_schema_preview?: Record<string, unknown>;
   } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -95,13 +93,10 @@ export default function RecommendationPage() {
                 required_doctypes: target.required_doctypes || [],
                 promoted_doctypes: target.promoted_doctypes || data.promoted_doctypes || [],
                 dual_system_note: target.dual_system_note,
-                scoping_reasoning: target.scoping_reasoning,
-                plan_reasoning: data.plan_reasoning,
                 assurance: data.assurance || json.data?.discovery_metadata?.assurance,
                 closure_test: data.closure_test || json.data?.discovery_metadata?.closure_test,
-                plan_reasoning: data.plan_reasoning || json.data?.discovery_metadata?.plan_reasoning,
-                promotion_reasons:
-                  data.promotion_reasons || json.data?.discovery_metadata?.promotion_reasons,
+                promotion_labels:
+                  data.promotion_labels || json.data?.discovery_metadata?.promotion_labels,
                 validator_warnings:
                   data.validator_warnings || json.data?.discovery_metadata?.validator_warnings,
                 upload_schema_preview:
@@ -117,12 +112,9 @@ export default function RecommendationPage() {
                   required_doctypes: preview.required_doctypes,
                   promoted_doctypes: preview.promoted_doctypes,
                   dual_system_note: preview.dual_system_note ?? preview.discovery_metadata?.target_structure?.dual_system_note,
-                  scoping_reasoning: preview.discovery_metadata?.target_structure?.scoping_reasoning,
-                  plan_reasoning: preview.plan_reasoning,
                   assurance: preview.assurance,
                   closure_test: preview.closure_test,
-                  plan_reasoning: preview.plan_reasoning,
-                  promotion_reasons: preview.promotion_reasons,
+                  promotion_labels: preview.promotion_labels,
                   validator_warnings: preview.validator_warnings,
                   upload_schema_preview: preview.upload_schema_preview,
                 });

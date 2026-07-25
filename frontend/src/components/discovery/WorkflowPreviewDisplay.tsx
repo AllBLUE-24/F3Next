@@ -31,11 +31,13 @@ interface WorkflowPreviewDisplayProps {
     required_doctypes?: string[];
     promoted_doctypes?: string[];
     dual_system_note?: string;
-    scoping_reasoning?: string;
-    plan_reasoning?: string;
-    assurance?: { level?: string; reasons?: string[] };
+    assurance?: {
+      level?: string;
+      reasons?: string[];
+      requires_acknowledgment?: boolean;
+    };
     closure_test?: string;
-    promotion_reasons?: Record<string, string>;
+    promotion_labels?: Record<string, string>;
     validator_warnings?: ValidatorWarning[];
     upload_schema_preview?: Record<string, UploadSchemaDoctype>;
   };
@@ -59,10 +61,11 @@ export default function WorkflowPreviewDisplay({
   );
   const [selected, setSelected] = useState<Set<string>>(initialSelected);
   const [notes, setNotes] = useState("");
+  const [assumptionsAcked, setAssumptionsAcked] = useState(false);
   const [expandedSchema, setExpandedSchema] = useState<string | null>(null);
 
   const validatorWarnings = preview.validator_warnings ?? [];
-  const promotionReasons = preview.promotion_reasons ?? {};
+  const promotionLabels = preview.promotion_labels ?? {};
   const uploadSchema = preview.upload_schema_preview ?? {};
 
   const expectedData = useMemo(() => {
@@ -101,6 +104,8 @@ export default function WorkflowPreviewDisplay({
           ? "Review recommended"
           : null;
   const isBlocked = assuranceLevel === "red";
+  const needsAck =
+    preview.assurance?.requires_acknowledgment === true || assuranceLevel === "yellow";
 
   const toggle = (doctype: string, checked: boolean) => {
     setSelected((prev) => {
@@ -137,28 +142,21 @@ export default function WorkflowPreviewDisplay({
 
       {preview.closure_test && (
         <div className="surface-card p-4 sm:p-5 border border-zinc-800" style={{ borderRadius: "var(--radius-xl)" }}>
-          <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Closure test</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Day-1 success test</div>
           <p className="text-sm text-zinc-300 leading-relaxed">{preview.closure_test}</p>
-        </div>
-      )}
-
-      {preview.plan_reasoning && (
-        <div className="surface-card p-4 sm:p-5 border border-zinc-800" style={{ borderRadius: "var(--radius-xl)" }}>
-          <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Why this scope</div>
-          <p className="text-sm text-zinc-300 leading-relaxed">{preview.plan_reasoning}</p>
         </div>
       )}
 
       {validatorWarnings.length > 0 && (
         <div className="surface-card p-4 sm:p-5 border border-amber-500/25 bg-amber-500/5" style={{ borderRadius: "var(--radius-xl)" }}>
-          <div className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">Validator notes</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">Scope notes</div>
           <ul className="space-y-2">
             {validatorWarnings.map((w, idx) => (
               <li key={idx} className="text-sm text-zinc-300 leading-relaxed">
                 {w.message}
                 {w.suggested_doctypes && w.suggested_doctypes.length > 0 && (
                   <span className="text-zinc-500 text-xs block mt-0.5">
-                    Suggested: {w.suggested_doctypes.join(", ")}
+                    Related modules: {w.suggested_doctypes.join(", ")}
                   </span>
                 )}
               </li>
@@ -206,12 +204,9 @@ export default function WorkflowPreviewDisplay({
                   {promoted.has(item.doctype) && (
                     <span
                       className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 max-w-full truncate"
-                      title={promotionReasons[item.doctype] || "Promoted by validator"}
+                      title={promotionLabels[item.doctype] || "Recommended for Day-1"}
                     >
-                      {promotionReasons[item.doctype]
-                        ? promotionReasons[item.doctype].slice(0, 48) +
-                          (promotionReasons[item.doctype].length > 48 ? "…" : "")
-                        : "Validator promoted"}
+                      {promotionLabels[item.doctype] || "Recommended for Day-1"}
                     </span>
                   )}
                 </div>
@@ -333,12 +328,26 @@ export default function WorkflowPreviewDisplay({
           onChange={(e) => setNotes(e.target.value)}
           placeholder={
             validatorWarnings.length > 0
-              ? "Tell us if a validator note is wrong or if scope should change…"
+              ? "Tell us if a scope note is wrong or if the plan should change…"
               : "e.g. We also need project costing for field crews..."
           }
           className="w-full min-h-[100px] rounded-xl bg-black/30 border border-[var(--border-subtle)] text-sm text-zinc-300 p-3 focus:outline-none focus:border-amber-500/40"
         />
       </div>
+
+      {needsAck && !isBlocked && (
+        <label className="flex gap-3 items-start p-4 rounded-xl border border-amber-500/25 bg-amber-500/5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={assumptionsAcked}
+            onChange={(e) => setAssumptionsAcked(e.target.checked)}
+          />
+          <span className="text-sm text-zinc-300 leading-relaxed">
+            I have reviewed the assumptions above and understand the Day-1 scope may change after upload.
+          </span>
+        </label>
+      )}
 
       {isBlocked && (
         <p className="text-red-400/90 text-sm text-right">
@@ -350,7 +359,12 @@ export default function WorkflowPreviewDisplay({
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={isSubmitting || selected.size === 0 || isBlocked}
+          disabled={
+            isSubmitting ||
+            selected.size === 0 ||
+            isBlocked ||
+            (needsAck && !assumptionsAcked)
+          }
           className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black text-sm font-bold rounded-xl transition-colors"
         >
           {isSubmitting ? "Saving blueprint…" : "Confirm workflow & continue"}

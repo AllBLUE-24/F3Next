@@ -165,10 +165,9 @@ export interface WorkflowPreviewResponse {
   required_doctypes: string[];
   promoted_doctypes?: string[];
   dual_system_note?: string;
-  plan_reasoning?: string;
-  assurance?: { level?: string; reasons?: string[] };
+  assurance?: { level?: string; reasons?: string[]; requires_acknowledgment?: boolean };
   closure_test?: string;
-  promotion_reasons?: Record<string, string>;
+  promotion_labels?: Record<string, string>;
   validator_warnings?: ValidatorWarning[];
   upload_schema_preview?: Record<string, UploadSchemaDoctype>;
   discovery_metadata?: Record<string, unknown>;

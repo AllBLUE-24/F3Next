@@ -218,6 +218,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         build_clarifying_questions,
         needs_clarification,
     )
+    from containers.discovery.discovery_ui import (
+        build_workflow_preview_ui_payload,
+        humanize_assurance,
+        strip_internal_discovery_fields,
+    )
 
     hook = await get_or_create_hook(db, project_id)
     metadata = dict(hook.discovery_metadata or {})
@@ -337,7 +342,12 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     closure_test = mvp_plan.get("closure_test") or mvp_focus.get("plan_reasoning", "")
     plan_reasoning = mvp_focus.get("plan_reasoning", "") or closure_test
     assurance_transcript = (
-        append_clarifications_to_transcript(transcript, clarification_answers)
+        append_clarifications_to_transcript(
+            transcript,
+            clarification_answers,
+            niche_id=niche_id,
+            coverage=coverage,
+        )
         if clarification_answers
         else transcript
     )
@@ -372,7 +382,8 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "niche_resolution_source": niche_source,
         "phase": DiscoveryPhase.WORKFLOW_DISPLAY.value,
         "clarification_answers": clarification_answers,
-        "assurance": assurance.to_dict(),
+        "assurance": humanize_assurance(assurance),
+        "assurance_internal": assurance.to_dict(),
         "closure_test": closure_test,
         "plan_reasoning": plan_reasoning,
         "promotion_reasons": promotion_reasons,
@@ -470,6 +481,19 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     hook.last_bot_response = confirmation_message
     await db.commit()
 
+    ui_preview = build_workflow_preview_ui_payload(
+        metadata=discovery_metadata,
+        workflow_explanation=workflow_explanation,
+        seed_doctypes=seed_doctypes,
+        deferred_doctypes=deferred_seeds,
+        required_doctypes=target_payload.get("required_doctypes", []),
+        promoted_doctypes=(
+            (target_structure.get("mvp_boundary") or {}).get("promoted_doctypes")
+            or discovery_metadata.get("promoted_doctypes")
+            or []
+        ),
+    )
+
     return {
         "status": "awaiting_confirmation",
         "phase": DiscoveryPhase.MODULE_CONFIRMATION.value,
@@ -478,12 +502,7 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         "extracted_tags": hook.extracted_tags,
         "confirmation_message": confirmation_message,
         "workflow_preview": workflow_explanation,
-        "assurance": discovery_metadata.get("assurance"),
-        "closure_test": discovery_metadata.get("closure_test", ""),
-        "plan_reasoning": discovery_metadata.get("plan_reasoning", ""),
-        "promotion_reasons": discovery_metadata.get("promotion_reasons") or {},
-        "validator_warnings": discovery_metadata.get("validator_warnings") or [],
-        "upload_schema_preview": discovery_metadata.get("upload_schema_preview") or {},
+        **ui_preview,
     }
 
 
@@ -508,6 +527,11 @@ async def submit_clarification_answers(
 
 
 async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
+    from containers.discovery.discovery_ui import (
+        build_workflow_preview_ui_payload,
+        strip_internal_discovery_fields,
+    )
+
     hook = await get_or_create_hook(db, project_id)
     metadata = dict(hook.discovery_metadata or {})
 
@@ -565,21 +589,16 @@ async def load_workflow_preview(db: AsyncSession, project_id: UUID) -> dict:
     if not workflow_explanation:
         raise ValueError("Workflow preview not ready. Complete discovery first.")
 
-    return {
+    return build_workflow_preview_ui_payload(
+        metadata=metadata,
+        workflow_explanation=workflow_explanation,
+        seed_doctypes=seed_doctypes,
+        deferred_doctypes=deferred_seeds,
+        required_doctypes=required_doctypes,
+        promoted_doctypes=promoted_doctypes,
+    ) | {
         "phase": get_phase(metadata).value,
-        "workflow_explanation": workflow_explanation,
-        "seed_doctypes": seed_doctypes,
-        "deferred_doctypes": deferred_seeds,
-        "required_doctypes": required_doctypes,
-        "promoted_doctypes": promoted_doctypes,
-        "dual_system_note": metadata.get("dual_system_note") or target_meta.get("dual_system_note", ""),
-        "plan_reasoning": metadata.get("plan_reasoning", ""),
-        "assurance": metadata.get("assurance"),
-        "closure_test": metadata.get("closure_test", ""),
-        "promotion_reasons": metadata.get("promotion_reasons") or {},
-        "validator_warnings": metadata.get("validator_warnings") or [],
-        "upload_schema_preview": metadata.get("upload_schema_preview") or {},
-        "discovery_metadata": metadata,
+        "discovery_metadata": strip_internal_discovery_fields(metadata),
     }
 
 
