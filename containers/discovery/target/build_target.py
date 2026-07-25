@@ -24,21 +24,36 @@ _KB_ROOT = Path(__file__).parent.parent.parent / "knowledge_base" / "erpnext"
 _DOCTYPE_GRAPH_PATH = _KB_ROOT / "erpnext_doctype_graph.json"
 _BASELINE_PATH = _KB_ROOT / "erpnext_deafaults_baseline.json"
 
-_LAYER_ORDER = [
-    "layer_0_system", "layer_1_config", "layer_2_org",
-    "layer_3_master", "layer_4_master_extended",
-    "layer_5_transaction", "layer_6_projects",
-]
+def _layer_order_from_graph(setup_layers: Dict[str, Any]) -> List[str]:
+    """Layer keys from graph setup_layers — single source of truth."""
 
-_LAYER_TO_PHASE = {
-    "layer_0_system": "phase_a_config",
-    "layer_1_config": "phase_a_config",
-    "layer_2_org": "phase_a_config",
-    "layer_3_master": "phase_b_master",
-    "layer_4_master_extended": "phase_b_master",
-    "layer_5_transaction": "phase_c_transactional",
-    "layer_6_projects": "phase_d_projects",
-}
+    def _sort_key(key: str) -> tuple[int, str]:
+        if not key.startswith("layer_"):
+            return (99, key)
+        rest = key[len("layer_") :]
+        num_token = rest.split("_", 1)[0]
+        try:
+            return (int(num_token), key)
+        except ValueError:
+            return (99, key)
+
+    keys = [
+        key
+        for key, value in setup_layers.items()
+        if key.startswith("layer_") and isinstance(value, list)
+    ]
+    return sorted(keys, key=_sort_key)
+
+
+def _layer_to_phase_from_graph(phase_mapping: Dict[str, Any]) -> Dict[str, str]:
+    """Invert graph phase_mapping: layer_key → phase_id."""
+    mapping: Dict[str, str] = {}
+    for phase_id, layer_keys in phase_mapping.items():
+        if not isinstance(layer_keys, list):
+            continue
+        for layer_key in layer_keys:
+            mapping[str(layer_key)] = str(phase_id)
+    return mapping
 
 
 def _load_graph_and_baseline() -> tuple[Dict[str, Any], Dict[str, List]]:
@@ -52,6 +67,7 @@ def _load_graph_and_baseline() -> tuple[Dict[str, Any], Dict[str, List]]:
 def _resolve_prerequisites(seed_doctypes: List[str], graph: Dict[str, Any]) -> Dict[str, Any]:
     graph_dts = graph.get("doctypes", {})
     setup_layers = graph.get("setup_layers", {})
+    layer_order = _layer_order_from_graph(setup_layers)
 
     all_required: Set[str] = set(seed_doctypes)
     queue = list(seed_doctypes)
@@ -74,8 +90,10 @@ def _resolve_prerequisites(seed_doctypes: List[str], graph: Dict[str, Any]) -> D
 
     ordered_layers: List[Dict] = []
     seen: Set[str] = set()
-    for layer_key in _LAYER_ORDER:
+    for layer_key in layer_order:
         layer_dts = setup_layers.get(layer_key, [])
+        if not isinstance(layer_dts, list):
+            continue
         in_layer = [dt for dt in layer_dts if dt in all_required and dt not in seen]
         if in_layer:
             ordered_layers.append({"layer": layer_key, "doctypes": in_layer})
@@ -83,7 +101,15 @@ def _resolve_prerequisites(seed_doctypes: List[str], graph: Dict[str, Any]) -> D
 
     unlayered = [dt for dt in all_required if dt not in seen]
     if unlayered:
-        ordered_layers.append({"layer": "layer_unknown", "doctypes": sorted(unlayered)})
+        unlayered.sort(
+            key=lambda dt: (
+                graph_dts.get(dt, {}).get("layer", 99)
+                if isinstance(graph_dts.get(dt, {}).get("layer"), int)
+                else 99,
+                dt,
+            )
+        )
+        ordered_layers.append({"layer": "layer_unknown", "doctypes": unlayered})
 
     return {
         "ordered_layers": ordered_layers,
@@ -139,10 +165,30 @@ def _classify_against_baseline(
     }
 
 
+def _phase_for_doctype(
+    layer_key: str,
+    doctype: str,
+    graph_dts: Dict[str, Any],
+    layer_to_phase: Dict[str, str],
+) -> str:
+    if layer_key != "layer_unknown":
+        return layer_to_phase.get(layer_key, "phase_c_transactional")
+    numeric = graph_dts.get(doctype, {}).get("layer", -1)
+    if numeric in (0, 1):
+        return "phase_a_config"
+    if numeric in (2, 3):
+        return "phase_b_master"
+    if numeric == 8:
+        return "phase_d_projects"
+    return "phase_c_transactional"
+
+
 def _build_graph_setup_steps(
     ordered_layers: List[Dict],
     classified_lookup: Dict[str, Dict],
     seed_doctypes: List[str],
+    layer_to_phase: Dict[str, str],
+    graph_dts: Dict[str, Any],
 ) -> tuple[List[Dict], Dict[str, Any]]:
     setup_steps: List[Dict] = []
     import_phases: Dict[str, Any] = {
@@ -155,9 +201,9 @@ def _build_graph_setup_steps(
 
     for layer_entry in ordered_layers:
         layer_key = layer_entry["layer"]
-        phase_id = _LAYER_TO_PHASE.get(layer_key, "phase_c_transactional")
 
         for dt in layer_entry["doctypes"]:
+            phase_id = _phase_for_doctype(layer_key, dt, graph_dts, layer_to_phase)
             info = classified_lookup.get(dt, {})
             action = info.get("action", "must_create")
 
@@ -248,6 +294,7 @@ async def build_discovery_target(
     resolution = _resolve_prerequisites(seed_doctypes, graph)
     all_required = resolution["all_required"]
     ordered_layers = resolution["ordered_layers"]
+    layer_to_phase = _layer_to_phase_from_graph(graph.get("phase_mapping") or {})
 
     classified = _classify_against_baseline(
         all_required=all_required,
@@ -261,6 +308,8 @@ async def build_discovery_target(
         ordered_layers=ordered_layers,
         classified_lookup=classified_lookup,
         seed_doctypes=seed_doctypes,
+        layer_to_phase=layer_to_phase,
+        graph_dts=graph_dts,
     )
 
     validation_rules = validation_rules_from_f3iche(f3iche_data)
