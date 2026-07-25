@@ -15,9 +15,18 @@ def _answer_values(answers: dict[str, Any], key: str) -> list[str]:
     val = answers.get(key)
     if val is None:
         return []
+    raw: list[str]
     if isinstance(val, list):
-        return [str(v).strip().lower() for v in val if str(v).strip()]
-    return [str(val).strip().lower()]
+        raw = [str(v).strip() for v in val if str(v).strip()]
+    else:
+        raw = [str(val).strip()]
+    out: list[str] = []
+    for item in raw:
+        lowered = item.lower()
+        if lowered.startswith("other:"):
+            continue
+        out.append(lowered)
+    return out
 
 
 def _promote(
@@ -122,7 +131,9 @@ def apply_clarification_policy(
     if "expiry" in trace:
         promote("Batch", "user confirmed expiry/shelf-life batch tracking.")
 
-    if answers.get("routing_depth") == "no":
+    if answers.get("routing_depth") in (None, ""):
+        pass
+    elif str(answers.get("routing_depth")).lower() in ("no",):
         defer("Job Card", "user confirmed total batch yield only — no per-step routing.")
         defer("Workstation", "user confirmed total batch yield only — no per-step routing.")
 

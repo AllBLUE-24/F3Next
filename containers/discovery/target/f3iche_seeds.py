@@ -80,20 +80,22 @@ def org_skeleton_from_f3iche(f3iche_data: Dict[str, Any]) -> Dict[str, Any]:
     return skeleton
 
 
-def clarifying_questions_from_f3iche(f3iche_data: Dict[str, Any]) -> List[Dict[str, str]]:
+def clarifying_questions_from_f3iche(f3iche_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Return Research-authored questions_to_ask from niche JSON."""
     raw = f3iche_data.get("questions_to_ask") or []
-    out: List[Dict[str, str]] = []
+    out: List[Dict[str, Any]] = []
     for idx, entry in enumerate(raw):
         if not isinstance(entry, dict):
             continue
         question = str(entry.get("question") or "").strip()
         if not question:
             continue
+        options = [str(o).strip() for o in (entry.get("options") or []) if str(o).strip()]
         out.append({
             "id": f"f3iche_q_{idx}",
             "question": question,
             "purpose": str(entry.get("purpose") or "").strip(),
+            "options": options,
         })
     return out
 

@@ -62,19 +62,40 @@
   "questions_to_ask": [
     {
       "question": "Do you sell on fixed beat/route schedules with van stock, or mainly from a central warehouse against phone orders?",
-      "purpose": "Decides whether Delivery Note + van warehouse logic is Day-1 or deferred."
+      "purpose": "Decides whether Delivery Note + van warehouse logic is Day-1 or deferred.",
+      "options": [
+        "Mostly beat/route with van stock",
+        "Mostly central warehouse against phone or WhatsApp orders",
+        "Mix of both — routes plus warehouse fulfillment"
+      ]
     },
     {
       "question": "How do you handle near-expiry stock today — discounts, returns to company, or write-offs?",
-      "purpose": "Sets whether Batch + FEFO + near-expiry warehouse are Day-1."
+      "purpose": "Sets whether Batch + FEFO + near-expiry warehouse are Day-1.",
+      "options": [
+        "Discount sales before expiry",
+        "Return to principal / company",
+        "Write-off when expired",
+        "No systematic process today"
+      ]
     },
     {
       "question": "Do you need separate pricing by customer type (retailer vs wholesaler vs modern trade)?",
-      "purpose": "Price List complexity — may stay Phase 2 for small distributors."
+      "purpose": "Price List complexity — may stay Phase 2 for small distributors.",
+      "options": [
+        "Yes — different price lists by customer type",
+        "Mostly one price with occasional discounts",
+        "Single price list for everyone"
+      ]
     },
     {
       "question": "How many branches or godowns hold sellable stock?",
-      "purpose": "Multi-warehouse visibility is core for distributors with >1 location."
+      "purpose": "Multi-warehouse visibility is core for distributors with >1 location.",
+      "options": [
+        "One central godown only",
+        "2–3 branches or godowns",
+        "More than 3 stocking locations"
+      ]
     }
   ],
 

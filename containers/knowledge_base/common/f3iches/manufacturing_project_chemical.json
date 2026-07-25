@@ -399,19 +399,39 @@
     "questions_to_ask": [
       {
         "question": "How do you currently ensure Part A and Part B quantities match when shipping to a project site?",
-        "purpose": "Identifies if they use manual kits or if they suffer from the 'stranded hardener' inventory problem."
+        "purpose": "Identifies if they use manual kits or if they suffer from the 'stranded hardener' inventory problem.",
+        "options": [
+          "Manual kit lists or spreadsheets before dispatch",
+          "Pre-kitted in warehouse — quantities matched before shipping",
+          "Field crews pick separately — mismatches and stranded stock happen"
+        ]
       },
       {
         "question": "When a field crew requires more material than estimated due to concrete porosity, how is that extra cost captured?",
-        "purpose": "Reveals gaps in their project costing. Often, field crews just grab more material from the shop and the cost is never linked to the project."
+        "purpose": "Reveals gaps in their project costing. Often, field crews just grab more material from the shop and the cost is never linked to the project.",
+        "options": [
+          "Charged back to the customer or project",
+          "Absorbed as factory loss — not linked to the project",
+          "Tracked informally (WhatsApp, paper, or verbal)"
+        ]
       },
       {
         "question": "How do you track the exact batch numbers of the products applied at a specific customer's site?",
-        "purpose": "Tests their traceability capability. Essential for defending against warranty claims (was it a bad batch, or bad field application?)."
+        "purpose": "Tests their traceability capability. Essential for defending against warranty claims (was it a bad batch, or bad field application?).",
+        "options": [
+          "Paper job cards or site logbooks",
+          "Excel or register by batch number",
+          "Not tracked today — would need ERP for warranty defense"
+        ]
       },
       {
         "question": "Do you adjust chemical recipes on the fly based on viscosity or color? How is that recorded?",
-        "purpose": "Determines if they need flexible BOMs or custom Stock Entries for 'batch adjustments' (tinting/thinning)."
+        "purpose": "Determines if they need flexible BOMs or custom Stock Entries for 'batch adjustments' (tinting/thinning).",
+        "options": [
+          "Yes — adjustments recorded on batch ticket or log",
+          "Sometimes adjusted on the floor — rarely written down",
+          "Fixed recipes only — no on-the-fly changes"
+        ]
       }
     ],
     

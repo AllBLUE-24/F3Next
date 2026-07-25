@@ -57,19 +57,41 @@
   "questions_to_ask": [
     {
       "question": "Are technicians dispatched for breakdown calls, scheduled AMC visits, or both?",
-      "purpose": "Breakdown = Issue priority; AMC = Maintenance Schedule may join Day-1 or Phase 2."
+      "purpose": "Breakdown = Issue priority; AMC = Maintenance Schedule may join Day-1 or Phase 2.",
+      "options": [
+        "Mostly breakdown / on-call repairs",
+        "Mostly scheduled AMC or preventive visits",
+        "Both breakdown and AMC work"
+      ]
     },
     {
       "question": "Do technicians carry spare parts in vans, or always return to the main store?",
-      "purpose": "Van warehouse + Stock Entry consumption is Day-1 when repeat visits are a pain."
+      "purpose": "Van warehouse + Stock Entry consumption is Day-1 when repeat visits are a pain.",
+      "options": [
+        "Van stock for common spares",
+        "Always pick from main store",
+        "Mix — some vans stocked, some not"
+      ]
     },
     {
       "question": "How do you track warranty eligibility today — serial number, invoice date, or paper card?",
-      "purpose": "Warranty Claim + Serial No may be promoted when free repairs leak margin."
+      "purpose": "Warranty Claim + Serial No may be promoted when free repairs leak margin.",
+      "options": [
+        "Serial number on equipment",
+        "Invoice or purchase date",
+        "Paper warranty card only",
+        "Not tracked systematically"
+      ]
     },
     {
       "question": "Is billing fixed-fee per visit, time-and-materials, or annual AMC contracts?",
-      "purpose": "Timesheet vs Sales Order shape; Tally may keep invoicing deferred."
+      "purpose": "Timesheet vs Sales Order shape; Tally may keep invoicing deferred.",
+      "options": [
+        "Fixed fee per visit",
+        "Time and materials (hours + parts)",
+        "Annual AMC contract",
+        "Mix depending on customer"
+      ]
     }
   ],
 
