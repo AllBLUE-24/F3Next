@@ -1,0 +1,142 @@
+{
+  "id": "trading_fmcg_distributor",
+  "display_name": "FMCG / Packaged Goods Distributor",
+  "version": "1.0",
+  "last_updated": "2026-07-25",
+  "regulatory_criticality_level": "MEDIUM",
+
+  "business_reality": {
+    "typical_company_profile": {
+      "size": "10-80 employees",
+      "structure": "Owner. Sales manager (beats/routes). Warehouse supervisor. 5-20 delivery staff. 2-4 purchase staff. Accounts in Tally.",
+      "location": "Single or multi-branch distribution hub serving retailers, kirana, and modern trade.",
+      "business_models": [
+        "Authorized brand distributor (primary)",
+        "Multi-brand wholesale (secondary lines)",
+        "Route sales with van delivery"
+      ]
+    }
+  },
+
+  "mandatory_doctypes": [
+    "Item",
+    "Customer",
+    "Supplier",
+    "Warehouse",
+    "Batch",
+    "Stock Entry",
+    "Delivery Note",
+    "Purchase Receipt",
+    "Sales Order",
+    "Price List",
+    "UOM"
+  ],
+
+  "erpnext_masters_setup": {
+    "item_structure": {
+      "approach": "One Item per SKU (brand + pack size). Variants only when size/flavour share one product family.",
+      "custom_fields_required": "MRP, PTR, shelf life days, HSN code"
+    },
+    "warehouse_setup": {
+      "required_warehouses": [
+        "Main Warehouse",
+        "Near-Expiry / Hold",
+        "In-Transit (optional for inter-branch)"
+      ],
+      "warehouse_logic": "FEFO picking requires visible batch/expiry in ERPNext. Near-expiry stock segregated before dispatch."
+    }
+  },
+
+  "default_settings": {
+    "stock_settings": {
+      "valuation_method": "FIFO"
+    },
+    "seeding_strategies": {
+      "default_valuation_method": "FIFO",
+      "default_enable_batch": true,
+      "default_expiry_tracking": true,
+      "default_warehouse_fg": "Main Warehouse"
+    }
+  },
+
+  "questions_to_ask": [
+    {
+      "question": "Do you sell on fixed beat/route schedules with van stock, or mainly from a central warehouse against phone orders?",
+      "purpose": "Decides whether Delivery Note + van warehouse logic is Day-1 or deferred."
+    },
+    {
+      "question": "How do you handle near-expiry stock today — discounts, returns to company, or write-offs?",
+      "purpose": "Sets whether Batch + FEFO + near-expiry warehouse are Day-1."
+    },
+    {
+      "question": "Do you need separate pricing by customer type (retailer vs wholesaler vs modern trade)?",
+      "purpose": "Price List complexity — may stay Phase 2 for small distributors."
+    },
+    {
+      "question": "How many branches or godowns hold sellable stock?",
+      "purpose": "Multi-warehouse visibility is core for distributors with >1 location."
+    }
+  ],
+
+  "common_data_gaps": [
+    "No batch/expiry on fast-moving SKUs — leads to FEFO failures and customer returns.",
+    "Beat/route not mapped to Customer territory — dispatch planning stays in Excel.",
+    "Opening stock without batch numbers — cannot run FEFO until physical count assigns batches."
+  ],
+
+  "common_failures": [
+    {
+      "failure": "Treating distributor SKUs as non-batch items when manufacturer prints expiry.",
+      "why_it_fails": "Near-expiry write-offs are invisible until too late; modern trade rejects deliveries.",
+      "correct_approach": "Enable Batch + expiry on all dated SKUs; FIFO/FEFO valuation."
+    },
+    {
+      "failure": "Day-1 includes Sales Invoice when Tally remains system of record.",
+      "why_it_fails": "Double entry and GST mismatch; ops team loses trust.",
+      "correct_approach": "Day-1 = stock + dispatch trace (Delivery Note, Stock Entry); defer invoicing to Tally."
+    }
+  ],
+
+  "bottlenecks": [
+    {
+      "archetype_id": "batch_expiration_obsolescence",
+      "primary_bottleneck": "Expired or near-expiry stock not visible before dispatch.",
+      "signals": [
+        "expiry",
+        "near expiry",
+        "fefo",
+        "shelf life",
+        "write off",
+        "expired stock"
+      ],
+      "day1_seed_hints": ["Batch", "Item", "Stock Entry", "Delivery Note", "Warehouse"],
+      "defer_modules_mentioned": ["Sales Invoice", "Payment Entry"]
+    },
+    {
+      "archetype_id": "inventory_visibility",
+      "primary_bottleneck": "Cannot see total stock across branches or in transit.",
+      "signals": [
+        "multiple warehouse",
+        "branch stock",
+        "in transit",
+        "which godown",
+        "stock visibility"
+      ],
+      "day1_seed_hints": ["Warehouse", "Stock Entry", "Item", "Delivery Note", "Purchase Receipt"],
+      "defer_modules_mentioned": ["Sales Invoice"]
+    },
+    {
+      "archetype_id": "reorder_level_blindspot",
+      "primary_bottleneck": "No systematic reorder triggers — emergency purchases at premium.",
+      "signals": [
+        "reorder",
+        "stockout",
+        "out of stock",
+        "emergency purchase",
+        "safety stock"
+      ],
+      "day1_seed_hints": ["Item", "Warehouse", "Material Request", "Purchase Order", "Supplier"],
+      "defer_modules_mentioned": ["Landed Cost Voucher"]
+    }
+  ]
+}

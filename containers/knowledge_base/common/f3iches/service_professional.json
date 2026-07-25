@@ -1,0 +1,137 @@
+{
+  "id": "service_professional",
+  "display_name": "Professional & Field Service Operations",
+  "version": "1.0",
+  "last_updated": "2026-07-25",
+  "regulatory_criticality_level": "LOW",
+
+  "business_reality": {
+    "typical_company_profile": {
+      "size": "5-50 employees",
+      "structure": "Owner. Service coordinator. 3-15 field technicians. Optional spare-parts storekeeper. Accounts in Tally.",
+      "location": "Office + field sites; technicians carry van stock for common spares.",
+      "business_models": [
+        "AMC / preventive maintenance contracts",
+        "Break-fix field service",
+        "Professional services billed by time (consulting, retainer)"
+      ]
+    }
+  },
+
+  "mandatory_doctypes": [
+    "Customer",
+    "Project",
+    "Timesheet",
+    "Employee",
+    "Issue",
+    "Item",
+    "Warehouse",
+    "Stock Entry",
+    "Sales Order"
+  ],
+
+  "erpnext_masters_setup": {
+    "item_structure": {
+      "approach": "Service items as non-stock OR stockable spare parts as Items with UOM Piece.",
+      "custom_fields_required": "SAC code for service lines where applicable"
+    },
+    "warehouse_setup": {
+      "required_warehouses": [
+        "Spares - Main Store",
+        "Spares - Technician Van (virtual per tech optional Phase 2)"
+      ],
+      "warehouse_logic": "Van stock visibility prevents repeat site visits for missing gaskets/fuses."
+    }
+  },
+
+  "default_settings": {
+    "projects_settings": {
+      "track_costs_against_project": true
+    },
+    "seeding_strategies": {
+      "default_project_track_costs": true,
+      "default_warehouse_rm": "Spares - Main Store"
+    }
+  },
+
+  "questions_to_ask": [
+    {
+      "question": "Are technicians dispatched for breakdown calls, scheduled AMC visits, or both?",
+      "purpose": "Breakdown = Issue priority; AMC = Maintenance Schedule may join Day-1 or Phase 2."
+    },
+    {
+      "question": "Do technicians carry spare parts in vans, or always return to the main store?",
+      "purpose": "Van warehouse + Stock Entry consumption is Day-1 when repeat visits are a pain."
+    },
+    {
+      "question": "How do you track warranty eligibility today — serial number, invoice date, or paper card?",
+      "purpose": "Warranty Claim + Serial No may be promoted when free repairs leak margin."
+    },
+    {
+      "question": "Is billing fixed-fee per visit, time-and-materials, or annual AMC contracts?",
+      "purpose": "Timesheet vs Sales Order shape; Tally may keep invoicing deferred."
+    }
+  ],
+
+  "common_data_gaps": [
+    "No central dispatch queue — WhatsApp requests lost or double-assigned.",
+    "Spare parts issued to jobs without consumption entry — margin invisible.",
+    "AMC schedules in Excel — preventive visits missed until equipment fails."
+  ],
+
+  "common_failures": [
+    {
+      "failure": "Implementing full manufacturing modules for a service company.",
+      "why_it_fails": "Work Order/BOM add noise; team never adopts ERPNext.",
+      "correct_approach": "Day-1 = Customer + Project/Issue + Timesheet + spare parts Stock Entry."
+    },
+    {
+      "failure": "Deferring Customer because 'Tally has parties'.",
+      "why_it_fails": "Cannot link site visits, warranty, or project costing to a client record.",
+      "correct_approach": "Customer master in ERPNext for ops trace even when Tally invoices."
+    }
+  ],
+
+  "bottlenecks": [
+    {
+      "archetype_id": "service_dispatch_chaos",
+      "primary_bottleneck": "No central queue for field service requests and technician assignment.",
+      "signals": [
+        "whatsapp repair",
+        "dispatch",
+        "technician",
+        "field service",
+        "service call",
+        "no schedule"
+      ],
+      "day1_seed_hints": ["Issue", "Customer", "Employee", "Project", "Timesheet"],
+      "defer_modules_mentioned": ["Sales Invoice", "Payment Entry"]
+    },
+    {
+      "archetype_id": "preventive_maintenance_miss",
+      "primary_bottleneck": "Scheduled AMC/PM visits missed — tracked offline.",
+      "signals": [
+        "amc",
+        "preventive maintenance",
+        "scheduled service",
+        "monthly visit",
+        "contract visit"
+      ],
+      "day1_seed_hints": ["Maintenance Schedule", "Customer", "Project", "Employee"],
+      "defer_modules_mentioned": ["Warranty Claim"]
+    },
+    {
+      "archetype_id": "spare_parts_stockout",
+      "primary_bottleneck": "Technician reaches site without required spare parts.",
+      "signals": [
+        "spare parts",
+        "van stock",
+        "second visit",
+        "gasket",
+        "no parts"
+      ],
+      "day1_seed_hints": ["Item", "Warehouse", "Stock Entry", "Issue"],
+      "defer_modules_mentioned": []
+    }
+  ]
+}

@@ -17,13 +17,23 @@ def test_trading_niche_resolves_without_manufacturing_substitution():
         chat_transcript="We distribute packaged goods to retailers.",
     )
     assert niche == "trading_fmcg_distributor"
-    assert not f3iche_template_exists(niche)
+    assert f3iche_template_exists(niche)
     assert "trading_fmcg_distributor" in f3iche_template_path(niche).name
     assert "manufacturing" not in f3iche_template_path(niche).name
 
 
+def test_field_service_resolves_to_service_professional():
+    niche = resolve_discovery_f3iche_niche(
+        discovery_f3iche="service",
+        industry="HVAC field service",
+        chat_transcript="Technicians get WhatsApp repair requests with no dispatch queue.",
+    )
+    assert niche == "service_professional"
+    assert f3iche_template_exists(niche)
+
+
 def test_f3iche_template_status_reports_missing_template():
-    status = f3iche_template_status("trading_fmcg_distributor")
+    status = f3iche_template_status("trading_hardware_variants")
     assert status["template_available"] is False
     assert status["broad_category"] == "trading"
 
