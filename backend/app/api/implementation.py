@@ -406,6 +406,19 @@ async def get_data_readiness(
     return {"data_readiness": report}
 
 
+@router.get("/readiness/{project_id}", summary="UI-safe readiness matrix and gate")
+async def get_readiness_ui(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    from containers.implementation.readiness.readiness_ui import build_readiness_ui_payload
+
+    report = await launcher.get_data_readiness(project_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Readiness not yet assessed")
+    return {"readiness": build_readiness_ui_payload(report)}
+
+
 @router.get("/import-plan/{project_id}", summary="3-phase import plan")
 async def get_import_plan(
     project_id: UUID,

@@ -20,7 +20,7 @@ Implementation Step 3 of the v1 pipeline (Step 1 = `containers/discovery/`, Step
 
 | **C** | Gaps + GREEN/YELLOW/RED gate | ✅ Done |
 
-| **D** | API + workflow thin wiring | 🔲 Pending |
+| **D** | API + workflow thin wiring | 🟡 Partial (GET `/readiness` + `readiness_ui.py`) |
 
 | **E** | Analyze matrix UI | 🔲 Pending |
 

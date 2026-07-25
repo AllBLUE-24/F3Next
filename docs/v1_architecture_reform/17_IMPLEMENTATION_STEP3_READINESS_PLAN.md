@@ -25,7 +25,7 @@ Backward-compat shims: [`data_readiness_agent/__init__.py`](../../containers/imp
 | **A** | Package + `resolve_required_fields` + contracts | ✅ Done |
 | **B** | `build_readiness_matrix()` offline | ✅ Done |
 | **C** | Gaps + GREEN/YELLOW/RED gate | ✅ Done |
-| **D** | API + workflow thin wiring | 🔲 Pending |
+| **D** | API + workflow thin wiring | 🟡 Partial (GET `/readiness` + `readiness_ui.py`) |
 | **E** | Analyze matrix UI | 🔲 Pending |
 | **F** | Harness + golden gate on `3rd_run` | ✅ Harness ready |
 
