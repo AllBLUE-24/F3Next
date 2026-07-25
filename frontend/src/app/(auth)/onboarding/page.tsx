@@ -28,7 +28,7 @@ const INDUSTRY_HINTS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const devBypass = isDevAuthBypassEnabled();
 
   const [sessionUser, setSessionUser] = useState<{ id: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ export default function OnboardingPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
 
   useEffect(() => {
-    if (isDevAuthBypassEnabled()) {
+    if (devBypass) {
       getAuthUser().then(({ user }) => {
         if (!user) {
           router.push("/login");
@@ -68,6 +68,8 @@ export default function OnboardingPage() {
       });
       return;
     }
+
+    const supabase = createClient();
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
@@ -86,7 +88,7 @@ export default function OnboardingPage() {
     });
 
     return () => subscription.unsubscribe();
-  }, [router, supabase]);
+  }, [router, devBypass]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

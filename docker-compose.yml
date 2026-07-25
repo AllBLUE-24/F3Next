@@ -1,4 +1,24 @@
 services:
+  # 0. F3Next application Postgres (local dev — replaces Supabase while restricted)
+  app-db:
+    image: postgres:15-alpine
+    container_name: f3_app_db
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: f3app
+      POSTGRES_PASSWORD: f3app_local_dev
+      POSTGRES_DB: f3next
+    volumes:
+      - f3_app_postgres_data:/var/lib/postgresql/data
+      - ./docker/app-db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U f3app -d f3next"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # 1. Temporal's Internal Brain (Do NOT use this for your app data)
   temporal-db:
     image: postgres:15-alpine
@@ -295,6 +315,7 @@ services:
       - prometheus
 
 volumes:
+  f3_app_postgres_data:
   temporal_postgres_data:
   caddy_data:
   caddy_config:
