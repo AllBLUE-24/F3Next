@@ -42,8 +42,9 @@
       "id": "LR-DISC-04",
       "name": "field_service_dispatch",
       "fixture": "field_service_dispatch.txt",
-      "f3iche_id": "manufacturing_fabrication_jobshop",
-      "expect_niche": "manufacturing_fabrication_jobshop",
+      "broad_f3iche": "service",
+      "f3iche_id": "service_professional",
+      "expect_niche": "service_professional",
       "expect_archetype": "service_dispatch_chaos",
       "accept_alternate_archetypes": ["untracked_warranty_leakage", "breakdown_sla_breach"]
     },

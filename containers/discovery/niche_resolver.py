@@ -21,7 +21,7 @@ _BROAD_CATEGORIES = frozenset({"trading", "manufacturing", "service"})
 _INDUSTRY_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
     # Specific matches first (avoid bare "chemical" → wrong niche)
     (("toll manufacturer", "toll manufacturing", "third party manufacturer", "job work challan"), "manufacturing_fabrication_jobshop"),
-    (("warranty claim", "field service", "service technician", "maintenance visit", "client site breakdown", "whatsapp repair"), "manufacturing_fabrication_jobshop"),
+    (("warranty claim", "field service", "service technician", "maintenance visit", "client site breakdown", "whatsapp repair"), "service_professional"),
     (("prefabricated panel", "pre-fabricated panel", "pre fabricated panel", "screwdriver assembly", "job shop", "metal fabrication"), "manufacturing_fabrication_jobshop"),
     (("epoxy", "floor coating", "industrial coating", "paint manufacturer", "resin coating", "primer manufacturer", "chemical primer", "chemical primers"), "manufacturing_project_chemical"),
     (("adhesive", "adhesives", "sealant", "sealants", "industrial resin", "apex resins", "resins", "chemical drum", "chemical drums"), "manufacturing_project_chemical"),
@@ -38,7 +38,7 @@ _INDUSTRY_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
 
 _CHAT_NICHE_HINTS: List[tuple[tuple[str, ...], str]] = [
     (("subcontractor", "toll manufacturer", "job work", "raw material waste"), "manufacturing_fabrication_jobshop"),
-    (("warranty", "field repair", "technician dispatch", "spare parts van"), "manufacturing_fabrication_jobshop"),
+    (("warranty", "field repair", "technician dispatch", "spare parts van"), "service_professional"),
     (("installation", "site work", "coating", "epoxy floor"), "manufacturing_project_chemical"),
     (("hardener", "isocyanate", "part a and part b", "moisture sensitive"), "manufacturing_project_chemical"),
     (("adhesive", "sealant", "chemical drum", "shelf life", "raw material batch", "batch traceability"), "manufacturing_project_chemical"),

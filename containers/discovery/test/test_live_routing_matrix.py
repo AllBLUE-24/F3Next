@@ -59,12 +59,23 @@ def _archetype_matches(case: dict, llm_id: str, scoped_id: str) -> bool:
     return False
 
 
+def _broad_f3iche(case: dict) -> str:
+    if case.get("broad_f3iche"):
+        return str(case["broad_f3iche"])
+    niche = str(case.get("expect_niche") or "")
+    if niche.startswith("service_"):
+        return "service"
+    if niche.startswith("trading_"):
+        return "trading"
+    return "manufacturing"
+
+
 @pytest.mark.routing_matrix
 @pytest.mark.parametrize("case", _load_cases(live=False), ids=_case_id)
 def test_live_matrix_niche_resolution(case: dict):
     text = _transcript(case)
     niche = resolve_discovery_f3iche_niche(
-        discovery_f3iche="manufacturing",
+        discovery_f3iche=_broad_f3iche(case),
         industry="",
         chat_transcript=text,
     )
