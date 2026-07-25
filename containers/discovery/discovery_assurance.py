@@ -10,6 +10,13 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from containers.discovery.archetype_registry import signal_match_rankings
+from containers.discovery.discovery_org_assumptions import open_org_assumptions
+from containers.discovery.niche_resolver import f3iche_template_exists, niche_broad_category
+
+_OFFLINE_NICHE_SOURCES = frozenset({
+    "planner_offline_fallback",
+    "offline_draft",
+})
 
 AssuranceLevel = Literal["green", "yellow", "red"]
 
@@ -44,6 +51,8 @@ def compute_assurance(
     coverage: dict[str, Any] | None = None,
     clarification_complete: bool = True,
     closure_test: str = "",
+    niche_resolution_source: str | None = None,
+    template_available: bool | None = None,
 ) -> AssuranceResult:
     reasons: list[str] = []
     rankings = signal_match_rankings(transcript, niche_id, top_k=2, min_score=1)
@@ -93,6 +102,27 @@ def compute_assurance(
     if not (closure_test or "").strip():
         level = "yellow"
         reasons.append("Closure test missing — Day-1 scope may not answer the stated bottleneck.")
+
+    if niche_resolution_source in _OFFLINE_NICHE_SOURCES:
+        level = "yellow"
+        reasons.append(
+            "Day-1 plan used deterministic offline fallback — LLM reasoning did not run."
+        )
+
+    template_ok = template_available if template_available is not None else f3iche_template_exists(niche_id)
+    if not template_ok:
+        level = "yellow"
+        broad = niche_broad_category(niche_id)
+        reasons.append(
+            f"No F3iche implementation template for niche {niche_id!r} ({broad}) — "
+            "Day-1 scope uses generic seeds only."
+        )
+
+    open_org = open_org_assumptions(transcript)
+    if len(open_org) >= 3:
+        level = "yellow"
+        labels = ", ".join(item["label"] for item in open_org[:3])
+        reasons.append(f"Org structure not confirmed in discovery: {labels}.")
 
     cov = coverage or {}
     missing_dims = [

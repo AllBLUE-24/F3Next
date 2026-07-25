@@ -71,3 +71,17 @@ def test_import_phases_split_config_master_transactional():
     assert "Company" in config or "Warehouse" in config
     assert "Item" in master
     assert "Work Order" in transactional or "Stock Entry" in transactional
+
+
+def test_org_skeleton_from_chemical_f3iche():
+    result = asyncio.run(
+        build_discovery_target(
+            f3iche="manufacturing_project_chemical",
+            mvp_focus={"planner_day1_seeds": CHEMICAL_PLANNER_SEEDS},
+            chat_transcript="Apex Resins chemical batch",
+        )
+    )
+    skeleton = result["mvp_boundary"].get("org_skeleton") or {}
+    warehouses = skeleton.get("required_warehouses") or []
+    assert any("RM" in w for w in warehouses)
+    assert skeleton.get("valuation_method") == "FIFO"

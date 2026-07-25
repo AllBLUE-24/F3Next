@@ -12,9 +12,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from containers.discovery.mvp_scoping import scope_mvp_seeds
-from containers.discovery.niche_resolver import f3iche_template_path
+from containers.discovery.niche_resolver import f3iche_template_path, f3iche_template_status
 from containers.discovery.target.f3iche_seeds import (
     load_f3iche_template_seeds,
+    org_skeleton_from_f3iche,
     validation_rules_from_f3iche,
 )
 
@@ -238,11 +239,18 @@ async def build_discovery_target(
     logger.debug("Building discovery target | f3iche=%s", f3iche)
 
     template_path = f3iche_template_path(f3iche)
+    template_status = f3iche_template_status(f3iche)
     f3iche_seeds, f3iche_data = load_f3iche_template_seeds(str(template_path))
 
     if not f3iche_seeds:
+        if template_status["template_available"]:
+            logger.debug("Empty seed list for %s despite template file", f3iche)
+        else:
+            logger.warning(
+                "No F3iche template for niche %s — using minimal Day-1 seeds only",
+                f3iche,
+            )
         f3iche_seeds = ["Customer", "Supplier", "Item"]
-        logger.debug("No template found for %s, using minimal defaults", f3iche)
 
     llm_enhanced_seeds: List[str] = []
     llm_reasoning = ""
@@ -313,10 +321,13 @@ async def build_discovery_target(
     )
 
     validation_rules = validation_rules_from_f3iche(f3iche_data)
+    org_skeleton = org_skeleton_from_f3iche(f3iche_data)
 
     mvp_boundary = {
         "mode": scoping["scoping_mode"],
         "f3iche": f3iche,
+        "template_status": template_status,
+        "org_skeleton": org_skeleton,
         "seed_doctypes": seed_doctypes,
         "deferred_doctypes": deferred_doctypes,
         "template_seeds": f3iche_seeds,
