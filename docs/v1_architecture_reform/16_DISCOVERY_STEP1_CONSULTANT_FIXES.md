@@ -64,9 +64,9 @@ Step 1 architecture is directionally correct (plan → validate → explain + cl
 
 ## Exit criteria (extends v9.5 gate)
 
-- [ ] Golden test: chemical manufacturing `setup_steps` — Item before Work Order
-- [ ] Golden test: trading niche never loads manufacturing template seeds
-- [ ] Clarify panel shows ≥1 niche-specific question for resolved manufacturing niche
-- [ ] `mvp_boundary.org_skeleton.required_warehouses` populated for chemical
-- [ ] `planner_offline_fallback` → assurance YELLOW
+- [x] Golden test: chemical manufacturing `setup_steps` — Item before Work Order
+- [x] Golden test: trading niche never loads manufacturing template seeds
+- [x] Clarify panel shows ≥1 niche-specific question for resolved manufacturing niche
+- [x] `mvp_boundary.org_skeleton.required_warehouses` populated for chemical
+- [x] `planner_offline_fallback` → assurance YELLOW
 - [ ] Live matrix ≥80% (unchanged gate)
