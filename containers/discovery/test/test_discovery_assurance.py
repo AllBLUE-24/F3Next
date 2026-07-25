@@ -110,3 +110,18 @@ def test_yellow_when_clarification_incomplete():
     )
     assert result.level == "yellow"
     assert any("clarifying" in r.lower() for r in result.reasons)
+
+
+def test_yellow_when_org_assumptions_missing():
+    bare = "We manufacture adhesives and track batches in Excel."
+    result = compute_assurance(
+        transcript=bare,
+        niche_id="manufacturing_project_chemical",
+        validation={"valid": True, "issues": [], "promoted_doctypes": []},
+        clarification_complete=True,
+        closure_test="After Day-1 we can trace batches to customers.",
+        niche_resolution_source="planner",
+        template_available=True,
+    )
+    assert result.level == "yellow"
+    assert any("org structure" in r.lower() for r in result.reasons)

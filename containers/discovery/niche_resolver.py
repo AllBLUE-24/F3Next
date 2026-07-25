@@ -181,8 +181,6 @@ def resolve_discovery_f3iche_niche(
         matches = [n for n in niche_ids if n.startswith(prefix)] if prefix else niche_ids
         if matches:
             return matches[0]
-        if hinted:
-            return hinted
         if discovery_f3iche in _BROAD_CATEGORIES:
             return discovery_f3iche
     return discovery_f3iche or "manufacturing_project_chemical"

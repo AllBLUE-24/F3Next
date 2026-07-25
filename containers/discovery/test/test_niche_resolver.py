@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from containers.discovery.niche_resolver import (
     infer_broad_f3iche,
     resolve_discovery_f3iche_niche,
@@ -76,3 +78,25 @@ def test_async_resolve_llm_source(monkeypatch):
     )
     assert source == "llm"
     assert niche_id == "trading_fmcg_distributor"
+
+
+@pytest.mark.parametrize(
+    "discovery_f3iche,industry,chat",
+    [
+        ("", "", ""),
+        ("retail", "random stuff", "nothing matches here at all"),
+        ("gibberish", "unknown vertical", "no keywords whatsoever"),
+    ],
+)
+def test_resolve_niche_never_raises_on_unexpected_broad_category(
+    discovery_f3iche: str,
+    industry: str,
+    chat: str,
+):
+    niche = resolve_discovery_f3iche_niche(
+        discovery_f3iche=discovery_f3iche,
+        industry=industry,
+        chat_transcript=chat,
+    )
+    assert isinstance(niche, str)
+    assert niche.strip()
