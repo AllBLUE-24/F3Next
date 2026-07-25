@@ -250,6 +250,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         raise ValueError("Need at least one exchange before generating a recommendation.")
 
     from containers.discovery.chat_service import extract_from_transcript
+    from containers.discovery.niche_resolver import (
+        f3iche_template_exists,
+        infer_broad_f3iche,
+        resolve_discovery_f3iche_niche,
+    )
 
     clarification_answers = dict(metadata.get("clarification_answers") or {})
     transcript = transcript_text(messages)
@@ -257,26 +262,46 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
     # Reuse coverage from first /complete when continuing after clarification
     if clarification_answers and hook.discovery_coverage:
         coverage = hook.discovery_coverage
+        extraction = {"f3iche_hint": metadata.get("f3iche"), "industry_hint": metadata.get("industry")}
     else:
         extraction = await extract_from_transcript(messages)
         coverage = extraction["coverage"]
         hook.discovery_coverage = coverage
 
+    industry = (
+        str((coverage.get("industry") or {}).get("value") or "")
+        or str(extraction.get("industry_hint") or "")
+    )
+    broad_f3iche = infer_broad_f3iche(
+        f3iche_hint=extraction.get("f3iche_hint"),
+        industry=industry,
+        coverage=coverage,
+    )
+    niche_id = resolve_discovery_f3iche_niche(
+        discovery_f3iche=broad_f3iche,
+        industry=industry,
+        chat_transcript=transcript,
+    )
+
     if needs_clarification(
         transcript,
         coverage=coverage,
         clarification_answers=clarification_answers,
+        niche_id=niche_id,
     ):
         questions = build_clarifying_questions(
             transcript,
             coverage=coverage,
             clarification_answers=clarification_answers,
+            niche_id=niche_id,
         )
         clarification_metadata = {
             **metadata,
             "phase": DiscoveryPhase.CLARIFICATION.value,
             "clarifying_questions": [q.to_dict() for q in questions],
             "clarification_answers": clarification_answers,
+            "f3iche_niche": niche_id,
+            "f3iche": broad_f3iche,
         }
         hook.discovery_metadata = clarification_metadata
         flag_modified(hook, "discovery_metadata")
@@ -322,9 +347,11 @@ async def finalize_discovery(db: AsyncSession, project_id: UUID) -> dict:
         validation=validation,
         coverage=coverage,
         clarification_complete=bool(clarification_answers) or not needs_clarification(
-            transcript, coverage=coverage
+            transcript, coverage=coverage, niche_id=niche_id
         ),
         closure_test=closure_test,
+        niche_resolution_source=niche_source,
+        template_available=f3iche_template_exists(niche_id) if niche_id else None,
     )
     validator_warnings = [
         i for i in (validation.get("issues") or [])

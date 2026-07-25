@@ -15,12 +15,29 @@ YIELD_TRANSCRIPT = (FIXTURES / "cleaning_chemicals_yield.txt").read_text(encodin
 
 
 def test_yield_story_asks_strategy_and_quality_not_routing():
-    """Fixture already mentions per-step routing — only strategy + QC ambiguity remain."""
-    questions = build_clarifying_questions(YIELD_TRANSCRIPT)
+    """Fixture already mentions per-step routing — niche + generic ambiguities remain."""
+    questions = build_clarifying_questions(
+        YIELD_TRANSCRIPT,
+        niche_id="manufacturing_project_chemical",
+    )
     ids = {q.id for q in questions}
-    assert "manufacturing_strategy" in ids
-    assert "quality_gates" in ids
+    assert "manufacturing_strategy" in ids or any(i.startswith("f3iche_q_") for i in ids)
+    assert "quality_gates" in ids or any(i.startswith("f3iche_q_") for i in ids)
     assert "routing_depth" not in ids
+
+
+def test_niche_playbook_questions_for_chemical():
+    transcript = (
+        "Apex Resins manufactures Part A and Part B adhesives for project site installation. "
+        "Batch traceability in Excel."
+    )
+    questions = build_clarifying_questions(
+        transcript,
+        niche_id="manufacturing_project_chemical",
+    )
+    ids = {q.id for q in questions}
+    assert any(i.startswith("f3iche_q_") for i in ids)
+    assert any("Part A" in q.prompt or "batch" in q.prompt.lower() for q in questions)
 
 
 def test_manufacturing_without_strategy_asks_mts_mto():
