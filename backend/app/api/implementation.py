@@ -450,6 +450,17 @@ async def post_readiness_reassess(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/map-validate/{project_id}", summary="UI-safe map + validate gate payload")
+async def get_map_validate_ui(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    payload = await launcher.get_map_validate_ui(project_id)
+    if isinstance(payload, dict) and payload.get("error"):
+        raise HTTPException(status_code=404, detail=str(payload["error"]))
+    return {"map_validate": payload}
+
+
 @router.get("/import-plan/{project_id}", summary="3-phase import plan")
 async def get_import_plan(
     project_id: UUID,

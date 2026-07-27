@@ -17,6 +17,11 @@ import {
 } from 'lucide-react';
 import { DataPreviewTable } from './DataPreviewTable';
 import { ValidationGapUploadCard } from './ValidationGapUploadCard';
+import {
+  ValidateSummaryBanner,
+  canConfirmImport,
+  type ValidateUiPayload,
+} from './ValidateSummaryBanner';
 import type { ValidatePreviewData } from '@/lib/api/implementation_api';
 import { getBaseApiUrl } from '@/lib/config';
 import { stageToStep } from '@/lib/implementation-routes';
@@ -42,6 +47,8 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
   const [isPending, startTransition] = useTransition();
   const [workflowStage, setWorkflowStage] = useState<string | null>(null);
   const [livePreview, setLivePreview] = useState(preview);
+  const [validateUi, setValidateUi] = useState<ValidateUiPayload | null>(null);
+  const [validateAcked, setValidateAcked] = useState(false);
   const router = useRouter();
 
   const refreshPreview = useCallback(async () => {
@@ -56,6 +63,24 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
       // keep current preview
     }
   }, [jobId]);
+
+  const refreshValidateUi = useCallback(async () => {
+    try {
+      const res = await fetch(`${getBaseApiUrl()}/api/implementation/map-validate/${jobId}`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setValidateUi(data.map_validate as ValidateUiPayload);
+      }
+    } catch {
+      // keep current banner state
+    }
+  }, [jobId]);
+
+  useEffect(() => {
+    void refreshValidateUi();
+  }, [refreshValidateUi]);
 
   // Sync with workflow stage — confirm state, errors, import progress
   useEffect(() => {
@@ -120,7 +145,9 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
     !livePreview.import_ready ||
     (livePreview.open_critical_gaps ?? 0) > 0 ||
     blockingUnmapped.length > 0;
-  const canConfirm = !hasErrors && !importBlocked;
+  const canConfirm = validateUi
+    ? canConfirmImport(validateUi, validateAcked)
+    : !hasErrors && !importBlocked;
   const awaitingGapUpload =
     workflowStage === 'awaiting_validation_gap_upload' || blockingUnmapped.length > 0;
 
@@ -168,6 +195,14 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
           this is exactly what will be imported into your ERPNext instance.
         </p>
       </div>
+
+      {validateUi && (
+        <ValidateSummaryBanner
+          payload={validateUi}
+          acknowledged={validateAcked}
+          onAckChange={setValidateAcked}
+        />
+      )}
 
       {/* Stats bar */}
       <div className="flex items-center gap-4 flex-wrap">
@@ -366,8 +401,12 @@ export function ValidateView({ jobId, preview, submitValidation, importHref, com
           blockingSeeds={blockingUnmapped}
           onDone={() => {
             void refreshPreview();
+            void refreshValidateUi();
             // Keep polling while workflow re-maps and re-validates
-            const poll = setInterval(() => void refreshPreview(), 3000);
+            const poll = setInterval(() => {
+              void refreshPreview();
+              void refreshValidateUi();
+            }, 3000);
             setTimeout(() => clearInterval(poll), 120000);
           }}
         />

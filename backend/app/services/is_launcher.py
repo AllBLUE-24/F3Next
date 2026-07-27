@@ -1377,6 +1377,7 @@ class ImplementationLauncher:
             "unmapped_seeds": unmapped_seeds,
             "blocking_unmapped_seeds": blocking_unmapped,
             "import_ready": import_ready,
+            "requires_acknowledgment": validation_overall == "partial",
             "mvp_seed_doctypes": seed_doctypes,
             "mapping_gaps": mapping_gaps,
             "tracked_files": sorted(tracked_files),
@@ -1387,6 +1388,15 @@ class ImplementationLauncher:
                 else None
             ),
         }
+
+    async def get_map_validate_ui(self, project_id: str | UUID) -> Dict[str, Any]:
+        """UI-safe Step 4 payload from validate preview."""
+        from containers.implementation.map_validate.validate_ui import build_validate_ui_payload
+
+        preview = await self.get_validate_preview(project_id)
+        if isinstance(preview, dict) and preview.get("error"):
+            return preview
+        return build_validate_ui_payload(preview)
 
     async def get_full_state(self, project_id: str | UUID) -> Dict[str, Any]:
         """Convenience: returns everything in one round-trip batch."""
