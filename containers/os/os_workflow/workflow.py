@@ -700,14 +700,24 @@ class ERPOSCommandWorkflow:
         self._status = "clarity"
         workflow.logger.info("\n%s\n🧠  [1] CLARITY AGENT — extracting intent\n%s", _HR, _HR)
 
+        clarity_prompt = inp.prompt
+        if inp.seed_context:
+            sc = inp.seed_context
+            clarity_prompt = (
+                f"[Thread context: ERPNext {sc.get('doctype', 'document')} "
+                f"'{sc.get('doc_name', '')}' — event {sc.get('trigger_event', 'update')}]\n"
+                f"{inp.prompt}"
+            )
+
         intent_dict: dict = await workflow.execute_activity(
             "extract_intent",
             args=[{
-                "prompt":          inp.prompt,
+                "prompt":          clarity_prompt,
                 "session_context": inp.session_context,
                 "erp_type":        inp.erp_type,
                 "clarifications":  [],
                 "project_id":      str(inp.project_id),
+                "seed_context":    inp.seed_context or {},
             }],
             task_queue             = OS_QUEUE,
             start_to_close_timeout = timedelta(seconds=90),

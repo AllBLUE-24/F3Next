@@ -50,6 +50,7 @@ from app.api.ingest import router as ingest_router
 from app.api.os_command import router as os_router
 from app.api.implementation import router as implementation_router
 from app.api.cvs import router as cvs_router
+from app.api.notifications import router as notifications_router
 from app.api.admin_f3iches import router as admin_f3iches_router
 from app.api.target_structure import router as target_structure_router
 
@@ -125,5 +126,6 @@ app.include_router(ingest_router, prefix="/api")
 app.include_router(os_router, prefix="/api")
 app.include_router(implementation_router, prefix="/api")
 app.include_router(cvs_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
 app.include_router(admin_f3iches_router, prefix="/api")
 app.include_router(target_structure_router, prefix="/api")

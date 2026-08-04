@@ -1,7 +1,7 @@
 """
 shared/models/command.py
 """
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 class CommandRequest(BaseModel):
@@ -12,7 +12,9 @@ class CommandRequest(BaseModel):
     erp_type: str = "erpnext"
     session_id: Optional[str] = None
     session_context: Optional[str] = None
-    mode: str = "execute"  # 🔴 NEW: Accept explicit mode from UI
+    mode: str = "execute"
+    seed_context: Optional[dict[str, Any]] = None
+    origin_notification_id: Optional[str] = None
 
 class CommandWorkflowInput(BaseModel):
     prompt: str
@@ -22,7 +24,9 @@ class CommandWorkflowInput(BaseModel):
     erp_type: str
     session_id: str
     session_context: list[dict]
-    mode: str = "execute"  # 🔴 NEW: Pass it into Temporal
+    mode: str = "execute"
+    seed_context: Optional[dict[str, Any]] = None
+    origin_notification_id: Optional[str] = None
 
 class CommandDispatch(BaseModel):
     status: str
@@ -61,6 +65,19 @@ class WorkflowResult(BaseModel):
     response: str
     result: Optional[dict] = None
     errors: Optional[list] = []
+
+
+class NotificationReplyRequest(BaseModel):
+    user_id: str
+    company_id: str
+    prompt: str
+    mode: str = "execute"
+
+
+class NotificationReplyResponse(BaseModel):
+    workflow_id: str
+    session_id: str
+    notification_id: str
 
 class CommandWorkflowOutput(BaseModel):
     status: str

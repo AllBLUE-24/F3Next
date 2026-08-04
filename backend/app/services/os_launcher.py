@@ -216,9 +216,9 @@ async def dispatch_os_command(req: CommandRequest) -> CommandDispatch:
         erp_type        = req.erp_type,
         session_id      = session_id,
         session_context = _parse_session_context(req.session_context),
-        # 🟢 CRITICAL FIX: Pass the mode to the workflow! 
-        # Without this, the workflow defaults to EXECUTE and fails on revenue queries.
-        mode            = req.mode, 
+        mode            = req.mode,
+        seed_context    = req.seed_context,
+        origin_notification_id = req.origin_notification_id,
     )
 
     # Import here to avoid circular import at module load
