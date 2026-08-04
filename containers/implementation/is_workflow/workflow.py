@@ -1620,6 +1620,17 @@ class ImplementationWorkflow:
                         **_ACT,
                     )
 
+                    self._stage = "validating"
+                    await workflow.execute_activity(
+                        persist_session,
+                        PersistSessionInput(
+                            project_id=project_id,
+                            workflow_id=workflow_id,
+                            status=self._stage,
+                        ),
+                        **_ACT,
+                    )
+
                     self._supervisor_response_event.clear()
                     L.info("  ⏳ Waiting for supervisor_response signal ...")
                     await workflow.wait_condition(lambda: self._supervisor_response_event.is_set())
@@ -1711,6 +1722,39 @@ class ImplementationWorkflow:
                                                     }
                                                 ],
                                                 metadata={"origin": "continue_with_defaults"},
+                                            )
+                                        ],
+                                    ),
+                                    **_ACT,
+                                )
+                            elif extra.get("apply_user_note") or extra.get("user_note"):
+                                note = str(extra.get("user_note") or "").strip()
+                                sample_gaps = extra.get("sample_gaps")
+                                if not isinstance(sample_gaps, list):
+                                    meta = getattr(chosen_action, "metadata", None) or {}
+                                    sample_gaps = meta.get("sample_gaps") if isinstance(meta, dict) else []
+                                await workflow.execute_activity(
+                                    apply_supervisor_actions,
+                                    ApplySupervisorActionsInput(
+                                        project_id=project_id,
+                                        session_id=self._session_id,
+                                        step="validation",
+                                        company_slug=self._company_slug,
+                                        actions=[
+                                            SupervisorAction(
+                                                id="auto_fix_user_note_resolutions",
+                                                type="auto_fix",
+                                                scope="validation",
+                                                changes=[
+                                                    {
+                                                        "target": "r2",
+                                                        "op": "apply_user_note_resolutions",
+                                                    }
+                                                ],
+                                                metadata={
+                                                    "user_note": note,
+                                                    "sample_gaps": sample_gaps or [],
+                                                },
                                             )
                                         ],
                                     ),

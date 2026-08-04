@@ -29,6 +29,11 @@ from containers.implementation.mapping_agent.activities import (
     RefineMappingInput,
     refine_mapping_with_llm,
 )
+from containers.implementation.supervisor_agent.chat_contract import (
+    build_supervisor_extra_data,
+    open_blocking_prompts,
+    primary_ask_action,
+)
 from shared.shared_llm import generate_json
 
 logger = logging.getLogger(__name__)
@@ -338,44 +343,66 @@ def _extract_create_master(message: str, action: Dict[str, Any]) -> Optional[Dic
     return {"doctype": doctype, "name": name}
 
 
+async def _persist_mapping_rules_note(
+    is_session: ISSession,
+    message: str,
+    step: str,
+) -> None:
+    """Append mapping rules to session without blocking supervisor signal."""
+    from sqlalchemy import update
+
+    async with AsyncSessionLocal() as session:
+        row = (
+            await session.execute(select(ISSession).where(ISSession.id == is_session.id))
+        ).scalar_one_or_none()
+        if row:
+            notes = list(row.user_notes or [])
+            notes.append({
+                "type": "mapping_rules",
+                "step": step,
+                "note": message[:8000],
+                "answered_at": datetime.utcnow().isoformat() + "Z",
+            })
+            await session.execute(
+                update(ISSession)
+                .where(ISSession.id == is_session.id)
+                .values(
+                    user_import_note=message[:8000],
+                    user_notes=notes,
+                    updated_at=datetime.utcnow(),
+                )
+            )
+            await session.commit()
+
+
 async def _handle_supervisor_answer(
     is_session: ISSession,
     message: str,
     step: str,
     open_prompts: List[Dict[str, Any]],
+    *,
+    upload_intent: bool = False,
 ) -> Optional[Dict[str, Any]]:
     if not open_prompts:
         return None
 
     prompt = open_prompts[0]
-    actions = prompt.get("actions") or []
-    ask_actions = [a for a in actions if isinstance(a, dict) and a.get("type") == "ask_user"]
-    if not ask_actions:
+    action = primary_ask_action(prompt)
+    if not action:
         return None
 
-    action = ask_actions[0]
     action_id = str(action.get("id") or "")
     if not action_id:
         return None
 
-    options = [str(o) for o in (action.get("options") or []) if o]
-    selected = _match_supervisor_option(message, options) if options else None
+    extra_data = build_supervisor_extra_data(message, prompt, upload_intent=upload_intent)
 
     create_master = _extract_create_master(message, action)
-    extra_data: Dict[str, Any] = {"user_note": message}
-    if selected:
-        extra_data["selected_option"] = selected
     if create_master:
         extra_data["create_master"] = create_master
         extra_data["create_master_intent"] = True
 
-    link_match = _LINK_VALUE_ANSWER.search(message)
-    if not selected and not create_master and link_match and options:
-        for opt in options:
-            if "default" in opt.lower() or "continue" in opt.lower():
-                selected = opt
-                extra_data["selected_option"] = selected
-                break
+    selected = extra_data.get("selected_option")
 
     from app.services.is_launcher import ImplementationLauncher
 
@@ -390,7 +417,17 @@ async def _handle_supervisor_answer(
     if create_master:
         content = (
             f"Understood — I'll add {create_master['doctype']} "
-            f"\"{create_master['name']}\" from your upload and re-run validation."
+            f"\"{create_master['name']}\" and re-run validation."
+        )
+    elif upload_intent:
+        content = (
+            "Got it — I've acknowledged your upload and sent it to the workflow. "
+            "The pipeline will continue shortly."
+        )
+    elif extra_data.get("apply_user_note"):
+        content = (
+            "Got it — I've sent your resolutions to the workflow and will apply them "
+            "to the mapped data before re-running validation."
         )
     else:
         content = (
@@ -425,6 +462,7 @@ async def _handle_mapping_rules(
     from sqlalchemy import update
 
     workflow_status = str(context.get("workflow_status") or "")
+
     async with AsyncSessionLocal() as session:
         row = (
             await session.execute(select(ISSession).where(ISSession.id == is_session.id))
@@ -570,21 +608,18 @@ async def dispatch_chat_message(
     )
 
     context = await build_session_context(is_session, step)
-    open_prompts = context.get("open_supervisor_prompts") or []
+    blocking_prompts = open_blocking_prompts(context)
     intent, llm_reply = await _classify_intent(message, context)
     company_slug = await _get_company_slug(str(is_session.project_id))
 
-    if open_prompts and not _looks_like_mapping_rules(message) and (
-        intent == "answer_supervisor"
-        or _CREATE_MASTER.search(message)
-        or _looks_like_link_value_answer(message, context)
-        or (intent == "upload_intent" and _UPLOAD_PATTERNS.search(message))
-        or (intent != "mapping_rules" and _CONTINUE_PATTERNS.search(message))
-    ):
+    # Blocking supervisor prompt: every chat reply must signal the workflow first.
+    if blocking_prompts:
         supervisor_reply = await _handle_supervisor_answer(
-            is_session, message, step, open_prompts
+            is_session, message, step, blocking_prompts
         )
         if supervisor_reply:
+            if _looks_like_mapping_rules(message):
+                await _persist_mapping_rules_note(is_session, message, step)
             return supervisor_reply
 
     if intent == "mapping_rules":

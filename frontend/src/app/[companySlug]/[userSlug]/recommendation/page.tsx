@@ -35,7 +35,7 @@ export default function RecommendationPage() {
   const userSlug = params.userSlug as string;
   const projectId = searchParams.get("projectId");
 
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error" | "incomplete">("loading");
   const [recommendation, setRecommendation] = useState<RecommendationData | null>(null);
   const [phase, setPhase] = useState<string>("initial_chat");
   const [workflowPreview, setWorkflowPreview] = useState<{
@@ -70,9 +70,22 @@ export default function RecommendationPage() {
 
         const json = await res.json();
 
+        if (json.status === "incomplete" || json.redirect_to_discovery) {
+          router.replace(
+            `/${companySlug}/${userSlug}/discovery?projectId=${projectId}`
+          );
+          return;
+        }
+
         if (json.status === "ready" && json.data) {
           setRecommendation(json.data);
           setPhase(json.phase || json.data.phase || "initial_chat");
+
+          if (json.plan_incomplete && json.awaiting_confirmation) {
+            setStatus("incomplete");
+            return;
+          }
+
           setStatus("ready");
 
           const awaiting =
@@ -136,7 +149,30 @@ export default function RecommendationPage() {
     }
 
     return () => clearInterval(interval);
-  }, [status, projectId, companySlug, userSlug]);
+  }, [status, projectId, companySlug, userSlug, router]);
+
+  // ---------------------------------------------------------------------------
+  // VIEW: INCOMPLETE — plan not generated yet
+  // ---------------------------------------------------------------------------
+  if (status === "incomplete") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] text-center fade-in-up px-6">
+        <h2 className="text-xl font-bold text-white mb-2">Implementation plan not ready</h2>
+        <p className="text-zinc-500 text-sm mb-6 max-w-md leading-relaxed">
+          Discovery needs to finish building your workflow and upload checklist.
+          Return to the chat to complete any remaining questions.
+        </p>
+        <button
+          onClick={() =>
+            router.push(`/${companySlug}/${userSlug}/discovery?projectId=${projectId}`)
+          }
+          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-xl transition-colors"
+        >
+          Back to Discovery
+        </button>
+      </div>
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // VIEW: LOADING STATE

@@ -462,6 +462,10 @@ def clarifying_question_catalog(
     return catalog
 
 
+def _is_org_question(qid: str) -> bool:
+    return qid.startswith("org_")
+
+
 def needs_clarification(
     transcript: str,
     *,
@@ -469,14 +473,22 @@ def needs_clarification(
     clarification_answers: dict[str, Any] | None = None,
     niche_id: str | None = None,
 ) -> bool:
-    return bool(
-        build_clarifying_questions(
-            transcript,
-            coverage=coverage,
-            clarification_answers=clarification_answers,
-            niche_id=niche_id,
-        )
+    """
+    Return True when blocking ambiguities remain before MVP planning.
+
+    Org-structure questions (fiscal year, cutover, multi-company) are surfaced in
+    the first batch when slots allow, but do not block planning after the user
+    has answered at least one clarification round — those facts default safely.
+    """
+    questions = build_clarifying_questions(
+        transcript,
+        coverage=coverage,
+        clarification_answers=clarification_answers,
+        niche_id=niche_id,
     )
+    if clarification_answers:
+        questions = [q for q in questions if not _is_org_question(q.id)]
+    return bool(questions)
 
 
 def format_clarification_answer(question: ClarifyingQuestion, answer: Any) -> str:

@@ -17,6 +17,7 @@ from shared.database.db import get_shared_db
 from shared.models.core import Project
 from shared.models.hooks import Hook
 from shared.models.project_target import ProjectMVPBoundary, ProjectTargetStructure
+from containers.discovery.phases import DiscoveryPhase, get_phase, is_upload_ready
 from containers.discovery.target.persist import generate_project_target_structure
 
 router = APIRouter(prefix="/discovery", tags=["Discovery"])
@@ -271,17 +272,32 @@ async def get_recommendation_status(project_id: UUID, db: AsyncSession = Depends
         if not hook.discovery_metadata:
             return {"status": "processing"}
 
-        phase = (hook.discovery_metadata or {}).get("phase", "initial_chat")
-        finalized = phase == "finalized"
+        metadata = hook.discovery_metadata or {}
+        phase = get_phase(metadata)
+        finalized = is_upload_ready(metadata)
+
+        if phase == DiscoveryPhase.CLARIFICATION:
+            return {
+                "status": "incomplete",
+                "phase": phase.value,
+                "awaiting_confirmation": False,
+                "redirect_to_discovery": True,
+                "clarifying_questions": metadata.get("clarifying_questions") or [],
+                "data": metadata,
+            }
+
+        has_workflow = bool(metadata.get("workflow_explanation"))
+        has_target = bool((metadata.get("target_structure") or {}).get("seed_doctypes"))
 
         return {
             "status": "ready",
-            "phase": phase,
+            "phase": phase.value,
             "awaiting_confirmation": not finalized and phase in (
-                "workflow_display",
-                "module_confirmation",
+                DiscoveryPhase.WORKFLOW_DISPLAY,
+                DiscoveryPhase.MODULE_CONFIRMATION,
             ),
-            "data": hook.discovery_metadata,
+            "plan_incomplete": not finalized and (not has_workflow or not has_target),
+            "data": metadata,
         }
     except HTTPException:
         raise

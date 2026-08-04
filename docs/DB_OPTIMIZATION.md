@@ -317,9 +317,12 @@ END $$;
 
 ```bash
 python scripts/prune_cvs_storage.py
+python scripts/reclaim_supabase_storage.py --apply --yes
 ```
 
-Or run [`docs/sql/prune_cvs_storage.sql`](sql/prune_cvs_storage.sql) manually, then verify row counts drop to ~`(projects × layers)` for snapshots.
+See [`SUPABASE_STORAGE_PLAN.md`](SUPABASE_STORAGE_PLAN.md) for the billing-period plan (CVS tables only).
+
+Or run [`docs/sql/prune_cvs_storage.sql`](sql/prune_cvs_storage.sql) or [`docs/sql/reclaim_supabase_storage.sql`](sql/reclaim_supabase_storage.sql) manually, then verify row counts drop to ~`(projects × layers)` for snapshots.
 
 **Implementation checklist:**
 

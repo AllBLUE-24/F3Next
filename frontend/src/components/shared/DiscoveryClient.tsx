@@ -231,9 +231,15 @@ export default function DiscoveryClient({
         setMessages((prev) => [...prev, confirmationMsg]);
       }
 
-      router.push(
-        `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
-      );
+      if (
+        result.status === "awaiting_confirmation" ||
+        result.phase === "module_confirmation" ||
+        result.phase === "workflow_display"
+      ) {
+        router.push(
+          `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+        );
+      }
     } catch (err) {
       console.error("Complete discovery error:", err);
       alert(
@@ -253,6 +259,15 @@ export default function DiscoveryClient({
         project_id: projectId,
         answers,
       });
+
+      if (
+        result.status === "awaiting_clarification" &&
+        result.clarifying_questions?.length
+      ) {
+        setClarifyingQuestions(result.clarifying_questions as ClarifyingQuestion[]);
+        return;
+      }
+
       setClarifyingQuestions(null);
       if (result.confirmation_message) {
         const confirmationMsg: Message = {
@@ -263,9 +278,16 @@ export default function DiscoveryClient({
         };
         setMessages((prev) => [...prev, confirmationMsg]);
       }
-      router.push(
-        `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
-      );
+
+      if (
+        result.status === "awaiting_confirmation" ||
+        result.phase === "module_confirmation" ||
+        result.phase === "workflow_display"
+      ) {
+        router.push(
+          `/${companySlug}/${userSlug}/recommendation?projectId=${projectId}`
+        );
+      }
     } catch (err) {
       console.error("Clarification submit error:", err);
       alert(

@@ -910,14 +910,10 @@ async def validate_mapped_data(inp: ValidateInput) -> Any:
                     .values(validation_status=mapped_status)
                 )
 
-            # Update session status
-            await session.execute(
-                update(ISSession)
-                .where(ISSession.id == uuid.UUID(inp.session_id))
-                .values(status="awaiting_validation_submission")
-            )
+            # Session status is owned by the Temporal workflow (honesty contract L1).
+            # validate_mapped_data writes validation results only — not stage transitions.
             await session.commit()
-            activity.logger.info("  ✅ Supabase updated | validation results + session status")
+            activity.logger.info("  ✅ Supabase updated | validation results persisted")
             
     except Exception as e:
         activity.logger.error("  ❌ Supabase DB write failed during validation: %s", e)

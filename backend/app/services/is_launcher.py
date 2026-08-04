@@ -216,6 +216,45 @@ class ImplementationLauncher:
 
     # ── Signals ───────────────────────────────────────────────────────────────
 
+    async def _ack_blocking_supervisor_for_upload(
+        self,
+        project_id: str | UUID,
+        *,
+        user_note: Optional[str] = None,
+    ) -> bool:
+        """
+        When the workflow is blocked on a supervisor prompt, file uploads must
+        send supervisor_response before files_uploaded (Temporal wait order).
+        """
+        from containers.implementation.supervisor_agent.chat_contract import (
+            build_supervisor_extra_data,
+            is_blocking_supervisor_prompt,
+            primary_ask_action,
+        )
+
+        prompts = await self.get_supervisor_prompts(project_id, status="open")
+        blocking = [p for p in prompts if is_blocking_supervisor_prompt(p)]
+        if not blocking:
+            return False
+
+        prompt = blocking[0]
+        action = primary_ask_action(prompt)
+        if not action:
+            return False
+
+        action_id = str(action.get("id") or "")
+        if not action_id:
+            return False
+
+        extra = build_supervisor_extra_data(user_note or "Upload files", prompt, upload_intent=True)
+        await self.answer_supervisor_prompt(
+            project_id,
+            str(prompt.get("id")),
+            action_id,
+            extra_data=extra,
+        )
+        return True
+
     async def signal_files_uploaded(
         self,
         project_id: str | UUID,
@@ -255,6 +294,12 @@ class ImplementationLauncher:
                     )
                 )
                 await session.commit()
+
+        # Workflow blocks on supervisor_response before accepting files_uploaded.
+        try:
+            await self._ack_blocking_supervisor_for_upload(project_id, user_note=user_note)
+        except Exception as exc:
+            logger.warning("Supervisor upload ack failed (continuing with files_uploaded): %s", exc)
 
         handle = await self._handle(project_id)
         from temporalio.service import RPCError

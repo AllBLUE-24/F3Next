@@ -928,6 +928,35 @@ async def apply_supervisor_actions(inp: ApplySupervisorActionsInput) -> ApplyAct
             op = ch.get("op")
             overwrite = bool(ch.get("overwrite", True))
 
+            if op == "apply_user_note_resolutions":
+                from containers.implementation.supervisor_agent.user_note_resolutions import (
+                    apply_user_note_resolutions,
+                )
+
+                note = str((act.metadata or {}).get("user_note") or "")
+                sample_gaps = (act.metadata or {}).get("sample_gaps")
+                if not isinstance(sample_gaps, list):
+                    sample_gaps = []
+                result = await apply_user_note_resolutions(
+                    session_id=inp.session_id,
+                    project_id=inp.project_id,
+                    company_slug=company_slug,
+                    user_note=note,
+                    sample_gaps=sample_gaps,
+                )
+                if result.get("status") == "ok" and result.get("written", 0) > 0:
+                    applied.append({
+                        "id": act.id,
+                        "op": op,
+                        "written": result.get("written"),
+                        "audit": result.get("audit"),
+                    })
+                elif result.get("status") == "ok":
+                    skipped.append({"id": act.id, "reason": "no_payload_changes", "audit": result.get("audit")})
+                else:
+                    skipped.append({"id": act.id, "reason": result.get("status", "unknown")})
+                continue
+
             if op == "apply_value_translation" and not ch.get("doctype"):
                 from shared.r2_client import r2_read_json
 

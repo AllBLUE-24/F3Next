@@ -125,6 +125,25 @@ def test_org_questions_when_structure_unstated():
     assert any(i.startswith("org_") for i in ids) or len(questions) == 3
 
 
+def test_org_questions_do_not_block_after_first_clarification_round():
+    """Org facts default safely — only niche/manufacturing ambiguities block re-planning."""
+    transcript = "We manufacture adhesives and track batches in Excel."
+    first_batch = build_clarifying_questions(transcript, niche_id="manufacturing_project_chemical")
+    answers = {q.id: _first_domain_option([q]) for q in first_batch}
+    remaining = build_clarifying_questions(
+        transcript,
+        niche_id="manufacturing_project_chemical",
+        clarification_answers=answers,
+    )
+    org_only = all(q.id.startswith("org_") for q in remaining) if remaining else False
+    if org_only:
+        assert not needs_clarification(
+            transcript,
+            niche_id="manufacturing_project_chemical",
+            clarification_answers=answers,
+        )
+
+
 def test_max_three_questions():
     transcript = (
         "We manufacture cleaning chemicals in batches with yield variance. "

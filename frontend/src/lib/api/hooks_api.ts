@@ -122,6 +122,7 @@ export const submitDiscoveryClarification = async (payload: {
   data: Record<string, unknown>;
   confirmation_message?: string;
   workflow_preview?: Record<string, unknown>;
+  clarifying_questions?: Array<Record<string, unknown>>;
   assurance?: Record<string, unknown>;
   closure_test?: string;
 }> => {
