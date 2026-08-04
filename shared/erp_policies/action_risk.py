@@ -20,6 +20,40 @@ _FINANCIAL_DOCTYPES: frozenset[str] = frozenset({
 
 _CRITICAL_ACTIONS: frozenset[str] = frozenset({"cancel", "delete"})
 
+_CASCADE_CANCEL_EVENTS: frozenset[str] = frozenset({"on_cancel", "cancel", "cancelled"})
+
+_HIGH_VALUE_THRESHOLD = 500_000.0  # INR — tune per deployment
+
+
+def is_high_value_transaction(doctype: str, payload: dict[str, Any]) -> bool:
+    """True when webhook payload grand_total exceeds cascade alert threshold."""
+    for key in ("grand_total", "base_grand_total", "paid_amount", "outstanding_amount"):
+        raw = payload.get(key)
+        if raw is None:
+            continue
+        try:
+            if float(raw) >= _HIGH_VALUE_THRESHOLD:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def classify_cascade_risk(
+    doctype: str,
+    trigger_event: str,
+    *,
+    payload: dict[str, Any] | None = None,
+) -> RiskTier:
+    """Risk tier for reactive cascade notifications."""
+    event = (trigger_event or "").lower()
+    if event in _CASCADE_CANCEL_EVENTS or "cancel" in event:
+        return "critical"
+    if payload and is_high_value_transaction(doctype, payload):
+        return "high"
+    action = "submit" if "submit" in event else "create"
+    return classify_action_risk(doctype, action, context="cascade")
+
 
 def classify_action_risk(
     doctype: str,
@@ -31,6 +65,9 @@ def classify_action_risk(
     action = (action or "create").lower()
     if action in _CRITICAL_ACTIONS:
         return "critical"
+
+    if context == "cascade" and action == "submit" and doctype in _FINANCIAL_DOCTYPES:
+        return "high"
 
     lifecycle = get_lifecycle_config(doctype)
     tier = lifecycle.get("import_risk_tier", "low")

@@ -1,0 +1,83 @@
+{
+  "knowledge_base_id": "cascade_rules",
+  "version": "1.0",
+  "erp_system": "erpnext",
+  "last_updated": "2026-08-04",
+  "description": "ERPNext event → department notification routing rules for the operations control plane.",
+  "rules": [
+    {
+      "rule_id": "so_submitted_production",
+      "doctype": "Sales Order",
+      "trigger_event": "on_submit",
+      "target_departments": ["production", "purchase"],
+      "title_template": "Sales Order {name} submitted",
+      "message_template": "Sales Order {name} for {customer} was submitted (total {grand_total}). Production: plan work orders. Purchase: check raw material availability."
+    },
+    {
+      "rule_id": "so_submitted_accounts",
+      "doctype": "Sales Order",
+      "trigger_event": "on_submit",
+      "target_departments": ["accounts", "sales"],
+      "title_template": "Sales Order {name} — accounts review",
+      "message_template": "Sales Order {name} for {customer} submitted on {transaction_date}. Accounts: prepare billing path; Sales: confirm delivery timeline."
+    },
+    {
+      "rule_id": "so_cancelled",
+      "doctype": "Sales Order",
+      "trigger_event": "on_cancel",
+      "target_departments": ["sales", "production", "accounts"],
+      "title_template": "Sales Order {name} cancelled",
+      "message_template": "Sales Order {name} was cancelled. Review open production and billing linked to this order.",
+      "risk_tier_override": "high"
+    },
+    {
+      "rule_id": "po_submitted_purchase",
+      "doctype": "Purchase Order",
+      "trigger_event": "on_submit",
+      "target_departments": ["purchase", "stores", "accounts"],
+      "title_template": "Purchase Order {name} submitted",
+      "message_template": "PO {name} to {supplier} submitted (total {grand_total}). Stores: expect incoming goods; Accounts: accrue liability."
+    },
+    {
+      "rule_id": "po_cancelled",
+      "doctype": "Purchase Order",
+      "trigger_event": "on_cancel",
+      "target_departments": ["purchase", "accounts"],
+      "title_template": "Purchase Order {name} cancelled",
+      "message_template": "PO {name} to {supplier} was cancelled.",
+      "risk_tier_override": "high"
+    },
+    {
+      "rule_id": "si_submitted_accounts",
+      "doctype": "Sales Invoice",
+      "trigger_event": "on_submit",
+      "target_departments": ["accounts", "sales"],
+      "title_template": "Sales Invoice {name} submitted",
+      "message_template": "Invoice {name} for {customer} submitted — {grand_total} outstanding {outstanding_amount}. Follow up on payment collection."
+    },
+    {
+      "rule_id": "pe_submitted_accounts",
+      "doctype": "Payment Entry",
+      "trigger_event": "on_submit",
+      "target_departments": ["accounts"],
+      "title_template": "Payment Entry {name} recorded",
+      "message_template": "Payment {name}: {payment_type} {paid_amount} for {party_type} {party} on {posting_date}."
+    },
+    {
+      "rule_id": "dn_submitted_stores",
+      "doctype": "Delivery Note",
+      "trigger_event": "on_submit",
+      "target_departments": ["stores", "sales"],
+      "title_template": "Delivery Note {name} dispatched",
+      "message_template": "Delivery Note {name} for {customer} posted on {posting_date}. Stores: confirm pick/pack; Sales: notify customer."
+    },
+    {
+      "rule_id": "pr_submitted_stores",
+      "doctype": "Purchase Receipt",
+      "trigger_event": "on_submit",
+      "target_departments": ["stores", "purchase", "accounts"],
+      "title_template": "Purchase Receipt {name} received",
+      "message_template": "Purchase Receipt {name} from {supplier} posted on {posting_date}. Stores: put away stock; Purchase: close PO line items."
+    }
+  ]
+}
