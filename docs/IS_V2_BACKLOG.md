@@ -276,10 +276,10 @@ Ten layers that must hold for “any doctype / any data” to work. Track implem
 
 > Architecture: [`ARCH_CASCADE.md`](./ARCH_CASCADE.md) · Sprint: [`PRIORITIES.md`](./PRIORITIES.md) control-plane focus table
 
-- [ ] **Department taxonomy** — `shared/erp_policies/departments.py`; `project_members.department`, `team_invites.department`; invite UI (class C, L6)
-- [ ] **Notification schema** — `cascade_events`, `notifications` tables + Supabase SQL (class C, L6)
-- [ ] **Cascade worker** — `containers/cascade/` Temporal workflow; fan-out from CVS webhook (class C, L6)
-- [ ] **Cascade rules KB** — `cascade_rules.json` for Sales Order, PO, Payment Entry, etc. (class B, L6)
+- [x] **Department taxonomy** — `shared/erp_policies/departments.py`; `project_members.department`, `team_invites.department`; invite UI (class C, L6) *(2026-08-04)*
+- [x] **Notification schema** — `cascade_events`, `notifications` tables + Supabase SQL (class C, L6) *(2026-08-04)*
+- [x] **Cascade worker** — `containers/cascade/` Temporal workflow; fan-out from CVS webhook (class C, L6) *(2026-08-04)*
+- [x] **Cascade rules KB** — `cascade_rules.json` for Sales Order, PO, Payment Entry, etc. (class B, L6) *(2026-08-04)*
 - [ ] **In-app notification center** — API + bell in `UniversalHeader` (class C, L6)
 - [ ] **Inbound reply loop** — notification reply → OS `seed_context` (class C, L6)
 - [ ] **WhatsApp channel adapter** — deferred; stub only in `shared/notification_channels/`

@@ -163,6 +163,19 @@ services:
       - 8.8.8.8
       - 1.1.1.1
 
+  cascade_worker:
+    build:
+      context: .
+      dockerfile: containers/cascade/Dockerfile
+    container_name: f3_cascade_worker
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+
   cvs_poller:
     build:
       context: .

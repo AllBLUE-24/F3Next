@@ -182,13 +182,30 @@ async def receive_webhook(
     doctype  = payload_dict.get("doctype", "")
     doc_name = payload_dict.get("name", "")
 
-    # ── Step 4: Enqueue Temporal workflow (logs ContextEvent inside workflow) ─
+    # ── Step 4: Enqueue Temporal workflows ────────────────────────────────────
     result = await launcher.trigger_webhook_sync(
         project_id      = str(project_id),
         company_slug    = company_slug,
         company_profile = company_profile,
         webhook_payload = payload_dict,
     )
+
+    cascade_result: dict = {"ok": False, "skipped": True}
+    try:
+        from app.services.cascade_launcher import CascadeLauncher
+
+        cascade_launcher = CascadeLauncher()
+        cascade_result = await cascade_launcher.trigger_cascade_event(
+            project_id=str(project_id),
+            company_slug=company_slug,
+            webhook_payload=payload_dict,
+        )
+    except Exception as cascade_exc:
+        logger.warning(
+            "CVS webhook: cascade fan-out failed (CVS sync unaffected): %s",
+            cascade_exc,
+        )
+        cascade_result = {"ok": False, "error": str(cascade_exc)}
 
     try:
         from shared.cvs_metrics import CVS_WEBHOOKS_TOTAL
@@ -202,6 +219,7 @@ async def receive_webhook(
         "ok":          result.get("ok"),
         "workflow_id": result.get("workflow_id"),
         "layers":      result.get("layers"),
+        "cascade":     cascade_result,
     }
 
 
