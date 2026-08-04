@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database.db import get_shared_db
+from shared.erp_policies.departments import Department, DEPARTMENT_LABELS
 from shared.models.core import Client, Project, ProjectMember, TeamInvite
 
 router = APIRouter(prefix="/invites", tags=["Invites"])
@@ -28,6 +29,7 @@ class CreateInviteRequest(BaseModel):
     user_id: str
     company_slug: str
     email: Optional[str] = None
+    department: Optional[str] = None
 
 
 class AcceptInviteRequest(BaseModel):
@@ -36,6 +38,14 @@ class AcceptInviteRequest(BaseModel):
     full_name: str
     user_slug: str
     role: str
+    department: Optional[str] = None
+
+
+class UpdateMemberDepartmentRequest(BaseModel):
+    user_id: str
+    company_slug: str
+    member_client_id: str
+    department: Optional[str] = None
 
 
 class RevokeInviteRequest(BaseModel):
@@ -63,10 +73,18 @@ async def create_invite(body: CreateInviteRequest, db: AsyncSession = Depends(ge
     await _assert_admin(db, body.user_id, project)
 
     code = _generate_code()
+    dept = Department.normalize(body.department) if body.department else None
+    if body.department and not dept:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid department. Choose one of: {', '.join(Department.values())}",
+        )
+
     invite = TeamInvite(
         project_id=project.id,
         invite_code=code,
         email=body.email,
+        department=dept,
         invited_by=body.user_id,
         status="pending",
         expires_at=datetime.now(timezone.utc) + timedelta(days=INVITE_TTL_DAYS),
@@ -109,6 +127,8 @@ async def validate_invite(
         "company_slug": project.company_slug,
         "invite_code": invite.invite_code,
         "status": invite.status,
+        "department": invite.department,
+        "department_label": DEPARTMENT_LABELS.get(invite.department or "", invite.department),
     }
 
 
@@ -149,11 +169,19 @@ async def accept_invite(body: AcceptInviteRequest, db: AsyncSession = Depends(ge
     user.role = body.role.strip()
     user.company_name = project.company_name
 
+    member_department = Department.normalize(body.department) if body.department else invite.department
+    if body.department and not member_department:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid department. Choose one of: {', '.join(Department.values())}",
+        )
+
     db.add(
         ProjectMember(
             project_id=project.id,
             client_id=body.user_id,
             role=body.role.strip(),
+            department=member_department,
         )
     )
 
@@ -171,6 +199,80 @@ async def accept_invite(body: AcceptInviteRequest, db: AsyncSession = Depends(ge
         "company_slug": project.company_slug,
         "user_slug": body.user_slug,
         "redirect_url": f"/{project.company_slug}/{body.user_slug}/home",
+        "department": member_department,
+    }
+
+
+@router.get("/members")
+async def list_members(
+    company_slug: str = Query(...),
+    user_id: str = Query(...),
+    db: AsyncSession = Depends(get_shared_db),
+):
+    """List workspace members with department assignments (admin only)."""
+    project = await _project_for_slug(db, company_slug)
+    await _assert_admin(db, user_id, project)
+
+    result = await db.execute(
+        select(ProjectMember, Client)
+        .join(Client, ProjectMember.client_id == Client.id)
+        .where(ProjectMember.project_id == project.id)
+        .order_by(ProjectMember.joined_at.asc())
+    )
+    rows = result.all()
+
+    return {
+        "members": [
+            {
+                "client_id": member.client_id,
+                "full_name": client.full_name,
+                "email": client.email,
+                "role": member.role,
+                "department": member.department,
+                "department_label": DEPARTMENT_LABELS.get(member.department or "", member.department),
+                "joined_at": member.joined_at.isoformat() if member.joined_at else None,
+                "is_owner": member.client_id == project.client_id,
+            }
+            for member, client in rows
+        ]
+    }
+
+
+@router.post("/members/department")
+async def update_member_department(
+    body: UpdateMemberDepartmentRequest,
+    db: AsyncSession = Depends(get_shared_db),
+):
+    project = await _project_for_slug(db, body.company_slug)
+    await _assert_admin(db, body.user_id, project)
+
+    if body.member_client_id == project.client_id:
+        raise HTTPException(status_code=400, detail="Cannot change the workspace owner's department here")
+
+    dept = Department.normalize(body.department) if body.department else None
+    if body.department and not dept:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid department. Choose one of: {', '.join(Department.values())}",
+        )
+
+    result = await db.execute(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project.id,
+            ProjectMember.client_id == body.member_client_id,
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    member.department = dept
+    await db.commit()
+
+    return {
+        "status": "updated",
+        "client_id": body.member_client_id,
+        "department": dept,
     }
 
 
@@ -197,6 +299,8 @@ async def list_invites(
                 "invite_code": inv.invite_code,
                 "invite_url": f"/{company_slug}/invite/{inv.invite_code}",
                 "email": inv.email,
+                "department": inv.department,
+                "department_label": DEPARTMENT_LABELS.get(inv.department or "", inv.department),
                 "status": inv.status,
                 "created_at": inv.created_at.isoformat() if inv.created_at else None,
                 "expires_at": inv.expires_at.isoformat() if inv.expires_at else None,

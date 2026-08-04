@@ -8,6 +8,7 @@ import { getAuthUser } from "@/utils/auth-user";
 import { isDevAuthBypassEnabled } from "@/utils/dev-auth";
 import { getBaseApiUrl } from "@/lib/config";
 import { slugify } from "@/lib/slugify";
+import { DEPARTMENTS, departmentLabel } from "@/lib/departments";
 import { Bot, Loader2, Users } from "lucide-react";
 
 interface PageProps {
@@ -21,13 +22,18 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isValidating, setIsValidating] = useState(true);
-  const [inviteData, setInviteData] = useState<{ company_name?: string } | null>(null);
+  const [inviteData, setInviteData] = useState<{
+    company_name?: string;
+    department?: string | null;
+    department_label?: string | null;
+  } | null>(null);
   const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
     fullName: "",
     userSlug: "",
     role: "",
+    department: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,7 +70,11 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
           const data = await res.json().catch(() => ({}));
           throw new Error(data.detail || "This invite link is invalid or has expired.");
         }
-        setInviteData(await res.json());
+        const json = await res.json();
+        setInviteData(json);
+        if (json.department) {
+          setFormData((prev) => ({ ...prev, department: json.department }));
+        }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Invalid invite");
       } finally {
@@ -74,7 +84,7 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
     checkInvite();
   }, [inviteCode, companySlug]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => {
       const next = { ...prev, [name]: value };
@@ -103,6 +113,7 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
           full_name: formData.fullName,
           user_slug: formData.userSlug,
           role: formData.role,
+          department: formData.department || undefined,
         }),
       });
 
@@ -235,19 +246,43 @@ function InviteForm({ companySlug, inviteCode }: { companySlug: string; inviteCo
             </div>
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
-                Your handle
+                Department
               </label>
-              <div className="flex items-center px-3.5 py-2.5 border border-[var(--border-default)] rounded-xl bg-[var(--bg-void)]">
-                <span className="text-zinc-600 mr-1">@</span>
-                <input
-                  name="userSlug"
-                  type="text"
-                  required
-                  value={formData.userSlug}
-                  onChange={handleSlugChange}
-                  className="w-full bg-transparent text-sm text-zinc-200 outline-none"
-                />
-              </div>
+              <select
+                name="department"
+                value={formData.department}
+                onChange={handleChange}
+                className="block w-full px-3.5 py-2.5 border border-[var(--border-default)] rounded-xl text-sm text-zinc-200 bg-[var(--bg-void)] focus:ring-2 focus:ring-amber-500/30 outline-none"
+              >
+                <option value="">Select department</option>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d.value} value={d.value}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+              {inviteData?.department && (
+                <p className="text-[11px] text-zinc-600 mt-1">
+                  Invited for: {departmentLabel(inviteData.department)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+              Your handle
+            </label>
+            <div className="flex items-center px-3.5 py-2.5 border border-[var(--border-default)] rounded-xl bg-[var(--bg-void)]">
+              <span className="text-zinc-600 mr-1">@</span>
+              <input
+                name="userSlug"
+                type="text"
+                required
+                value={formData.userSlug}
+                onChange={handleSlugChange}
+                className="w-full bg-transparent text-sm text-zinc-200 outline-none"
+              />
             </div>
           </div>
 
