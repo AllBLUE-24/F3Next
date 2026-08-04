@@ -36,6 +36,7 @@ from shared.models.is_models import (
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
 )
 from shared.models.cvs_models import ContextSnapshot, ContextEvent
+from shared.models.notification_models import CascadeEvent, Notification
 from shared.models.f3iche_models import F3icheDefinition
 from shared.database.db import engine, Base
 from app.api.discovery import router as discovery_router
@@ -78,7 +79,7 @@ _all_models = [
     ISSession, ISFile, ISFileSignal, ISF3icheScore,
     ISCompanyProfile, ISTargetStructure, ISDataReadinessAssessment, ISFieldMapping, ISMappedData,
     ISValidationResult, ISValidationError, ISImportPlan, ISImportLog, ISAuditTrail,
-    ContextSnapshot, ContextEvent, F3icheDefinition,
+    ContextSnapshot, ContextEvent, CascadeEvent, Notification, F3icheDefinition,
 ]
 
 if __name__ == "__main__":
