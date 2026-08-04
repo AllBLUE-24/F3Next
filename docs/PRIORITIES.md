@@ -238,8 +238,8 @@ Structural foundations for “any doctype / any tabular data.” **Do not start 
 | 1   | Department taxonomy + team invite assignment           | L6    | Ops    | **done (2026-08-04)** |
 | 2   | `cascade_events` + `notifications` schema              | L6    | Ops    | **done (2026-08-04)** |
 | 3   | Cascade worker + webhook fan-out from CVS              | L6    | Ops    | **done (2026-08-04)** |
-| 4   | `cascade_rules.json` KB + in-app notification UI       | L6    | Ops    | **partial** — KB done; UI Phase 6 |
-| 5   | Reply → OS pipeline with `seed_context`                | L6    | Ops    | pending               |
+| 4   | `cascade_rules.json` KB + in-app notification UI       | L6    | Ops    | **done (2026-08-04)** |
+| 5   | Reply → OS pipeline with `seed_context`                | L6    | Ops    | **done (2026-08-04)** |
 
 
 **Previous closure sprint (v1.0.0):** see table below — items 1–5 marked done 2026-05-30.

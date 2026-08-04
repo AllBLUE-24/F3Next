@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useParams } from 'next/navigation';
+import { NotificationCenter } from '@/components/shared/NotificationCenter';
 
 export function UniversalHeader() {
   const pathname = usePathname();
@@ -44,6 +45,7 @@ export function UniversalHeader() {
 
       {companySlug && userSlug && (
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <NotificationCenter companySlug={companySlug} />
           <span style={{ color: "#71717a", fontSize: "11px", letterSpacing: "0.5px", textTransform: 'capitalize' }}>
             {companySlug.replace(/-/g, ' ')}
           </span>
