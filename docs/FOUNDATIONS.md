@@ -1,7 +1,7 @@
 # F3Next — Foundations & Working Philosophy
 
 > **Canonical operating model** for humans and AI agents.  
-> **Last updated:** 2026-05-26  
+> **Last updated:** 2026-08-04  
 > **Related:** `[NORTH_STAR.md](./NORTH_STAR.md)` · `[PRIORITIES.md](./PRIORITIES.md)` · `[IS_V2_BACKLOG.md](./IS_V2_BACKLOG.md)` · `[ARCH_V2_VISION.md](./ARCH_V2_VISION.md)`
 
 ---
@@ -29,9 +29,10 @@ Build order matters. A fix that skips a lower layer is a patch; a fix that stren
 | **L3** | ERP Knowledge     | KB mapping modules, baseline seed, SchemaResolver v1 bridge                                                    |
 | **L4** | Import Execution  | phased import, site prerequisites order, `import_idempotency`                                                  |
 | **L5** | Observability UX  | chat bar, import results panel, classification transparency                                                    |
+| **L6** | Reactive Ops      | cascade events, department routing, in-app notifications, reply → OS pipeline (see [ARCH_CASCADE.md](./ARCH_CASCADE.md)) |
 
 
-**IS ten pillars** (`[IS_V2_BACKLOG.md](./IS_V2_BACKLOG.md)`) map onto L2–L4. When triaging, name the pillar number (1–10), not just the file that threw the error.
+**IS ten pillars** (`[IS_V2_BACKLOG.md](./IS_V2_BACKLOG.md)`) map onto L2–L4. L6 is post-go-live operations. When triaging, name the pillar number (1–10), not just the file that threw the error.
 
 ---
 

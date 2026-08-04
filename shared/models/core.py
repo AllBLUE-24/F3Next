@@ -93,6 +93,7 @@ class ProjectMember(Base):
     project_id = Column(Uuid(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
     client_id = Column(String, ForeignKey("clients.id"), nullable=False, unique=True, index=True)
     role = Column(String, nullable=True)
+    department = Column(String, nullable=True)
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
 
     project = relationship("Project", back_populates="members")
@@ -105,6 +106,7 @@ class TeamInvite(Base):
     project_id = Column(Uuid(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
     invite_code = Column(String(64), unique=True, nullable=False, index=True)
     email = Column(String, nullable=True)
+    department = Column(String, nullable=True)
     invited_by = Column(String, ForeignKey("clients.id"), nullable=False)
     status = Column(String, server_default="pending", nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=True)

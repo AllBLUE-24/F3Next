@@ -1,7 +1,7 @@
 # F3Next — Sprint Priorities & Ship Plan
 
 > **Purpose:** Action-oriented priority stack for completing the product for launch.  
-> **Last updated:** 2026-06-06 — Track A complete  
+> **Last updated:** 2026-08-04 — Control plane sprint active  
 > **Status:** Active sprint plan — overrides weekly focus until next review.
 
 ## How to mark items done
@@ -68,6 +68,7 @@ A new company can:
 | 2026-05-25 | **WhatsApp / proactive bot → post-launch**        | Tier 6 — after core loop is demo-ready.                                                                                              |
 | 2026-05-26 | **Green Surface demo postponed — use prep day**   | Tier 0 deploy + Tier 1 validate trust + UI confirm buttons before beta; no SchemaResolver on demo day.                               |
 | 2026-05-26 | **Universal IS = Tier 7, not demo gate**          | ~15 KB doctypes sufficient for beta; SchemaResolver v1 + validation_rules wiring after Green Surface learnings.                      |
+| 2026-08-04 | **Operations control plane → top priority**       | Build reactive cascade + department routing + in-app notifications on branch `control-plane`. Overrides freeze until Phase 0–1 land. WhatsApp deferred; channel adapter interface reserved. |
 
 
 ---
@@ -227,7 +228,25 @@ Structural foundations for “any doctype / any tabular data.” **Do not start 
 
 ---
 
-## Focus this sprint (max 5) — closure sprint
+## Focus this sprint (max 5) — control plane
+
+> Operating model: `[FOUNDATIONS.md](./FOUNDATIONS.md)` · Architecture: `[ARCH_CASCADE.md](./ARCH_CASCADE.md)`
+
+
+| #   | Item                                                   | Layer | Stream | Status                |
+| --- | ------------------------------------------------------ | ----- | ------ | --------------------- |
+| 1   | Department taxonomy + team invite assignment           | L6    | Ops    | **in progress**       |
+| 2   | `cascade_events` + `notifications` schema              | L6    | Ops    | **in progress**       |
+| 3   | Cascade worker + webhook fan-out from CVS              | L6    | Ops    | pending               |
+| 4   | `cascade_rules.json` KB + in-app notification UI       | L6    | Ops    | pending               |
+| 5   | Reply → OS pipeline with `seed_context`                | L6    | Ops    | pending               |
+
+
+**Previous closure sprint (v1.0.0):** see table below — items 1–5 marked done 2026-05-30.
+
+---
+
+## Focus this sprint (max 5) — closure sprint (archived)
 
 > Operating model: `[FOUNDATIONS.md](./FOUNDATIONS.md)`. Exit: golden re-run OR classified beta report.
 
