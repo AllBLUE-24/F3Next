@@ -17,6 +17,10 @@ import {
   importHonestyHeadline,
   type ImportResultRow,
 } from '@/lib/honesty/import-results';
+import {
+  ImportSummaryBanner,
+  type ImportUiPayload,
+} from './ImportSummaryBanner';
 
 interface PlanGap {
   doctype: string;
@@ -55,14 +59,16 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [gaps, setGaps] = useState<PlanGap[]>([]);
   const [importResults, setImportResults] = useState<ImportResultRow[]>([]);
+  const [importExecution, setImportExecution] = useState<ImportUiPayload | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
 
   const poll = useCallback(async () => {
     try {
       const base = getBaseApiUrl();
-      const [stageRes, planRes] = await Promise.all([
+      const [stageRes, planRes, executionRes] = await Promise.all([
         fetch(`${base}/api/implementation/stage/${jobId}`, { cache: 'no-store' }),
         fetch(`${base}/api/implementation/import-plan/${jobId}`, { cache: 'no-store' }),
+        fetch(`${base}/api/implementation/import-execution/${jobId}`, { cache: 'no-store' }),
       ]);
 
       let currentStage: string | null = null;
@@ -77,6 +83,11 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
         const plan = data.import_plan as Record<string, unknown> | null;
         setPlanStatus((plan?.status as string) || null);
         setGaps(extractCriticalGaps(plan));
+      }
+
+      if (executionRes.ok) {
+        const data = await executionRes.json();
+        setImportExecution((data.import_execution as ImportUiPayload) || null);
       }
 
       if (
@@ -155,6 +166,7 @@ export function ImportView({ jobId, companySlug, instance, approveAction }: Prop
 
   return (
     <div className="space-y-8">
+      <ImportSummaryBanner payload={importExecution} />
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500 mb-2">
           Step 04 of 04
