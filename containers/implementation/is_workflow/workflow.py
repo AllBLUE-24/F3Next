@@ -1885,8 +1885,8 @@ class ImplementationWorkflow:
         # ══════════════════════════════════════════════════════════════════════
         self._set_task("t8", "running")
 
-        _step_start(L, 12, "Finalize Import Plan",
-                    "Updating import plan with mapped paths and row counts")
+        _step_start(L, 5, "Finalize Import Plan",
+                    "Updating import plan with mapped paths and row counts", total=V1_PIPELINE_STEPS)
 
         try:
             plan_status: str = await workflow.execute_activity(
@@ -1906,7 +1906,7 @@ class ImplementationWorkflow:
                 L.info("")
                 L.info("      ℹ️  Plan is READY WITH GAPS — import will proceed for mapped data; optional doctypes deferred")
 
-            _step_ok(L, 12, "Finalize Import Plan", f"status={plan_status}")
+            _step_ok(L, 5, "Finalize Import Plan", f"status={plan_status}")
             await self._run_is_quality_gate(
                 "finalize_import_plan",
                 plan_status,
@@ -1916,7 +1916,7 @@ class ImplementationWorkflow:
                 hard_block_raises=(plan_status == "blocked"),
             )
         except Exception as e:
-            _step_fail(L, 12, "Finalize Import Plan", str(e))
+            _step_fail(L, 5, "Finalize Import Plan", str(e))
             self._stage = "error"
             raise ApplicationError(f"Import plan finalization failed: {e}")
 
@@ -1956,8 +1956,8 @@ class ImplementationWorkflow:
             **_ACT,
         )
 
-        _step_start(L, 13, "Execute Import Phases",
-                    f"dry_run={sb.dry_run} | {len(phases)} phases")
+        _step_start(L, 5, "Execute Import Phases",
+                    f"dry_run={sb.dry_run} | {len(phases)} phases", total=V1_PIPELINE_STEPS)
 
         import_phases_succeeded = False
         import_phase_failures: List[str] = []
@@ -2119,7 +2119,7 @@ class ImplementationWorkflow:
                 "; ".join(import_phase_failures) or "phase aborted",
             )
         else:
-            _step_ok(L, 13, "Execute Import Phases", f"3 phases executed (dry_run={sb.dry_run})")
+            _step_ok(L, 5, "Execute Import Phases", f"phases executed (dry_run={sb.dry_run})")
         import_phases_succeeded = not import_phases_aborted and not import_phase_failures
 
         # ══════════════════════════════════════════════════════════════════════

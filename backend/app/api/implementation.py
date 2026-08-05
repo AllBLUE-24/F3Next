@@ -461,6 +461,17 @@ async def get_map_validate_ui(
     return {"map_validate": payload}
 
 
+@router.get("/import-execution/{project_id}", summary="UI-safe import plan + execution payload")
+async def get_import_execution_ui(
+    project_id: UUID,
+    launcher: ImplementationLauncher = Depends(get_launcher),
+):
+    payload = await launcher.get_import_execution_ui(project_id)
+    if isinstance(payload, dict) and payload.get("error"):
+        raise HTTPException(status_code=404, detail=str(payload["error"]))
+    return {"import_execution": payload}
+
+
 @router.get("/import-plan/{project_id}", summary="3-phase import plan")
 async def get_import_plan(
     project_id: UUID,

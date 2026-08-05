@@ -1443,6 +1443,18 @@ class ImplementationLauncher:
             return preview
         return build_validate_ui_payload(preview)
 
+    async def get_import_execution_ui(self, project_id: str | UUID) -> Dict[str, Any]:
+        """UI-safe Step 5 payload from import plan + results."""
+        from containers.implementation.import_exec.import_ui import build_import_ui_payload
+
+        plan = await self.get_import_plan(project_id)
+        results = await self.get_import_results(project_id)
+        is_session = await self._get_session(project_id)
+        stage = is_session.status if is_session else None
+        if not plan:
+            return {"error": "Import plan not yet built"}
+        return build_import_ui_payload(plan=plan, import_results=results, stage=stage)
+
     async def get_full_state(self, project_id: str | UUID) -> Dict[str, Any]:
         """Convenience: returns everything in one round-trip batch."""
         import asyncio
