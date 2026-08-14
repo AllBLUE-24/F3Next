@@ -68,9 +68,9 @@ class DataReadinessAssessment(BaseModel):
     missing_doctypes: List[DoctypeGap] = Field(default_factory=list)
     unmappable_chunks: List[UnmappableChunk] = Field(default_factory=list)
     gap_report: Dict[str, Any] = Field(default_factory=dict)
-    minimum_viable_import_possible: bool = True
-    user_action_required: bool = False
+    minimum_viable_import_possible: bool = False
+    user_action_required: bool = True
     questions_for_user: List[UserQuestion] = Field(default_factory=list)
     executive_summary: str = ""      # ≤3 sentences, shown in the UI banner
-    import_readiness_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    import_readiness_score: float = Field(default=0.0, ge=0.0, le=1.0)
     user_decision: Optional[str] = None

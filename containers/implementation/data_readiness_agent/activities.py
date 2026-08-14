@@ -505,18 +505,23 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     )
 
     if not scope_doctypes:
-        activity.logger.warning("  ⚠️ No required_doctypes in target structure — skipping assessment")
-        empty = DataReadinessAssessment(
-            minimum_viable_import_possible=True,
-            user_action_required=False,
-            executive_summary="No target structure found; proceeding with best-effort mapping.",
-            import_readiness_score=1.0,
+        activity.logger.error("  ❌ No target scope — readiness cannot be assessed")
+        blocked = DataReadinessAssessment(
+            minimum_viable_import_possible=False,
+            user_action_required=True,
+            executive_summary="No confirmed target structure is available. Regenerate or reload Discovery before mapping.",
+            import_readiness_score=0.0,
         )
-        await _persist_assessment(inp.session_id, empty)
-        return NodeStatusEnvelope.success(primary_result={
-            "assessment": empty.model_dump(),
-            "skipped": True,
-        })
+        await _persist_assessment(inp.session_id, blocked)
+        return NodeStatusEnvelope.failed(
+            errors=[
+                {
+                    "code": "MISSING_TARGET_SCOPE",
+                    "message": "Readiness requires confirmed seed or required doctypes.",
+                }
+            ],
+            primary_result={"assessment": blocked.model_dump(), "skipped": True},
+        )
 
     # 2. Download manifest (all uploaded file contents)
     manifest = _download_manifest(inp.r2_manifest_url)
@@ -524,17 +529,17 @@ async def assess_data_readiness(inp: AssessDataReadinessInput) -> Any:
     activity.logger.info("  Manifest: %d files", len(manifest_files))
 
     if not manifest_files:
-        activity.logger.warning("  ⚠️ Empty manifest — cannot assess readiness, skipping gate")
-        empty = DataReadinessAssessment(
-            minimum_viable_import_possible=True,
-            user_action_required=False,
-            executive_summary="No uploaded files found in manifest; proceeding with best-effort mapping.",
+        activity.logger.error("  ❌ Empty manifest — readiness cannot be assessed")
+        blocked = DataReadinessAssessment(
+            minimum_viable_import_possible=False,
+            user_action_required=True,
+            executive_summary="No uploaded files were found. Upload the requested MVP corpus before mapping.",
             import_readiness_score=0.0,
         )
-        await _persist_assessment(inp.session_id, empty)
-        return NodeStatusEnvelope.partial(
-            primary_result={"assessment": empty.model_dump(), "skipped": True},
-            warnings=[{"code": "EMPTY_MANIFEST", "message": "No files in manifest to assess"}],
+        await _persist_assessment(inp.session_id, blocked)
+        return NodeStatusEnvelope.failed(
+            primary_result={"assessment": blocked.model_dump(), "skipped": True},
+            errors=[{"code": "EMPTY_MANIFEST", "message": "No files in manifest to assess"}],
         )
 
     # 3. Load company profile and session context
