@@ -68,6 +68,11 @@ with workflow.unsafe.imports_passed_through():
         coerce_envelope,
         mapping_summary_envelope,
     )
+    from containers.implementation.is_workflow.contracts import (
+        import_phase_failed,
+        mapping_blocks_progress,
+        readiness_blocks_progress,
+    )
 
 TASK_QUEUE = "is-queue"
 V1_PIPELINE_STEPS = 5
@@ -901,8 +906,11 @@ class ImplementationWorkflow:
         with workflow.unsafe.sandbox_unrestricted():
             supervisor_enabled = os.getenv("IS_SUPERVISOR_ENABLED", "0") == "1"
 
-        readiness_needs_input = not bool(readiness.get("minimum_viable_import_possible", True))
         readiness_failed = getattr(readiness_env, "status", "") == "failed"
+        readiness_needs_input = readiness_blocks_progress(
+            getattr(readiness_env, "status", ""),
+            readiness,
+        )
         readiness_prompt_id: Optional[str] = None
 
         if supervisor_enabled and readiness_env and readiness and not readiness_failed:
@@ -1066,7 +1074,11 @@ class ImplementationWorkflow:
                                 else:
                                     readiness_env = NodeStatusEnvelope.success(primary_result=readiness_env)
                             readiness = (readiness_env.primary_result or {}).get("assessment", {}) if isinstance(readiness_env.primary_result, dict) else {}
-                            readiness_needs_input = not bool(readiness.get("minimum_viable_import_possible", True))
+                            readiness_failed = getattr(readiness_env, "status", "") == "failed"
+                            readiness_needs_input = readiness_blocks_progress(
+                                getattr(readiness_env, "status", ""),
+                                readiness,
+                            )
                             if not readiness_needs_input:
                                 _step_ok(L, "8c", "Data Readiness Recheck", "Fresh files make minimum viable import possible")
                                 break
@@ -1090,11 +1102,18 @@ class ImplementationWorkflow:
             except Exception as e:
                 L.info("      ⚠️  Supervisor hook for data_readiness failed (non-fatal): %s", e)
         elif readiness_failed:
-            L.info("  ⚠️  Readiness assessment failed — proceeding without gate")
+            L.info("  ⛔ Readiness assessment failed")
         elif not readiness_needs_input:
             L.info("  ✅ Minimum viable data confirmed — proceeding to mapping without gate")
         else:
-            L.info("  ⚠️  Supervisor disabled — proceeding despite readiness gaps")
+            L.info("  ⛔ Supervisor disabled — readiness gaps remain blocking")
+
+        if readiness_needs_input or readiness_failed:
+            self._stage = "readiness_blocked"
+            raise ApplicationError(
+                "Data readiness is blocked. Resolve missing target/corpus evidence "
+                "before mapping."
+            )
 
         try:
             await workflow.execute_activity(
@@ -1128,6 +1147,8 @@ class ImplementationWorkflow:
         except Exception as e:
             _step_fail(L, 7, "Build Import Plan", str(e))
             self._set_task("t8", "failed", str(e))
+            self._stage = "import_plan_blocked"
+            raise ApplicationError(f"Preliminary import plan failed: {e}")
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 8 / 9  —  Corpus Doctype Assignment
@@ -1150,6 +1171,8 @@ class ImplementationWorkflow:
                 else:
                     corpus_env = NodeStatusEnvelope.success(primary_result=corpus_env)
             assignments = (corpus_env.primary_result or {}).get("assignments", []) if hasattr(corpus_env, "primary_result") else []
+            if getattr(corpus_env, "status", "") == "failed":
+                raise ApplicationError("Corpus doctype assignment returned a failed envelope.")
             self._corpus_assignments = {
                 a.get("file"): a for a in assignments if isinstance(a, dict) and a.get("file")
             }
@@ -1167,6 +1190,8 @@ class ImplementationWorkflow:
             )
         except Exception as e:
             _step_fail(L, 8, "Corpus Doctype Assignment", str(e))
+            self._stage = "corpus_assignment_blocked"
+            raise ApplicationError(f"Corpus assignment failed: {e}")
 
         self._stage = "mapping"
 
@@ -1332,6 +1357,12 @@ class ImplementationWorkflow:
                     "total_files": len(self._parsed_files),
                     "failures": map_failures[:10],
                 },
+            )
+
+        if mapping_blocks_progress(mapped_count, len(self._parsed_files)):
+            self._stage = "mapping_blocked"
+            raise ApplicationError(
+                "Mapping produced no usable files; validation cannot start."
             )
 
         self._set_task("t6", "done", f"{mapped_count} files mapped")
@@ -2056,7 +2087,10 @@ class ImplementationWorkflow:
                                     f"Import phase {phase_label} cancelled by user at execution gate"
                                 )
                     elif preflight.get("requires_execution_gate"):
-                        execution_confirmed = True
+                        raise ApplicationError(
+                            f"Import phase {phase_label} requires explicit confirmation, "
+                            "but the supervisor gate is disabled."
+                        )
 
                 result = await workflow.execute_activity(
                     execute_import_phase,
@@ -2077,15 +2111,16 @@ class ImplementationWorkflow:
                     raise ApplicationError(
                         f"Import phase {phase_label} blocked at execution gate — enable supervisor or use harness --confirm-execution"
                     )
+                phase_result_failed = import_phase_failed(result)
                 if isinstance(result, dict):
-                    if result.get("status") == "error":
-                        import_phase_failures.append(
-                            f"{phase_label}: {result.get('error', 'unknown error')}"
+                    if phase_result_failed:
+                        detail = (
+                            result.get("error", "unknown error")
+                            if result.get("status") == "error"
+                            else f"{result.get('steps_failed')} step(s) failed"
                         )
-                    elif result.get("steps_failed", 0) > 0:
-                        import_phase_failures.append(
-                            f"{phase_label}: {result.get('steps_failed')} step(s) failed"
-                        )
+                        import_phase_failures.append(f"{phase_label}: {detail}")
+                        import_phases_aborted = True
                 if workflow.patched("is-quality-gate-always-scheduled"):
                     await self._run_is_quality_gate(
                         "execute_import_phase",
@@ -2098,7 +2133,10 @@ class ImplementationWorkflow:
                             "result": result if isinstance(result, dict) else {"raw": str(result)},
                         },
                     )
-                L.info("      └── ✅ %s → %s", phase_label, result)
+                if phase_result_failed:
+                    L.info("      └── ❌ %s → %s", phase_label, result)
+                else:
+                    L.info("      └── ✅ %s → %s", phase_label, result)
             except Exception as e:
                 L.info("      └── ❌ %s FAILED: %s", phase_label, e)
                 import_phase_failures.append(f"{phase_label}: {e}")
