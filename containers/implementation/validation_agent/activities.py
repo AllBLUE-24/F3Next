@@ -24,6 +24,10 @@ _KB_DIR = Path(__file__).resolve().parent.parent.parent / "knowledge_base" / "er
 _GRAPH_PATH = _KB_DIR / "erpnext_doctype_graph.json"
 
 from containers.knowledge_base.erpnext.schema.compose import compose_field_mappings
+from containers.implementation.is_common.required_fields import (
+    normalize_required_fieldnames,
+    resolve_required_fields,
+)
 from containers.implementation.mapping_agent.corpus_merge import dedupe_key_for
 from shared.kb.policy_loaders import get_is_import_rules, get_link_resolution_policy
 
@@ -62,20 +66,6 @@ def _get_s3_client():
 # ── Embedded service logic ────────────────────────────────────────────────────
 
 class _ValidationEngine:
-    # ── FALLBACK constants (used when JSON graph/schema don't have the entry) ──
-    # These preserve all existing behaviour. New doctypes only need graph entries.
-    _REQUIRED_FIELDS_FALLBACK: Dict[str, List[str]] = {
-        "Item":             ["item_code", "item_name", "item_group", "stock_uom"],
-        "Customer":         ["customer_name", "customer_group", "territory"],
-        "Supplier":         ["supplier_name", "supplier_group"],
-        "Employee":         ["employee_name", "date_of_joining"],
-        "Sales Order":      ["customer", "transaction_date", "items"],
-        "Sales Invoice":    ["customer", "posting_date"],
-        "Purchase Invoice": ["supplier", "bill_no", "bill_date"],
-        "Payment Entry":    ["payment_type", "party_type", "party", "paid_amount"],
-        "Journal Entry":    ["posting_date", "accounts"],
-    }
-
     _ENUM_FIELDS_FALLBACK: Dict[str, Dict[str, List[str]]] = {
         "Payment Entry": {
             "payment_type": ["Receive", "Pay", "Internal Transfer"],
@@ -109,43 +99,15 @@ class _ValidationEngine:
         return out
 
     def _get_required_fields(self, doctype: str) -> List[str]:
-        """Read required_fields from graph, then KB is_import_rules, then hardcoded fallback."""
-        graph_fields = (
-            self._graph.get("doctypes", {})
-                       .get(doctype, {})
-                       .get("required_fields", [])
+        return resolve_required_fields(
+            doctype,
+            graph=self._graph,
+            kb_rules=self._kb_rules,
         )
-        kb_fields = (self._kb_rules.get("required_fields_by_doctype") or {}).get(doctype, [])
-        fields = graph_fields if graph_fields else (kb_fields if kb_fields else self._REQUIRED_FIELDS_FALLBACK.get(doctype, []))
-        return self._normalise_required_fields(fields or [])
 
     @staticmethod
     def _normalise_required_fields(fields: List[str]) -> List[str]:
-        """
-        Graph required_fields may include descriptive strings like:
-          'items (item_code, qty, rate)' or 'paid_to/paid_from'
-        Normalize them into real fieldnames so validation reports actionable errors.
-        """
-        out: List[str] = []
-        seen: set = set()
-
-        for raw in fields or []:
-            s = str(raw or "").strip()
-            if not s:
-                continue
-            # "items (a, b)" -> "items"
-            if "(" in s:
-                s = s.split("(", 1)[0].strip()
-            # "paid_to/paid_from" -> ["paid_to", "paid_from"]
-            parts = [p.strip() for p in s.split("/") if p.strip()]
-            for p in parts or [s]:
-                # Also handle "field - note" style
-                p2 = p.split(" ", 1)[0].strip()
-                if p2 and p2 not in seen:
-                    seen.add(p2)
-                    out.append(p2)
-
-        return out
+        return normalize_required_fieldnames(fields)
 
     def _get_enum_rules(self, doctype: str) -> Dict[str, List[str]]:
         """Read Select fields from field_mappings; fall back to hardcoded dict."""

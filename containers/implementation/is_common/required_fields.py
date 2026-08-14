@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 from shared.kb.policy_loaders import get_is_import_rules
 
@@ -57,16 +57,29 @@ def _load_graph() -> Dict:
         return {}
 
 
-def get_required_fields(doctype: str) -> List[str]:
+def resolve_required_fields(
+    doctype: str,
+    *,
+    graph: Optional[Dict[str, Any]] = None,
+    kb_rules: Optional[Dict[str, Any]] = None,
+) -> List[str]:
     """
-    Required fields for import validation and readiness (graph → KB rules → fallback).
-    Matches validation_agent._get_required_fields precedence.
+    Resolve required fields from the canonical precedence chain.
+
+    Callers may inject already-loaded graph/rules without changing policy.
     """
+    graph_data = graph if graph is not None else _load_graph()
+    rules = kb_rules if kb_rules is not None else get_is_import_rules()
     graph_fields = (
-        (_load_graph().get("doctypes") or {})
+        (graph_data.get("doctypes") or {})
         .get(doctype, {})
         .get("required_fields", [])
     )
-    kb_fields = (get_is_import_rules().get("required_fields_by_doctype") or {}).get(doctype, [])
+    kb_fields = (rules.get("required_fields_by_doctype") or {}).get(doctype, [])
     raw = graph_fields if graph_fields else (kb_fields if kb_fields else _FALLBACK.get(doctype, []))
     return normalize_required_fieldnames(raw or [])
+
+
+def get_required_fields(doctype: str) -> List[str]:
+    """Required fields for readiness, mapping, validation, and import preflight."""
+    return resolve_required_fields(doctype)
