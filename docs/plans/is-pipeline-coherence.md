@@ -1,7 +1,19 @@
 # Implementation Pipeline Coherence Plan
 
-> Status: active on `fix/is-pipeline-coherence`  
+> Status: structural implementation complete on `fix/is-pipeline-coherence`; live golden run pending  
 > Scope: L1 truth contracts, L2 corpus spine, L3 target/field contracts, L4 import safety
+
+## Implementation status
+
+- Complete: confirmed target handoff and target-bounded mapping.
+- Complete: canonical, persisted corpus assignment before readiness and mapping.
+- Complete: fail-closed readiness, mapping, plan, status, and execution gates.
+- Complete: dependency-action closure and Postgres MVP-scope fallback.
+- Complete: F3iche field-vs-DocType policy separation and shared required-field resolver.
+- Verified: implementation suite `191 passed, 2 skipped`; discovery suite
+  `137 passed, 9 skipped`.
+- Pending environment verification: rebuild the Temporal worker and execute a fresh
+  project/session golden run against R2, Postgres, and ERPNext.
 
 ## Problem
 
