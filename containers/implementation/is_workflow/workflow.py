@@ -33,14 +33,8 @@ from temporalio.exceptions import ApplicationError
 # Pattern: await workflow.execute_activity("activity_name", {"param": value}, **_ACT)
 
 with workflow.unsafe.imports_passed_through():
-    from containers.implementation.signals_agent.activities    import infer_f3iche, verify_f3iche, InferF3icheInput, VerifyF3icheInput
-    from containers.implementation.signals_agent.f3iche_confirmation_activities import (
-        synthesize_f3iche_confirmation,
-        SynthesizeF3icheConfirmationInput,
-    )
-    from containers.implementation.profile_agent.activities    import align_discovery_and_signals, build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput, AlignDiscoverySignalsInput, RetrieveIndustryKnowledgeInput, EnrichCompanyProfileInput, retrieve_industry_knowledge, enrich_company_profile
+    from containers.implementation.profile_agent.activities    import build_company_profile, merge_company_profile, BuildProfileInput, MergeProfileInput
     from containers.implementation.target_agent.activities     import build_target_structure, BuildTargetInput
-    from containers.implementation.derive_agent.activities     import derive_required_records, DeriveRequiredRecordsInput
     from containers.implementation.data_readiness_agent.activities import assess_data_readiness, AssessDataReadinessInput
     from containers.implementation.mapping_agent.activities    import map_file_to_erpnext, MapFileInput, refine_mapping_with_llm, RefineMappingInput, assign_corpus_doctypes, AssignCorpusDoctypesInput
     from containers.implementation.validation_agent.activities import validate_mapped_data, ValidateInput, bootstrap_site_config, BootstrapSiteConfigInput
