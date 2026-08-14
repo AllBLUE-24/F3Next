@@ -24,3 +24,9 @@ def test_error_status_maps_to_failed():
     env = coerce_envelope({"status": "error", "steps_failed": 2})
     assert env.status == "failed"
     assert env.primary_result["steps_failed"] == 2
+
+
+def test_unknown_status_fails_closed():
+    env = coerce_envelope({"status": "mystery", "payload": "untrusted"})
+    assert env.status == "failed"
+    assert env.primary_result["payload"] == "untrusted"

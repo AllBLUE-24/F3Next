@@ -30,11 +30,11 @@ _STATUS_ALIASES = {
 
 
 def _normalize_node_status(raw: Any) -> str:
-    key = str(raw or "success").strip().lower()
+    key = str(raw or "").strip().lower()
     mapped = _STATUS_ALIASES.get(key, key)
     if mapped in ("success", "partial", "failed"):
         return mapped
-    return "success"
+    return "failed"
 
 
 def coerce_envelope(env: Any, *, fallback_primary: Optional[Dict] = None) -> NodeStatusEnvelope:
