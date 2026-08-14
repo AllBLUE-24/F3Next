@@ -36,6 +36,7 @@ from shared.models.is_models import (
     ISTargetStructure,
 )
 from shared.models.is_status import NodeStatusEnvelope
+from shared.models.project_target import ProjectTargetStructure
 from shared.structured_llm import generate_typed
 
 from containers.implementation.data_readiness_agent.models import DataReadinessAssessment
@@ -86,35 +87,63 @@ def _download_r2_json(r2_key: str) -> Dict[str, Any]:
 async def _load_target_structure(session_id: str) -> Dict[str, Any]:
     try:
         async with AsyncSessionLocal() as db:
+            session_uuid = uuid.UUID(session_id)
             stmt = (
                 select(ISTargetStructure)
-                .where(ISTargetStructure.session_id == uuid.UUID(session_id))
+                .where(ISTargetStructure.session_id == session_uuid)
                 .order_by(ISTargetStructure.created_at.desc())
                 .limit(1)
             )
             row = (await db.execute(stmt)).scalar_one_or_none()
-            if not row:
+
+            session_row = (
+                await db.execute(select(ISSession).where(ISSession.id == session_uuid))
+            ).scalar_one_or_none()
+            project_target = None
+            if session_row:
+                project_stmt = (
+                    select(ProjectTargetStructure)
+                    .where(ProjectTargetStructure.project_id == session_row.project_id)
+                    .order_by(ProjectTargetStructure.created_at.desc())
+                    .limit(1)
+                )
+                project_target = (await db.execute(project_stmt)).scalar_one_or_none()
+
+            if not row and not project_target:
                 return {}
-            required = row.required_doctypes
+
+            required = (
+                row.required_doctypes
+                if row
+                else project_target.required_doctypes
+            )
             if isinstance(required, str):
                 required = json.loads(required)
-            steps = row.setup_steps
+            steps = row.setup_steps if row else project_target.setup_steps
             if isinstance(steps, str):
                 steps = json.loads(steps)
-            phases = row.import_phases
+            phases = row.import_phases if row else project_target.import_phases
             if isinstance(phases, str):
                 phases = json.loads(phases)
             result = {
                 "required_doctypes": required or [],
                 "setup_steps": steps or [],
                 "import_phases": phases or {},
-                "seed_doctypes": [],
-                "deferred_doctypes": [],
+                "seed_doctypes": list(
+                    (project_target.seed_doctypes if project_target else []) or []
+                ),
+                "deferred_doctypes": list(
+                    (project_target.deferred_doctypes if project_target else []) or []
+                ),
             }
-            if row.r2_path:
+            if row and row.r2_path:
                 r2_data = _download_r2_json(row.r2_path)
-                result["seed_doctypes"] = r2_data.get("seed_doctypes") or []
-                result["deferred_doctypes"] = r2_data.get("deferred_doctypes") or []
+                result["seed_doctypes"] = (
+                    r2_data.get("seed_doctypes") or result["seed_doctypes"]
+                )
+                result["deferred_doctypes"] = (
+                    r2_data.get("deferred_doctypes") or result["deferred_doctypes"]
+                )
             return result
     except Exception as e:
         activity.logger.warning("  ⚠️ Could not load target structure: %s", e)

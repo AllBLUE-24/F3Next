@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from shared.database.db import AsyncSessionLocal
 from shared.models.project_target import ProjectTargetStructure, ProjectMVPBoundary
-from shared.models.is_models import ISSession
+from shared.models.is_models import ISSession, ISTargetStructure
 
 
 def _get_s3_client():
@@ -35,6 +35,43 @@ def _get_s3_client():
 @dataclass
 class LoadProjectTargetInput:
     session_id: str
+
+
+async def _materialize_session_target(
+    db: Any,
+    *,
+    session_id: UUID,
+    project_target: ProjectTargetStructure,
+    required_doctypes: list[str],
+    setup_steps: list[dict[str, Any]],
+    import_phases: dict[str, Any],
+) -> None:
+    """Mirror the canonical project target into the active IS session."""
+    stmt = (
+        select(ISTargetStructure)
+        .where(ISTargetStructure.session_id == session_id)
+        .order_by(ISTargetStructure.created_at.desc())
+        .limit(1)
+    )
+    session_target = (await db.execute(stmt)).scalar_one_or_none()
+    values = {
+        "f3iche": project_target.f3iche,
+        "llm_enhanced": bool(project_target.llm_enhanced),
+        "llm_reasoning": project_target.llm_reasoning,
+        "total_doctypes": len(required_doctypes),
+        "total_setup_steps": len(setup_steps),
+        "r2_path": project_target.r2_target_path,
+        "required_doctypes": required_doctypes,
+        "setup_steps": setup_steps,
+        "import_phases": import_phases,
+        "validation_rules": project_target.validation_rules or {},
+    }
+    if session_target:
+        for key, value in values.items():
+            setattr(session_target, key, value)
+    else:
+        db.add(ISTargetStructure(session_id=session_id, **values))
+    await db.commit()
 
 
 @activity.defn(name="load_project_target_structure")
@@ -137,6 +174,19 @@ async def load_project_target_structure(inp: LoadProjectTargetInput) -> Dict[str
                 "total_doctypes": target.total_doctypes,
                 "total_seeds": target.total_seed_doctypes,
             }
+
+            # Downstream readiness, mapping, validation, and import activities are
+            # session-scoped and query is_target_structures. Loading the project
+            # target without this snapshot made those nodes behave as if no target
+            # existed even though the workflow-local variable was correct.
+            await _materialize_session_target(
+                db,
+                session_id=UUID(inp.session_id),
+                project_target=target,
+                required_doctypes=result["required_doctypes"],
+                setup_steps=result["setup_steps"],
+                import_phases=result["import_phases"],
+            )
             
             activity.logger.info(
                 "  ✅ Project-level target loaded | seeds=%d total=%d source=project_level",
