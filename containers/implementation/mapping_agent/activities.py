@@ -794,8 +794,8 @@ async def _get_candidate_doctypes(session_id: str) -> List[str]:
     """
     Best-practice candidate list for deterministic routing.
 
-    - Prefer session-scoped ISTargetStructure.required_doctypes
-    - Always include a small safe core set
+    - Use session-scoped ISTargetStructure.required_doctypes when available
+    - Use a small safe core only when no target exists (legacy/dev fallback)
     """
     core = {
         "Item",
@@ -811,15 +811,16 @@ async def _get_candidate_doctypes(session_id: str) -> List[str]:
         "Purchase Receipt",
         "Delivery Note",
     }
-    kb = _kb_field_mappings() or {}
-    kb_doctypes = set((kb.get("doctypes") or {}).keys())
     required = set(await _load_session_required_doctypes(session_id))
 
-    candidates = set()
     if required:
-        # Do NOT intersect with kb_doctypes! The live_schema engine handles KB misses dynamically.
-        candidates |= required
-    candidates |= (core & kb_doctypes) if kb_doctypes else core
+        # The confirmed target is the classification boundary. Adding unrelated
+        # core doctypes here allowed mapping to escape an otherwise correct MVP.
+        candidates = required
+    else:
+        kb = _kb_field_mappings() or {}
+        kb_doctypes = set((kb.get("doctypes") or {}).keys())
+        candidates = (core & kb_doctypes) if kb_doctypes else core
 
     # Stable order for determinism: sort case-insensitively but keep original
     return sorted(candidates, key=lambda s: s.lower())
@@ -847,18 +848,11 @@ def _norm_filename(fname: Optional[str]) -> str:
     return str(fname or "").strip().lower()
 
 
-# Deterministic overrides for known golden-matrix / Tally export filenames.
-_FILENAME_DOCTYPE_OVERRIDES: dict[str, str] = {
-    "tally_stock_summary.csv": "Item",
-    "excel_formulation_master.csv": "BOM",
-    "excel_production_schedule.csv": "Production Plan",
-    "projects_master.csv": "Project",
-    "tally_pending_sales_orders.csv": "Sales Order",
-}
-
-
 def _filename_doctype_override(filename: str) -> Optional[str]:
-    return _FILENAME_DOCTYPE_OVERRIDES.get(_norm_filename(filename))
+    """Backward-compatible wrapper around promoted KB filename priors."""
+    from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
+
+    return filename_implied_doctype(filename)
 
 
 def _corpus_likely_doctype(
@@ -945,17 +939,12 @@ async def _resolve_structured_file_doctype(
     corpus_assignment: Optional[Dict[str, Any]],
     doctype_hint: Optional[str],
 ) -> Optional[str]:
-    """Classification priority: hint → Step 8e → filename override → corpus → filename prior → LLM."""
+    """Classification priority: hint → assignment → corpus → KB filename prior → LLM."""
     from containers.implementation.is_common.doctype_resolver import resolve_doctype
     from containers.implementation.mapping_agent.corpus_merge import filename_implied_doctype
 
     if doctype_hint and doctype_hint in candidates:
         return doctype_hint
-
-    override = _filename_doctype_override(filename)
-    if override and resolve_doctype(override) in {resolve_doctype(c) for c in candidates}:
-        activity.logger.info("  📎 Filename override: %s → %s", filename, override)
-        return resolve_doctype(override)
 
     assignment_doctypes = list((corpus_assignment or {}).get("doctypes") or [])
     if assignment_doctypes:
@@ -966,17 +955,6 @@ async def _resolve_structured_file_doctype(
         ]
         if len(scoped) == 1:
             resolved = scoped[0]
-            implied = filename_implied_doctype(filename)
-            if implied and resolve_doctype(implied) != resolve_doctype(resolved):
-                from containers.implementation.mapping_agent.corpus_merge import filename_conflicts_with_doctype
-                if filename_conflicts_with_doctype(filename, resolved):
-                    activity.logger.info(
-                        "  📎 Filename prior overrides Step 8e assignment: %s → %s (was %s)",
-                        filename,
-                        implied,
-                        resolved,
-                    )
-                    return resolve_doctype(implied)
             activity.logger.info(
                 "  📋 Step 8e assignment: %s → %s",
                 filename,
@@ -1298,15 +1276,6 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
             })
             continue
 
-        override = _filename_doctype_override(filename)
-        if override and override in candidates:
-            assignments.append({
-                "file": filename,
-                "doctypes": [override],
-                "classification": {"doctype": override, "method": "filename_override", "confidence": 1.0},
-            })
-            continue
-
         implied = filename_implied_doctype(filename)
         if implied and implied in candidates and _norm_filename(filename) not in {
             "tally_sundry_ledgers.csv",
@@ -1576,7 +1545,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
                 )
 
             implied_dt = filename_implied_doctype(inp.filename)
-            if implied_dt and filename_conflicts_with_doctype(inp.filename, doctype or ""):
+            if (
+                not assignment_doctypes
+                and implied_dt
+                and filename_conflicts_with_doctype(inp.filename, doctype or "")
+            ):
                 if implied_dt in candidates:
                     activity.logger.warning(
                         "  🛡️ Cross-file guard (pre-gate): %s implies %s not %s — remapping",
@@ -1663,7 +1636,11 @@ async def map_file_to_erpnext(inp: MapFileInput) -> Any:
 
         # Cross-file guard: filename strongly implies a different doctype (e.g. active_projects → Project).
         implied_dt = filename_implied_doctype(inp.filename)
-        if implied_dt and filename_conflicts_with_doctype(inp.filename, doctype):
+        if (
+            not assignment_doctypes
+            and implied_dt
+            and filename_conflicts_with_doctype(inp.filename, doctype)
+        ):
             if implied_dt in candidates:
                 activity.logger.warning(
                     "  🛡️ Cross-file guard: %s implies %s not %s — remapping",

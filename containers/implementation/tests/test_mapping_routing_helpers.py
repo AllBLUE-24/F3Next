@@ -1,15 +1,19 @@
 """Unit tests for mapping routing helpers (corpus + assignment + readiness)."""
+import asyncio
 import csv
 import io
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from containers.implementation.mapping_agent.activities import (
     _MappingEngine,
     _assignment_includes_doctype,
     _corpus_likely_doctype,
     _filename_doctype_override,
+    _get_candidate_doctypes,
     _norm_filename,
     _readiness_file_doctype_evidence,
+    _resolve_structured_file_doctype,
 )
 
 
@@ -66,6 +70,31 @@ class MappingRoutingHelpersTest(unittest.TestCase):
 
     def test_filename_doctype_override_stock_summary(self):
         self.assertEqual(_filename_doctype_override("tally_stock_summary.csv"), "Item")
+
+    def test_candidates_are_bounded_by_confirmed_target(self):
+        with patch(
+            "containers.implementation.mapping_agent.activities._load_session_required_doctypes",
+            new=AsyncMock(return_value=["BOM", "Work Order"]),
+        ):
+            candidates = asyncio.run(_get_candidate_doctypes("unused"))
+
+        self.assertEqual(candidates, ["BOM", "Work Order"])
+        self.assertNotIn("Customer", candidates)
+
+    def test_canonical_assignment_beats_filename_prior(self):
+        resolved = asyncio.run(
+            _resolve_structured_file_doctype(
+                filename="tally_stock_summary.csv",
+                columns=["party_name"],
+                candidates=["Customer", "Item"],
+                user_note="",
+                corpus_hints=None,
+                corpus_assignment={"doctypes": ["Customer"]},
+                doctype_hint=None,
+            )
+        )
+
+        self.assertEqual(resolved, "Customer")
 
     def test_tally_sundry_ledgers_party_split(self):
         content = (
