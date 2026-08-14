@@ -7,6 +7,9 @@ from containers.implementation.data_readiness_agent.gap_analyzer import (
     analyze_gaps,
     readiness_file_level_only,
 )
+from containers.implementation.data_readiness_agent.file_doctype_matrix import (
+    _corpus_claims_by_file,
+)
 from containers.implementation.file_io.enrich_corpus_understanding import (
     _extract_discovery_context,
 )
@@ -86,3 +89,22 @@ def test_missing_doctype_still_blocks_when_no_file():
     result = analyze_gaps(manifest, target, _kb_field_mappings())
     missing = [m["doctype"] for m in result["missing_doctypes"]]
     assert "Stock Entry" in missing
+
+
+def test_canonical_assignment_overrides_understanding_claim():
+    claims = _corpus_claims_by_file(
+        {
+            "files": [{
+                "filename": "parties.csv",
+                "likely_erpnext_doctypes": ["Customer"],
+            }],
+        },
+        {
+            "version": 1,
+            "assignments": [{
+                "file": "parties.csv",
+                "doctypes": ["Supplier"],
+            }],
+        },
+    )
+    assert claims == {"parties.csv": {"Supplier"}}

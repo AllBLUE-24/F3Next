@@ -853,6 +853,60 @@ class ImplementationWorkflow:
 
         # P1: Step 8b (Derive Required Records) REMOVED - rarely used, adds complexity
 
+        # Canonical corpus assignment must exist before readiness so every
+        # downstream stage evaluates the same file-to-doctype binding.
+        _step_start(L, "4b", "Corpus Doctype Assignment", "Classifying the upload wave against the confirmed target")
+        try:
+            corpus_env = await workflow.execute_activity(
+                assign_corpus_doctypes,
+                AssignCorpusDoctypesInput(
+                    session_id=self._session_id,
+                    project_id=project_id,
+                    r2_manifest_url=r2_manifest_url,
+                    company_slug=self._company_slug,
+                ),
+                **_ACT,
+            )
+            if isinstance(corpus_env, dict):
+                corpus_env = (
+                    NodeStatusEnvelope(**corpus_env)
+                    if "status" in corpus_env
+                    else NodeStatusEnvelope.success(primary_result=corpus_env)
+                )
+            if getattr(corpus_env, "status", "") == "failed":
+                raise ApplicationError("Corpus doctype assignment returned a failed envelope.")
+            assignments = (
+                (corpus_env.primary_result or {}).get("assignments", [])
+                if hasattr(corpus_env, "primary_result")
+                else []
+            )
+            self._corpus_assignments = {
+                a.get("file"): a
+                for a in assignments
+                if isinstance(a, dict) and a.get("file")
+            }
+            _kv(L, "assignments", len(self._corpus_assignments))
+            _step_ok(
+                L,
+                "4b",
+                "Corpus Doctype Assignment",
+                f"{len(self._corpus_assignments)} files classified and persisted",
+            )
+            await self._run_is_quality_gate(
+                "assign_corpus_doctypes",
+                corpus_env,
+                project_id,
+                L,
+                actual_outputs={
+                    "assignment_count": len(self._corpus_assignments),
+                    "assignments": list(self._corpus_assignments.values())[:20],
+                },
+            )
+        except Exception as e:
+            _step_fail(L, "4b", "Corpus Doctype Assignment", str(e))
+            self._stage = "corpus_assignment_blocked"
+            raise ApplicationError(f"Corpus assignment failed: {e}")
+
         # ══════════════════════════════════════════════════════════════════════
         # STEP 5 / 9  —  Data Readiness Assessment
         # ══════════════════════════════════════════════════════════════════════
@@ -1058,6 +1112,37 @@ class ImplementationWorkflow:
                                         enrich_err,
                                     )
 
+                            corpus_env = await workflow.execute_activity(
+                                assign_corpus_doctypes,
+                                AssignCorpusDoctypesInput(
+                                    session_id=self._session_id,
+                                    project_id=project_id,
+                                    r2_manifest_url=r2_manifest_url,
+                                    company_slug=self._company_slug,
+                                ),
+                                **_ACT,
+                            )
+                            if isinstance(corpus_env, dict):
+                                corpus_env = (
+                                    NodeStatusEnvelope(**corpus_env)
+                                    if "status" in corpus_env
+                                    else NodeStatusEnvelope.success(primary_result=corpus_env)
+                                )
+                            if getattr(corpus_env, "status", "") == "failed":
+                                raise ApplicationError(
+                                    "Corpus assignment failed after additional upload."
+                                )
+                            assignments = (
+                                (corpus_env.primary_result or {}).get("assignments", [])
+                                if hasattr(corpus_env, "primary_result")
+                                else []
+                            )
+                            self._corpus_assignments = {
+                                a.get("file"): a
+                                for a in assignments
+                                if isinstance(a, dict) and a.get("file")
+                            }
+
                             readiness_env = await workflow.execute_activity(
                                 assess_data_readiness,
                                 AssessDataReadinessInput(
@@ -1149,49 +1234,6 @@ class ImplementationWorkflow:
             self._set_task("t8", "failed", str(e))
             self._stage = "import_plan_blocked"
             raise ApplicationError(f"Preliminary import plan failed: {e}")
-
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 8 / 9  —  Corpus Doctype Assignment
-        # ══════════════════════════════════════════════════════════════════════
-        _step_start(L, 8, "Corpus Doctype Assignment", "Classifying uploaded files using corpus context")
-        try:
-            corpus_env = await workflow.execute_activity(
-                assign_corpus_doctypes,
-                AssignCorpusDoctypesInput(
-                    session_id=self._session_id,
-                    project_id=project_id,
-                    r2_manifest_url=r2_manifest_url,
-                    company_slug=self._company_slug,
-                ),
-                **_ACT,
-            )
-            if isinstance(corpus_env, dict):
-                if "status" in corpus_env:
-                    corpus_env = NodeStatusEnvelope(**corpus_env)
-                else:
-                    corpus_env = NodeStatusEnvelope.success(primary_result=corpus_env)
-            assignments = (corpus_env.primary_result or {}).get("assignments", []) if hasattr(corpus_env, "primary_result") else []
-            if getattr(corpus_env, "status", "") == "failed":
-                raise ApplicationError("Corpus doctype assignment returned a failed envelope.")
-            self._corpus_assignments = {
-                a.get("file"): a for a in assignments if isinstance(a, dict) and a.get("file")
-            }
-            _kv(L, "assignments", len(self._corpus_assignments))
-            _step_ok(L, 8, "Corpus Doctype Assignment", f"{len(self._corpus_assignments)} files classified")
-            await self._run_is_quality_gate(
-                "assign_corpus_doctypes",
-                corpus_env,
-                project_id,
-                L,
-                actual_outputs={
-                    "assignment_count": len(self._corpus_assignments),
-                    "assignments": list(self._corpus_assignments.values())[:20],
-                },
-            )
-        except Exception as e:
-            _step_fail(L, 8, "Corpus Doctype Assignment", str(e))
-            self._stage = "corpus_assignment_blocked"
-            raise ApplicationError(f"Corpus assignment failed: {e}")
 
         self._stage = "mapping"
 

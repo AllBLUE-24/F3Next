@@ -912,6 +912,7 @@ def analyze_gaps(
         scope_doctypes=scope_doctypes,
         field_mappings_kb=field_mappings_kb,
         corpus_understanding=corpus_understanding,
+        corpus_assignments=manifest.get("corpus_assignments"),
         party_evidence=party_evidence,
         corpus_hits=corpus_hits,
         ready_pairs=ready_pairs,

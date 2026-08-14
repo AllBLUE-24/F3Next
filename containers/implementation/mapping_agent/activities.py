@@ -1304,25 +1304,54 @@ async def assign_corpus_doctypes(inp: AssignCorpusDoctypesInput) -> Any:
             "classification": cls,
         })
 
+    assignment_artifact = {
+        "version": 1,
+        "session_id": inp.session_id,
+        "project_id": inp.project_id,
+        "assignments": assignments,
+    }
     try:
+        manifest["corpus_assignments"] = assignment_artifact
+        s3.put_object(
+            Bucket="clean-data",
+            Key=inp.r2_manifest_url,
+            Body=json.dumps(manifest).encode("utf-8"),
+            ContentType="application/json",
+        )
+
         async with AsyncSessionLocal() as db:
             stmt = select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
             row = (await db.execute(stmt)).scalar_one_or_none()
-            if row:
-                batches = list(row.file_batches or [])
-                if batches:
-                    batches[-1]["corpus_assignments"] = assignments
-                await db.execute(
-                    update(ISSession)
-                    .where(ISSession.id == row.id)
-                    .values(file_batches=batches, updated_at=datetime.utcnow())
-                )
-                await db.commit()
+            if not row:
+                raise RuntimeError("Implementation session not found")
+            batches = list(row.file_batches or [])
+            if not batches:
+                raise RuntimeError("Implementation session has no upload batch")
+            batches[-1]["corpus_assignments"] = assignment_artifact
+            await db.execute(
+                update(ISSession)
+                .where(ISSession.id == row.id)
+                .values(file_batches=batches, updated_at=datetime.utcnow())
+            )
+            await db.commit()
     except Exception as e:
-        activity.logger.warning("  ⚠️ Could not persist corpus assignments: %s", e)
+        activity.logger.error("❌ Could not persist canonical corpus assignments: %s", e)
+        return NodeStatusEnvelope.failed(
+            errors=[{
+                "code": "CORPUS_ASSIGNMENT_PERSIST_FAILED",
+                "message": "Could not persist canonical corpus assignments",
+                "details": {"error": str(e)},
+            }],
+            primary_result={"assignments": assignments},
+        )
 
     activity.logger.info("✅ assign_corpus_doctypes done | files=%d", len(assignments))
-    return NodeStatusEnvelope.success(primary_result={"assignments": assignments})
+    return NodeStatusEnvelope.success(
+        primary_result={
+            "assignments": assignments,
+            "assignment_artifact": assignment_artifact,
+        }
+    )
 
 
 # ── Activity definitions ─────────────────────────────────────────────────────

@@ -10,8 +10,30 @@ from containers.implementation.mapping_agent.dry_run_map import dry_run_map_file
 _EVIDENCE_THRESHOLD = 0.10
 
 
-def _corpus_claims_by_file(corpus_understanding: Optional[Dict[str, Any]]) -> Dict[str, Set[str]]:
+def _corpus_claims_by_file(
+    corpus_understanding: Optional[Dict[str, Any]],
+    corpus_assignments: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Set[str]]:
     claims: Dict[str, Set[str]] = {}
+    assignment_rows = (
+        (corpus_assignments or {}).get("assignments")
+        if isinstance(corpus_assignments, dict)
+        else []
+    ) or []
+    for assignment in assignment_rows:
+        if not isinstance(assignment, dict):
+            continue
+        fname = str(assignment.get("file") or "")
+        if not fname:
+            continue
+        claims.setdefault(fname, set()).update(
+            str(doctype)
+            for doctype in (assignment.get("doctypes") or [])
+            if doctype
+        )
+    if claims:
+        return claims
+
     if not corpus_understanding:
         return claims
     for entry in corpus_understanding.get("files") or []:
@@ -51,6 +73,7 @@ def assess_file_doctype_matrix(
     scope_doctypes: List[str],
     field_mappings_kb: Dict[str, Any],
     corpus_understanding: Optional[Dict[str, Any]] = None,
+    corpus_assignments: Optional[Dict[str, Any]] = None,
     party_evidence: Optional[Dict[str, Dict[str, Any]]] = None,
     corpus_hits: Optional[Dict[str, List[str]]] = None,
     ready_pairs: Optional[Set[Tuple[str, str]]] = None,
@@ -66,7 +89,10 @@ def assess_file_doctype_matrix(
     Returns {rows: [...], overclaims: [...], summary: {...}}
     """
     scope_set = set(scope_doctypes or [])
-    corpus_claims = _corpus_claims_by_file(corpus_understanding)
+    corpus_claims = _corpus_claims_by_file(
+        corpus_understanding,
+        corpus_assignments,
+    )
     hits = corpus_hits or {}
     ready_pairs = ready_pairs or set()
     party_evidence = party_evidence or {}
