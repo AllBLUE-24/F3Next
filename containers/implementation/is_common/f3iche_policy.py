@@ -39,13 +39,29 @@ def default_when_missing(f3iche_id: str) -> Dict[str, Any]:
 
 def always_ask_doctypes(f3iche_id: str) -> Set[str]:
     policy = import_field_policy(f3iche_id)
-    items = policy.get("always_ask") or []
+    items = policy.get("always_ask_doctypes") or []
     return {str(x).strip() for x in items if str(x).strip()}
 
 
 def defer_until_post_mvp(f3iche_id: str) -> Set[str]:
     policy = import_field_policy(f3iche_id)
-    items = policy.get("defer_until_post_mvp") or []
+    items = policy.get("defer_doctypes_until_post_mvp") or []
+    return {str(x).strip() for x in items if str(x).strip()}
+
+
+def always_ask_fields(f3iche_id: str) -> Set[str]:
+    policy = import_field_policy(f3iche_id)
+    items = policy.get("always_ask_fields") or policy.get("always_ask") or []
+    return {str(x).strip() for x in items if str(x).strip()}
+
+
+def deferred_fields(f3iche_id: str) -> Set[str]:
+    policy = import_field_policy(f3iche_id)
+    items = (
+        policy.get("defer_fields_until_post_mvp")
+        or policy.get("defer_until_post_mvp")
+        or []
+    )
     return {str(x).strip() for x in items if str(x).strip()}
 
 

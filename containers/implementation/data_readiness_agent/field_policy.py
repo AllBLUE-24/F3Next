@@ -146,6 +146,8 @@ def classify_missing_fields(
     Returns: (assumed_fields, defaultable_names, blocking_names)
     """
     from containers.implementation.is_common.f3iche_policy import (
+        always_ask_fields,
+        deferred_fields,
         f3iche_default_for,
         is_deferred_doctype,
         must_ask_for_doctype,
@@ -161,8 +163,15 @@ def classify_missing_fields(
     if f3iche_id and must_ask_for_doctype(doctype, f3iche_id):
         return assumed, [], list(missing_fields)
 
+    must_ask_fields = always_ask_fields(f3iche_id or "")
+    post_mvp_fields = deferred_fields(f3iche_id or "")
     for field in missing_fields:
         if field in matched_fields:
+            continue
+        if field in post_mvp_fields:
+            continue
+        if field in must_ask_fields:
+            blocking.append(field)
             continue
         if cols and _column_covers_field(field, cols, kb):
             assumed.append({

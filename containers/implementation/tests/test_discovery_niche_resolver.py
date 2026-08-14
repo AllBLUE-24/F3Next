@@ -53,12 +53,12 @@ def test_discovery_evidence_bullets():
     assert any("manufacturing" in b for b in bullets)
 
 
-def test_resolve_niche_from_text_wip_jobshop():
+def test_generic_wip_pain_does_not_invent_a_specific_niche():
     niche = resolve_niche_from_text(
         "Lack of visibility into Work-In-Progress and production schedules",
         NICHE_IDS,
     )
-    assert niche == "manufacturing_fabrication_jobshop"
+    assert niche is None
 
 
 def test_resolve_niche_from_text_chemical_message():
