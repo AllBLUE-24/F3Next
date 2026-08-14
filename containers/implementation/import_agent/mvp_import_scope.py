@@ -40,6 +40,21 @@ def parse_mvp_scope_from_target(target_data: Optional[Dict[str, Any]]) -> Tuple[
     return seeds, deferred
 
 
+def project_target_scope_data(project_target: Any) -> Dict[str, Any]:
+    """Read MVP scope from canonical Postgres project-target fields."""
+    if not project_target:
+        return {}
+    consolidated = getattr(project_target, "target_structure_json", None)
+    if isinstance(consolidated, dict) and consolidated.get("seed_doctypes"):
+        return consolidated
+    return {
+        "seed_doctypes": list(getattr(project_target, "seed_doctypes", None) or []),
+        "deferred_doctypes": list(
+            getattr(project_target, "deferred_doctypes", None) or []
+        ),
+    }
+
+
 def is_out_of_mvp_scope(
     doctype: str,
     mvp_seeds: Set[str],

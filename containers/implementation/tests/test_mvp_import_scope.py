@@ -1,10 +1,13 @@
 """MVP import scope — finalize blocking aligns with bottleneck seeds."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from containers.implementation.import_agent.mvp_import_scope import (
     blocking_unmapped_seeds,
     is_out_of_mvp_scope,
     parse_mvp_scope_from_target,
+    project_target_scope_data,
 )
 
 
@@ -16,6 +19,21 @@ def test_parse_mvp_scope_from_target():
     assert "Customer" in seeds
     assert "Sales Order" in seeds
     assert "BOM" in deferred
+
+
+def test_project_target_scope_falls_back_to_postgres_columns():
+    project_target = SimpleNamespace(
+        target_structure_json={},
+        seed_doctypes=["BOM", "Work Order"],
+        deferred_doctypes=["Job Card"],
+    )
+
+    seeds, deferred = parse_mvp_scope_from_target(
+        project_target_scope_data(project_target)
+    )
+
+    assert seeds == {"BOM", "Work Order"}
+    assert deferred == {"Job Card"}
 
 
 def test_item_project_out_of_mvp_scope():

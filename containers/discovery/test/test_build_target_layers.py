@@ -85,3 +85,18 @@ def test_org_skeleton_from_chemical_f3iche():
     warehouses = skeleton.get("required_warehouses") or []
     assert any("RM" in w for w in warehouses)
     assert skeleton.get("valuation_method") == "FIFO"
+
+
+def test_seed_dependency_cannot_remain_optional():
+    result = asyncio.run(
+        build_discovery_target(
+            f3iche="manufacturing_project_chemical",
+            mvp_focus={"planner_day1_seeds": ["Work Order"]},
+            chat_transcript="production execution requires work orders",
+        )
+    )
+
+    by_doctype = {step["doctype"]: step for step in result["setup_steps"]}
+    assert by_doctype["Work Order"]["action"] == "must_create"
+    assert by_doctype["BOM"]["action"] == "must_create"
+    assert by_doctype["Item"]["action"] == "must_create"

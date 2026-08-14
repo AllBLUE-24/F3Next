@@ -125,7 +125,6 @@ def _classify_against_baseline(
     graph_dts: Dict[str, Any],
     seed_doctypes: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    seed_set = set(seed_doctypes or [])
     classifications = []
 
     for dt in all_required:
@@ -133,16 +132,14 @@ def _classify_against_baseline(
         has_baseline = len(bv) > 0
         dt_info = graph_dts.get(dt, {})
         layer = dt_info.get("layer", -1)
-        sme = str(dt_info.get("sme_relevance") or "").lower()
-        is_conditional = sme.startswith("conditional")
-
         if layer in (0, 1) and not has_baseline:
             action = "auto_created_by_erpnext"
         elif has_baseline:
             action = "use_default"
-        elif is_conditional and dt not in seed_set:
-            action = "optional_if_absent"
         else:
+            # all_required is the transitive dependency closure of the confirmed
+            # seeds. A conditional module can be optional in general, but once it
+            # is a dependency of a Day-1 seed it is required for this project.
             action = "must_create"
 
         classifications.append({

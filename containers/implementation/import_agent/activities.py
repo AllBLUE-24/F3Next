@@ -1004,14 +1004,17 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         ISMappedData,
         ISValidationResult,
         ISDataReadinessAssessment,
+        ISSession,
         ISTargetStructure,
     )
+    from shared.models.project_target import ProjectTargetStructure
     from sqlalchemy import select, update
     from containers.implementation.import_agent.gap_criticality import build_doctype_criticality_map
     from containers.implementation.import_agent.mvp_import_scope import (
         blocks_import_when_unmapped,
         is_out_of_mvp_scope,
         parse_mvp_scope_from_target,
+        project_target_scope_data,
     )
     from containers.implementation.mapping_agent.corpus_merge import load_r2_json
 
@@ -1079,6 +1082,7 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         target_row = (await session.execute(target_stmt)).scalar_one_or_none()
         mvp_seeds: Set[str] = set()
         deferred: Set[str] = set()
+        target_data: Dict[str, Any] = {}
         if target_row and target_row.r2_path:
             try:
                 target_data = load_r2_json(s3, "clean-data", target_row.r2_path)
@@ -1086,6 +1090,25 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
                     mvp_seeds, deferred = parse_mvp_scope_from_target(target_data)
             except Exception as exc:
                 activity.logger.warning("  ⚠️ Could not load MVP scope from target R2: %s", exc)
+        if not mvp_seeds:
+            session_row = (
+                await session.execute(
+                    select(ISSession).where(ISSession.id == uuid.UUID(inp.session_id))
+                )
+            ).scalar_one_or_none()
+            project_target = None
+            if session_row:
+                project_target = (
+                    await session.execute(
+                        select(ProjectTargetStructure)
+                        .where(ProjectTargetStructure.project_id == session_row.project_id)
+                        .order_by(ProjectTargetStructure.created_at.desc())
+                        .limit(1)
+                    )
+                ).scalar_one_or_none()
+            if project_target:
+                target_data = project_target_scope_data(project_target)
+                mvp_seeds, deferred = parse_mvp_scope_from_target(target_data)
 
         # 4. Update the steps in the plan (+ inject mapped doctypes missing from blueprint)
         slug = inp.company_slug or "unknown"
