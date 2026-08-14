@@ -1,3 +1,1 @@
-
-
-
+We manufacture industrial epoxy floor coatings. Our bottleneck is production work-in-progress: work orders, BOM material consumption, job cards, and stock transfers are tracked in spreadsheets, so we cannot see production schedules or actual material usage.
