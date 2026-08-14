@@ -772,6 +772,17 @@ class BuildImportPlanInput:
     project_id: str
     company_slug: str = "unknown"
 
+
+class ImportPlanContractError(RuntimeError):
+    """A required finalized-plan artifact is missing or inconsistent."""
+
+
+def _require_import_artifact(value: Any, message: str) -> Any:
+    if not value:
+        raise ImportPlanContractError(message)
+    return value
+
+
 @dataclass
 class ExecutePhaseInput:
     session_id: str
@@ -824,8 +835,10 @@ async def build_import_plan(inp: BuildImportPlanInput) -> str:
         result = await session.execute(stmt)
         target_row = result.scalar_one_or_none()
 
-        if not target_row:
-            return "error:no_target_structure"
+        _require_import_artifact(
+            target_row,
+            "Cannot build import plan without a session target structure.",
+        )
 
         try:
             setup_steps = json.loads(target_row.setup_steps) if isinstance(target_row.setup_steps, str) else target_row.setup_steps
@@ -1029,9 +1042,10 @@ async def finalize_import_plan(inp: FinalizeImportPlanInput) -> str:
         result = await session.execute(stmt)
         plan_row = result.scalar_one_or_none()
 
-        if not plan_row:
-            activity.logger.warning("  ⚠️ No import plan found to finalize.")
-            return "error:no_import_plan"
+        _require_import_artifact(
+            plan_row,
+            "Cannot finalize import because no preliminary plan exists.",
+        )
 
         # 2. Fetch all mapped data for this session
         stmt_mapped = (
@@ -1302,13 +1316,14 @@ async def get_import_plan_phases(inp: GetImportPlanPhasesInput) -> List[tuple[st
         result = await session.execute(stmt)
         plan = result.scalar_one_or_none()
 
-    if not plan or not plan.phases:
-        # Fallback to standard 3 phases if plan isn't found
-        return [
-            ("phase_a_config",        "Configuration Setup"),
-            ("phase_b_master",        "Master Data"),
-            ("phase_c_transactional", "Transactional Data"),
-        ]
+    _require_import_artifact(
+        plan,
+        "Cannot execute import because no finalized plan exists.",
+    )
+    _require_import_artifact(
+        plan.phases,
+        "Cannot execute import because the finalized plan has no phases.",
+    )
 
     from containers.implementation.import_agent.phase_order import sort_phases
 
@@ -1346,13 +1361,17 @@ async def preflight_import(inp: PreflightImportInput) -> Dict[str, Any]:
         result = await session.execute(stmt)
         import_plan = result.scalar_one_or_none()
 
-    if not import_plan:
-        return {"status": "error", "error": "Import plan not found."}
+    _require_import_artifact(
+        import_plan,
+        "Cannot preflight import because the finalized plan was not found.",
+    )
 
     phases = import_plan.phases or {}
     phase_def = phases.get(inp.phase_id)
-    if not phase_def:
-        return {"status": "error", "error": f"Phase {inp.phase_id} not in plan."}
+    _require_import_artifact(
+        phase_def,
+        f"Cannot preflight import because phase {inp.phase_id} is not in the plan.",
+    )
 
     steps = phase_def.get("steps", [])
     base_url, adapter = await _resolve_erp_adapter(inp, activity.logger)
