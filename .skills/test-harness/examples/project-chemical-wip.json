@@ -1,0 +1,97 @@
+{
+  "name": "project-chemical-wip",
+  "description": "Test manufacturing/project/chemical implementation for WIP visibility bottleneck",
+  "context": {
+    "name": "ChemTech Industries",
+    "industry": "Chemical Manufacturing",
+    "size": "small",
+    "f3iche": "manufacturing/project/chemical",
+    "location": "India"
+  },
+  "pain_point": "We lose track of work-in-progress materials across our chemical processing batches. We need better visibility into WIP at each production stage to reduce waste and improve yield tracking.",
+  "expected_mvp": {
+    "seed_doctypes": [
+      "Work Order",
+      "BOM",
+      "Item"
+    ],
+    "deferred_doctypes": [
+      "Quality Inspection",
+      "Job Card"
+    ],
+    "dependency_graph": {
+      "Work Order": [
+        "BOM",
+        "Item"
+      ],
+      "BOM": [
+        "Item"
+      ]
+    }
+  },
+  "corpus_files": [
+    {
+      "filename": "items.csv",
+      "expected_doctype": "Item",
+      "required_columns": [
+        "item_code",
+        "item_name",
+        "stock_uom"
+      ],
+      "sample_row_count": 15,
+      "field_coverage_percent": 80.0
+    },
+    {
+      "filename": "bom.xlsx",
+      "expected_doctype": "BOM",
+      "required_columns": [
+        "item",
+        "quantity"
+      ],
+      "sample_row_count": 10,
+      "field_coverage_percent": 85.0
+    },
+    {
+      "filename": "work_orders.csv",
+      "expected_doctype": "Work Order",
+      "required_columns": [
+        "production_item",
+        "qty",
+        "wip_warehouse"
+      ],
+      "sample_row_count": 12,
+      "field_coverage_percent": 75.0
+    }
+  ],
+  "gap_responses": [
+    {
+      "gap_field": "bom_no",
+      "doctype": "Work Order",
+      "response_type": "provide_value",
+      "value": "BOM-CHEM-001"
+    },
+    {
+      "gap_field": "planned_start_date",
+      "doctype": "Work Order",
+      "response_type": "provide_value",
+      "value": "2026-08-20"
+    },
+    {
+      "gap_field": "item_group",
+      "doctype": "Item",
+      "response_type": "provide_value",
+      "value": "Raw Material"
+    },
+    {
+      "gap_field": "default_warehouse",
+      "doctype": "Item",
+      "response_type": "defer"
+    }
+  ],
+  "expected_validation_issues": [],
+  "expected_record_counts": {
+    "Item": 15,
+    "BOM": 10,
+    "Work Order": 12
+  }
+}

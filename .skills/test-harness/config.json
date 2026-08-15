@@ -1,0 +1,48 @@
+{
+  "execution_mode": "workflow",
+  "environment": {
+    "temporal_host": "localhost:7233",
+    "supabase_url": "http://localhost:54321",
+    "r2_bucket": "f3next-test",
+    "erpnext_url": "https://staging.erpnext.f3next.com"
+  },
+  "timeouts": {
+    "discovery_seconds": 120,
+    "corpus_seconds": 180,
+    "readiness_seconds": 90,
+    "mapping_seconds": 120,
+    "validation_seconds": 60,
+    "import_seconds": 300
+  },
+  "oracle_strictness": {
+    "discovery": "strict",
+    "corpus": "strict",
+    "readiness": "lenient",
+    "mapping": "strict",
+    "validation": "strict",
+    "import": "lenient"
+  },
+  "diagnostician": {
+    "max_fix_iterations": 3,
+    "auto_implement": false,
+    "require_human_approval": true,
+    "create_feature_branch": true
+  },
+  "logging": {
+    "level": "INFO",
+    "save_artifacts": true,
+    "preserve_on_failure": true,
+    "verbose_diffs": true
+  },
+  "cleanup": {
+    "delete_test_projects": true,
+    "delete_r2_artifacts": true,
+    "delete_erpnext_records": true,
+    "preserve_on_failure": false
+  },
+  "scenarios": {
+    "default_f3iche": "manufacturing/project/chemical",
+    "corpus_file_size_kb": 50,
+    "inject_data_quality_issues": false
+  }
+}
