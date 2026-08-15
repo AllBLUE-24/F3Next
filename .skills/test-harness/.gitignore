@@ -1,14 +1,7 @@
 # Test harness generated artifacts
 results/
-*.pyc
-__pycache__/
-.pytest_cache/
 *.log
 
-# Simulated corpus files
+# Test projects and temp data
 corpus_temp/
 test_projects/
-
-# Python virtual environment (if created here)
-venv/
-.venv/
