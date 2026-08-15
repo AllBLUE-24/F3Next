@@ -6,9 +6,14 @@
     "industry": "Chemical Manufacturing",
     "size": "small",
     "f3iche": "manufacturing/project/chemical",
+    "f3iche_user": "manufacturing_project_chemical",
     "location": "India"
   },
   "pain_point": "We lose track of work-in-progress materials across our chemical processing batches. We need better visibility into WIP at each production stage to reduce waste and improve yield tracking.",
+  "discovery_follow_up_messages": [
+    "We run batch-wise chemical production with multiple stages. Raw materials go in, we process through reactors and blending, and finished goods come out. Right now we cannot see how much material is stuck between stages.",
+    "About 25 employees. We use spreadsheets today. Main pain is WIP visibility and linking batches to BOM consumption."
+  ],
   "expected_mvp": {
     "seed_doctypes": [
       "Work Order",

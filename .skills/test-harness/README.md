@@ -1,182 +1,109 @@
 # Test Harness — Overview
 
-## Purpose
+Live end-to-end testing for F3Next's implementation pipeline. Cursor agents drive **real HTTP APIs** — the same routes the Next.js UI uses — not offline fixture UUIDs.
 
-Automates end-to-end testing of F3Next's implementation pipeline using scenario-based validation and layer-aware diagnostics.
+## Default mode: `live_e2e`
 
-## How It Works
-
-### 1. Test Scenario Definition
-
-Scenarios are JSON files defining:
-- Company context (F3iche archetype, pain point)
-- Expected MVP boundary (seed doctypes, deferred doctypes)
-- Corpus files to generate (filenames, expected assignments)
-- Gap responses (how to answer data readiness questions)
-- Expected outcomes (record counts, validation issues)
-
-**Example**: `examples/project-chemical-wip.json`
-
-### 2. Test Execution Flow
-
-```
-Load Scenario
+```text
+Preflight (Docker + API)
      ↓
-Create TEST_ Project → Generate Corpus Files
+POST /api/onboarding/complete          → fresh project_id
      ↓
-Run Discovery Chat → Validate MVP Boundary (Oracle 1)
+POST /api/discovery/chat … complete    → MVP boundary
+POST /api/discovery/confirm-modules
+POST /api/discovery/{id}/proceed-to-implementation
      ↓
-Upload Corpus → Run Workflow → Extract Assignments (Oracle 2)
+POST /api/implementation/start
+POST /api/implementation/upload-files
+POST /api/implementation/signal/files-uploaded
      ↓
-Check Readiness → Validate Gaps (Oracle 3)
+Poll stage + auto-respond to gates (f3iche, supervisor, readiness, mapping, validation)
      ↓
-Run Mapping → Validate Mapped Files (Oracle 4)
+POST /api/implementation/signal/sandbox-approved (dry_run=true)
      ↓
-Run Validation → Check Errors (Oracle 5)
-     ↓
-Run Import → Verify ERPNext Records (Oracle 6)
-     ↓
-All Pass? → SUCCESS
-     ↓
-Any Fail? → Diagnose by Layer (L0-L6)
-     ↓
-Propose Fixes → Human Approval → Apply → Retry
+Oracle validation + REVIEW.md report
 ```
 
-### 3. Oracle Validation
+Offline pytest / step harnesses are **optional regression shortcuts**, not the primary test.
 
-Each pipeline stage has an oracle that compares actual vs expected:
-
-| Stage | Validates | Pass Condition |
-|-------|-----------|----------------|
-| **Discovery** | MVP boundary | Seed doctypes match expected |
-| **Corpus** | File-doctype assignments | Each file mapped correctly |
-| **Readiness** | Data gaps | Viability + gap list accurate |
-| **Mapping** | Mapped CSVs | All files transformed, no data loss |
-| **Validation** | Import validation | Expected errors identified |
-| **Import** | ERPNext records | Record counts match per doctype |
-
-### 4. Layer-Aware Diagnosis
-
-Failures are classified by F3Next architecture layer:
-
-- **L0** (LLM) — Prompt/router issues → Fix: Refine prompts
-- **L1** (Boundary) — MVP generation logic → Fix: Update `build_target.py`
-- **L2** (Corpus) — File understanding → Fix: Corpus assignment logic
-- **L3** (Readiness) — Gap analysis → Fix: Required fields resolution
-- **L4** (Mapping) — Doctype routing → Fix: Candidate restriction
-- **L5** (Validation) — Import validation → Fix: Validation predicates
-- **L6** (Import) — ERPNext execution → Fix: Import phase handling
-
-### 5. Fix Application Loop
-
-1. Agent analyzes failure, reads relevant code
-2. Proposes specific changes (file paths, modifications)
-3. **Human approval gate** — User reviews diagnostic report
-4. If approved: Apply fixes, commit to feature branch, re-run test
-5. If passes: SUCCESS, report fixed issue
-6. If fails again: Re-diagnose (max 3 iterations)
-
-## File Structure
+## File structure
 
 ```
 .skills/test-harness/
-├── SKILL.md              # Agent instructions (this is what the agent reads)
-├── README.md             # This file (overview for humans)
-├── config.json           # Execution mode, timeouts, cleanup settings
-└── examples/             # Pre-defined test scenarios
-    ├── project-chemical-wip.json
-    └── ...
+├── SKILL.md              ← Agent instructions (read this first)
+├── API-REFERENCE.md      ← Endpoint cheat sheet
+├── REVIEW-TEMPLATE.md    ← Report template agents fill in
+├── config.json           ← URLs, timeouts, human_gates, preflight
+├── examples/             ← Scenario definitions (expected outcomes)
+│   └── project-chemical-wip.json
+└── results/              ← Run artifacts (gitignored)
+    └── test-run-YYYYMMDD-HHMMSS/
+        ├── run_context.json
+        ├── preflight.json
+        ├── oracle_report.json
+        ├── REVIEW.md
+        ├── timeline.json
+        ├── api/            ← Saved API responses
+        └── corpus/         ← Generated upload files
+```
+
+## Prerequisites
+
+| Service | Container | Required |
+|---------|-----------|----------|
+| FastAPI | `f3_backend_api` | Yes |
+| IS worker | `f3_implementation_worker` | Yes |
+| Temporal | `f3_temporal` | Yes |
+| Postgres/Supabase | via `.env` | Yes |
+| R2 | via `.env` | Yes (upload) |
+| LLM | via `.env` | Yes (discovery + corpus) |
+| ERPNext | staging | Only for live import (default: dry-run) |
+
+Start stack:
+```bash
+docker compose up -d backend_api implementation_worker temporal temporal_db redis caddy
 ```
 
 ## Usage
 
-```bash
-# Run a scenario
+```
 /test-harness project-chemical-wip
-
-# Run with auto-fix (requires approval)
 /test-harness project-chemical-wip --implement-fixes
-
-# Generate new scenario from archetype
-/test-harness --generate manufacturing/project/chemical "Stock shortage visibility"
+/test-harness --offline-regression    # pytest only — not E2E
 ```
 
-## Configuration (`config.json`)
+## Oracles
 
-```json
-{
-  "execution_mode": "workflow",  // offline | workflow | live
-  "timeouts": {
-    "discovery_seconds": 120,
-    "corpus_seconds": 180,
-    ...
-  },
-  "oracle_strictness": {
-    "discovery": "strict",       // strict | lenient
-    "corpus": "strict",
-    ...
-  },
-  "diagnostician": {
-    "max_fix_iterations": 3,
-    "require_human_approval": true,
-    "create_feature_branch": true
-  },
-  "cleanup": {
-    "delete_test_projects": true,
-    "preserve_on_failure": true
-  }
-}
-```
+Each stage compares **API response** vs **scenario expectations**:
 
-## Execution Modes
+| Stage | API | Validates |
+|-------|-----|-----------|
+| Discovery | `GET /discovery/{id}/blueprint-status` | Seed doctypes |
+| Corpus | `GET /implementation/corpus-assignments/{id}` | File assignments |
+| Readiness | `GET /implementation/readiness/{id}` | Gaps, viability |
+| Map/Validate | `GET /implementation/map-validate/{id}` | import_ready |
+| Import | `GET /implementation/import-results/{id}` | Phase outcomes |
 
-### Offline Mode
-- Fast (seconds per test)
-- Mocks Temporal activities
-- Uses in-memory DB
-- Good for: Rapid iteration on test scenarios
+## Human gates (auto-handled by agent)
 
-### Workflow Mode (Recommended)
-- Real Temporal workflows
-- Test Supabase + R2
-- Mocked ERPNext
-- Good for: Validating orchestration logic
-
-### Live Mode
-- Full integration test
-- Staging ERPNext
-- Slow (10+ minutes)
-- Good for: Pre-production validation
+The agent responds to supervisor/readiness/mapping/validation gates using scenario `gap_responses`. Import uses `dry_run: true` unless the user explicitly requests live ERPNext writes.
 
 ## Safety
 
-✅ Only touches `TEST_` prefixed projects  
-✅ Requires human approval for structural changes  
-✅ Cleans up artifacts automatically  
-✅ Commits fixes to feature branches (never main)  
-✅ Max iteration limit prevents infinite loops  
+- Fresh `test-harness-*` slugs per run — never touch production projects
+- No live import without explicit approval
+- Artifacts preserved on failure for debugging
+- Code fixes require human approval (`--implement-fixes`)
 
-## Integration with F3Next
+## vs offline tests
 
-- Reads F3iche KB from `shared/kb/f3iche/`
-- Uses existing Temporal workflows (`ImplementationWorkflow`)
-- Validates against live Supabase/R2/ERPNext (or mocks)
-- Follows `docs/FOUNDATIONS.md` layer classification
-- References `docs/plans/is-pipeline-coherence.md` for known issues
+| | Live E2E (this harness) | pytest / fixtures |
+|--|-------------------------|-------------------|
+| Creates project | Yes, via API | No |
+| Runs discovery LLM | Yes | No |
+| Runs Temporal workflow | Yes | No |
+| Tests fail-closed gates | Yes | Partial |
+| Speed | 5–20 min | ~1 min |
+| Truth level | Production path | Logic regression |
 
-## Example Scenario
-
-See `examples/project-chemical-wip.json`:
-- Tests WIP visibility bottleneck for chemical manufacturing
-- Expected MVP: Work Order, BOM, Item
-- Corpus: 3 files (items.csv, bom.xlsx, work_orders.csv)
-- Expected gaps: bom_no, planned_start_date, item_group
-- Expected outcome: 15 Items, 10 BOMs, 12 Work Orders in ERPNext
-
-## Next Steps
-
-1. Run existing scenario: `/test-harness project-chemical-wip`
-2. Review diagnostic report if fails
-3. Add more scenarios for other F3iche archetypes
-4. Use for regression testing after pipeline changes
+Run **both**: pytest for fast regression, live E2E before merging pipeline changes.

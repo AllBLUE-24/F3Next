@@ -1,18 +1,35 @@
 {
-  "execution_mode": "workflow",
+  "execution_mode": "live_e2e",
   "environment": {
+    "api_base_url": "http://localhost/api",
+    "api_base_url_fallback": "http://127.0.0.1:8000/api",
     "temporal_host": "localhost:7233",
+    "temporal_ui": "http://localhost:8080",
     "supabase_url": "http://localhost:54321",
-    "r2_bucket": "f3next-test",
+    "r2_bucket": "quarantine",
     "erpnext_url": "https://staging.erpnext.f3next.com"
   },
+  "required_services": [
+    "f3_backend_api",
+    "f3_implementation_worker",
+    "f3_temporal"
+  ],
+  "preflight": {
+    "check_docker": true,
+    "check_api_reachable": true,
+    "start_missing_services": false,
+    "fail_if_offline": true
+  },
   "timeouts": {
-    "discovery_seconds": 120,
-    "corpus_seconds": 180,
-    "readiness_seconds": 90,
-    "mapping_seconds": 120,
-    "validation_seconds": 60,
-    "import_seconds": 300
+    "discovery_seconds": 180,
+    "discovery_poll_seconds": 5,
+    "workflow_stage_seconds": 600,
+    "workflow_poll_seconds": 10,
+    "corpus_seconds": 300,
+    "readiness_seconds": 180,
+    "mapping_seconds": 300,
+    "validation_seconds": 180,
+    "import_seconds": 600
   },
   "oracle_strictness": {
     "discovery": "strict",
@@ -21,6 +38,14 @@
     "mapping": "strict",
     "validation": "strict",
     "import": "lenient"
+  },
+  "human_gates": {
+    "auto_confirm_f3iche": true,
+    "auto_approve_mapping": true,
+    "auto_submit_validation": true,
+    "auto_respond_supervisor": true,
+    "import_dry_run": true,
+    "require_approval_before_import": true
   },
   "diagnostician": {
     "max_fix_iterations": 3,
@@ -32,17 +57,24 @@
     "level": "INFO",
     "save_artifacts": true,
     "preserve_on_failure": true,
-    "verbose_diffs": true
+    "verbose_diffs": true,
+    "save_api_responses": true
   },
   "cleanup": {
-    "delete_test_projects": true,
-    "delete_r2_artifacts": true,
-    "delete_erpnext_records": true,
-    "preserve_on_failure": false
+    "delete_test_projects": false,
+    "delete_r2_artifacts": false,
+    "delete_erpnext_records": false,
+    "preserve_on_failure": true,
+    "company_slug_prefix": "test-harness-"
   },
   "scenarios": {
+    "default_scenario": "project-chemical-wip",
     "default_f3iche": "manufacturing/project/chemical",
     "corpus_file_size_kb": 50,
     "inject_data_quality_issues": false
+  },
+  "optional_regression": {
+    "run_pytest_before_e2e": false,
+    "pytest_command": "python -m pytest containers/implementation/tests/ -q --tb=short"
   }
 }

@@ -1,301 +1,390 @@
-# Test Harness — Automated Implementation Testing
+# Test Harness — Live End-to-End Implementation Testing
 
 ## What this skill does
 
-Automates end-to-end testing of F3Next's implementation pipeline by:
-1. Creating test scenarios from F3iche archetypes
-2. Running the full implementation workflow with simulated user interactions
-3. Validating outputs at each stage (discovery → corpus → readiness → mapping → validation → import)
-4. Diagnosing failures by F3Next layer (L0-L6)
-5. Proposing and applying fixes with human approval
+Runs **real** full-stack tests against F3Next's live API — same path the UI uses:
+
+```text
+Create project → Discovery chat → Confirm MVP → Upload corpus → Temporal workflow
+→ Readiness / mapping / validation gates → Import (dry-run) → Review report
+```
+
+**Do not** default to offline fixtures or hardcoded GreenSurface session IDs. Those are regression shortcuts only.
 
 ## When to use
 
-- Testing new F3iche archetypes or pain patterns
-- Regression testing after pipeline changes
-- Debugging silent failures in the implementation workflow
-- Validating fail-closed contracts and quality gates
-- Creating reproducible test cases from production issues
+- Validate the implementation pipeline after code changes
+- Test a F3iche archetype + pain pattern end-to-end
+- Produce a review report with oracle diffs and layer diagnosis
+- Debug where the pipeline blocks (readiness, mapping, import)
 
 ## How to invoke
 
 ```
-/test-harness [scenario_name] [--implement-fixes]
+/test-harness [scenario_name] [--implement-fixes] [--offline-regression]
 ```
 
 **Examples:**
 ```
-# Run single scenario
 /test-harness project-chemical-wip
-
-# Run with auto-fix (requires human approval)
 /test-harness project-chemical-wip --implement-fixes
-
-# Generate new scenario from archetype
-/test-harness --generate manufacturing/project/chemical "WIP visibility gaps"
+/test-harness --offline-regression   # pytest only — NOT a substitute for E2E
 ```
 
 ---
 
-## Instructions for Agent
+## Agent role
 
-You are a test automation specialist. Follow this workflow:
+You are a **live E2E test engineer**. Your job:
 
-### Phase 1: Load or Generate Test Scenario
+1. Preflight the stack (Docker + API)
+2. Create a **fresh** test project via API (never reuse fixture UUIDs)
+3. Drive discovery + implementation through **real HTTP endpoints**
+4. Auto-respond to human gates using scenario `gap_responses`
+5. Validate each stage with oracles (expected vs actual API payloads)
+6. Write a **REVIEW.md** report (use `REVIEW-TEMPLATE.md`)
+7. If `--implement-fixes`: diagnose, propose fixes, wait for human approval, apply, re-run
 
-1. **If scenario name provided**: Load from `examples/{scenario_name}.json`
-2. **If --generate flag**: Create new scenario:
-   - Read F3iche KB from `shared/kb/f3iche/{archetype}.json`
-   - Infer expected MVP seeds from pain point using `containers/discovery/target/build_target.py` logic
-   - Generate corpus file stubs (filenames, expected doctypes, required columns)
-   - Define expected gaps based on required fields
-   - Save to `examples/{generated_name}.json`
+**Read first:** `config.json`, `API-REFERENCE.md`, scenario JSON in `examples/`.
 
-**Scenario structure** (JSON):
-```json
+---
+
+## Phase 0: Preflight (required)
+
+Before any test, verify live services. **Stop and report** if preflight fails — do not fall back to fixtures unless user explicitly asked for `--offline-regression`.
+
+1. **Docker** — these containers must be running:
+   - `f3_backend_api`
+   - `f3_implementation_worker`
+   - `f3_temporal`
+
+   ```powershell
+   docker ps --format "{{.Names}}"
+   ```
+
+   If missing and user allows: `docker compose up -d backend_api implementation_worker temporal temporal_db redis caddy`
+
+2. **API base URL** — from `config.json`:
+   - Primary: `http://localhost/api` (via Caddy)
+   - Fallback: `http://127.0.0.1:8000/api` (direct uvicorn)
+
+   Probe with `GET /api/onboarding/check-slug?type=company&slug=probe-<timestamp>`.
+
+3. **Env** — confirm `.env` has DB, R2, LLM keys (read only; do not print secrets).
+
+4. **Optional fast regression** — only if `config.optional_regression.run_pytest_before_e2e` is true:
+   ```bash
+   python -m pytest containers/implementation/tests/ -q --tb=short
+   ```
+
+Save preflight results to `results/test-run-<timestamp>/preflight.json`.
+
+---
+
+## Phase 1: Load scenario
+
+Load `examples/{scenario_name}.json` (default: `project-chemical-wip`).
+
+Key fields:
+- `context` — company name, f3iche archetype
+- `pain_point` — discovery chat opener
+- `expected_mvp.seed_doctypes` — discovery oracle
+- `corpus_files` — files to generate + expected doctype assignments
+- `gap_responses` — answers for supervisor/readiness prompts
+- `expected_record_counts` — import oracle (lenient if dry-run)
+
+Create run directory: `results/test-run-<YYYYMMDD-HHMMSS>/`
+
+---
+
+## Phase 2: Create fresh test project (API)
+
+**Never** insert directly into Supabase or reuse GreenSurface IDs.
+
+1. Generate unique slugs:
+   - `company_slug`: `test-harness-<scenario>-<timestamp>`
+   - `user_slug`: `test-harness-user-<timestamp>`
+   - `user_id`: new UUID v4
+
+2. Check slugs available:
+   ```
+   GET /api/onboarding/check-slug?type=company&slug=...
+   GET /api/onboarding/check-slug?type=user&slug=...
+   ```
+
+3. Create project:
+   ```http
+   POST /api/onboarding/complete
+   {
+     "user_id": "<uuid>",
+     "email": "test-harness@f3next.local",
+     "full_name": "Test Harness",
+     "user_slug": "...",
+     "role": "owner",
+     "company_name": "<from scenario.context.name>",
+     "company_slug": "..."
+   }
+   ```
+
+4. Save `project_id`, `company_slug`, all IDs to `results/.../run_context.json`.
+
+---
+
+## Phase 3: Generate corpus files
+
+For each entry in `scenario.corpus_files`:
+
+1. Write CSV (or xlsx if needed) under `results/.../corpus/`
+2. Use `required_columns`, `sample_row_count`, `field_coverage_percent`
+3. Leave ~20% of optional fields blank to surface real gaps
+
+Do **not** skip file generation — upload these via the API in Phase 5.
+
+---
+
+## Phase 4: Discovery (live API)
+
+Drive discovery exactly like the product UI.
+
+### 4a. Chat
+```
+POST /api/discovery/chat
+{ "project_id": "<uuid>", "message": "<scenario.pain_point>" }
+```
+
+Continue chatting (follow-up messages about WIP, batches, visibility) until:
+- `ready_for_recommendation: true`, or
+- 2+ user turns completed
+
+Save each response to `results/.../api/discovery_chat_<n>.json`.
+
+### 4b. Complete discovery
+```
+POST /api/discovery/complete
+{ "project_id": "<uuid>" }
+```
+
+### 4c. Clarification (if needed)
+If `GET /api/discovery/<id>/recommendation` returns `clarifying_questions`:
+```
+POST /api/discovery/clarification
+{ "project_id": "<uuid>", "answers": { "<q_id>": "<sensible answer>" } }
+```
+
+Use scenario context to answer (manufacturing, chemical, WIP tracking).
+
+### 4d. Confirm modules
+```
+GET /api/discovery/<id>/workflow-preview
+```
+
+```
+POST /api/discovery/confirm-modules
 {
-  "name": "project-chemical-wip",
-  "context": {
-    "company_name": "ChemTech Industries",
-    "f3iche": "manufacturing/project/chemical",
-    "pain_point": "WIP visibility gaps..."
-  },
-  "expected_mvp": {
-    "seed_doctypes": ["Work Order", "BOM", "Item"],
-    "deferred_doctypes": ["Quality Inspection"]
-  },
-  "corpus_files": [
-    {"filename": "items.csv", "expected_doctype": "Item", "required_columns": [...]}
-  ],
-  "gap_responses": [
-    {"field": "bom_no", "doctype": "Work Order", "value": "BOM-001"}
-  ],
-  "expected_record_counts": {"Item": 15, "BOM": 10}
+  "project_id": "<uuid>",
+  "confirmed_doctypes": <scenario.expected_mvp.seed_doctypes>,
+  "added_doctypes": [],
+  "removed_doctypes": [],
+  "notes": "test-harness auto-confirm"
 }
 ```
 
-### Phase 2: Setup Test Environment
-
-1. **Create test project ID**: `TEST_{archetype}_{timestamp}` (e.g., `TEST_chemical_20260815_1503`)
-2. **Initialize in Supabase**:
-   - Insert into `projects` table with test prefix
-   - Create `is_sessions` entry with `project_id`, `user_id`, `status="discovery"`
-3. **Prepare workspace**: Create temp directory `results/test-run-{timestamp}/`
-
-### Phase 3: Generate Corpus Files
-
-For each `corpus_file` in scenario:
-
-1. **Create CSV/Excel file**:
-   - Use `required_columns` from scenario
-   - Generate dummy data (10-15 rows)
-   - Apply field coverage % (leave some fields blank to simulate gaps)
-   - Save to `results/test-run-{timestamp}/corpus/{filename}`
-
-**Example CSV generation**:
-```csv
-item_code,item_name,stock_uom,item_group
-ITEM-001,Chemical A,Kg,Raw Material
-ITEM-002,Chemical B,Ltr,
+### 4e. Proceed to implementation
+```
+POST /api/discovery/<id>/proceed-to-implementation
 ```
 
-### Phase 4: Execute Discovery
+### 4f. Discovery oracle
+```
+GET /api/discovery/<id>/blueprint-status
+```
 
-1. **Start discovery chat**:
-   - Use `backend/app/api/implementation.py` POST `/v1/implementation/discovery/chat`
-   - Send scenario `pain_point` as user message
-   - Continue chat until MVP boundary generated
-2. **Capture discovery output**:
-   - Read `ProjectTargetStructure` from Supabase `project_target_structures` table
-   - Extract `target_structure_json.seed_doctypes`
-3. **Validate (Discovery Oracle)**:
-   - Compare actual seeds vs `expected_mvp.seed_doctypes`
-   - Report: `PASS` if exact match, `FAIL` with diff otherwise
+Compare actual seed doctypes vs `expected_mvp.seed_doctypes`.
 
-### Phase 5: Upload Corpus & Run Workflow
+| Strictness | Pass condition |
+|------------|----------------|
+| strict | Exact set match |
+| lenient | All expected seeds present (extras allowed) |
 
-1. **Upload corpus files**:
-   - POST to `/v1/implementation/sessions/{session_id}/upload` with generated files
-   - Confirm files stored in R2 under `raw/{session_id}/`
-2. **Trigger implementation workflow**:
-   - Use `containers/implementation/is_launcher.py` or call Temporal workflow directly
-   - Monitor workflow execution via `is_sessions.status`
-3. **Wait for completion**:
-   - Poll `is_sessions` table until `status IN ("completed", "failed", "blocked")`
-   - Capture intermediate artifacts from R2 manifest
+Record PASS/FAIL in oracle report. **Continue E2E even on discovery FAIL** — full pipeline data helps diagnosis.
 
-### Phase 6: Validate All Stages (Oracles)
+---
 
-For each pipeline stage, compare actual vs expected:
+## Phase 5: Implementation workflow (live API)
 
-#### **Corpus Oracle**
-- **Artifact**: `corpus_assignments` from R2 manifest or `is_sessions.file_batches`
-- **Check**: Each file mapped to expected doctype
-- **Pass condition**: `corpus_assignments[filename] == expected_doctype` for all files
+### 5a. Start workflow
+```
+POST /api/implementation/start/<project_id>
+```
 
-#### **Readiness Oracle**
-- **Artifact**: `DataReadinessAssessment` from workflow output
-- **Check**: 
-  - `minimum_viable_import_possible` matches expected
-  - Gap fields identified match scenario `gap_responses`
-- **Pass condition**: Viability correct + no phantom gaps
+Wait until session exists (poll `GET /api/implementation/state/<project_id>`).
 
-#### **Mapping Oracle**
-- **Artifact**: Mapped CSV files in R2 `mapped/{session_id}/`
-- **Check**: 
-  - File count matches corpus file count
-  - Column headers are ERPNext fieldnames
-- **Pass condition**: All files mapped, no data loss
+### 5b. Upload files
+Use multipart upload (same as UI):
+```
+POST /api/implementation/upload-files
+  project_id=<uuid>
+  files=@results/.../corpus/items.csv
+  files=@results/.../corpus/work_orders.csv
+  ...
+```
 
-#### **Validation Oracle**
-- **Artifact**: `validation_results` from workflow
-- **Check**: Validation issues match `expected_validation_issues`
-- **Pass condition**: No unexpected errors
+### 5c. Verify + signal
+```
+POST /api/implementation/verify-uploads
+POST /api/implementation/signal/files-uploaded
+```
 
-#### **Import Oracle**
-- **Artifact**: ERPNext database records (query via API)
-- **Check**: Record counts per doctype match `expected_record_counts`
-- **Pass condition**: All expected records created, links established
+Include `company_slug` and `user_note: "test-harness"`.
 
-**Report format**:
+### 5d. Poll + auto-respond to gates
+
+Loop until terminal stage or timeout (`config.timeouts.workflow_stage_seconds`):
+
+```
+GET /api/implementation/stage/<project_id>
+GET /api/implementation/state/<project_id>
+GET /api/implementation/supervisor-prompts/<project_id>
+```
+
+**When gates appear, respond automatically** (unless `config.human_gates` disables):
+
+| Gate | Endpoint | Default action |
+|------|----------|----------------|
+| F3iche | `POST /signal/f3iche-confirmed` | `accepted: true`, f3iche from scenario |
+| Supervisor prompt | `POST /supervisor-prompts/respond` | Match `gap_responses` |
+| Readiness yellow | `POST /readiness/decisions` | `decision: "proceed"` or `"acknowledge_yellow"` |
+| Mapping | `POST /signal/mapping-confirmed` | `approved: true` |
+| Validation | `POST /signal/validation-submitted` | empty responses + note |
+| Import | `POST /signal/sandbox-approved` | `dry_run: true` (unless user opts in to live) |
+
+After gap-related uploads, call:
+```
+POST /api/implementation/readiness/reassess/<project_id>
+```
+
+Log every stage transition with timestamp in `results/.../timeline.json`.
+
+If workflow stuck >5 min with no stage change:
+1. Check `docker logs f3_implementation_worker --tail 100`
+2. Try `POST /api/implementation/reset/<project_id>` once, then re-upload
+
+---
+
+## Phase 6: Oracles (validate via API responses)
+
+Fetch final artifacts and compare to scenario. Save diffs to `oracle_report.json`.
+
+| Stage | Endpoint | Validate |
+|-------|----------|----------|
+| Discovery | `GET /discovery/<id>/blueprint-status` | seed doctypes |
+| Corpus | `GET /implementation/corpus-assignments/<id>` | file → doctype |
+| Readiness | `GET /implementation/readiness/<id>` | level, blocking gaps |
+| Map/Validate | `GET /implementation/map-validate/<id>` | `import_ready`, errors |
+| Import | `GET /implementation/import-results/<id>` | phase outcomes |
+
+**Report format:**
 ```
 === Oracle Report ===
-✅ Discovery: PASS (3/3 seed doctypes matched)
-❌ Corpus: FAIL (items.csv mapped to BOM instead of Item)
-⏸️  Readiness: SKIPPED (corpus failed)
+✅ Discovery: PASS (3/3 seeds)
+❌ Corpus: FAIL — items.csv → BOM (expected Item)
+⏸️  Readiness: SKIPPED (prior stage failed)
 ...
 First failure: Corpus (L2)
+Overall: FAIL
 ```
 
-### Phase 7: Diagnose Failure (if any stage failed)
+---
 
-1. **Identify failure layer**:
-   - Discovery fail → L0 (LLM) or L1 (boundary logic)
-   - Corpus fail → L2 (corpus understanding)
-   - Readiness fail → L3 (readiness assessment)
-   - Mapping fail → L4 (mapping logic)
-   - Validation fail → L5 (validation logic)
-   - Import fail → L6 (import execution)
+## Phase 7: Write review report
 
-2. **Analyze root cause**:
-   - Read relevant source files (e.g., `containers/implementation/mapping_agent/activities.py`)
-   - Grep for related functions (e.g., `_should_map_doctype`, `assign_corpus_doctypes`)
-   - Check recent changes in git history
-   - Review `docs/plans/is-pipeline-coherence.md` for known issues
+Fill `REVIEW-TEMPLATE.md` → save as `results/.../REVIEW.md`.
 
-3. **Generate diagnostic report**:
-```markdown
-## Diagnostic Report
+Include:
+- Executive verdict (PASS/FAIL/PARTIAL)
+- Oracle table with expected vs actual
+- Stage timeline
+- Worker log excerpts if failed
+- Layer classification (L0–L6 per `docs/FOUNDATIONS.md`)
+- Proposed fix with file paths (Read/Grep the codebase — cite real lines)
 
-**Failed Stage**: Corpus
-**Layer**: L2 (Corpus Understanding)
-**Root Cause**: Filename prior override in `map_file_to_erpnext` is incorrectly 
-prioritizing `_filename_doctype_override` over canonical `corpus_assignments`.
+Present **REVIEW.md summary to the user** at end of run.
 
-**Affected Code**:
-- `containers/implementation/mapping_agent/activities.py` lines 245-260
-- `assign_corpus_doctypes` not persisting authoritative assignment artifact
+---
 
-**Proposed Fix**:
-1. Modify `_resolve_structured_file_doctype` to check `corpus_assignments` first
-2. Ensure `assign_corpus_doctypes` saves assignment artifact to R2 manifest
-3. Update `_get_candidate_doctypes` to respect target scope
+## Phase 8: Diagnose + fix (if failed and `--implement-fixes`)
 
-**Files to Change**:
-- containers/implementation/mapping_agent/activities.py
-- containers/implementation/is_workflow/workflow.py (reorder activities)
+1. Classify failure layer:
+   - Discovery → L0 (LLM) or L1 (boundary)
+   - Corpus → L2
+   - Readiness → L3
+   - Mapping → L4
+   - Validation → L5
+   - Import → L6
 
-**Test Coverage**:
-- Add test: `test_canonical_assignment_beats_filename_prior`
-```
+2. Read affected code + `docs/plans/is-pipeline-coherence.md`
 
-### Phase 8: Apply Fixes (if --implement-fixes enabled)
+3. **Human approval gate** — ask user before editing code
 
-1. **Human approval gate**:
-   - Present diagnostic report to user
-   - Ask: "Approve proposed fixes? (y/n)"
-   - If rejected, stop and save report
+4. Apply fixes (StrReplace/Write), add regression test, commit to feature branch
 
-2. **Apply code changes**:
-   - For each proposed change:
-     - Read current file content
-     - Use `StrReplace` to apply modifications
-     - Add regression test if specified
-   - Create commit: `fix(test-harness): {fix_description}`
+5. Re-run full E2E from Phase 2 (new project) — max `config.diagnostician.max_fix_iterations`
 
-3. **Re-run test**:
-   - Reset test environment (clean up previous artifacts)
-   - Repeat Phase 3-6 with same scenario
-   - If passes → SUCCESS, report fixed issue
-   - If fails again → Retry diagnosis (max 3 iterations)
+---
 
-### Phase 9: Cleanup & Report
+## Phase 9: Cleanup
 
-1. **Cleanup test artifacts**:
-   - Delete test project from Supabase (if `config.json` cleanup enabled)
-   - Delete R2 files under `TEST_` prefix
-   - Delete ERPNext records (if staging environment)
-   - Preserve artifacts on failure (for debugging)
+Per `config.json`:
+- `preserve_on_failure: true` — keep project + R2 artifacts for debugging
+- `delete_test_projects: false` by default — user can delete `test-harness-*` slugs manually
 
-2. **Save test result**:
-```json
-{
-  "scenario": "project-chemical-wip",
-  "status": "PASSED" | "FAILED" | "ERROR",
-  "duration_seconds": 245.3,
-  "first_failure_stage": "corpus",
-  "oracle_scores": {
-    "discovery": 1.0,
-    "corpus": 0.6,
-    "readiness": null
-  },
-  "diagnostic_report_path": "results/.../diagnostic.md",
-  "fixed_by_iteration": 2
-}
-```
+Always save artifacts under `results/test-run-<timestamp>/`.
 
-3. **Final report to user**:
-```
-✅ Test PASSED after 2 iterations
-Fixed issue: Corpus mapping prioritization
-Changes committed to: fix/test-harness-20260815-1503
-Duration: 4m 5s
+---
 
-Review diagnostic: results/test-run-20260815-1503/diagnostic.md
-```
+## What NOT to do
+
+- ❌ Do not use GreenSurface fixture session IDs (`3145be35-...`)
+- ❌ Do not run `is_harness.py` with stale fixtures as the primary E2E test
+- ❌ Do not treat pytest-only runs as "implementation system tested"
+- ❌ Do not skip preflight and silently fall back to offline mocks
+- ❌ Do not POST live import (`dry_run: false`) without explicit user approval
+- ❌ Do not print secrets from `.env`
+
+## What you MAY do as shortcuts
+
+- ✅ `--offline-regression` → pytest only (fast, not E2E)
+- ✅ Step harness matrix (`harness_corpus --matrix`) after E2E fails, to isolate a step
+- ✅ `GET /implementation/state` polling instead of DB queries
 
 ---
 
 ## Configuration
 
-Edit `config.json` for:
-- **execution_mode**: `"offline"` (mocked) | `"workflow"` (real Temporal) | `"live"` (with ERPNext)
-- **timeouts**: Per-stage timeout in seconds
-- **cleanup**: Auto-delete test artifacts
-- **oracle_strictness**: `"strict"` (exact match) | `"lenient"` (allow minor diffs)
-- **max_fix_iterations**: Max auto-fix retry cycles
-
-## Safety Guardrails
-
-- ✅ Only touch projects with `TEST_` prefix
-- ✅ Require human approval before applying fixes
-- ✅ Clean up test artifacts automatically
-- ✅ Never modify production data
-- ✅ All fixes committed to feature branches (never main)
-- ✅ Fail-safe: stop after max iterations (default 3)
-
-## Example Scenarios
-
-See `examples/` folder:
-- `project-chemical-wip.json` — WIP visibility bottleneck
-- (Add more scenarios as needed)
+| Key | Purpose |
+|-----|---------|
+| `execution_mode` | Must be `live_e2e` for this skill |
+| `environment.api_base_url` | Primary API base |
+| `timeouts.*` | Stage and poll timeouts |
+| `human_gates.*` | Auto-respond behavior |
+| `oracle_strictness.*` | strict vs lenient per stage |
+| `cleanup.*` | Artifact retention |
 
 ---
 
-## Notes for Agent
+## Reference files
 
-- **Reuse existing F3Next components**: Don't reinvent file parsing, just call existing activities
-- **Read `docs/FOUNDATIONS.md`** to understand layer classification
-- **Reference `docs/plans/is-pipeline-coherence.md`** for known failure patterns
-- **Use `containers/*/README.md`** step harnesses for offline validation
-- **When stuck**: Ask user for clarification, don't guess
+- `API-REFERENCE.md` — all endpoints with request bodies
+- `REVIEW-TEMPLATE.md` — report structure
+- `examples/*.json` — scenario definitions
+- `docs/arch/IMPLEMENTATION.md` — pipeline architecture
+- `docs/FOUNDATIONS.md` — layer model (L0–L6)
+
+---
+
+## Notes
+
+- Discovery chat is **synchronous API** (no discovery worker required).
+- Implementation requires **Temporal worker** processing `is-queue`.
+- Import tests default to **`dry_run: true`** — no ERPNext writes unless user opts in.
+- When LLM variance causes discovery seed mismatch, report as L0/L1 with diff — do not auto-relax expectations without user approval.
