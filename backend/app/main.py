@@ -53,6 +53,7 @@ from app.api.cvs import router as cvs_router
 from app.api.notifications import router as notifications_router
 from app.api.admin_f3iches import router as admin_f3iches_router
 from app.api.target_structure import router as target_structure_router
+from app.api.marketing import router as marketing_router
 
 
 @asynccontextmanager
@@ -129,3 +130,4 @@ app.include_router(cvs_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(admin_f3iches_router, prefix="/api")
 app.include_router(target_structure_router, prefix="/api")
+app.include_router(marketing_router, prefix="/api")

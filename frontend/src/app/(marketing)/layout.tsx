@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ConsultantChatWidget from "@/components/marketing/ConsultantChatWidget";
 
 export const metadata: Metadata = {
   title: {
@@ -14,12 +15,8 @@ export default function MarketingLayout({
 }) {
   return (
     <>
-      {/*
-        Marketing route group layout.
-        Keeps marketing pages isolated from app/dashboard layouts.
-        Add any marketing-specific providers or wrappers here.
-      */}
       {children}
+      <ConsultantChatWidget />
     </>
   );
 }

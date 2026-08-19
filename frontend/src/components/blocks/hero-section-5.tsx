@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { Menu, X, ChevronRight } from 'lucide-react'
 import { useScroll, motion } from 'motion/react'
 import { buttonPress } from '@/lib/motion-presets'
+import { openConsultantChat } from '@/lib/api/marketing_chat_api'
 
 export function HeroSection() {
     return (
@@ -27,7 +28,7 @@ export function HeroSection() {
                                             asChild
                                             size="lg"
                                             className="h-12 rounded-full bg-zinc-50 pl-5 pr-3 text-base font-semibold text-zinc-950 hover:bg-zinc-200">
-                                            <Link href="#link">
+                                            <Link href="/onboarding">
                                                 <span className="text-nowrap">Start Building</span>
                                                 <ChevronRight className="ml-1" />
                                             </Link>
@@ -36,13 +37,12 @@ export function HeroSection() {
                                     <motion.div {...buttonPress}>
                                         <Button
                                             key={2}
-                                            asChild
                                             size="lg"
                                             variant="ghost"
-                                            className="h-12 rounded-full border border-zinc-700 px-5 text-base text-zinc-300 hover:border-zinc-500 hover:bg-white/5 hover:text-zinc-50">
-                                            <Link href="#link">
-                                                <span className="text-nowrap">Request a demo</span>
-                                            </Link>
+                                            className="h-12 rounded-full border border-zinc-700 px-5 text-base text-zinc-300 hover:border-zinc-500 hover:bg-white/5 hover:text-zinc-50"
+                                            onClick={openConsultantChat}
+                                            type="button">
+                                            <span className="text-nowrap">Talk to a consultant</span>
                                         </Button>
                                     </motion.div>
                                 </div>
